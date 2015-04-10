@@ -20,6 +20,7 @@
 package org.elasticsearch.monitor.fs;
 
 import com.google.common.collect.Maps;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -36,8 +37,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 
-/**
- */
 public class SigarFsProbe extends AbstractComponent implements FsProbe {
 
     private final NodeEnvironment nodeEnv;
@@ -79,6 +78,14 @@ public class SigarFsProbe extends AbstractComponent implements FsProbe {
                 if (fileSystem != null) {
                     info.mount = fileSystem.getDirName();
                     info.dev = fileSystem.getDevName();
+                    info.type = fileSystem.getSysTypeName();
+
+                    try {
+                        info.spins = IOUtils.spins(dataLocation);
+                    } catch (Exception e) {
+                        logger.warn("ignore exception calling IOUtils.spins on path=" + dataLocation + ": " + e);
+                    }
+
                     FileSystemUsage fileSystemUsage = sigar.getFileSystemUsage(fileSystem.getDirName());
                     if (fileSystemUsage != null) {
                         // total/free/available seem to be in megabytes?

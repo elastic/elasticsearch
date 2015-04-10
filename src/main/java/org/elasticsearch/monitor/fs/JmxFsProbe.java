@@ -19,6 +19,7 @@
 
 package org.elasticsearch.monitor.fs;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -30,8 +31,6 @@ import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/**
- */
 public class JmxFsProbe extends AbstractComponent implements FsProbe {
 
     private final NodeEnvironment nodeEnv;
@@ -50,15 +49,26 @@ public class JmxFsProbe extends AbstractComponent implements FsProbe {
         Path[] dataLocations = nodeEnv.nodeDataPaths();
         FsStats.Info[] infos = new FsStats.Info[dataLocations.length];
         for (int i = 0; i < dataLocations.length; i++) {
-            Path dataLocation = dataLocations[i];
-            FsStats.Info info = new FsStats.Info();
-            FileStore fileStore = Files.getFileStore(dataLocation);
-            info.path = dataLocation.toAbsolutePath().toString();
-            info.total = fileStore.getTotalSpace();
-            info.free = fileStore.getUnallocatedSpace();
-            info.available = fileStore.getUsableSpace();
+            FsStats.Info info = getFSInfo(dataLocations[i]);
             infos[i] = info;
         }
         return new FsStats(System.currentTimeMillis(), infos);
+    }
+
+    public static FsStats.Info getFSInfo(Path path) throws IOException {
+        FsStats.Info info = new FsStats.Info();
+        FileStore fileStore = NodeEnvironment.getFileStore(path);
+        info.path = path.toAbsolutePath().toString();
+        info.total = fileStore.getTotalSpace();
+        info.free = fileStore.getUnallocatedSpace();
+        info.available = fileStore.getUsableSpace();
+        info.type = fileStore.type();
+        info.mount = fileStore.toString();
+        try {
+            info.spins = IOUtils.spins(path);
+        } catch (Exception e) {
+            // ignore
+        }
+        return info;
     }
 }

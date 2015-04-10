@@ -38,6 +38,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.monitor.fs.FsStats;
+import org.elasticsearch.monitor.fs.JmxFsProbe;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -148,35 +150,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
             logger.debug("using node location [{}], local_node_id [{}]", nodePaths, localNodeId);
         }
 
-        // We do some I/O in here, so skip it if INFO is not enabled:
-        if (logger.isInfoEnabled()) {
-            StringBuilder sb = new StringBuilder("node data locations details:\n");
-            for (Path file : nodePaths) {
-                // NOTE: FSDirectory.open creates the directory up above so it will exist here:
-                sb.append(" -> ").append(file.toAbsolutePath());
-                try {
-                    FileStore fileStore = getFileStore(file);
-                    boolean spins = IOUtils.spins(file);
-                    sb.append(", free_space [")
-                        .append(new ByteSizeValue(fileStore.getUnallocatedSpace()))
-                        .append("], usable_space [")
-                        .append(new ByteSizeValue(fileStore.getUsableSpace()))
-                        .append("], total_space [")
-                        .append(new ByteSizeValue(fileStore.getTotalSpace()))
-                        .append("], spins? [")
-                        .append(spins ? "possibly" : "no")
-                        .append("], mount [")
-                        .append(fileStore)
-                        .append("], type [")
-                        .append(fileStore.type())
-                        .append(']');
-                } catch (Exception e) {
-                    sb.append(", ignoring exception gathering filesystem details: " + e);
-                }
-                sb.append('\n');
-            }
-            logger.info(sb.toString());
-        }
+        maybeLogPathDetails();
 
         this.nodeIndicesPaths = new Path[nodePaths.length];
         for (int i = 0; i < nodePaths.length; i++) {
@@ -184,19 +158,121 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
         }
     }
 
+    private void maybeLogPathDetails() throws IOException {
+
+        // We do some I/O in here, so skip this if DEBUG/INFO are not enabled:
+        if (logger.isDebugEnabled()) {
+            // Log one line per path.data:
+            StringBuilder sb = new StringBuilder("node data locations details:");
+            for (Path file : nodePaths) {
+                sb.append('\n').append(" -> ").append(file.toAbsolutePath());
+                FileStore fileStore;
+                try {
+                    fileStore = getFileStore(file);
+                } catch (Exception e) {
+                    fileStore = Files.getFileStore(file);
+                }
+
+                Boolean spins;
+                try {
+                    // NOTE: FSDirectory.open creates the directory up above so it will exist here:
+                    spins = IOUtils.spins(file);
+                } catch (Exception e) {
+                    spins = null;
+                }
+
+                String spinsDesc;
+                if (spins == null) {
+                    spinsDesc = "unknown";
+                } else if (spins) {
+                    spinsDesc = "possibly";
+                } else {
+                    spinsDesc = "no";
+                }
+
+                sb.append(", free_space [")
+                    .append(new ByteSizeValue(fileStore.getUnallocatedSpace()))
+                    .append("], usable_space [")
+                    .append(new ByteSizeValue(fileStore.getUsableSpace()))
+                    .append("], total_space [")
+                    .append(new ByteSizeValue(fileStore.getTotalSpace()))
+                    .append("], spins? [")
+                    .append(spinsDesc)
+                    .append("], mount [")
+                    .append(fileStore)
+                    .append("], type [")
+                    .append(fileStore.type())
+                    .append(']');
+            }
+            logger.debug(sb.toString());
+        } else if (logger.isInfoEnabled()) {
+            FsStats.Info totFSInfo = new FsStats.Info();
+            Set<String> allTypes = new HashSet<>();
+            Set<String> allSpins = new HashSet<>();
+            Set<String> allMounts = new HashSet<>();
+            for (Path file : nodePaths) {
+                // TODO: can/should I use the chosen FsProbe instead (i.e. sigar if it's available)?
+                FsStats.Info fsInfo = JmxFsProbe.getFSInfo(file);
+                String mount = fsInfo.getMount();
+                if (allMounts.contains(mount) == false) {
+                    allMounts.add(mount);
+                    String type = fsInfo.getType();
+                    if (type != null) {
+                        allTypes.add(type);
+                    }
+                    Boolean spins = fsInfo.getSpins();
+                    if (spins == null) {
+                        allSpins.add("unknown");
+                    } else if (spins.booleanValue()) {
+                        allSpins.add("possibly");
+                    } else {
+                        allSpins.add("no");
+                    }
+                    totFSInfo.add(fsInfo);
+                }
+            }
+
+            // Just log a 1-line summary:
+            logger.info(String.format(Locale.ROOT,
+                                      "using [%d] data paths, net usable_space [%s], net total_space [%s], types [%s], spins? [%s]",
+                                      nodePaths.length,
+                                      totFSInfo.getAvailable(),
+                                      totFSInfo.getTotal(),
+                                      toString(allTypes),
+                                      toString(allSpins)));
+        }
+    }
+
+    private static String toString(Collection<String> items) {
+        StringBuilder b = new StringBuilder();
+        for(String item : items) {
+            if (b.length() > 0) {
+                b.append(", ");
+            }
+            b.append(item);
+        }
+        return b.toString();
+    }
+
+
+    // TODO: move somewhere more "util"?  But, this is somewhat hacky code ... not great to publicize it any more:
+
     // NOTE: poached from Lucene's IOUtils:
 
-    // Files.getFileStore(Path) useless here!
-    // don't complain, just try it yourself
-    static FileStore getFileStore(Path path) throws IOException {
+    /** Files.getFileStore(Path) useless here!  Don't complain, just try it yourself. */
+    public static FileStore getFileStore(Path path) throws IOException {
         FileStore store = Files.getFileStore(path);
-        String mount = getMountPoint(store);
 
-        // find the "matching" FileStore from system list, it's the one we want.
-        for (FileStore fs : path.getFileSystem().getFileStores()) {
-            if (mount.equals(getMountPoint(fs))) {
-                return fs;
+        try {
+            String mount = getMountPoint(store);
+            // find the "matching" FileStore from system list, it's the one we want.
+            for (FileStore fs : path.getFileSystem().getFileStores()) {
+                if (mount.equals(getMountPoint(fs))) {
+                    return fs;
+                }
             }
+        } catch (Exception e) {
+            // ignore
         }
 
         // fall back to crappy one we got from Files.getFileStore
@@ -206,7 +282,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
     // NOTE: poached from Lucene's IOUtils:
 
     // these are hacks that are not guaranteed
-    static String getMountPoint(FileStore store) {
+    private static String getMountPoint(FileStore store) {
         String desc = store.toString();
         return desc.substring(0, desc.lastIndexOf('(') - 1);
     }

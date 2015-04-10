@@ -529,7 +529,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                                 } else if (REASON_FIELD.match(currentFieldName)) {
                                     reason = parser.text();
                                 } else {
-                                    throw new WatcherException("unknown filed [" + currentFieldName + "] in watch status throttle entry");
+                                    throw new WatcherException("unknown field [" + currentFieldName + "] in watch status throttle entry");
                                 }
                             }
                         }
@@ -550,7 +550,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                                 } else if (STATE_FIELD.match(currentFieldName)) {
                                     state = AckStatus.State.valueOf(parser.text().toUpperCase(Locale.ROOT));
                                 } else {
-                                    throw new WatcherException("unknown filed [" + currentFieldName + "] in watch status throttle entry");
+                                    throw new WatcherException("unknown field [" + currentFieldName + "] in watch status throttle entry");
                                 }
                             }
                         }

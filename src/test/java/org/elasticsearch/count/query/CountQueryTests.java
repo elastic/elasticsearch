@@ -303,7 +303,7 @@ public class CountQueryTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "type1", "4").setSource("field3", "value3_4"));
 
         CountResponse countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), limitFilter(2))).get();
-        assertHitCount(countResponse, 2l);
+        assertHitCount(countResponse, 4l); // limit is a no-op
     }
 
     @Test

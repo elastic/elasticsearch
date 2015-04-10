@@ -990,13 +990,13 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         try (Engine.Searcher test = engine.acquireSearcher("test")) {
             assertEquals(numDocs, test.reader().numDocs());
         }
-        engine.forceMerge(true, 1, false, false);
+        engine.forceMerge(true, 1, false, false, false);
         assertEquals(engine.segments().size(), 1);
 
         ParsedDocument doc = testParsedDocument(Integer.toString(0), Integer.toString(0), "test", null, -1, -1, testDocument(), analyzer, B_1, false);
         Engine.Index index = new Engine.Index(null, newUid(Integer.toString(0)), doc);
         engine.delete(new Engine.Delete(index.type(), index.id(), index.uid()));
-        engine.forceMerge(true, 10, true, false); //expunge deletes
+        engine.forceMerge(true, 10, true, false, false); //expunge deletes
 
         assertEquals(engine.segments().size(), 1);
         try (Engine.Searcher test = engine.acquireSearcher("test")) {
@@ -1007,7 +1007,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         doc = testParsedDocument(Integer.toString(1), Integer.toString(1), "test", null, -1, -1, testDocument(), analyzer, B_1, false);
         index = new Engine.Index(null, newUid(Integer.toString(1)), doc);
         engine.delete(new Engine.Delete(index.type(), index.id(), index.uid()));
-        engine.forceMerge(true, 10, false, false); //expunge deletes
+        engine.forceMerge(true, 10, false, false, false); //expunge deletes
 
         assertEquals(engine.segments().size(), 1);
         try (Engine.Searcher test = engine.acquireSearcher("test")) {
@@ -1046,7 +1046,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                                 engine.refresh("test");
                                 indexed.countDown();
                                 try {
-                                    engine.forceMerge(randomBoolean(), 1, false, randomBoolean());
+                                    engine.forceMerge(randomBoolean(), 1, false, randomBoolean(), randomBoolean());
                                 } catch (OptimizeFailedEngineException ex) {
                                     // ok
                                     return;
@@ -1062,7 +1062,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                 startGun.countDown();
                 int someIters = randomIntBetween(1, 10);
                 for (int i = 0; i < someIters; i++) {
-                    engine.forceMerge(randomBoolean(), 1, false, randomBoolean());
+                    engine.forceMerge(randomBoolean(), 1, false, randomBoolean(), randomBoolean());
                 }
                 indexed.await();
                 XIOUtils.close(engine, translog);
@@ -1662,7 +1662,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             }
 
             // Force merge so we know all merges are done before we start deleting:
-            engine.forceMerge(true, 1, false, false);
+            engine.forceMerge(true, 1, false, false, false);
 
             Searcher s = engine.acquireSearcher("test");
             final long version1 = ((DirectoryReader) s.reader()).getVersion();

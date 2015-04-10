@@ -142,32 +142,41 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         logger.info("--> Nodes upgrade complete");
         logSegmentsState();
         
-        final HttpRequestBuilder httpClient = httpClient();
-
-        assertNotUpgraded(httpClient, null);
+        assertNotUpgraded(httpClient(), null);
         final String indexToUpgrade = "test" + randomInt(numIndexes - 1);
         
+        // #10213:
+        logger.info("--> Running upgrade on index " + indexToUpgrade + ", only ancient segments");
+        runUpgrade(httpClient(), indexToUpgrade, "upgrade_only_ancient_segments", "true");
+
+        // TODO: why do we never test upgrading ancient segments here...?
+        // E.g. 0.90.x (Lucene 3.x) --> 1.x (Lucene 4.x)  ElasticsearchBackwardsCompatIntegrationTest.backwardsCompatibilityPath checks that
+        // major version is the same...
+
+        // Make sure we (still!) have no ancient segments, and non-ancient segments still need upgrading:
+        assertNoAncientSegments(httpClient(), indexToUpgrade);
+
         logger.info("--> Running upgrade on index " + indexToUpgrade);
-        runUpgrade(httpClient, indexToUpgrade);
+        runUpgrade(httpClient(), indexToUpgrade);
         awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object o) {
                 try {
-                    return isUpgraded(httpClient, indexToUpgrade);
+                    return isUpgraded(httpClient(), indexToUpgrade);
                 } catch (Exception e) {
                     throw ExceptionsHelper.convertToRuntime(e);
                 }
             }
         });
         logger.info("--> Single index upgrade complete");
-        
+
         logger.info("--> Running upgrade on the rest of the indexes");
-        runUpgrade(httpClient, null);
+        runUpgrade(httpClient(), null);
         logSegmentsState();
         logger.info("--> Full upgrade complete");
-        assertUpgraded(httpClient, null);
+        assertUpgraded(httpClient(), null);
     }
-    
+
     static String upgradePath(String index) {
         String path = "/_upgrade";
         if (index != null) {
@@ -181,6 +190,19 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
             assertTrue("index " + status.indexName + " should not be zero sized", status.totalBytes != 0);
             // TODO: it would be better for this to be strictly greater, but sometimes an extra flush
             // mysteriously happens after the second round of docs are indexed
+            assertTrue("index " + status.indexName + " should have recovered some segments from transaction log",
+                       status.totalBytes >= status.toUpgradeBytes);
+            assertTrue("index " + status.indexName + " should need upgrading", status.toUpgradeBytes != 0);
+        }
+    }
+
+    public static void assertNoAncientSegments(HttpRequestBuilder httpClient, String index) throws Exception {
+        for (UpgradeStatus status : getUpgradeStatus(httpClient, upgradePath(index))) {
+            assertTrue("index " + status.indexName + " should not be zero sized", status.totalBytes != 0);
+            // TODO: it would be better for this to be strictly greater, but sometimes an extra flush
+            // mysteriously happens after the second round of docs are indexed
+            assertTrue("index " + status.indexName + " should not have any ancient segments",
+                       status.toUpgradeBytesAncient == 0);
             assertTrue("index " + status.indexName + " should have recovered some segments from transaction log",
                        status.totalBytes >= status.toUpgradeBytes);
             assertTrue("index " + status.indexName + " should need upgrading", status.toUpgradeBytes != 0);
@@ -229,11 +251,14 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         public final String indexName;
         public final int totalBytes;
         public final int toUpgradeBytes;
+        public final int toUpgradeBytesAncient;
         
-        public UpgradeStatus(String indexName, int totalBytes, int toUpgradeBytes) {
+        public UpgradeStatus(String indexName, int totalBytes, int toUpgradeBytes, int toUpgradeBytesAncient) {
             this.indexName = indexName;
             this.totalBytes = totalBytes;
             this.toUpgradeBytes = toUpgradeBytes;
+            this.toUpgradeBytesAncient = toUpgradeBytesAncient;
+            assert toUpgradeBytesAncient <= toUpgradeBytes;
         }
     }
     
@@ -261,7 +286,9 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
             assertTrue("missing key size_to_upgrade_in_bytes for index " + index, status.containsKey("size_to_upgrade_in_bytes"));
             Object toUpgradeBytes = status.get("size_to_upgrade_in_bytes");
             assertTrue("size_to_upgrade_in_bytes for index " + index + " is not an integer", toUpgradeBytes instanceof Integer);
-            ret.add(new UpgradeStatus(index, (Integer)totalBytes, (Integer)toUpgradeBytes));
+            Object toUpgradeBytesAncient = status.get("size_to_upgrade_ancient_in_bytes");
+            assertTrue("size_to_upgrade_ancient_in_bytes for index " + index + " is not an integer", toUpgradeBytesAncient instanceof Integer);
+            ret.add(new UpgradeStatus(index, (Integer) totalBytes, (Integer) toUpgradeBytes, (Integer) toUpgradeBytesAncient));
         }
         return ret;
     }

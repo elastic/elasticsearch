@@ -53,8 +53,8 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
     @Override
     protected void masterOperation(PutWatchRequest request, ClusterState state, ActionListener<PutWatchResponse> listener) throws ElasticsearchException {
         try {
-            IndexResponse indexResponse = watchService.putWatch(request.getName(), request.getSource());
-            listener.onResponse(new PutWatchResponse(indexResponse));
+            IndexResponse indexResponse = watchService.putWatch(request.getId(), request.getSource());
+            listener.onResponse(new PutWatchResponse(indexResponse.getId(), indexResponse.getVersion(), indexResponse.isCreated()));
         } catch (Exception e) {
             listener.onFailure(e);
         }

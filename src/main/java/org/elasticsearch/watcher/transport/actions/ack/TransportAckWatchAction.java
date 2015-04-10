@@ -53,7 +53,7 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
     @Override
     protected void masterOperation(AckWatchRequest request, ClusterState state, ActionListener<AckWatchResponse> listener) throws ElasticsearchException {
         try {
-            AckWatchResponse response = new AckWatchResponse(watchService.ackWatch(request.getWatchName()));
+            AckWatchResponse response = new AckWatchResponse(watchService.ackWatch(request.getId()));
             listener.onResponse(response);
         } catch (Exception e) {
             listener.onFailure(e);

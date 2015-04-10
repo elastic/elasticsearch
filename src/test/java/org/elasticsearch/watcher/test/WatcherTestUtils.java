@@ -128,9 +128,9 @@ public final class WatcherTestUtils {
 
         TemplatedHttpRequest httpRequest = new TemplatedHttpRequest();
 
-        Template path = new ScriptTemplate(scriptService, "/foobarbaz/{{ctx.watch_name}}");
+        Template path = new ScriptTemplate(scriptService, "/foobarbaz/{{ctx.watch_id}}");
         httpRequest.path(path);
-        Template body = new ScriptTemplate(scriptService, "{{ctx.watch_name}} executed with {{ctx.payload.response.hits.total_hits}} hits");
+        Template body = new ScriptTemplate(scriptService, "{{ctx.watch_id}} executed with {{ctx.payload.response.hits.total_hits}} hits");
         httpRequest.body(body);
         httpRequest.host("localhost");
         httpRequest.method(HttpMethod.POST);

@@ -25,13 +25,13 @@ public class RestAckWatchAction extends WatcherRestHandler {
     @Inject
     protected RestAckWatchAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
-        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{name}/_ack", this);
-        controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{name}/_ack", this);
+        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{id}/_ack", this);
+        controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{id}/_ack", this);
     }
 
     @Override
     protected void handleRequest(RestRequest request, RestChannel restChannel, WatcherClient client) throws Exception {
-        AckWatchRequest ackWatchRequest = new AckWatchRequest(request.param("name"));
+        AckWatchRequest ackWatchRequest = new AckWatchRequest(request.param("id"));
         client.ackWatch(ackWatchRequest, new RestBuilderListener<AckWatchResponse>(restChannel) {
             @Override
             public RestResponse buildResponse(AckWatchResponse response, XContentBuilder builder) throws Exception {

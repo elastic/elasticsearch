@@ -16,8 +16,8 @@ import org.elasticsearch.index.VersionType;
  */
 public class GetWatchRequestBuilder extends ActionRequestBuilder<GetWatchRequest, GetWatchResponse, GetWatchRequestBuilder, Client> {
 
-    public GetWatchRequestBuilder(Client client, String watchName) {
-        super(client, new GetWatchRequest(watchName));
+    public GetWatchRequestBuilder(Client client, String id) {
+        super(client, new GetWatchRequest(id));
     }
 
 
@@ -25,8 +25,8 @@ public class GetWatchRequestBuilder extends ActionRequestBuilder<GetWatchRequest
         super(client, new GetWatchRequest());
     }
 
-    public GetWatchRequestBuilder setWatchName(String watchName) {
-        request.watchName(watchName);
+    public GetWatchRequestBuilder setId(String id) {
+        request.setId(id);
         return this;
     }
 
@@ -34,7 +34,7 @@ public class GetWatchRequestBuilder extends ActionRequestBuilder<GetWatchRequest
      * Sets the type of versioning to use. Defaults to {@link org.elasticsearch.index.VersionType#INTERNAL}.
      */
     public GetWatchRequestBuilder setVersionType(VersionType versionType) {
-        request.versionType(versionType);
+        request.setVersionType(versionType);
         return this;
     }
 

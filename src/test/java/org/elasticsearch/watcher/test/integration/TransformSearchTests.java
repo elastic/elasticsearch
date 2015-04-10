@@ -50,7 +50,7 @@ public class TransformSearchTests extends AbstractWatcherIntegrationTests {
         metadata.put("list", "baz");
 
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("test-payload")
-                .source(watchBuilder()
+                .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(inputRequest))
                         .transform(searchTransform(transformRequest))
@@ -58,7 +58,7 @@ public class TransformSearchTests extends AbstractWatcherIntegrationTests {
                         .metadata(metadata)
                         .throttlePeriod(TimeValue.timeValueSeconds(0)))
                         .get();
-        assertThat(putWatchResponse.indexResponse().isCreated(), is(true));
+        assertThat(putWatchResponse.isCreated(), is(true));
 
         if (timeWarped()) {
             timeWarp().scheduler().trigger("test-payload");

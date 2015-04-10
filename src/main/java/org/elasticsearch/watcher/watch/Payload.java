@@ -27,7 +27,7 @@ public interface Payload extends ToXContent {
 
     Map<String, Object> data();
 
-    static class Simple implements Payload {
+    class Simple implements Payload {
 
         private final Map<String, Object> data;
 

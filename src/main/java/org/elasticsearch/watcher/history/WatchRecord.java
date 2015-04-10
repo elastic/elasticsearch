@@ -126,7 +126,7 @@ public class WatchRecord implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Parser.WATCH_NAME_FIELD.getPreferredName(), name);
+        builder.field(Parser.WATCH_ID_FIELD.getPreferredName(), name);
         builder.startObject(Parser.TRIGGER_EVENT_FIELD.getPreferredName())
                 .field(triggerEvent.type(), triggerEvent)
                 .endObject();
@@ -198,7 +198,7 @@ public class WatchRecord implements ToXContent {
 
     public static class Parser extends AbstractComponent {
 
-        public static final ParseField WATCH_NAME_FIELD = new ParseField("watch_name");
+        public static final ParseField WATCH_ID_FIELD = new ParseField("watch_id");
         public static final ParseField TRIGGER_EVENT_FIELD = new ParseField("trigger_event");
         public static final ParseField MESSAGE_FIELD = new ParseField("message");
         public static final ParseField STATE_FIELD = new ParseField("state");
@@ -256,7 +256,7 @@ public class WatchRecord implements ToXContent {
                         throw new WatcherException("unable to parse watch record. unexpected field [" + currentFieldName + "]");
                     }
                 } else if (token.isValue()) {
-                    if (WATCH_NAME_FIELD.match(currentFieldName)) {
+                    if (WATCH_ID_FIELD.match(currentFieldName)) {
                         record.name = parser.text();
                     } else if (MESSAGE_FIELD.match(currentFieldName)) {
                         record.message = parser.textOrNull();

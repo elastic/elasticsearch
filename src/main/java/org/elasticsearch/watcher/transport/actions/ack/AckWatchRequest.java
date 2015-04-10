@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.transport.actions.ack;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
-import org.elasticsearch.watcher.watch.WatchStore;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -19,34 +18,34 @@ import java.io.IOException;
  */
 public class AckWatchRequest extends MasterNodeOperationRequest<AckWatchRequest> {
 
-    private String watchName;
+    private String id;
 
     public AckWatchRequest() {
     }
 
-    public AckWatchRequest(String watchName) {
-        this.watchName = watchName;
+    public AckWatchRequest(String id) {
+        this.id = id;
     }
 
     /**
      * @return The name of the watch to be acked
      */
-    public String getWatchName() {
-        return watchName;
+    public String getId() {
+        return id;
     }
 
     /**
      * Sets the name of the watch to be acked
      */
-    public void setWatchName(String watchName) {
-        this.watchName = watchName;
+    public void setId(String id) {
+        this.id = id;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (watchName == null){
-            validationException = ValidateActions.addValidationError("watch name is missing", validationException);
+        if (id == null){
+            validationException = ValidateActions.addValidationError("watch id is missing", validationException);
         }
         return validationException;
     }
@@ -54,17 +53,17 @@ public class AckWatchRequest extends MasterNodeOperationRequest<AckWatchRequest>
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        watchName = in.readString();
+        id = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(watchName);
+        out.writeString(id);
     }
 
     @Override
     public String toString() {
-        return "ack {[" + WatchStore.INDEX + "][" + watchName + "]}";
+        return "ack [" + id + "]";
     }
 }

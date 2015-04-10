@@ -18,7 +18,7 @@ import java.util.Locale;
  */
 public class WatcherServiceRequest extends MasterNodeOperationRequest<WatcherServiceRequest> {
 
-    static enum Command { START, STOP, RESTART }
+    enum Command { START, STOP, RESTART }
 
     private Command command;
 

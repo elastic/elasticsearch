@@ -75,14 +75,14 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
 
         // put watch API should work
         final String watchName = randomAsciiOfLength(10);
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch(watchName).source(watchBuilder()
+        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch(watchName).setSource(watchBuilder()
                 .trigger(schedule(interval("1s")))
                 .input(simpleInput())
                 .condition(alwaysTrueCondition())
                 .addAction(indexAction("_index", "idx", "type")))
                 .execute().actionGet();
 
-        assertThat(putWatchResponse.indexResponse().isCreated(), is(true));
+        assertThat(putWatchResponse.isCreated(), is(true));
 
         timeWarp().scheduler().trigger(watchName);
 
@@ -93,10 +93,10 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
         assertThat(watcherClient().prepareAckWatch(watchName).get().getStatus().ackStatus().state(), is(Watch.Status.AckStatus.State.ACKED));
 
         // get watch API should work
-        assertThat(watcherClient().prepareGetWatch(watchName).get().id(), is(watchName));
+        assertThat(watcherClient().prepareGetWatch(watchName).get().getId(), is(watchName));
 
         // delete watch API should work
-        assertThat(watcherClient().prepareDeleteWatch(watchName).get().deleteResponse().isFound(), is(true));
+        assertThat(watcherClient().prepareDeleteWatch(watchName).get().isFound(), is(true));
 
         // watcher stats API should work
         assertThat(watcherClient().prepareWatcherStats().get().getVersion(), is(WatcherVersion.CURRENT));
@@ -108,14 +108,14 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
         ensureWatcherStarted();
 
         // lets put back the watch and so we can test it when the license is disabled
-        putWatchResponse = watcherClient().preparePutWatch(watchName).source(watchBuilder()
+        putWatchResponse = watcherClient().preparePutWatch(watchName).setSource(watchBuilder()
                 .trigger(schedule(interval("10s")))
                 .input(simpleInput())
                 .condition(alwaysTrueCondition())
                 .addAction(indexAction("_index", "idx", "type")))
                 .execute().actionGet();
 
-        assertThat(putWatchResponse.indexResponse().isCreated(), is(true));
+        assertThat(putWatchResponse.isCreated(), is(true));
 
         flush();
 
@@ -168,7 +168,7 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
         //=====
 
         try {
-            watcherClient().preparePutWatch(watchName).source(watchBuilder()
+            watcherClient().preparePutWatch(watchName).setSource(watchBuilder()
                     .trigger(schedule(interval("1s")))
                     .input(simpleInput())
                     .condition(alwaysTrueCondition())
@@ -189,7 +189,7 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
         }
 
         try {
-            assertThat(watcherClient().prepareGetWatch(watchName).get().id(), is(watchName));
+            assertThat(watcherClient().prepareGetWatch(watchName).get().getId(), is(watchName));
             fail("get watch API should NOT work when license is disabled");
         } catch (LicenseExpiredException lee) {
             assertThat(lee.feature(), is(LicenseService.FEATURE_NAME));
@@ -197,7 +197,7 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
         }
 
         try {
-            assertThat(watcherClient().prepareDeleteWatch(watchName).get().deleteResponse().isFound(), is(true));
+            assertThat(watcherClient().prepareDeleteWatch(watchName).get().isFound(), is(true));
             fail("delete watch API should NOT work when license is disabled");
         } catch (LicenseExpiredException lee) {
             assertThat(lee.feature(), is(LicenseService.FEATURE_NAME));
@@ -224,14 +224,14 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
         enableLicensing();
 
         // put watch API should work
-        putWatchResponse = watcherClient().preparePutWatch(watchName).source(watchBuilder()
+        putWatchResponse = watcherClient().preparePutWatch(watchName).setSource(watchBuilder()
                 .trigger(schedule(interval("1s")))
                 .input(simpleInput())
                 .condition(alwaysTrueCondition())
                 .addAction(indexAction("_index", "idx", "type")))
                 .execute().actionGet();
 
-        assertThat(putWatchResponse.indexResponse(), notNullValue());
+        assertThat(putWatchResponse, notNullValue());
 
         // we need to move the clock so the watch_record id will be unique
         timeWarp().clock().fastForwardSeconds(10);
@@ -242,7 +242,7 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                Map<String, Object> source = watcherClient().prepareGetWatch(watchName).get().sourceAsMap();
+                Map<String, Object> source = watcherClient().prepareGetWatch(watchName).get().getSourceAsMap();
                 assertThat(XContentMapValues.extractValue("status.ack.state", source), is((Object) "ackable"));
             }
         });
@@ -251,10 +251,10 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
         assertThat(watcherClient().prepareAckWatch(watchName).get().getStatus().ackStatus().state(), is(Watch.Status.AckStatus.State.ACKED));
 
         // get watch API should work
-        assertThat(watcherClient().prepareGetWatch(watchName).get().id(), is(watchName));
+        assertThat(watcherClient().prepareGetWatch(watchName).get().getId(), is(watchName));
 
         // delete watch API should work
-        assertThat(watcherClient().prepareDeleteWatch(watchName).get().deleteResponse().isFound(), is(true));
+        assertThat(watcherClient().prepareDeleteWatch(watchName).get().isFound(), is(true));
 
         // watcher stats API should work
         assertThat(watcherClient().prepareWatcherStats().get().getVersion(), is(WatcherVersion.CURRENT));

@@ -83,7 +83,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         when(ctx.id()).thenReturn(ctxId);
         Map<String, Object> expectedModel = ImmutableMap.<String, Object>builder()
                 .put("ctx", ImmutableMap.<String, Object>builder()
-                        .put("watch_name", "watch1")
+                        .put("watch_id", "watch1")
                         .put("payload", data)
                         .put("execution_time", now)
                         .put("trigger", ImmutableMap.<String, Object>builder()

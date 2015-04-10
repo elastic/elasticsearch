@@ -19,15 +19,15 @@ public class DeleteWatchRequestBuilder extends MasterNodeOperationRequestBuilder
         super(client, new DeleteWatchRequest());
     }
 
-    public DeleteWatchRequestBuilder(Client client, String watchName) {
-        super(client, new DeleteWatchRequest(watchName));
+    public DeleteWatchRequestBuilder(Client client, String id) {
+        super(client, new DeleteWatchRequest(id));
     }
 
     /**
-     * Sets the name of the watch to be deleted
+     * Sets the id of the watch to be deleted
      */
-    public DeleteWatchRequestBuilder setWatchName(String watchName) {
-        this.request().setWatchName(watchName);
+    public DeleteWatchRequestBuilder setId(String id) {
+        this.request().setId(id);
         return this;
     }
 

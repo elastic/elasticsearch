@@ -54,8 +54,8 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
         refresh();
 
         PutWatchResponse putWatchResponse = watcherClient.preparePutWatch()
-                .watchName("_name")
-                .source(watchBuilder()
+                .setId("_name")
+                .setSource(watchBuilder()
                         .trigger(schedule(cron("0/5 * * * * ? *")))
                         .input(searchInput(matchAllRequest().indices("events")))
                         .condition(scriptCondition("ctx.payload.hits.total > 0"))
@@ -63,7 +63,7 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
                         .addAction(indexAction("_id", "actions", "action")))
                 .get();
 
-        assertThat(putWatchResponse.indexResponse().isCreated(), is(true));
+        assertThat(putWatchResponse.isCreated(), is(true));
 
         if (timeWarped()) {
             timeWarp().scheduler().trigger("_name", 4, TimeValue.timeValueSeconds(5));
@@ -100,10 +100,10 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
         }
 
         GetWatchResponse getWatchResponse = watcherClient.prepareGetWatch("_name").get();
-        assertThat(getWatchResponse.exists(), is(true));
+        assertThat(getWatchResponse.isFound(), is(true));
 
-        Watch parsedWatch = watchParser().parse(getWatchResponse.id(), true,
-                getWatchResponse.source());
+        Watch parsedWatch = watchParser().parse(getWatchResponse.getId(), true,
+                getWatchResponse.getSource());
         assertThat(parsedWatch.status().ackStatus().state(), is(Watch.Status.AckStatus.State.AWAITS_EXECUTION));
 
         long throttledCount = docCount(HistoryStore.INDEX_PREFIX + "*", null,
@@ -125,8 +125,8 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
         refresh();
 
         PutWatchResponse putWatchResponse = watcherClient.preparePutWatch()
-                .watchName("_name")
-                .source(watchBuilder()
+                .setId("_name")
+                .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(searchInput(matchAllRequest().indices("events")))
                         .condition(scriptCondition("ctx.payload.hits.total > 0"))
@@ -134,7 +134,7 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
                         .addAction(indexAction("_id", "actions", "action"))
                         .throttlePeriod(TimeValue.timeValueSeconds(10)))
                 .get();
-        assertThat(putWatchResponse.indexResponse().isCreated(), is(true));
+        assertThat(putWatchResponse.isCreated(), is(true));
 
         if (timeWarped()) {
             timeWarp().clock().setTime(DateTime.now(DateTimeZone.UTC));

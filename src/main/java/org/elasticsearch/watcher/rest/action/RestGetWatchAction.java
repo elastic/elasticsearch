@@ -25,23 +25,23 @@ public class RestGetWatchAction extends WatcherRestHandler {
     @Inject
     public RestGetWatchAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
-        controller.registerHandler(GET, URI_BASE + "/watch/{name}", this);
+        controller.registerHandler(GET, URI_BASE + "/watch/{id}", this);
     }
 
     @Override
     protected void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
-        final GetWatchRequest getWatchRequest = new GetWatchRequest(request.param("name"));
+        final GetWatchRequest getWatchRequest = new GetWatchRequest(request.param("id"));
         client.getWatch(getWatchRequest, new RestBuilderListener<GetWatchResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetWatchResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject()
-                        .field("found", response.exists())
-                        .field("_id", response.id())
-                        .field("_version", response.version())
-                        .field("watch", response.sourceAsMap())
+                        .field("found", response.isFound())
+                        .field("_id", response.getId())
+                        .field("_version", response.getVersion())
+                        .field("watch", response.getSourceAsMap())
                         .endObject();
 
-                RestStatus status = response.exists() ? OK : NOT_FOUND;
+                RestStatus status = response.isFound() ? OK : NOT_FOUND;
                 return new BytesRestResponse(status, builder);
             }
         });

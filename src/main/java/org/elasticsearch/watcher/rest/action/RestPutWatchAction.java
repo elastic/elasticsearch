@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.rest.action;
 
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -29,23 +28,22 @@ public class RestPutWatchAction extends WatcherRestHandler {
     @Inject
     public RestPutWatchAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
-        controller.registerHandler(POST, URI_BASE + "/watch/{name}", this);
-        controller.registerHandler(PUT, URI_BASE + "/watch/{name}", this);
+        controller.registerHandler(POST, URI_BASE + "/watch/{id}", this);
+        controller.registerHandler(PUT, URI_BASE + "/watch/{id}", this);
     }
 
     @Override
-    protected void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
-        PutWatchRequest putWatchRequest = new PutWatchRequest(request.param("name"), request.content(), request.contentUnsafe());
+    protected void handleRequest(final RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
+        PutWatchRequest putWatchRequest = new PutWatchRequest(request.param("id"), request.content(), request.contentUnsafe());
         client.putWatch(putWatchRequest, new RestBuilderListener<PutWatchResponse>(channel) {
             @Override
             public RestResponse buildResponse(PutWatchResponse response, XContentBuilder builder) throws Exception {
-                IndexResponse indexResponse = response.indexResponse();
                 builder.startObject()
-                        .field("_id", indexResponse.getId())
-                        .field("_version", indexResponse.getVersion())
-                        .field("created", indexResponse.isCreated())
+                        .field("_id", response.getId())
+                        .field("_version", response.getVersion())
+                        .field("created", response.isCreated())
                         .endObject();
-                RestStatus status = indexResponse.isCreated() ? CREATED : OK;
+                RestStatus status = response.isCreated() ? CREATED : OK;
                 return new BytesRestResponse(status, builder);
             }
         });

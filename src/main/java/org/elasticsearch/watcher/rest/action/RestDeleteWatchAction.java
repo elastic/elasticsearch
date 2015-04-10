@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.rest.action;
 
-import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -28,22 +27,21 @@ public class RestDeleteWatchAction extends WatcherRestHandler {
     @Inject
     public RestDeleteWatchAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
-        controller.registerHandler(DELETE, URI_BASE + "/watch/{name}", this);
+        controller.registerHandler(DELETE, URI_BASE + "/watch/{id}", this);
     }
 
     @Override
-    protected void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
-        DeleteWatchRequest indexWatchRequest = new DeleteWatchRequest(request.param("name"));
+    protected void handleRequest(final RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
+        DeleteWatchRequest indexWatchRequest = new DeleteWatchRequest(request.param("id"));
         client.deleteWatch(indexWatchRequest, new RestBuilderListener<DeleteWatchResponse>(channel) {
             @Override
-            public RestResponse buildResponse(DeleteWatchResponse result, XContentBuilder builder) throws Exception {
-                DeleteResponse deleteResponse = result.deleteResponse();
+            public RestResponse buildResponse(DeleteWatchResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject()
-                        .field("found", deleteResponse.isFound())
-                        .field("_id", deleteResponse.getId())
-                        .field("_version", deleteResponse.getVersion())
+                        .field("_id", response.getId())
+                        .field("_version", response.getVersion())
+                        .field("found", response.isFound())
                         .endObject();
-                RestStatus status = deleteResponse.isFound() ? OK : NOT_FOUND;
+                RestStatus status = response.isFound() ? OK : NOT_FOUND;
                 return new BytesRestResponse(status, builder);
             }
         });

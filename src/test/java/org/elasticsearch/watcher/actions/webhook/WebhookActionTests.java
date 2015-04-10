@@ -296,7 +296,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
 
         HttpClient httpClient = ExecuteScenario.Success.client();
         HttpMethod method = HttpMethod.POST;
-        Template path = new ScriptTemplate(scriptService, "/test_{{ctx.watch_name}}");
+        Template path = new ScriptTemplate(scriptService, "/test_{{ctx.watch_id}}");
         String host = "test.host";
         TemplatedHttpRequest templatedHttpRequest = getTemplatedHttpRequest(method, host, TEST_PORT, path, testBody);
 

@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.transport.actions.delete;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -53,7 +54,8 @@ public class TransportDeleteWatchAction extends WatcherTransportAction<DeleteWat
     @Override
     protected void masterOperation(DeleteWatchRequest request, ClusterState state, ActionListener<DeleteWatchResponse> listener) throws ElasticsearchException {
         try {
-            DeleteWatchResponse response = new DeleteWatchResponse(watchService.deleteWatch(request.getWatchName()).deleteResponse());
+            DeleteResponse deleteResponse = watchService.deleteWatch(request.getId()).deleteResponse();
+            DeleteWatchResponse response = new DeleteWatchResponse(deleteResponse.getId(), deleteResponse.getVersion(), deleteResponse.isFound());
             listener.onResponse(response);
         } catch (Exception e) {
             listener.onFailure(e);

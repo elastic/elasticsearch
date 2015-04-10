@@ -17,7 +17,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.license.LicenseService;
@@ -60,24 +59,24 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
     @Override
     protected void masterOperation(GetWatchRequest request, ClusterState state, ActionListener<GetWatchResponse> listener) throws ElasticsearchException {
         try {
-            Watch watch = watchService.getWatch(request.watchName());
-            GetResult getResult;
-            if (watch != null) {
-                BytesReference watchSource = null;
-                try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-                    builder.value(watch);
-                    watchSource = builder.bytes();
-                } catch (IOException e) {
-                    listener.onFailure(e);
-                    return;
-                }
-                getResult = new GetResult(WatchStore.INDEX, WatchStore.DOC_TYPE, watch.name(), watch.status().version(), true, watchSource, null);
-            } else {
-                getResult = new GetResult(WatchStore.INDEX, WatchStore.DOC_TYPE, request.watchName(), -1, false, null, null);
+            Watch watch = watchService.getWatch(request.getId());
+            if (watch == null) {
+                listener.onResponse(new GetWatchResponse(request.getId(), -1, false, null));
+                return;
             }
-            listener.onResponse(new GetWatchResponse(getResult.isExists(), getResult.getId(), getResult.getVersion(), getResult.sourceRef()));
+
+            BytesReference watchSource = null;
+            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                builder.value(watch);
+                watchSource = builder.bytes();
+            } catch (IOException e) {
+                listener.onFailure(e);
+                return;
+            }
+            listener.onResponse(new GetWatchResponse(watch.name(), watch.status().version(), true, watchSource));
+
         } catch (Throwable t) {
-            logger.error("failed to get watch [{}]", t, request.watchName());
+            logger.error("failed to get watch [{}]", t, request.getId());
             throw t;
         }
     }

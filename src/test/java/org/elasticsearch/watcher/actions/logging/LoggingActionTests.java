@@ -59,7 +59,7 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         final Map<String, Object> expectedModel = ImmutableMap.<String, Object>builder()
                 .put("ctx", ImmutableMap.builder()
                         .put("execution_time", now)
-                        .put("watch_name", "_watch_name")
+                        .put("watch_id", "_watch_name")
                         .put("payload", ImmutableMap.of())
                         .put("trigger", ImmutableMap.builder()
                                 .put("scheduled_time", now)

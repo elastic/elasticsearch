@@ -18,32 +18,32 @@ public class PutWatchRequestBuilder extends MasterNodeOperationRequestBuilder<Pu
         super(client, new PutWatchRequest());
     }
 
-    public PutWatchRequestBuilder(Client client, String watchName) {
+    public PutWatchRequestBuilder(Client client, String id) {
         super(client, new PutWatchRequest());
-        request.setName(watchName);
+        request.setId(id);
     }
 
     /**
-     * @param watchName The watch name to be created
+     * @param id The watch id to be created
      */
-    public PutWatchRequestBuilder watchName(String watchName){
-        request.setName(watchName);
+    public PutWatchRequestBuilder setId(String id){
+        request.setId(id);
         return this;
     }
 
     /**
      * @param source the source of the watch to be created
      */
-    public PutWatchRequestBuilder source(BytesReference source) {
-        request.source(source);
+    public PutWatchRequestBuilder setSource(BytesReference source) {
+        request.setSource(source);
         return this;
     }
 
     /**
      * @param source the source of the watch to be created
      */
-    public PutWatchRequestBuilder source(WatchSourceBuilder source) {
-        request.source(source);
+    public PutWatchRequestBuilder setSource(WatchSourceBuilder source) {
+        request.setSource(source);
         return this;
     }
 

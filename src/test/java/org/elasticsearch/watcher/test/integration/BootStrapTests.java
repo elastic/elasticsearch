@@ -158,8 +158,8 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                 XContentBuilder jsonBuilder = jsonBuilder();
                 watch.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
 
-                PutWatchResponse putWatchResponse = watcherClient().preparePutWatch(watch.name()).source(jsonBuilder.bytes()).get();
-                assertThat(putWatchResponse.indexResponse().isCreated(), is(true));
+                PutWatchResponse putWatchResponse = watcherClient().preparePutWatch(watch.name()).setSource(jsonBuilder.bytes()).get();
+                assertThat(putWatchResponse.isCreated(), is(true));
 
                 ScheduleTriggerEvent event = new ScheduleTriggerEvent(historyIndexDate, historyIndexDate);
                 WatchRecord watchRecord = new WatchRecord(watch, event);

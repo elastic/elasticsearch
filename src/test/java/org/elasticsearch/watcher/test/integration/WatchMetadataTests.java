@@ -43,7 +43,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTests {
 
         metadata.put("baz", metaList);
         watcherClient().preparePutWatch("_name")
-                .source(watchBuilder()
+                .setSource(watchBuilder()
                         .trigger(schedule(cron("0/5 * * * * ? *")))
                         .input(searchInput(WatcherTestUtils.newInputSearchRequest("my-index").source(searchSource().query(matchAllQuery()))))
                         .condition(scriptCondition("ctx.payload.hits.total == 1"))

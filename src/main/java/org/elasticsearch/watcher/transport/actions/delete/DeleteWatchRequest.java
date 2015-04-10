@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.transport.actions.delete;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
-import org.elasticsearch.watcher.watch.WatchStore;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -20,28 +19,28 @@ import java.io.IOException;
  */
 public class DeleteWatchRequest extends MasterNodeOperationRequest<DeleteWatchRequest> {
 
-    private String watchName;
+    private String id;
     private long version = Versions.MATCH_ANY;
 
     public DeleteWatchRequest() {
     }
 
-    public DeleteWatchRequest(String watchName) {
-        this.watchName = watchName;
+    public DeleteWatchRequest(String id) {
+        this.id = id;
     }
 
     /**
      * @return The name of the watch to be deleted
      */
-    public String getWatchName() {
-        return watchName;
+    public String getId() {
+        return id;
     }
 
     /**
      * Sets the name of the watch to be deleted
      */
-    public void setWatchName(String watchName) {
-        this.watchName = watchName;
+    public void setId(String id) {
+        this.id = id;
     }
 
     /**
@@ -59,8 +58,8 @@ public class DeleteWatchRequest extends MasterNodeOperationRequest<DeleteWatchRe
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (watchName == null){
-            validationException = ValidateActions.addValidationError("watch name is missing", validationException);
+        if (id == null){
+            validationException = ValidateActions.addValidationError("watch id is missing", validationException);
         }
         return validationException;
     }
@@ -68,19 +67,19 @@ public class DeleteWatchRequest extends MasterNodeOperationRequest<DeleteWatchRe
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        watchName = in.readString();
+        id = in.readString();
         version = Versions.readVersion(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(watchName);
+        out.writeString(id);
         Versions.writeVersion(version, out);
     }
 
     @Override
     public String toString() {
-        return "delete {[" + WatchStore.INDEX + "][" + watchName + "]}";
+        return "delete [" + id + "]";
     }
 }

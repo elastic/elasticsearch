@@ -19,15 +19,15 @@ public class AckWatchRequestBuilder extends MasterNodeOperationRequestBuilder<Ac
         super(client, new AckWatchRequest());
     }
 
-    public AckWatchRequestBuilder(Client client, String watchName) {
-        super(client, new AckWatchRequest(watchName));
+    public AckWatchRequestBuilder(Client client, String id) {
+        super(client, new AckWatchRequest(id));
     }
 
     /**
-     * Sets the name of the watch to be ack
+     * Sets the id of the watch to be ack
      */
-    public AckWatchRequestBuilder setWatchName(String watchName) {
-        this.request().setWatchName(watchName);
+    public AckWatchRequestBuilder setId(String id) {
+        this.request().setId(id);
         return this;
     }
 

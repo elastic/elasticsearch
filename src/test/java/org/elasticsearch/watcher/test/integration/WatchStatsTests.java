@@ -59,7 +59,7 @@ public class WatchStatsTests extends AbstractWatcherIntegrationTests {
         SearchRequest searchRequest = WatcherTestUtils.newInputSearchRequest("idx").source(searchSource().query(termQuery("field", "value")));
         BytesReference watchSource = createWatchSource("* * * * * ? *", searchRequest, "ctx.payload.hits.total == 1");
         watcherClient().preparePutWatch("_name")
-                .source(watchSource)
+                .setSource(watchSource)
                 .get();
 
         if (timeWarped()) {

@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
+import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.ConditionBuilders;
@@ -78,6 +79,9 @@ public class WatchSourceBuilder implements ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
+        if (trigger == null) {
+            throw new BuilderException("failed to build watch source. no trigger defined");
+        }
         builder.startObject(Watch.Parser.TRIGGER_FIELD.getPreferredName())
                 .field(trigger.type(), trigger)
                 .endObject();
@@ -118,8 +122,19 @@ public class WatchSourceBuilder implements ToXContent {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             toXContent(builder, ToXContent.EMPTY_PARAMS);
             return builder.bytes();
-        } catch (Exception e) {
-            throw new SearchSourceBuilderException("Failed to build search source", e);
+        } catch (java.lang.Exception e) {
+            throw new BuilderException("Failed to build watch source", e);
+        }
+    }
+
+    public class BuilderException extends WatcherException {
+
+        public BuilderException(String msg) {
+            super(msg);
+        }
+
+        public BuilderException(String msg, Throwable cause) {
+            super(msg, cause);
         }
     }
 }

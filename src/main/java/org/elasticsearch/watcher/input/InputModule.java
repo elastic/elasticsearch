@@ -34,6 +34,8 @@ public class InputModule extends AbstractModule {
         parsersBinder.addBinding(SimpleInput.TYPE).to(SimpleInput.Parser.class);
         bind(HttpInput.Parser.class).asEagerSingleton();
         parsersBinder.addBinding(HttpInput.TYPE).to(HttpInput.Parser.class);
+        bind(NoneInput.Parser.class).asEagerSingleton();
+        parsersBinder.addBinding(NoneInput.TYPE).to(NoneInput.Parser.class);
 
         for (Map.Entry<String, Class<? extends Input.Parser>> entry : parsers.entrySet()) {
             bind(entry.getValue()).asEagerSingleton();

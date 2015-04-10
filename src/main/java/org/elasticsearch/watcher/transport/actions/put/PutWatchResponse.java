@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.transport.actions.put;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -17,40 +16,45 @@ import java.io.IOException;
  */
 public class PutWatchResponse extends ActionResponse {
 
-    private IndexResponse indexResponse;
+    private String id;
+    private long version;
+    private boolean created;
 
-    public PutWatchResponse(IndexResponse indexResponse) {
-        this.indexResponse = indexResponse;
+    PutWatchResponse() {
     }
 
-    public PutWatchResponse() {
-        indexResponse = null;
+    public PutWatchResponse(String id, long version, boolean created) {
+        this.id = id;
+        this.version = version;
+        this.created = created;
     }
 
-    public IndexResponse indexResponse(){
-        return indexResponse;
+    public String getId() {
+        return id;
     }
 
-    public void indexResponse(IndexResponse indexResponse){
-        this.indexResponse = indexResponse;
+    public long getVersion() {
+        return version;
+    }
+
+    public boolean isCreated() {
+        return created;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(indexResponse != null);
-        if (indexResponse != null) {
-            indexResponse.writeTo(out);
-        }
+        out.writeString(id);
+        out.writeVLong(version);
+        out.writeBoolean(created);
     }
 
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.readBoolean()) {
-            indexResponse = new IndexResponse();
-            indexResponse.readFrom(in);
-        }
+        id = in.readString();
+        version = in.readVLong();
+        created = in.readBoolean();
     }
 }

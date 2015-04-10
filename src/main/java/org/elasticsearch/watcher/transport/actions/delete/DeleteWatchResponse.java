@@ -6,8 +6,6 @@
 package org.elasticsearch.watcher.transport.actions.delete;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -17,34 +15,44 @@ import java.io.IOException;
  */
 public class DeleteWatchResponse extends ActionResponse {
 
-    private DeleteResponse deleteResponse;
+    private String id;
+    private long version;
+    private boolean found;
 
     public DeleteWatchResponse() {
     }
 
-    public DeleteWatchResponse(@Nullable DeleteResponse deleteResponse) {
-        this.deleteResponse = deleteResponse;
+    public DeleteWatchResponse(String id, long version, boolean found) {
+        this.id = id;
+        this.version = version;
+        this.found = found;
     }
 
-    public DeleteResponse deleteResponse() {
-        return deleteResponse;
+    public String getId() {
+        return id;
+    }
+
+    public long getVersion() {
+        return version;
+    }
+
+    public boolean isFound() {
+        return found;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.readBoolean()) {
-            deleteResponse = new DeleteResponse();
-            deleteResponse.readFrom(in);
-        }
+        id = in.readString();
+        version = in.readVLong();
+        found = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(deleteResponse != null);
-        if (deleteResponse != null) {
-            deleteResponse.writeTo(out);
-        }
+        out.writeString(id);
+        out.writeVLong(version);
+        out.writeBoolean(found);
     }
 }

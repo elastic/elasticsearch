@@ -19,7 +19,7 @@ import java.util.Map;
 public final class Variables {
 
     public static final String CTX = "ctx";
-    public static final String WATCH_NAME = "watch_name";
+    public static final String WATCH_ID = "watch_id";
     public static final String EXECUTION_TIME = "execution_time";
     public static final String TRIGGER = "trigger";
     public static final String PAYLOAD = "payload";
@@ -30,7 +30,7 @@ public final class Variables {
 
     public static Map<String, Object> createCtxModel(String watchName, DateTime executionTime, TriggerEvent triggerEvent, Payload payload) {
         Map<String, Object> vars = new HashMap<>();
-        vars.put(WATCH_NAME, watchName);
+        vars.put(WATCH_ID, watchName);
         vars.put(EXECUTION_TIME, executionTime);
         vars.put(TRIGGER, triggerEvent.data());
         if (payload != null) {

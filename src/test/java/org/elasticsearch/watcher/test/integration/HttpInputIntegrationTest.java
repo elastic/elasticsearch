@@ -61,7 +61,7 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
 
         InetSocketAddress address = internalTestCluster().httpAddresses()[0];
         watcherClient().preparePutWatch("_name")
-                .source(watchBuilder()
+                .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(httpInput(sourceBuilder(address.getHostName(), address.getPort())
                                 .setPath("/index/_search")
@@ -99,7 +99,7 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
         }
 
         watcherClient.preparePutWatch("_name1")
-                .source(watchBuilder()
+                .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(httpInput(requestBuilder).addExtractKey("hits.total"))
                         .condition(scriptCondition("ctx.payload.hits.total == 1")))
@@ -107,7 +107,7 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
 
         // in this watcher the condition will fail, because max_score isn't extracted, only total:
         watcherClient.preparePutWatch("_name2")
-                .source(watchBuilder()
+                .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(httpInput(requestBuilder).addExtractKey("hits.total"))
                         .condition(scriptCondition("ctx.payload.hits.max_score >= 0")))
@@ -126,7 +126,7 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
         refresh();
         SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setQuery(matchQuery("watch_name", "_name1"))
+                .setQuery(matchQuery("watch_id", "_name1"))
                 .setSize(1)
                 .get();
         assertHitCount(searchResponse, 1);

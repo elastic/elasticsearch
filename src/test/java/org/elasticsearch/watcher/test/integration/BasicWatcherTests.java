@@ -58,14 +58,14 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         refresh();
         SearchRequest searchRequest = newInputSearchRequest("idx").source(searchSource().query(termQuery("field", "value")));
         watcherClient.preparePutWatch("_name")
-                .source(watchBuilder()
+                .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(searchRequest))
                         .condition(scriptCondition("ctx.payload.hits.total == 1"))
                         .addAction(loggingAction("_logger",
                                 "\n\n************\n" +
-                                "total hits: {{ctx.payload.hits.total}}\n" +
-                                "************\n")
+                                        "total hits: {{ctx.payload.hits.total}}\n" +
+                                        "************\n")
                                 .category("_category")))
                 .get();
 
@@ -76,9 +76,9 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
 
         assertWatchWithMinimumPerformedActionsCount("_name", 1);
 
-        GetWatchResponse getWatchResponse = watcherClient().prepareGetWatch().setWatchName("_name").get();
-        assertThat(getWatchResponse.exists(), is(true));
-        assertThat(getWatchResponse.source().length(), greaterThan(0));
+        GetWatchResponse getWatchResponse = watcherClient().prepareGetWatch().setId("_name").get();
+        assertThat(getWatchResponse.isFound(), is(true));
+        assertThat(getWatchResponse.getSource().length(), greaterThan(0));
     }
 
     @Test
@@ -86,7 +86,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         WatcherClient watcherClient = watcherClient();
         SearchRequest searchRequest = newInputSearchRequest("idx").source(searchSource().query(termQuery("field", "value")));
         watcherClient.preparePutWatch("_name")
-                .source(watchBuilder()
+                .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(searchRequest))
                         .condition(scriptCondition("ctx.payload.hits.total == 1")))
@@ -118,12 +118,12 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         WatcherClient watcherClient = watcherClient();
         SearchRequest searchRequest = newInputSearchRequest("idx").source(searchSource().query(matchAllQuery()));
         PutWatchResponse indexResponse = watcherClient.preparePutWatch("_name")
-                .source(watchBuilder()
+                .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(searchRequest))
                         .condition(scriptCondition("ctx.payload.hits.total == 1")))
                 .get();
-        assertThat(indexResponse.indexResponse().isCreated(), is(true));
+        assertThat(indexResponse.isCreated(), is(true));
 
         if (!timeWarped()) {
             // Although there is no added benefit in this test for waiting for the watch to fire, however
@@ -134,16 +134,16 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         }
 
         DeleteWatchResponse deleteWatchResponse = watcherClient.prepareDeleteWatch("_name").get();
-        assertThat(deleteWatchResponse.deleteResponse(), notNullValue());
-        assertThat(deleteWatchResponse.deleteResponse().isFound(), is(true));
+        assertThat(deleteWatchResponse, notNullValue());
+        assertThat(deleteWatchResponse.isFound(), is(true));
 
         refresh();
         assertHitCount(client().prepareCount(WatchStore.INDEX).get(), 0l);
 
         // Deleting the same watch for the second time
         deleteWatchResponse = watcherClient.prepareDeleteWatch("_name").get();
-        assertThat(deleteWatchResponse.deleteResponse(), notNullValue());
-        assertThat(deleteWatchResponse.deleteResponse().isFound(), is(false));
+        assertThat(deleteWatchResponse, notNullValue());
+        assertThat(deleteWatchResponse.isFound(), is(false));
     }
 
     @Test
@@ -165,7 +165,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         watchSource.endObject();
         try {
             watcherClient.preparePutWatch("_name")
-                    .source(watchSource.bytes())
+                    .setSource(watchSource.bytes())
                     .get();
             fail();
         } catch (WatcherException e) {
@@ -192,7 +192,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
                 .addAction(indexAction("_id", "idx", "action"));
 
         watcherClient().preparePutWatch("_name")
-                .source(source.condition(scriptCondition("ctx.payload.hits.total == 1")))
+                .setSource(source.condition(scriptCondition("ctx.payload.hits.total == 1")))
                 .get();
 
         if (timeWarped()) {
@@ -203,7 +203,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         assertWatchWithMinimumPerformedActionsCount("_name", 0, false);
 
         watcherClient().preparePutWatch("_name")
-                .source(source.condition(scriptCondition("ctx.payload.hits.total == 0")))
+                .setSource(source.condition(scriptCondition("ctx.payload.hits.total == 0")))
                 .get();
 
         if (timeWarped()) {
@@ -214,7 +214,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         assertWatchWithMinimumPerformedActionsCount("_name", 1, false);
 
         watcherClient().preparePutWatch("_name")
-                .source(source
+                .setSource(source
                         .trigger(schedule(Schedules.cron("0/1 * * * * ? 2020")))
                         .condition(scriptCondition("ctx.payload.hits.total == 0")))
                 .get();
@@ -282,14 +282,14 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         refresh();
         SearchRequest searchRequest = newInputSearchRequest("idx").source(searchSource().query(termQuery("field", "value")));
         watcherClient.preparePutWatch("_name1")
-                .source(watchBuilder()
+                .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(searchRequest).addExtractKey("hits.total"))
                         .condition(scriptCondition("ctx.payload.hits.total == 1")))
                 .get();
         // in this watcher the condition will fail, because max_score isn't extracted, only total:
         watcherClient.preparePutWatch("_name2")
-                .source(watchBuilder()
+                .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(searchRequest).addExtractKey("hits.total"))
                         .condition(scriptCondition("ctx.payload.hits.max_score >= 0")))
@@ -308,7 +308,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         refresh();
         SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setQuery(matchQuery("watch_name", "_name1"))
+                .setQuery(matchQuery("watch_id", "_name1"))
                 .setSize(1)
                 .get();
         assertHitCount(searchResponse, 1);
@@ -327,7 +327,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         String watchName = "_name";
         assertAcked(prepareCreate("events").addMapping("event", "_timestamp", "enabled=true", "level", "type=string"));
         watcherClient().preparePutWatch(watchName)
-                .source(createWatchSource(interval("5s"), request, "return ctx.payload.hits.total >= 3"))
+                .setSource(createWatchSource(interval("5s"), request, "return ctx.payload.hits.total >= 3"))
                 .get();
 
         client().prepareIndex("events", "event")

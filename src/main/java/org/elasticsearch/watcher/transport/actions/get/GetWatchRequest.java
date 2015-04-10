@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.transport.actions.get;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
-import org.elasticsearch.watcher.watch.WatchStore;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -21,27 +20,31 @@ import java.io.IOException;
  */
 public class GetWatchRequest extends MasterNodeOperationRequest<GetWatchRequest> {
 
-    private String watchName;
+    private String id;
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
 
 
-    public GetWatchRequest() {
+    GetWatchRequest() {
     }
 
     /**
-     * @param watchName name (id) of the watch to retrieve
+     * @param id name (id) of the watch to retrieve
      */
-    public GetWatchRequest(String watchName) {
-        this.watchName = watchName;
+    public GetWatchRequest(String id) {
+        this.id = id;
     }
 
+    GetWatchRequest setId(String id) {
+        this.id = id;
+        return this;
+    }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (watchName == null) {
-            validationException = ValidateActions.addValidationError("watchName is missing", validationException);
+        if (id == null) {
+            validationException = ValidateActions.addValidationError("id is missing", validationException);
         }
         return validationException;
     }
@@ -50,34 +53,29 @@ public class GetWatchRequest extends MasterNodeOperationRequest<GetWatchRequest>
     /**
      * @return The name of the watch to retrieve
      */
-    public String watchName() {
-        return watchName;
-    }
-
-    public GetWatchRequest watchName(String watchName){
-        this.watchName = watchName;
-        return this;
+    public String getId() {
+        return id;
     }
 
     /**
      * Sets the version, which will cause the delete operation to only be performed if a matching
      * version exists and no changes happened on the doc since then.
      */
-    public GetWatchRequest version(long version) {
+    public GetWatchRequest setVersion(long version) {
         this.version = version;
         return this;
     }
 
-    public long version() {
+    public long getVersion() {
         return this.version;
     }
 
-    public GetWatchRequest versionType(VersionType versionType) {
+    public GetWatchRequest setVersionType(VersionType versionType) {
         this.versionType = versionType;
         return this;
     }
 
-    public VersionType versionType() {
+    public VersionType getVersionType() {
         return this.versionType;
     }
 
@@ -86,7 +84,7 @@ public class GetWatchRequest extends MasterNodeOperationRequest<GetWatchRequest>
         super.readFrom(in);
         version = Versions.readVersion(in);
         versionType = VersionType.fromValue(in.readByte());
-        watchName = in.readString();
+        id = in.readString();
     }
 
     @Override
@@ -94,11 +92,11 @@ public class GetWatchRequest extends MasterNodeOperationRequest<GetWatchRequest>
         super.writeTo(out);
         Versions.writeVersion(version, out);
         out.writeByte(versionType.getValue());
-        out.writeString(watchName);
+        out.writeString(id);
     }
 
     @Override
     public String toString() {
-        return "delete {[" + WatchStore.INDEX + "][" + watchName +"]}";
+        return "get [" + id +"]";
     }
 }

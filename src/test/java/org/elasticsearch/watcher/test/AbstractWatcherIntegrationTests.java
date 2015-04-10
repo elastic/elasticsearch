@@ -352,7 +352,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
                 refresh();
                 SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                        .setQuery(boolQuery().must(matchQuery("watch_name", watchName)).must(matchQuery("state", WatchRecord.State.EXECUTED.id())))
+                        .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", WatchRecord.State.EXECUTED.id())))
                         .get();
                 assertThat("could not find executed watch record", searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(minimumExpectedWatchActionsWithActionPerformed));
                 if (assertConditionMet) {
@@ -367,7 +367,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSearchType(SearchType.COUNT)
-                .setQuery(matchQuery("watch_name", watchName))
+                .setQuery(matchQuery("watch_id", watchName))
                 .get();
         return searchResponse.getHits().getTotalHits();
     }
@@ -376,7 +376,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         refresh();
         SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setQuery(boolQuery().must(matchQuery("watch_name", watchName)).must(matchQuery("state", WatchRecord.State.EXECUTED.id())))
+                .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", WatchRecord.State.EXECUTED.id())))
                 .get();
         return searchResponse.getHits().getTotalHits();
     }
@@ -398,7 +398,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
                 refresh();
                 SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                        .setQuery(boolQuery().must(matchQuery("watch_name", watchName)).must(matchQuery("state", WatchRecord.State.EXECUTION_NOT_NEEDED.id())))
+                        .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", WatchRecord.State.EXECUTION_NOT_NEEDED.id())))
                         .get();
                 assertThat(searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(expectedWatchActionsWithNoActionNeeded));
             }

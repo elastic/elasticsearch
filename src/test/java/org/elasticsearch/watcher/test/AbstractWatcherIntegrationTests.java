@@ -136,7 +136,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
     @After
     public void _cleanup() throws Exception {
         // Clear all internal watcher state for the next test method:
-        logger.info("[{}#{}]: clearing watches", getTestClass().getSimpleName(), getTestName());
+        logger.info("[{}#{}]: clearing watcher state", getTestClass().getSimpleName(), getTestName());
         stopWatcher();
     }
 
@@ -452,12 +452,12 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
     protected void startWatcher() throws Exception {
         watcherClient().prepareWatchService().start().get();
-        ensureWatcherStarted();
+        ensureWatcherStarted(false);
     }
 
     protected void stopWatcher() throws Exception {
         watcherClient().prepareWatchService().stop().get();
-        ensureWatcherStopped();
+        ensureWatcherStopped(false);
     }
 
     protected static InternalTestCluster internalTestCluster() {

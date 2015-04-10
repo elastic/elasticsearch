@@ -30,6 +30,11 @@ import static org.hamcrest.Matchers.*;
  */
 public class WatchCrudTests extends AbstractWatcherIntegrationTests {
 
+    @Override
+    protected boolean timeWarped() {
+        return true;
+    }
+
     @Test @Repeat(iterations = 10)
     public void testPut() throws Exception {
         ensureWatcherStarted();

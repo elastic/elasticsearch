@@ -25,6 +25,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -34,6 +35,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequest;
@@ -72,6 +74,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
@@ -236,30 +239,32 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Compiles a script straight-away, or returns the previously compiled and cached script, without checking if it can be executed based on settings.
      */
-    public CompiledScript compileInternal(String lang,  String script, ScriptType scriptType) {
-        assert script != null;
+    public CompiledScript compileInternal(String lang, final String scriptOrId, final ScriptType scriptType) {
+        assert scriptOrId != null;
         assert scriptType != null;
         if (lang == null) {
             lang = defaultLang;
         }
         if (logger.isTraceEnabled()) {
-            logger.trace("Compiling lang: [{}] type: [{}] script: {}", lang, scriptType, script);
+            logger.trace("Compiling lang: [{}] type: [{}] script: {}", lang, scriptType, scriptOrId);
         }
 
         ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
-        CacheKey cacheKey = newCacheKey(scriptEngineService, script);
+        CacheKey cacheKey = newCacheKey(scriptEngineService, scriptOrId);
 
         if (scriptType == ScriptType.FILE) {
             CompiledScript compiled = staticCache.get(cacheKey); //On disk scripts will be loaded into the staticCache by the listener
             if (compiled == null) {
-                throw new ElasticsearchIllegalArgumentException("Unable to find on disk script " + script);
+                throw new ElasticsearchIllegalArgumentException("Unable to find on disk script " + scriptOrId);
             }
             return compiled;
         }
 
+        String script = scriptOrId;
         if (scriptType == ScriptType.INDEXED) {
-            final IndexedScript indexedScript = new IndexedScript(lang, script);
+            final IndexedScript indexedScript = new IndexedScript(lang, scriptOrId);
             script = getScriptFromIndex(indexedScript.lang, indexedScript.id);
+            cacheKey = newCacheKey(scriptEngineService, script);
         }
 
         CompiledScript compiled = cache.getIfPresent(cacheKey);

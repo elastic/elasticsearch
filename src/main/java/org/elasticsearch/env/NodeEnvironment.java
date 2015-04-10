@@ -134,18 +134,18 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
                     } else {
                         logger.trace("failed to obtain node lock on {}", dir.toAbsolutePath());
                         // release all the ones that were obtained up until now
-                        releaseLocks(locks);
+                        releaseAndNullLocks(locks);
                         break;
                     }
                 } catch (IOException e) {
                     logger.trace("failed to obtain node lock on {}", e, dir.toAbsolutePath());
                     lastException = new IOException("failed to obtain lock on " + dir.toAbsolutePath(), e);
                     // release all the ones that were obtained up until now
-                    releaseLocks(locks);
+                    releaseAndNullLocks(locks);
                     break;
                 }
             }
-            if (nodePaths[0] != null) {
+            if (locks[0] != null) {
                 // we found a lock, break
                 break;
             }
@@ -157,8 +157,8 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         }
 
         this.localNodeId = localNodeId;
-        this.nodePaths = nodePaths;
         this.locks = locks;
+        this.nodePaths = nodePaths;
 
         if (logger.isDebugEnabled()) {
             logger.debug("using node location [{}], local_node_id [{}]", nodePaths, localNodeId);
@@ -167,7 +167,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         maybeLogPathDetails();
     }
 
-    private static void releaseLocks(Lock[] locks) {
+    private static void releaseAndNullLocks(Lock[] locks) {
         for (int i = 0; i < locks.length; i++) {
             if (locks[i] != null) {
                 IOUtils.closeWhileHandlingException(locks[i]);

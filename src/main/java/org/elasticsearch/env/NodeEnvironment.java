@@ -52,13 +52,35 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * A component that holds all data paths for a single node.
  */
-public class NodeEnvironment extends AbstractComponent implements Closeable{
+public class NodeEnvironment extends AbstractComponent implements Closeable {
 
-    /* ${data.paths}/nodes/{node.id} */
-    private final Path[] nodePaths;
-    /* ${data.paths}/nodes/{node.id}/indices */
-    private final Path[] nodeIndicesPaths;
+    public static class NodePath {
+        /* ${data.paths}/nodes/{node.id} */
+        public final Path path;
+        /* ${data.paths}/nodes/{node.id}/indices */
+        public final Path indicesPath;
+        /** Cached FileStore from path */
+        public final FileStore fileStore;
+        /** Cached result of Lucene's {@code uIOUtils.spins} on path */
+        public final Boolean spins;
+
+        public NodePath(Path path) throws IOException {
+            this.path = path;
+            this.indicesPath = path.resolve(INDICES_FOLDER);
+            this.fileStore = getFileStore(path);
+            Boolean spins;
+            try {
+                spins = IOUtils.spins(path);
+            } catch (Exception e) {
+                spins = null;
+            }
+            this.spins = spins;
+        }
+    }
+
+    private final NodePath[] nodePaths;
     private final Lock[] locks;
+
     private final boolean addNodeId;
 
     private final int localNodeId;
@@ -85,14 +107,14 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
 
         if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
             nodePaths = null;
-            nodeIndicesPaths = null;
             locks = null;
             localNodeId = -1;
             return;
         }
 
-        final Path[] nodePaths = new Path[environment.dataWithClusterFiles().length];
-        final Lock[] locks = new Lock[environment.dataWithClusterFiles().length];
+        final NodePath[] nodePaths = new NodePath[environment.dataWithClusterFiles().length];
+        final Lock[] locks = new Lock[nodePaths.length];
+
         int localNodeId = -1;
         IOException lastException = null;
         int maxLocalStorageNodes = settings.getAsInt("node.max_local_storage_nodes", 50);
@@ -106,55 +128,51 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
                     Lock tmpLock = luceneDir.makeLock(NODE_LOCK_FILENAME);
                     boolean obtained = tmpLock.obtain();
                     if (obtained) {
+                        nodePaths[dirIndex] = new NodePath(dir);
                         locks[dirIndex] = tmpLock;
-                        nodePaths[dirIndex] = dir;
                         localNodeId = possibleLockId;
                     } else {
                         logger.trace("failed to obtain node lock on {}", dir.toAbsolutePath());
                         // release all the ones that were obtained up until now
-                        for (int i = 0; i < locks.length; i++) {
-                            if (locks[i] != null) {
-                                IOUtils.closeWhileHandlingException(locks[i]);
-                            }
-                            locks[i] = null;
-                        }
+                        releaseLocks(locks);
                         break;
                     }
                 } catch (IOException e) {
                     logger.trace("failed to obtain node lock on {}", e, dir.toAbsolutePath());
                     lastException = new IOException("failed to obtain lock on " + dir.toAbsolutePath(), e);
                     // release all the ones that were obtained up until now
-                    for (int i = 0; i < locks.length; i++) {
-                        IOUtils.closeWhileHandlingException(locks[i]);
-                        locks[i] = null;
-                    }
+                    releaseLocks(locks);
                     break;
                 }
             }
-            if (locks[0] != null) {
+            if (nodePaths[0] != null) {
                 // we found a lock, break
                 break;
             }
         }
+
         if (locks[0] == null) {
             throw new ElasticsearchIllegalStateException("Failed to obtain node lock, is the following location writable?: "
                     + Arrays.toString(environment.dataWithClusterFiles()), lastException);
         }
 
         this.localNodeId = localNodeId;
-        this.locks = locks;
         this.nodePaths = nodePaths;
-
+        this.locks = locks;
 
         if (logger.isDebugEnabled()) {
             logger.debug("using node location [{}], local_node_id [{}]", nodePaths, localNodeId);
         }
 
         maybeLogPathDetails();
+    }
 
-        this.nodeIndicesPaths = new Path[nodePaths.length];
-        for (int i = 0; i < nodePaths.length; i++) {
-            nodeIndicesPaths[i] = nodePaths[i].resolve(INDICES_FOLDER);
+    private static void releaseLocks(Lock[] locks) {
+        for (int i = 0; i < locks.length; i++) {
+            if (locks[i] != null) {
+                IOUtils.closeWhileHandlingException(locks[i]);
+            }
+            locks[i] = null;
         }
     }
 
@@ -164,44 +182,30 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
         if (logger.isDebugEnabled()) {
             // Log one line per path.data:
             StringBuilder sb = new StringBuilder("node data locations details:");
-            for (Path file : nodePaths) {
-                sb.append('\n').append(" -> ").append(file.toAbsolutePath());
-                FileStore fileStore;
-                try {
-                    fileStore = getFileStore(file);
-                } catch (Exception e) {
-                    fileStore = Files.getFileStore(file);
-                }
-
-                Boolean spins;
-                try {
-                    // NOTE: FSDirectory.open creates the directory up above so it will exist here:
-                    spins = IOUtils.spins(file);
-                } catch (Exception e) {
-                    spins = null;
-                }
+            for (NodePath nodePath : nodePaths) {
+                sb.append('\n').append(" -> ").append(nodePath.path.toAbsolutePath());
 
                 String spinsDesc;
-                if (spins == null) {
+                if (nodePath.spins == null) {
                     spinsDesc = "unknown";
-                } else if (spins) {
+                } else if (nodePath.spins) {
                     spinsDesc = "possibly";
                 } else {
                     spinsDesc = "no";
                 }
 
                 sb.append(", free_space [")
-                    .append(new ByteSizeValue(fileStore.getUnallocatedSpace()))
+                    .append(new ByteSizeValue(nodePath.fileStore.getUnallocatedSpace()))
                     .append("], usable_space [")
-                    .append(new ByteSizeValue(fileStore.getUsableSpace()))
+                    .append(new ByteSizeValue(nodePath.fileStore.getUsableSpace()))
                     .append("], total_space [")
-                    .append(new ByteSizeValue(fileStore.getTotalSpace()))
+                    .append(new ByteSizeValue(nodePath.fileStore.getTotalSpace()))
                     .append("], spins? [")
                     .append(spinsDesc)
                     .append("], mount [")
-                    .append(fileStore)
+                    .append(nodePath.fileStore)
                     .append("], type [")
-                    .append(fileStore.type())
+                    .append(nodePath.fileStore.type())
                     .append(']');
             }
             logger.debug(sb.toString());
@@ -210,9 +214,9 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
             Set<String> allTypes = new HashSet<>();
             Set<String> allSpins = new HashSet<>();
             Set<String> allMounts = new HashSet<>();
-            for (Path file : nodePaths) {
+            for (NodePath nodePath : nodePaths) {
                 // TODO: can/should I use the chosen FsProbe instead (i.e. sigar if it's available)?
-                FsStats.Info fsInfo = JmxFsProbe.getFSInfo(file);
+                FsStats.Info fsInfo = JmxFsProbe.getFSInfo(nodePath);
                 String mount = fsInfo.getMount();
                 if (allMounts.contains(mount) == false) {
                     allMounts.add(mount);
@@ -234,12 +238,12 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
 
             // Just log a 1-line summary:
             logger.info(String.format(Locale.ROOT,
-                                      "using [%d] data paths, net usable_space [%s], net total_space [%s], types [%s], spins? [%s]",
+                                      "using [%d] data paths, net usable_space [%s], net total_space [%s], spins? [%s], types [%s]",
                                       nodePaths.length,
                                       totFSInfo.getAvailable(),
                                       totFSInfo.getTotal(),
-                                      toString(allTypes),
-                                      toString(allSpins)));
+                                      toString(allSpins),
+                                      toString(allTypes)));
         }
     }
 
@@ -550,17 +554,32 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
         if (nodePaths == null || locks == null) {
             throw new ElasticsearchIllegalStateException("node is not configured to store local location");
         }
+        Path[] paths = new Path[nodePaths.length];
+        for(int i=0;i<paths.length;i++) {
+            paths[i] = nodePaths[i].path;
+        }
+        return paths;
+    }
+
+    /**
+     * Returns an array of all of the {@link #NodePath}s.
+     */
+    public NodePath[] nodePaths() {
+        assert assertEnvIsLocked();
+        if (nodePaths == null || locks == null) {
+            throw new ElasticsearchIllegalStateException("node is not configured to store local location");
+        }
         return nodePaths;
     }
 
     /**
-     * Returns all data paths excluding custom index paths.
+     * Returns all index paths.
      */
     public Path[] indexPaths(Index index) {
         assert assertEnvIsLocked();
-        Path[] indexPaths = new Path[nodeIndicesPaths.length];
-        for (int i = 0; i < nodeIndicesPaths.length; i++) {
-            indexPaths[i] = nodeIndicesPaths[i].resolve(index.name());
+        Path[] indexPaths = new Path[nodePaths.length];
+        for (int i = 0; i < nodePaths.length; i++) {
+            indexPaths[i] = nodePaths[i].indicesPath.resolve(index.name());
         }
         return indexPaths;
     }
@@ -584,10 +603,10 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
      */
     public Path[] shardPaths(ShardId shardId) {
         assert assertEnvIsLocked();
-        final Path[] nodePaths = nodeDataPaths();
+        final NodePath[] nodePaths = nodePaths();
         final Path[] shardLocations = new Path[nodePaths.length];
         for (int i = 0; i < nodePaths.length; i++) {
-            shardLocations[i] = nodePaths[i].resolve(Paths.get(INDICES_FOLDER,
+            shardLocations[i] = nodePaths[i].path.resolve(Paths.get(INDICES_FOLDER,
                     shardId.index().name(),
                     Integer.toString(shardId.id())));
         }
@@ -600,8 +619,8 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
         }
         assert assertEnvIsLocked();
         Set<String> indices = Sets.newHashSet();
-        for (Path indicesLocation : nodeIndicesPaths) {
-
+        for (NodePath nodePath : nodePaths) {
+            Path indicesLocation = nodePath.indicesPath;
             if (Files.isDirectory(indicesLocation)) {
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(indicesLocation)) {
                     for (Path index : stream) {
@@ -628,7 +647,11 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
             throw new ElasticsearchIllegalStateException("node is not configured to store local location");
         }
         assert assertEnvIsLocked();
-        return findAllShardIds(index == null ? null : index.getName(), nodeIndicesPaths);
+        Path[] indicesPaths = new Path[nodePaths.length];
+        for(int i=0;i<nodePaths.length;i++) {
+            indicesPaths[i] = nodePaths[i].indicesPath;
+        }
+        return findAllShardIds(index == null ? null : index.getName(), indicesPaths);
     }
 
     private static Set<ShardId> findAllShardIds(@Nullable final String index, Path... locations) throws IOException {
@@ -714,17 +737,17 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
      * This method cleans up all files even in the case of an error.
      */
     public void ensureAtomicMoveSupported() throws IOException {
-        final Path[] nodePaths = nodeDataPaths();
-        for (Path directory : nodePaths) {
-            assert Files.isDirectory(directory) : directory + " is not a directory";
-            final Path src = directory.resolve("__es__.tmp");
+        final NodePath[] nodePaths = nodePaths();
+        for (NodePath nodePath : nodePaths) {
+            assert Files.isDirectory(nodePath.path) : nodePath.path + " is not a directory";
+            final Path src = nodePath.path.resolve("__es__.tmp");
             Files.createFile(src);
-            final Path target = directory.resolve("__es__.final");
+            final Path target = nodePath.path.resolve("__es__.final");
             try {
                 Files.move(src, target, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException ex) {
                 throw new ElasticsearchIllegalStateException("atomic_move is not supported by the filesystem on path ["
-                        + directory
+                        + nodePath.path
                         + "] atomic_move is required for elasticsearch to work correctly.", ex);
             } finally {
                 Files.deleteIfExists(src);

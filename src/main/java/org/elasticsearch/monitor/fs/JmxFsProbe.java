@@ -19,11 +19,11 @@
 
 package org.elasticsearch.monitor.fs;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.NodeEnvironment.NodePath;
 
 import java.io.File;
 import java.io.IOException;
@@ -46,29 +46,27 @@ public class JmxFsProbe extends AbstractComponent implements FsProbe {
         if (!nodeEnv.hasNodeFile()) {
             return new FsStats(System.currentTimeMillis(), new FsStats.Info[0]);
         }
-        Path[] dataLocations = nodeEnv.nodeDataPaths();
+        NodePath[] dataLocations = nodeEnv.nodePaths();
         FsStats.Info[] infos = new FsStats.Info[dataLocations.length];
         for (int i = 0; i < dataLocations.length; i++) {
-            FsStats.Info info = getFSInfo(dataLocations[i]);
-            infos[i] = info;
+            infos[i] = getFSInfo(dataLocations[i]);
         }
         return new FsStats(System.currentTimeMillis(), infos);
     }
 
-    public static FsStats.Info getFSInfo(Path path) throws IOException {
+    public static FsStats.Info getFSInfo(NodePath nodePath) throws IOException {
         FsStats.Info info = new FsStats.Info();
-        FileStore fileStore = NodeEnvironment.getFileStore(path);
-        info.path = path.toAbsolutePath().toString();
-        info.total = fileStore.getTotalSpace();
-        info.free = fileStore.getUnallocatedSpace();
-        info.available = fileStore.getUsableSpace();
-        info.type = fileStore.type();
-        info.mount = fileStore.toString();
-        try {
-            info.spins = IOUtils.spins(path);
-        } catch (Exception e) {
-            // ignore
-        }
+        info.path = nodePath.path.toAbsolutePath().toString();
+
+        // NOTE: we use already cached (on node startup) FileStore and spins
+        // since recomputing these once per second (default) could be costly,
+        // and they should not change:
+        info.total = nodePath.fileStore.getTotalSpace();
+        info.free = nodePath.fileStore.getUnallocatedSpace();
+        info.available = nodePath.fileStore.getUsableSpace();
+        info.type = nodePath.fileStore.type();
+        info.mount = nodePath.fileStore.toString();
+        info.spins = nodePath.spins;
         return info;
     }
 }

@@ -20,11 +20,11 @@
 package org.elasticsearch.monitor.fs;
 
 import com.google.common.collect.Maps;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.NodeEnvironment.NodePath;
 import org.elasticsearch.monitor.sigar.SigarService;
 import org.hyperic.sigar.FileSystem;
 import org.hyperic.sigar.FileSystemMap;
@@ -57,10 +57,11 @@ public class SigarFsProbe extends AbstractComponent implements FsProbe {
         if (!nodeEnv.hasNodeFile()) {
             return new FsStats(System.currentTimeMillis(), new FsStats.Info[0]);
         }
-        Path[] dataLocations = nodeEnv.nodeDataPaths();
-        FsStats.Info[] infos = new FsStats.Info[dataLocations.length];
-        for (int i = 0; i < dataLocations.length; i++) {
-            Path dataLocation = dataLocations[i];
+        NodePath[] nodePaths = nodeEnv.nodePaths();
+        FsStats.Info[] infos = new FsStats.Info[nodePaths.length];
+        for (int i = 0; i < nodePaths.length; i++) {
+            NodePath nodePath = nodePaths[i];
+            Path dataLocation = nodePath.path;
 
             FsStats.Info info = new FsStats.Info();
             info.path = dataLocation.toAbsolutePath().toString();
@@ -79,12 +80,7 @@ public class SigarFsProbe extends AbstractComponent implements FsProbe {
                     info.mount = fileSystem.getDirName();
                     info.dev = fileSystem.getDevName();
                     info.type = fileSystem.getSysTypeName();
-
-                    try {
-                        info.spins = IOUtils.spins(dataLocation);
-                    } catch (Exception e) {
-                        logger.warn("ignore exception calling IOUtils.spins on path=" + dataLocation + ": " + e);
-                    }
+                    info.spins = nodePath.spins;
 
                     FileSystemUsage fileSystemUsage = sigar.getFileSystemUsage(fileSystem.getDirName());
                     if (fileSystemUsage != null) {

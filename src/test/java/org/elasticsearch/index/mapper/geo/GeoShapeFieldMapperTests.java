@@ -19,6 +19,7 @@
 package org.elasticsearch.index.mapper.geo;
 
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
+import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -31,9 +32,13 @@ import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 
+import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.isIn;
 
 public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
 
@@ -290,5 +295,64 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
             /* 50m is default */
             assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.geoHashLevelsForPrecision(50d))); 
         }
+    }
+
+    @Test
+    public void testGeoShapeMapperMerge() throws Exception {
+        String stage1Mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+                .startObject("shape").field("type", "geo_shape").field("tree", "geohash").field("strategy", "recursive")
+                .field("precision", "1m").field("tree_levels", 8).field("distance_error_pct", 0.01).field("orientation", "ccw")
+                .endObject().endObject().endObject().endObject().string();
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapper stage1 = parser.parse(stage1Mapping);
+        String stage2Mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("shape").field("type", "geo_shape").field("tree", "quadtree")
+                .field("strategy", "term").field("precision", "1km").field("tree_levels", 26).field("distance_error_pct", 26)
+                .field("orientation", "cw").endObject().endObject().endObject().endObject().string();
+        DocumentMapper stage2 = parser.parse(stage2Mapping);
+
+        DocumentMapper.MergeResult mergeResult = stage1.merge(stage2, mergeFlags().simulate(false));
+        // check correct conflicts
+        assertThat(mergeResult.hasConflicts(), equalTo(true));
+        assertThat(mergeResult.conflicts().length, equalTo(3));
+        ArrayList conflicts = new ArrayList<>(Arrays.asList(mergeResult.conflicts()));
+        assertThat("mapper [shape] has different strategy", isIn(conflicts));
+        assertThat("mapper [shape] has different tree", isIn(conflicts));
+        assertThat("mapper [shape] has different tree_levels or precision", isIn(conflicts));
+
+        // verify nothing changed
+        FieldMapper fieldMapper = stage1.mappers().name("shape").mapper();
+        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+
+        GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
+        PrefixTreeStrategy strategy = geoShapeFieldMapper.defaultStrategy();
+
+        assertThat(strategy, instanceOf(RecursivePrefixTreeStrategy.class));
+        assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
+        assertThat(strategy.getDistErrPct(), equalTo(0.01));
+        assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.geoHashLevelsForPrecision(1d)));
+        assertThat(geoShapeFieldMapper.orientation(), equalTo(ShapeBuilder.Orientation.CCW));
+
+        // correct mapping
+        stage2Mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("shape").field("type", "geo_shape").field("precision", "1m")
+                .field("distance_error_pct", 0.001).field("orientation", "cw").endObject().endObject().endObject().endObject().string();
+        stage2 = parser.parse(stage2Mapping);
+        mergeResult = stage1.merge(stage2, mergeFlags().simulate(false));
+
+        // verify mapping changes, and ensure no failures
+        assertThat(mergeResult.hasConflicts(), equalTo(false));
+
+        fieldMapper = stage1.mappers().name("shape").mapper();
+        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+
+        geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
+        strategy = geoShapeFieldMapper.defaultStrategy();
+
+        assertThat(strategy, instanceOf(RecursivePrefixTreeStrategy.class));
+        assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
+        assertThat(strategy.getDistErrPct(), equalTo(0.001));
+        assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.geoHashLevelsForPrecision(1d)));
+        assertThat(geoShapeFieldMapper.orientation(), equalTo(ShapeBuilder.Orientation.CW));
     }
 }

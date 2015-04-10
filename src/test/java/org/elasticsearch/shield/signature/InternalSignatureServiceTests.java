@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
@@ -79,6 +80,72 @@ public class InternalSignatureServiceTests extends ElasticsearchTestCase {
         assertThat(text, equalTo(signed));
         text = service.unsignAndVerify(signed);
         assertThat(text, equalTo(signed));
+    }
+
+    @Test
+    public void testTamperedSignature() throws Exception {
+        InternalSignatureService service = new InternalSignatureService(settings, env, watcherService).start();
+        String text = randomAsciiOfLength(10);
+        String signed = service.sign(text);
+        int i = signed.indexOf("$$", 2);
+        int length = Integer.parseInt(signed.substring(2, i));
+        String fakeSignature = randomAsciiOfLength(length);
+        String fakeSignedText = "$$" + length + "$$" + fakeSignature + signed.substring(i + 2 + length);
+
+        try {
+            service.unsignAndVerify(fakeSignedText);
+        } catch (SignatureException e) {
+            assertThat(e.getMessage(), is(equalTo("tampered signed text")));
+            assertThat(e.getCause(), is(nullValue()));
+        }
+    }
+
+    @Test
+    public void testTamperedSignatureOneChar() throws Exception {
+        InternalSignatureService service = new InternalSignatureService(settings, env, watcherService).start();
+        String text = randomAsciiOfLength(10);
+        String signed = service.sign(text);
+        int i = signed.indexOf("$$", 2);
+        int length = Integer.parseInt(signed.substring(2, i));
+        StringBuilder fakeSignature = new StringBuilder(signed.substring(i + 2, i + 2 + length));
+        fakeSignature.setCharAt(randomIntBetween(0, fakeSignature.length() - 1), randomAsciiOfLength(1).charAt(0));
+
+        String fakeSignedText = "$$" + length + "$$" + fakeSignature.toString() + signed.substring(i + 2 + length);
+
+        try {
+            service.unsignAndVerify(fakeSignedText);
+        } catch (SignatureException e) {
+            assertThat(e.getMessage(), is(equalTo("tampered signed text")));
+            assertThat(e.getCause(), is(nullValue()));
+        }
+    }
+
+    @Test
+    public void testTamperedSignatureLength() throws Exception {
+        InternalSignatureService service = new InternalSignatureService(settings, env, watcherService).start();
+        String text = randomAsciiOfLength(10);
+        String signed = service.sign(text);
+        int i = signed.indexOf("$$", 2);
+        int length = Integer.parseInt(signed.substring(2, i));
+        String fakeSignature = randomAsciiOfLength(length);
+
+        // Smaller sig length
+        String fakeSignedText = "$$" + randomIntBetween(0, length - 1) + "$$" + fakeSignature + signed.substring(i + 2 + length);
+
+        try {
+            service.unsignAndVerify(fakeSignedText);
+        } catch (SignatureException e) {
+            assertThat(e.getMessage(), is(equalTo("tampered signed text")));
+        }
+
+        // Larger sig length
+        fakeSignedText = "$$" + randomIntBetween(length + 1, Integer.MAX_VALUE) + "$$" + fakeSignature + signed.substring(i + 2 + length);
+        try {
+            service.unsignAndVerify(fakeSignedText);
+        } catch (SignatureException e) {
+            assertThat(e.getMessage(), is(equalTo("tampered signed text")));
+            assertThat(e.getCause(), is(nullValue()));
+        }
     }
 
     @Test

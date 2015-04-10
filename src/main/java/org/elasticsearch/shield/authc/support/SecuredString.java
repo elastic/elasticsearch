@@ -155,4 +155,61 @@ public class SecuredString implements CharSequence {
             throw new ElasticsearchException("attempt to use cleared password");
         }
     }
+
+    /**
+     * This does a char by char comparison of the two Strings to provide protection against timing attacks. In other
+     * words it does not exit at the first character that does not match and only exits at the end of the comparison.
+     *
+     * NOTE: length will cause this function to exit early, which is OK as it is not considered feasible to prevent
+     * length attacks
+     *
+     * @param a the first string to be compared
+     * @param b the second string to be compared
+     * @return true if both strings match completely
+     */
+    public static boolean constantTimeEquals(String a, String b) {
+        char[] aChars = a.toCharArray();
+        char[] bChars = b.toCharArray();
+
+        return constantTimeEquals(aChars, bChars);
+    }
+
+    /**
+     * This does a char by char comparison of the two Strings to provide protection against timing attacks. In other
+     * words it does not exit at the first character that does not match and only exits at the end of the comparison.
+     *
+     * NOTE: length will cause this function to exit early, which is OK as it is not considered feasible to prevent
+     * length attacks
+     *
+     * @param securedString the securedstring to compare to string char by char
+     * @param string the string to compare
+     * @return true if both match char for char
+     */
+    public static boolean constantTimeEquals(SecuredString securedString, String string) {
+        return constantTimeEquals(securedString.internalChars(), string.toCharArray());
+    }
+
+    /**
+     * This does a char by char comparison of the two arrays to provide protection against timing attacks. In other
+     * words it does not exit at the first character that does not match and only exits at the end of the comparison.
+     *
+     * NOTE: length will cause this function to exit early, which is OK as it is not considered feasible to prevent
+     * length attacks
+     *
+     * @param a the first char array
+     * @param b the second char array
+     * @return true if both match char for char
+     */
+    public static boolean constantTimeEquals(char[] a, char[] b) {
+        if (a.length != b.length) {
+            return false;
+        }
+
+        int equals = 0;
+        for (int i = 0; i < a.length; i++) {
+            equals |= a[i] ^ b[i];
+        }
+
+        return equals == 0;
+    }
 }

@@ -29,6 +29,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.shield.authc.support.SecuredString.constantTimeEquals;
+
 /**
  *
  */
@@ -105,26 +107,34 @@ public class InternalSignatureService extends AbstractLifecycleComponent<Interna
             return signedText;
         }
 
-        if (!signedText.startsWith("$$")) {
+        if (!signedText.startsWith("$$") || signedText.length() < 2) {
+            throw new SignatureException("tampered signed text");
+        }
+
+        String text;
+        String receivedSignature;
+        try {
+            // $$34$$sigtext
+            int i = signedText.indexOf("$$", 2);
+            int length = Integer.parseInt(signedText.substring(2, i));
+            receivedSignature = signedText.substring(i + 2, i + 2 + length);
+            text = signedText.substring(i + 2 + length);
+        } catch (Throwable t) {
+            logger.error("error occurred while parsing signed text", t);
             throw new SignatureException("tampered signed text");
         }
 
         try {
-            //     $$34$$sigtext
-            int i = signedText.indexOf("$$", 2);
-            int length = Integer.parseInt(signedText.substring(2, i));
-            String sigStr = signedText.substring(i + 2, i + 2 + length);
-            String text = signedText.substring(i + 2 + length);
             String sig = signInternal(text);
-            if (!sig.equals(sigStr)) {
-                throw new SignatureException("the signed texts don't match");
+            if (constantTimeEquals(sig, receivedSignature)) {
+                return text;
             }
-            return text;
-        } catch (SignatureException e) {
-            throw e;
         } catch (Throwable t) {
-            throw new SignatureException("error while verifying the signed text", t);
+            logger.error("error occurred while verifying signed text", t);
+            throw new SignatureException("error while verifying the signed text");
         }
+
+        throw new SignatureException("tampered signed text");
     }
 
     @Override

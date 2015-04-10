@@ -751,12 +751,12 @@ public class BCrypt {
 	 * Check that a plaintext password matches a previously hashed
 	 * one.
      *
-     * Modified from the original to take a SecuredString plaintext
+     * Modified from the original to take a SecuredString plaintext and use a constant time comparison
 	 * @param plaintext	the plaintext password to verify
 	 * @param hashed	the previously-hashed password
 	 * @return	true if the passwords match, false otherwise
 	 */
 	public static boolean checkpw(SecuredString plaintext, String hashed) {
-		return hashed.compareTo(hashpw(plaintext, hashed)) == 0;
+		return SecuredString.constantTimeEquals(hashed, hashpw(plaintext, hashed));
 	}
 }

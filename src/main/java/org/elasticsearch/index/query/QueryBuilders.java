@@ -547,7 +547,9 @@ public abstract class QueryBuilders {
      * which is checked against the fields the query is constructed with.
      *
      * @param fields The fields to run the query against
+     * @deprecated this query was too costly and has been removed
      */
+    @Deprecated
     public static FuzzyLikeThisQueryBuilder fuzzyLikeThisQuery(String... fields) {
         return new FuzzyLikeThisQueryBuilder(fields);
     }
@@ -555,14 +557,18 @@ public abstract class QueryBuilders {
     /**
      * A fuzzy like this query that finds documents that are "like" the provided {@link FuzzyLikeThisQueryBuilder#likeText(String)}
      * which is checked against the "_all" field.
+     * @deprecated this query was too costly and has been removed
      */
+    @Deprecated
     public static FuzzyLikeThisQueryBuilder fuzzyLikeThisQuery() {
         return new FuzzyLikeThisQueryBuilder();
     }
 
     /**
      * A fuzzy like this query that finds documents that are "like" the provided {@link FuzzyLikeThisFieldQueryBuilder#likeText(String)}.
+     * @deprecated this query was too costly and has been removed
      */
+    @Deprecated
     public static FuzzyLikeThisFieldQueryBuilder fuzzyLikeThisFieldQuery(String name) {
         return new FuzzyLikeThisFieldQueryBuilder(name);
     }
@@ -571,7 +577,9 @@ public abstract class QueryBuilders {
      * A more like this query that runs against a specific field.
      *
      * @param name The field name
+     * @deprecated this query was too costly and has been removed
      */
+    @Deprecated
     public static MoreLikeThisFieldQueryBuilder moreLikeThisFieldQuery(String name) {
         return new MoreLikeThisFieldQueryBuilder(name);
     }

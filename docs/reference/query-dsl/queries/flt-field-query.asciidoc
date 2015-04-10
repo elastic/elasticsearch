@@ -1,6 +1,8 @@
 [[query-dsl-flt-field-query]]
 === Fuzzy Like This Field Query
 
+deprecated[1.6.0, This query will be removed in Elasticsearch 2.0]
+
 The `fuzzy_like_this_field` query is the same as the `fuzzy_like_this`
 query, except that it runs against a single field. It provides nicer
 query DSL over the generic `fuzzy_like_this` query, and support typed

@@ -26,8 +26,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- *
+ * @deprecated this query was too costly and has been removed
  */
+@Deprecated
 public class FuzzyLikeThisQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<FuzzyLikeThisQueryBuilder> {
 
     private final String[] fields;

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.spatial4j.core.exception.InvalidShapeException;
 import com.spatial4j.core.shape.Shape;
@@ -124,7 +123,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         HashSet interior = Sets.newHashSet(hole.points);
         exterior.retainAll(interior);
         if (exterior.size() >= 2) {
-            throw new InvalidShapeException("Invalid polygon, interior cannot share more than one point");
+            throw new InvalidShapeException("Invalid polygon, interior cannot share more than one point with the exterior");
         }
     }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -39,7 +40,9 @@ public abstract class FilterBuilders {
 
     /**
      * A filter that limits the results to the provided limit value (per shard!).
+     * @deprecated Use {@link SearchRequestBuilder#setTerminateAfter(int)} instead.
      */
+    @Deprecated
     public static LimitFilterBuilder limitFilter(int limit) {
         return new LimitFilterBuilder(limit);
     }

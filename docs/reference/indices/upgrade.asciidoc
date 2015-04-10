@@ -44,7 +44,7 @@ indices you want to upgrade at the same time.
 The `ancient` byte values that are returned indicate total bytes of
 segments whose version is extremely old (Lucene major version is
 different from the current version), showing how much upgrading is
-necessary when you run with `only_ancient_segments=true`.
+necessary when you run with `upgrade_only_ancient_segments=true`.
 
 [source,sh]
 --------------------------------------------------

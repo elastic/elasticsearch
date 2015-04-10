@@ -47,9 +47,9 @@ import java.util.Objects;
  */
 public class IdsQueryBuilder extends BaseQueryBuilder implements QueryParser, BoostableQueryBuilder<IdsQueryBuilder>, Streamable {
 
-    private Collection<String> types = new ArrayList<String>();
+    private Collection<String> types = new ArrayList<>();
 
-    private Collection<String> values = new ArrayList<String>();
+    private Collection<String> values = new ArrayList<>();
 
     private float boost = 1.0f;
 
@@ -80,7 +80,7 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements QueryParser, Bo
         return addIds(ids);
     }
 
-    Collection<String> getIds() {
+    Collection<String> ids() {
         return this.values;
     }
 
@@ -94,7 +94,7 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements QueryParser, Bo
         return this;
     }
 
-    public float getBoost() {
+    public float boost() {
         return this.boost;
     }
 
@@ -138,7 +138,7 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements QueryParser, Bo
     public String[] names() {
         return new String[]{NAME};
     }
-    
+
     @Override
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         IdsQueryBuilder query = new IdsQueryBuilder();
@@ -202,12 +202,12 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements QueryParser, Bo
 
     public Query toQuery(QueryParseContext parseContext) throws IOException, QueryParsingException {
         ArrayList<BytesRef> ids = new ArrayList<BytesRef>();
-        
+
         for (String value : this.values) {
             BytesRef ref = new BytesRef(value);
             ids.add(ref);
         }
-        
+
         if (ids.isEmpty()) {
             return Queries.newMatchNoDocsQuery();
         }
@@ -258,8 +258,7 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements QueryParser, Bo
 
     @Override
     public int hashCode() {
-        int hash = super.hashCode();
-        hash = maybeHashcode(hash, values);
+        int hash = maybeHashcode(1, values);
         hash = maybeHashcode(hash, types);
         hash = maybeHashcode(hash, queryName);
         hash = maybeHashcode(hash, boost);

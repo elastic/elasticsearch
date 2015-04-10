@@ -68,8 +68,6 @@ public class IdsQueryBuilderTest extends ElasticsearchTestCase {
     protected QueryParseContext context;
     protected Injector injector;
 
-    private static final String QUERY = "{\"ids\":{\"types\":[\"typeA\",\"typeB\"],\"values\":[\"1\",\"11\",\"abcd\"],\"boost\":1.5,\"_name\":\"aName\"}}";
-
     private XContentParser parser;
 
     private IdsQueryBuilder testQuery;
@@ -108,14 +106,8 @@ public class IdsQueryBuilderTest extends ElasticsearchTestCase {
         IndexQueryParserService queryParserService = injector.getInstance(IndexQueryParserService.class);
         context = new QueryParseContext(index, queryParserService);
         testQuery = createTestQuery();
-        String contentString = createXContent(testQuery).string();
-        parser = XContentFactory.xContent(contentString).createParser(contentString);
-    }
-
-    XContentBuilder createXContent(BaseQueryBuilder query) throws IOException {
-        XContentBuilder content = XContentFactory.jsonBuilder();
-        query.toXContent(content, null);
-        return content;
+        parser = XContentFactory.xContent(testQuery.toString()).createParser(testQuery.toString());
+        context.reset(parser);
     }
 
     @Override
@@ -126,16 +118,8 @@ public class IdsQueryBuilderTest extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testToXContent() throws IOException {
-        XContentBuilder content = createXContent(new IdsQueryBuilder("typeA", "typeB").boost(1.5f).addIds("1", "11", "abcd")
-                .queryName("aName"));
-        assertEquals(content.string(), QUERY);
-    }
-
-    @Test
     public void testFromXContent() throws IOException {
-        context.reset(parser);
-        IdsQueryBuilder newQuery = injector.getInstance(IdsQueryBuilder.class);
+        IdsQueryBuilder newQuery = new IdsQueryBuilder();
         newQuery.fromXContent(context);
         // compare these
         assertEquals(testQuery, newQuery);
@@ -143,17 +127,14 @@ public class IdsQueryBuilderTest extends ElasticsearchTestCase {
 
     @Test
     public void testToQuery() throws IOException {
-        context.reset(parser);
-        IdsQueryBuilder newQuery = injector.getInstance(IdsQueryBuilder.class);
-        newQuery.fromXContent(context);
-        Query query = newQuery.toQuery(context);
-        if (newQuery.getIds().size() == 0) {
+        Query query = testQuery.toQuery(context);
+        if (testQuery.ids().size() == 0) {
             assertThat(query, is(instanceOf(MatchNoDocsQuery.class)));
         } else {
             assertThat(query, is(instanceOf(ConstantScoreQuery.class)));
             ConstantScoreQuery csQuery = (ConstantScoreQuery) query;
             // compare these
-            assertThat(csQuery.getBoost(), is(testQuery.getBoost()));
+            assertThat(csQuery.getBoost(), is(testQuery.boost()));
             // TODO how to extract more info from lucene query?
         }
     }
@@ -168,8 +149,7 @@ public class IdsQueryBuilderTest extends ElasticsearchTestCase {
         deserializedQuery.readFrom(bytesStreamInput);
 
         assertNotSame(deserializedQuery, testQuery);
-        assertThat(deserializedQuery.getBoost(), equalTo(testQuery.getBoost()));
-        assertThat(createXContent(testQuery).string(), is(createXContent(deserializedQuery).string()));
+        assertThat(deserializedQuery.boost(), equalTo(testQuery.boost()));
     }
 
     IdsQueryBuilder createTestQuery() {

@@ -59,7 +59,7 @@ public class MatchAllQueryBuilder extends BaseQueryBuilder implements QueryParse
     /**
      * @return the boost for this query.
      */
-    public float getBoost() {
+    public float boost() {
         return this.boost;
     }
 
@@ -89,8 +89,6 @@ public class MatchAllQueryBuilder extends BaseQueryBuilder implements QueryParse
             return Queries.newMatchAllQuery();
         }
 
-        //LUCENE 4 UPGRADE norms field is not supported anymore need to find another way or drop the functionality
-        //MatchAllDocsQuery query = new MatchAllDocsQuery(normsField);
         MatchAllDocsQuery query = new MatchAllDocsQuery();
         query.setBoost(boost);
         return query;
@@ -108,7 +106,7 @@ public class MatchAllQueryBuilder extends BaseQueryBuilder implements QueryParse
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if ("boost".equals(currentFieldName)) {
-                    boost = parser.floatValue();
+                    this.boost = parser.floatValue();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[match_all] query does not support [" + currentFieldName + "]");
                 }
@@ -125,12 +123,10 @@ public class MatchAllQueryBuilder extends BaseQueryBuilder implements QueryParse
     public void writeTo(StreamOutput out) throws IOException {
         out.writeFloat(this.boost);
     }
-    
+
     @Override
     public int hashCode() {
-        int hash = super.hashCode();
-        hash = maybeHashcode(hash, boost);
-        return hash;
+        return Float.hashCode(boost);
     }
 
     @Override
@@ -145,11 +141,5 @@ public class MatchAllQueryBuilder extends BaseQueryBuilder implements QueryParse
         MatchAllQueryBuilder other = (MatchAllQueryBuilder) obj;
         return Objects.equals(boost, other.boost);
     }
-    
-    /**
-     * Return a prime (31) times the staring hash and object's hash, if non-null
-     */
-    private int maybeHashcode(int startingHash, Object obj) {
-        return 31 * startingHash + ((obj == null) ? 0 : obj.hashCode());
-    }
+
 }

@@ -129,14 +129,14 @@ public class TermQueryBuilder extends BaseQueryBuilder implements QueryParser, S
     /**
      * @return the fieldname for this query
      */
-    public String getFieldName() {
+    public String fieldName() {
         return this.fieldName;
     }
 
     /**
      * @return the value
      */
-    public Object getValue() {
+    public Object value() {
         return this.value;
     }
 
@@ -153,7 +153,7 @@ public class TermQueryBuilder extends BaseQueryBuilder implements QueryParser, S
     /**
      * @return the boost factor of this query
      */
-    public float getBoost() {
+    public float boost() {
         return this.boost;
     }
 
@@ -168,7 +168,7 @@ public class TermQueryBuilder extends BaseQueryBuilder implements QueryParser, S
     /**
      * @return the query name of this query
      */
-    public String getQueryName() {
+    public String queryName() {
         return this.queryName;
     }
 
@@ -278,8 +278,7 @@ public class TermQueryBuilder extends BaseQueryBuilder implements QueryParser, S
 
     @Override
     public int hashCode() {
-        int hash = super.hashCode();
-        hash = maybeHashcode(hash, fieldName);
+        int hash = maybeHashcode(1, fieldName);
         hash = maybeHashcode(hash, value);
         hash = maybeHashcode(hash, boost);
         hash = maybeHashcode(hash, queryName);

@@ -106,9 +106,8 @@ public class TermQueryBuilderTest extends ElasticsearchTestCase {
         IndexQueryParserService queryParserService = injector.getInstance(IndexQueryParserService.class);
         context = new QueryParseContext(index, queryParserService);
         testQuery = createTestQuery();
-        String contentString = createXContent(testQuery).string();
-        System.out.println(contentString);
-        parser = XContentFactory.xContent(contentString).createParser(contentString);
+        parser = XContentFactory.xContent(testQuery.toString()).createParser(testQuery.toString());
+        context.reset(parser);
     }
 
     @Override
@@ -118,21 +117,8 @@ public class TermQueryBuilderTest extends ElasticsearchTestCase {
         terminate(injector.getInstance(ThreadPool.class));
     }
 
-    XContentBuilder createXContent(BaseQueryBuilder query) throws IOException {
-        XContentBuilder content = XContentFactory.jsonBuilder();
-        query.toXContent(content, null);
-        return content;
-    }
-
-    @Test
-    public void testToXContent() throws IOException {
-        XContentBuilder content = createXContent(new TermQueryBuilder("user", "christoph").boost(1.5f).queryName("theName"));
-        assertThat(content.string(), is("{\"term\":{\"user\":{\"value\":\"christoph\",\"boost\":1.5,\"_name\":\"theName\"}}}"));
-    }
-
     @Test
     public void testFromXContent() throws IOException {
-        context.reset(parser);
         assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
         assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
         assertThat(parser.currentName(), is(TermQueryBuilder.NAME));
@@ -146,16 +132,9 @@ public class TermQueryBuilderTest extends ElasticsearchTestCase {
 
     @Test
     public void testToQuery() throws IOException {
-        context.reset(parser);
-        assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
-        assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
-        assertThat(parser.currentName(), is(TermQueryBuilder.NAME));
-        assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
-        TermQueryBuilder newQuery = injector.getInstance(TermQueryBuilder.class);
-        newQuery.fromXContent(context);
-        Query query = newQuery.toQuery(context);
+        Query query = testQuery.toQuery(context);
         // compare these TODO how to assert more on lucene query
-        assertThat(query.getBoost(), is(testQuery.getBoost()));
+        assertThat(query.getBoost(), is(testQuery.boost()));
     }
 
     @Test

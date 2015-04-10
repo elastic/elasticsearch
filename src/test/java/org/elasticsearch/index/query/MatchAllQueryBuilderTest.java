@@ -61,7 +61,11 @@ import static org.hamcrest.Matchers.*;
 
 public class MatchAllQueryBuilderTest extends ElasticsearchTestCase {
 
-    private static final String MATCH_ALL_BOOST_1_5 = "{\"match_all\":{\"boost\":1.5}}";
+    private static final String MATCH_ALL_BOOST_1_5 = "{\n"
+                                                    + "  \"match_all\" : {\n"
+                                                    + "    \"boost\" : 1.5\n"
+                                                    + "  }\n"
+                                                    + "}";
 
     protected QueryParseContext context;
 
@@ -106,14 +110,8 @@ public class MatchAllQueryBuilderTest extends ElasticsearchTestCase {
         context = new QueryParseContext(index, queryParserService);
 
         testQuery = createTestQuery();
-        String contentString = createXContent(testQuery).string();
-        parser = XContentFactory.xContent(contentString).createParser(contentString);
-    }
-
-    XContentBuilder createXContent(BaseQueryBuilder query) throws IOException {
-        XContentBuilder content = XContentFactory.jsonBuilder();
-        query.toXContent(content, null);
-        return content;
+        parser = XContentFactory.xContent(testQuery.toString()).createParser(testQuery.toString());
+        context.reset(parser);
     }
 
     @Override
@@ -125,33 +123,27 @@ public class MatchAllQueryBuilderTest extends ElasticsearchTestCase {
 
     @Test
     public void testToXContent() throws IOException {
-        XContentBuilder content = createXContent(new MatchAllQueryBuilder().boost(1.5f));
-        assertEquals(content.string(), MATCH_ALL_BOOST_1_5);
+        String queryString = new MatchAllQueryBuilder().boost(1.5f).toString();
+        assertEquals(queryString, MATCH_ALL_BOOST_1_5);
     }
 
     @Test
     public void testFromXContent() throws IOException {
-        context.reset(parser);
-        MatchAllQueryBuilder newMatchAllQuery = injector.getInstance(MatchAllQueryBuilder.class);
+        MatchAllQueryBuilder newMatchAllQuery = new MatchAllQueryBuilder();
         newMatchAllQuery.fromXContent(context);
         // compare these
-        assertThat(testQuery.getBoost(), is(newMatchAllQuery.getBoost()));
+        assertThat(testQuery, is(newMatchAllQuery));
     }
 
     @Test
     public void testToQuery() throws IOException {
-        context.reset(parser);
-        MatchAllQueryBuilder newMatchAllQuery = injector.getInstance(MatchAllQueryBuilder.class);
-        newMatchAllQuery.fromXContent(context);
-        Query query = newMatchAllQuery.toQuery(context);
-        // compare these
-        assertThat(query.getBoost(), is(testQuery.getBoost()));
+        Query query = testQuery.toQuery(context);
+        // sanity check lucene query
+        assertThat(query.getBoost(), is(testQuery.boost()));
     }
 
     @Test
     public void testSerialization() throws IOException {
-        context.reset(parser);
-
         BytesStreamOutput output = new BytesStreamOutput();
         testQuery.writeTo(output);
 
@@ -159,9 +151,8 @@ public class MatchAllQueryBuilderTest extends ElasticsearchTestCase {
         MatchAllQueryBuilder deserializedQuery = new MatchAllQueryBuilder();
         deserializedQuery.readFrom(bytesStreamInput);
 
-        assertEquals(deserializedQuery, testQuery);
-        assertNotSame(deserializedQuery, testQuery);
-        assertThat(createXContent(testQuery).string(), is(createXContent(deserializedQuery).string()));
+        assertEquals(testQuery, deserializedQuery);
+        assertNotSame(testQuery, deserializedQuery);
     }
 
     MatchAllQueryBuilder createTestQuery() {

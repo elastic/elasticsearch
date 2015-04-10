@@ -551,6 +551,7 @@
                                 <param>-Xmx${tests.heap.size}</param>
                                 <param>-Xms${tests.heap.size}</param>
                                 <param>${java.permGenSpace}</param>
+                                <param>-Djava.library.path=${project.basedir}/lib/sigar</param>
                                 <param>-XX:MaxDirectMemorySize=512m</param>
                                 <param>-Des.logger.prefix=</param>
                                 <param>-XX:+HeapDumpOnOutOfMemoryError</param>

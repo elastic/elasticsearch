@@ -115,6 +115,32 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
         assertGeometryEquals(expected, multilinesGeoJson);
     }
 
+    public void testParse_multiDimensionShapes() throws IOException {
+        // multi dimension point
+        String pointGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Point")
+                .startArray("coordinates").value(100.0).value(0.0).value(15.0).value(18.0).endArray()
+                .endObject().string();
+
+        Point expectedPt = GEOMETRY_FACTORY.createPoint(new Coordinate(100.0, 0.0));
+        assertGeometryEquals(new JtsPoint(expectedPt, SPATIAL_CONTEXT), pointGeoJson);
+
+        // multi dimension linestring
+        String lineGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "LineString")
+                .startArray("coordinates")
+                .startArray().value(100.0).value(0.0).value(15.0).endArray()
+                .startArray().value(101.0).value(1.0).value(18.0).value(19.0).endArray()
+                .endArray()
+                .endObject().string();
+
+        List<Coordinate> lineCoordinates = new ArrayList<>();
+        lineCoordinates.add(new Coordinate(100, 0));
+        lineCoordinates.add(new Coordinate(101, 1));
+
+        LineString expectedLS = GEOMETRY_FACTORY.createLineString(
+                lineCoordinates.toArray(new Coordinate[lineCoordinates.size()]));
+        assertGeometryEquals(jtsGeom(expectedLS), lineGeoJson);
+    }
+
     public void testParse_envelope() throws IOException {
         // test #1: envelope with expected coordinate order (TopLeft, BottomRight)
         String multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "envelope")
@@ -567,11 +593,12 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 .endArray()
                 .endObject().string();
 
+        // add 3d point to test ISSUE #10501
         List<Coordinate> shellCoordinates = new ArrayList<>();
-        shellCoordinates.add(new Coordinate(100, 0));
+        shellCoordinates.add(new Coordinate(100, 0, 15.0));
         shellCoordinates.add(new Coordinate(101, 0));
         shellCoordinates.add(new Coordinate(101, 1));
-        shellCoordinates.add(new Coordinate(100, 1));
+        shellCoordinates.add(new Coordinate(100, 1, 10.0));
         shellCoordinates.add(new Coordinate(100, 0));
 
         List<Coordinate> holeCoordinates = new ArrayList<>();

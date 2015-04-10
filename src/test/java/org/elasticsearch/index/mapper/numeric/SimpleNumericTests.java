@@ -25,6 +25,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.FieldInfo.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.ParseContext.Document;
@@ -503,4 +504,35 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
         assertThat(ts, instanceOf(NumericTokenStream.class)); 
         assertEquals(expected, ((NumericTokenStream)ts).getPrecisionStep());
     }
+
+    /** Test that numeric fields do not accept boolean values (Issue #10056) **/
+    @Test
+    public void testBoolThrowsException() throws Exception {
+        String[] types = {"integer", "long", "short", "float", "double"};
+
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties");
+        for (String type : types) {
+            builder.field(type + "_field").startObject().field("type", type).endObject();
+        }
+        builder.endObject().endObject().endObject();
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(builder.string());
+
+
+        for (String type : types) {
+            try {
+                defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field(type + "_field", true)
+                        .endObject()
+                        .bytes());
+                fail("Boolean value should not have been accepted by a field of type " + type);
+            } catch (MapperParsingException exception) {
+                assertThat("failed to parse [" + type + "_field]", equalTo(exception.getMessage()));
+                Throwable cause = exception.getRootCause();
+                assertThat(cause, instanceOf(NumberFormatException.class));
+                assertThat("For input boolean value: true", equalTo(cause.getMessage()));
+            }
+        }
+    }
+
 }

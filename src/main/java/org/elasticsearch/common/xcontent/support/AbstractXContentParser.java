@@ -104,6 +104,8 @@ public abstract class AbstractXContentParser implements XContentParser {
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Short.class);
             return Short.parseShort(text());
+        } else if (token == Token.VALUE_BOOLEAN) {
+            throw new NumberFormatException("For input boolean value: " + booleanValue());
         }
         short result = doShortValue();
         ensureNumberConversion(coerce, result, Short.class);
@@ -124,6 +126,8 @@ public abstract class AbstractXContentParser implements XContentParser {
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Integer.class);
             return Integer.parseInt(text());
+        } else if (token == Token.VALUE_BOOLEAN) {
+            throw new NumberFormatException("For input boolean value: " + booleanValue());
         }
         int result = doIntValue();
         ensureNumberConversion(coerce, result, Integer.class);
@@ -143,6 +147,8 @@ public abstract class AbstractXContentParser implements XContentParser {
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Long.class);
             return Long.parseLong(text());
+        } else if (token == Token.VALUE_BOOLEAN) {
+            throw new NumberFormatException("For input boolean value: " + booleanValue());
         }
         long result = doLongValue();
         ensureNumberConversion(coerce, result, Long.class);
@@ -162,6 +168,8 @@ public abstract class AbstractXContentParser implements XContentParser {
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Float.class);
             return Float.parseFloat(text());
+        } else if (token == Token.VALUE_BOOLEAN) {
+            throw new NumberFormatException("For input boolean value: " + booleanValue());
         }
         return doFloatValue();
     }
@@ -180,6 +188,8 @@ public abstract class AbstractXContentParser implements XContentParser {
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Double.class);
             return Double.parseDouble(text());
+        } else if (token == Token.VALUE_BOOLEAN) {
+            throw new NumberFormatException("For input boolean value: " + booleanValue());
         }
         return doDoubleValue();
     }

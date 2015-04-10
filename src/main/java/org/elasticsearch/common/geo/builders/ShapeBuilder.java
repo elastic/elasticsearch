@@ -251,6 +251,9 @@ public abstract class ShapeBuilder implements ToXContent {
             token = parser.nextToken();
             double lat = parser.doubleValue();
             token = parser.nextToken();
+            while (token == XContentParser.Token.VALUE_NUMBER) {
+                token = parser.nextToken();
+            }
             return new CoordinateNode(new Coordinate(lon, lat));
         } else if (token == XContentParser.Token.VALUE_NULL) {
             throw new ElasticsearchIllegalArgumentException("coordinates cannot contain NULL values)");

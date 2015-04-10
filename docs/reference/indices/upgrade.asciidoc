@@ -28,7 +28,7 @@ any new requests will block until the previous upgrade is complete.
 The `upgrade` API accepts the following request parameters:
 
 [horizontal]
-`only_ancient_segments`:: If true, only very old segments (from a
+`upgrade_only_ancient_segments`:: If true, only very old segments (from a
 previous Lucene major release) will be upgraded.  While this will do
 the minimal work to ensure the next major release of Elasticsearch can
 read the segments, it's dangerous because it can leave other very old

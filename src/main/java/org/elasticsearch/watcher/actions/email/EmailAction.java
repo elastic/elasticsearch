@@ -95,7 +95,7 @@ public class EmailAction extends Action<EmailAction.Result> {
 
         } catch (EmailException ee) {
             logger.error("could not send email [{}] for watch [{}]", ee, actionId, ctx.watch().name());
-            return new Result.Failure("could not send email. error: " + ee.getMessage());
+            return new Result.Failure("could not send email for action [" + actionId +  "]. error: " + ee.getMessage());
         }
     }
 

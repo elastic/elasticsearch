@@ -55,7 +55,7 @@ public class InternalEmailService extends AbstractLifecycleComponent<InternalEma
     public EmailSent send(Email email, Authentication auth, Profile profile, String accountName) {
         Account account = accounts.account(accountName);
         if (account == null) {
-            throw new EmailException("failed to send email [" + email + "] via account [" + accountName + "]. account does not exist");
+            throw new EmailException("failed to send email with subject [" + email.subject() + "] via account [" + accountName + "]. account does not exist");
         }
         return send(email, auth, profile, account);
     }
@@ -65,7 +65,7 @@ public class InternalEmailService extends AbstractLifecycleComponent<InternalEma
         try {
             email = account.send(email, auth, profile);
         } catch (MessagingException me) {
-            throw new EmailException("failed to send email [" + email + "] via account [" + account.name() + "]", me);
+            throw new EmailException("failed to send email with subject [" + email.subject() + "] via account [" + account.name() + "]", me);
         }
         return new EmailSent(account.name(), email);
     }

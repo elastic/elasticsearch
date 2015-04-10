@@ -605,6 +605,10 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                 .withType(TransportRequestOptions.Type.RECOVERY)
                 .withTimeout(recoverySettings.internalActionLongTimeout());
 
+        if (operation == null) {
+            logger.trace("[{}][{}] no translog operations to send to {}",
+                    indexName, shardId, request.targetNode());
+        }
         while (operation != null) {
             if (shard.state() == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(request.shardId());
@@ -637,6 +641,12 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                                 recoveryOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                     }
                 });
+                if (logger.isTraceEnabled()) {
+                    logger.trace("[{}][{}] sent batch of [{}][{}] (total: [{}]) translog operations to {}",
+                            indexName, shardId, ops, new ByteSizeValue(size),
+                            shard.translog().estimatedNumberOfOperations(),
+                            request.targetNode());
+                }
 
                 ops = 0;
                 size = 0;
@@ -656,6 +666,12 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                 }
             });
 
+        }
+        if (logger.isTraceEnabled()) {
+            logger.trace("[{}][{}] sent final batch of [{}][{}] (total: [{}]) translog operations to {}",
+                    indexName, shardId, ops, new ByteSizeValue(size),
+                    shard.translog().estimatedNumberOfOperations(),
+                    request.targetNode());
         }
         return totalOperations;
     }

@@ -290,12 +290,20 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             cluster().beforeTest(getRandom(), getPerTestTransportClientRatio());
             cluster().wipe();
             randomIndexTemplate();
-            logger.info("[{}#{}]: before test", getTestClass().getSimpleName(), getTestName());
+            printTestMessage("before");
         } catch (OutOfMemoryError e) {
             if (e.getMessage().contains("unable to create new native thread")) {
                 ElasticsearchTestCase.printStackDump(logger);
             }
             throw e;
+        }
+    }
+
+    private void printTestMessage(String message) {
+        if (isSuiteScopedTest(getClass())) {
+            logger.info("[{}]: {} suite", getTestClass().getSimpleName(), message);
+        } else {
+            logger.info("[{}#{}]: {} test", getTestClass().getSimpleName(), getTestName(), message);
         }
     }
 
@@ -590,9 +598,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     protected final void afterInternal(boolean afterClass) throws Exception {
         boolean success = false;
         try {
-            logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
-            clearDisruptionScheme();
             final Scope currentClusterScope = getCurrentClusterScope();
+            printTestMessage("cleaning up after");
+            clearDisruptionScheme();
             try {
                 if (cluster() != null) {
                     if (currentClusterScope != Scope.TEST) {
@@ -614,7 +622,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     clearClusters(); // it is ok to leave persistent / transient cluster state behind if scope is TEST
                 }
             }
-            logger.info("[{}#{}]: cleaned up after test", getTestClass().getSimpleName(), getTestName());
+            printTestMessage("cleaned up after");
             success = true;
         } finally {
             if (!success) {

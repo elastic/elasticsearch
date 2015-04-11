@@ -92,6 +92,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
 
     @After
     public void tearDown() throws Exception {
+        logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
         super.tearDown();
         cleanup(resetNodeAfterTest());
     }

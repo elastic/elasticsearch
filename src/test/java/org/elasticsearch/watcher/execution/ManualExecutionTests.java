@@ -20,7 +20,7 @@ import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
-import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
+import org.elasticsearch.watcher.trigger.schedule.CronSchedule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
@@ -38,11 +38,6 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
         return false;
     }
 
-    @Override
-    protected boolean timeWarped() {
-        return true;
-    }
-
     @Test
     @Repeat(iterations = 10)
     public void testExecuteWatch() throws Exception {
@@ -56,7 +51,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
         LoggingAction.SourceBuilder loggingAction = new LoggingAction.SourceBuilder("logging");
         loggingAction.text(new ScriptTemplate.SourceBuilder("foobar"));
         WatchSourceBuilder testWatchBuilder = new WatchSourceBuilder();
-        testWatchBuilder.trigger(new ScheduleTrigger.SourceBuilder(new IntervalSchedule(new IntervalSchedule.Interval(100, IntervalSchedule.Interval.Unit.DAYS))));
+        testWatchBuilder.trigger(new ScheduleTrigger.SourceBuilder(new CronSchedule("0 0 0 1 * ? 2099")));
         testWatchBuilder.condition(conditionAlwaysTrue ? new AlwaysTrueCondition.SourceBuilder() : new AlwaysFalseCondition.SourceBuilder());
         testWatchBuilder.addAction(loggingAction);
         testWatchBuilder.input(new SimpleInput.SourceBuilder((new Payload.Simple("foo", "bar").data())));

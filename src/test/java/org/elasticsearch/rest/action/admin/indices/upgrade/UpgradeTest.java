@@ -147,7 +147,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         
         // #10213:
         logger.info("--> Running upgrade on index " + indexToUpgrade + ", only ancient segments");
-        runUpgrade(httpClient(), indexToUpgrade, "upgrade_only_ancient_segments", "true");
+        runUpgrade(httpClient(), indexToUpgrade, "only_ancient_segments", "true");
 
         // TODO: why do we never test upgrading ancient segments here...?
         // E.g. 0.90.x (Lucene 3.x) --> 1.x (Lucene 4.x)  ElasticsearchBackwardsCompatIntegrationTest.backwardsCompatibilityPath checks that

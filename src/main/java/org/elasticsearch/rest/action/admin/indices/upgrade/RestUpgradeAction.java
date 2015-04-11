@@ -91,7 +91,7 @@ public class RestUpgradeAction extends BaseRestHandler {
         OptimizeRequest optimizeReq = new OptimizeRequest(Strings.splitStringByCommaToArray(request.param("index")));
         optimizeReq.flush(true);
         optimizeReq.upgrade(true);
-        optimizeReq.upgradeOnlyAncientSegments(request.paramAsBoolean("upgrade_only_ancient_segments", false));
+        optimizeReq.upgradeOnlyAncientSegments(request.paramAsBoolean("only_ancient_segments", false));
         optimizeReq.maxNumSegments(Integer.MAX_VALUE); // we just want to upgrade the segments, not actually optimize to a single segment
         client.admin().indices().optimize(optimizeReq, new RestBuilderListener<OptimizeResponse>(channel) {
             @Override

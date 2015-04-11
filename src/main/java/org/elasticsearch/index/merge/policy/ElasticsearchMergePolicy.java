@@ -204,6 +204,26 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
         return upgradedMergeSpecification(delegate.findMerges(mergeTrigger, segmentInfos, writer));
     }
 
+    private boolean shouldUpgrade(SegmentCommitInfo info) {
+        org.apache.lucene.util.Version old = info.info.getVersion();
+        org.apache.lucene.util.Version cur = Version.CURRENT.luceneVersion;
+
+        // Something seriously wrong if this trips:
+        assert old.major <= cur.major;
+
+        if (cur.major > old.major) {
+            // Always upgrade segment if Lucene's major version is too old
+            return true;
+        }
+        if (upgradeOnlyAncientSegments == false && cur.minor > old.minor) {
+            // If it's only a minor version difference, and we are not upgrading only ancient segments,
+            // also upgrade:
+            return true;
+        }
+        // Version matches, or segment is not ancient and we are only upgrading ancient segments:
+        return false;
+    }
+
     @Override
     public MergeSpecification findForcedMerges(SegmentInfos segmentInfos,
         int maxSegmentCount, Map<SegmentCommitInfo,Boolean> segmentsToMerge, IndexWriter writer)
@@ -212,13 +232,9 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
         if (upgradeInProgress) {
             MergeSpecification spec = new IndexUpgraderMergeSpecification();
             for (SegmentCommitInfo info : segmentInfos) {
-                org.apache.lucene.util.Version old = info.info.getVersion();
-                org.apache.lucene.util.Version cur = Version.CURRENT.luceneVersion;
 
-                assert old.major <= cur.major;
+                if (shouldUpgrade(info)) {
 
-                if (cur.major > old.major ||
-                    (upgradeOnlyAncientSegments == false && cur.minor > old.minor)) {
                     // TODO: Use IndexUpgradeMergePolicy instead.  We should be comparing codecs,
                     // for now we just assume every minor upgrade has a new format.
                     logger.debug("Adding segment " + info.info.name + " to be upgraded");

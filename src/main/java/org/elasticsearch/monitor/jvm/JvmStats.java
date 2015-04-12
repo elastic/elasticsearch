@@ -45,91 +45,14 @@ import java.util.concurrent.TimeUnit;
  */
 public class JvmStats implements Streamable, Serializable, ToXContent {
 
-    private static boolean enableLastGc;
-
-    public static boolean isLastGcEnabled() {
-        return enableLastGc;
-    }
-
     private final static RuntimeMXBean runtimeMXBean;
     private final static MemoryMXBean memoryMXBean;
     private final static ThreadMXBean threadMXBean;
-
-    private static Method managementFactoryPlatformMXBeansMethod;
-
-    private static Method getLastGcInfoMethod;
-    private static Method getMemoryUsageBeforeGcMethod;
-    private static Method getMemoryUsageAfterGcMethod;
-    private static Method getStartTimeMethod;
-    private static Method getEndTimeMethod;
-    private static Method getDurationMethod;
-
-    private static boolean bufferPoolsEnabled;
-    private static Class bufferPoolMXBeanClass;
-    private static Method bufferPoolMXBeanNameMethod;
-    private static Method bufferPoolMXBeanCountMethod;
-    private static Method bufferPoolMXBeanTotalCapacityMethod;
-    private static Method bufferPoolMXBeanMemoryUsedMethod;
 
     static {
         runtimeMXBean = ManagementFactory.getRuntimeMXBean();
         memoryMXBean = ManagementFactory.getMemoryMXBean();
         threadMXBean = ManagementFactory.getThreadMXBean();
-
-        try {
-            managementFactoryPlatformMXBeansMethod = ManagementFactory.class.getMethod("getPlatformMXBeans", Class.class);
-        } catch (Throwable e) {
-            managementFactoryPlatformMXBeansMethod = null;
-        }
-
-
-        try {
-            bufferPoolMXBeanClass = Class.forName("java.lang.management.BufferPoolMXBean");
-            bufferPoolMXBeanNameMethod = bufferPoolMXBeanClass.getMethod("getName");
-            bufferPoolMXBeanCountMethod = bufferPoolMXBeanClass.getMethod("getCount");
-            bufferPoolMXBeanTotalCapacityMethod = bufferPoolMXBeanClass.getMethod("getTotalCapacity");
-            bufferPoolMXBeanMemoryUsedMethod = bufferPoolMXBeanClass.getMethod("getMemoryUsed");
-            bufferPoolsEnabled = true;
-        } catch (Throwable t) {
-            bufferPoolsEnabled = false;
-        }
-
-        JvmInfo info = JvmInfo.jvmInfo();
-        boolean defaultEnableLastGc = false;
-        if (info.versionAsInteger() == 170) {
-            defaultEnableLastGc = info.versionUpdatePack() >= 4;
-        } else if (info.versionAsInteger() > 170) {
-            defaultEnableLastGc = true;
-        }
-        // always disable lastG, some reports it gives are strange...
-        defaultEnableLastGc = false;
-
-        boolean enableLastGc = Booleans.parseBoolean(System.getProperty("monitor.jvm.enable_last_gc"), defaultEnableLastGc);
-        if (enableLastGc) {
-            try {
-                Class sunGcClass = Class.forName("com.sun.management.GarbageCollectorMXBean");
-                Class gcInfoClass = Class.forName("com.sun.management.GcInfo");
-
-                getLastGcInfoMethod = sunGcClass.getDeclaredMethod("getLastGcInfo");
-                getLastGcInfoMethod.setAccessible(true);
-
-                getMemoryUsageBeforeGcMethod = gcInfoClass.getDeclaredMethod("getMemoryUsageBeforeGc");
-                getMemoryUsageBeforeGcMethod.setAccessible(true);
-                getMemoryUsageAfterGcMethod = gcInfoClass.getDeclaredMethod("getMemoryUsageAfterGc");
-                getMemoryUsageAfterGcMethod.setAccessible(true);
-                getStartTimeMethod = gcInfoClass.getDeclaredMethod("getStartTime");
-                getStartTimeMethod.setAccessible(true);
-                getEndTimeMethod = gcInfoClass.getDeclaredMethod("getEndTime");
-                getEndTimeMethod.setAccessible(true);
-                getDurationMethod = gcInfoClass.getDeclaredMethod("getDuration");
-                getDurationMethod.setAccessible(true);
-
-            } catch (Throwable ex) {
-                enableLastGc = false;
-            }
-        }
-
-        JvmStats.enableLastGc = enableLastGc;
     }
 
     public static JvmStats jvmStats() {
@@ -183,66 +106,26 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             stats.gc.collectors[i].name = GcNames.getByGcName(gcMxBean.getName(), gcMxBean.getName());
             stats.gc.collectors[i].collectionCount = gcMxBean.getCollectionCount();
             stats.gc.collectors[i].collectionTime = gcMxBean.getCollectionTime();
-            if (enableLastGc) {
-                try {
-                    Object lastGcInfo = getLastGcInfoMethod.invoke(gcMxBean);
-                    if (lastGcInfo != null) {
-                        Map<String, MemoryUsage> usageBeforeGc = (Map<String, MemoryUsage>) getMemoryUsageBeforeGcMethod.invoke(lastGcInfo);
-                        Map<String, MemoryUsage> usageAfterGc = (Map<String, MemoryUsage>) getMemoryUsageAfterGcMethod.invoke(lastGcInfo);
-                        long startTime = (Long) getStartTimeMethod.invoke(lastGcInfo);
-                        long endTime = (Long) getEndTimeMethod.invoke(lastGcInfo);
-                        long duration = (Long) getDurationMethod.invoke(lastGcInfo);
-
-                        long previousMemoryUsed = 0;
-                        long memoryUsed = 0;
-                        long memoryMax = 0;
-                        for (Map.Entry<String, MemoryUsage> entry : usageBeforeGc.entrySet()) {
-                            previousMemoryUsed += entry.getValue().getUsed();
-                        }
-                        for (Map.Entry<String, MemoryUsage> entry : usageAfterGc.entrySet()) {
-                            MemoryUsage mu = entry.getValue();
-                            memoryUsed += mu.getUsed();
-                            memoryMax += mu.getMax();
-                        }
-
-                        stats.gc.collectors[i].lastGc = new GarbageCollector.LastGc(startTime, endTime, memoryMax, previousMemoryUsed, memoryUsed, duration);
-                    }
-                } catch (Exception e) {
-//                    e.printStackTrace();
-                }
-            }
         }
 
-
-        if (bufferPoolsEnabled) {
-            try {
-                List bufferPools = (List) managementFactoryPlatformMXBeansMethod.invoke(null, bufferPoolMXBeanClass);
-                stats.bufferPools = new ArrayList<>(bufferPools.size());
-                for (Object bufferPool : bufferPools) {
-                    String name = (String) bufferPoolMXBeanNameMethod.invoke(bufferPool);
-                    Long count = (Long) bufferPoolMXBeanCountMethod.invoke(bufferPool);
-                    Long totalCapacity = (Long) bufferPoolMXBeanTotalCapacityMethod.invoke(bufferPool);
-                    Long memoryUsed = (Long) bufferPoolMXBeanMemoryUsedMethod.invoke(bufferPool);
-                    stats.bufferPools.add(new BufferPool(name, count, totalCapacity, memoryUsed));
-                }
-            } catch (Throwable t) {
-                //t.printStackTrace();
+        try {
+            List<BufferPoolMXBean> bufferPools = ManagementFactory.getPlatformMXBeans(BufferPoolMXBean.class);
+            stats.bufferPools = new ArrayList<>(bufferPools.size());
+            for (BufferPoolMXBean bufferPool : bufferPools) {
+                stats.bufferPools.add(new BufferPool(bufferPool.getName(), bufferPool.getCount(), bufferPool.getTotalCapacity(), bufferPool.getMemoryUsed()));
             }
+        } catch (Throwable t) {
+            // buffer pools are not available
         }
 
         return stats;
     }
 
     long timestamp = -1;
-
     long uptime;
-
     Mem mem;
-
     Threads threads;
-
     GarbageCollectors gc;
-
     List<BufferPool> bufferPools;
 
     private JvmStats() {
@@ -253,44 +136,24 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         this.uptime = uptime;
     }
 
-    public long timestamp() {
-        return timestamp;
-    }
-
     public long getTimestamp() {
         return timestamp;
     }
 
-    public TimeValue uptime() {
+    public TimeValue getUptime() {
         return new TimeValue(uptime);
     }
 
-    public TimeValue getUptime() {
-        return uptime();
-    }
-
-    public Mem mem() {
+    public Mem getMem() {
         return this.mem;
     }
 
-    public Mem getMem() {
-        return mem();
-    }
-
-    public Threads threads() {
+    public Threads getThreads() {
         return threads;
     }
 
-    public Threads getThreads() {
-        return threads();
-    }
-
-    public GarbageCollectors gc() {
-        return gc;
-    }
-
     public GarbageCollectors getGc() {
-        return gc();
+        return gc;
     }
 
     @Override
@@ -302,8 +165,8 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             builder.startObject(Fields.MEM);
 
             builder.byteSizeField(Fields.HEAP_USED_IN_BYTES, Fields.HEAP_USED, mem.heapUsed);
-            if (mem.heapUsedPercent() >= 0) {
-                builder.field(Fields.HEAP_USED_PERCENT, mem.heapUsedPercent());
+            if (mem.getHeapUsedPercent() >= 0) {
+                builder.field(Fields.HEAP_USED_PERCENT, mem.getHeapUsedPercent());
             }
             builder.byteSizeField(Fields.HEAP_COMMITTED_IN_BYTES, Fields.HEAP_COMMITTED, mem.heapCommitted);
             builder.byteSizeField(Fields.HEAP_MAX_IN_BYTES, Fields.HEAP_MAX, mem.heapMax);
@@ -312,7 +175,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
 
             builder.startObject(Fields.POOLS);
             for (MemoryPool pool : mem) {
-                builder.startObject(pool.name(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(pool.getName(), XContentBuilder.FieldCaseConversion.NONE);
                 builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, pool.used);
                 builder.byteSizeField(Fields.MAX_IN_BYTES, Fields.MAX, pool.max);
 
@@ -327,8 +190,8 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         }
         if (threads != null) {
             builder.startObject(Fields.THREADS);
-            builder.field(Fields.COUNT, threads.count());
-            builder.field(Fields.PEAK_COUNT, threads.peakCount());
+            builder.field(Fields.COUNT, threads.getCount());
+            builder.field(Fields.PEAK_COUNT, threads.getPeakCount());
             builder.endObject();
         }
         if (gc != null) {
@@ -336,8 +199,8 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
 
             builder.startObject(Fields.COLLECTORS);
             for (GarbageCollector collector : gc) {
-                builder.startObject(collector.name(), XContentBuilder.FieldCaseConversion.NONE);
-                builder.field(Fields.COLLECTION_COUNT, collector.collectionCount());
+                builder.startObject(collector.getName(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.field(Fields.COLLECTION_COUNT, collector.getCollectionCount());
                 builder.timeValueField(Fields.COLLECTION_TIME_IN_MILLIS, Fields.COLLECTION_TIME, collector.collectionTime);
                 builder.endObject();
             }
@@ -349,8 +212,8 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         if (bufferPools != null) {
             builder.startObject(Fields.BUFFER_POOLS);
             for (BufferPool bufferPool : bufferPools) {
-                builder.startObject(bufferPool.name(), XContentBuilder.FieldCaseConversion.NONE);
-                builder.field(Fields.COUNT, bufferPool.count());
+                builder.startObject(bufferPool.getName(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.field(Fields.COUNT, bufferPool.getCount());
                 builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, bufferPool.used);
                 builder.byteSizeField(Fields.TOTAL_CAPACITY_IN_BYTES, Fields.TOTAL_CAPACITY, bufferPool.totalCapacity);
                 builder.endObject();
@@ -484,7 +347,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             }
         }
 
-        public GarbageCollector[] collectors() {
+        public GarbageCollector[] getCollectors() {
             return this.collectors;
         }
 
@@ -496,114 +359,9 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
 
     public static class GarbageCollector implements Streamable, Serializable {
 
-        public static class LastGc implements Streamable {
-
-            long startTime;
-            long endTime;
-            long max;
-            long beforeUsed;
-            long afterUsed;
-            long duration;
-
-            LastGc() {
-            }
-
-            public LastGc(long startTime, long endTime, long max, long beforeUsed, long afterUsed, long duration) {
-                this.startTime = startTime;
-                this.endTime = endTime;
-                this.max = max;
-                this.beforeUsed = beforeUsed;
-                this.afterUsed = afterUsed;
-                this.duration = duration;
-            }
-
-            public long startTime() {
-                return this.startTime;
-            }
-
-            public long getStartTime() {
-                return startTime();
-            }
-
-            public long endTime() {
-                return this.endTime;
-            }
-
-            public long getEndTime() {
-                return endTime();
-            }
-
-            public ByteSizeValue max() {
-                return new ByteSizeValue(max);
-            }
-
-            public ByteSizeValue getMax() {
-                return max();
-            }
-
-            public ByteSizeValue afterUsed() {
-                return new ByteSizeValue(afterUsed);
-            }
-
-            public ByteSizeValue getAfterUsed() {
-                return afterUsed();
-            }
-
-            public ByteSizeValue beforeUsed() {
-                return new ByteSizeValue(beforeUsed);
-            }
-
-            public ByteSizeValue getBeforeUsed() {
-                return beforeUsed();
-            }
-
-            public ByteSizeValue reclaimed() {
-                return new ByteSizeValue(beforeUsed - afterUsed);
-            }
-
-            public ByteSizeValue getReclaimed() {
-                return reclaimed();
-            }
-
-            public TimeValue duration() {
-                return new TimeValue(this.duration);
-            }
-
-            public TimeValue getDuration() {
-                return duration();
-            }
-
-            public static LastGc readLastGc(StreamInput in) throws IOException {
-                LastGc lastGc = new LastGc();
-                lastGc.readFrom(in);
-                return lastGc;
-            }
-
-            @Override
-            public void readFrom(StreamInput in) throws IOException {
-                startTime = in.readVLong();
-                endTime = in.readVLong();
-                max = in.readVLong();
-                beforeUsed = in.readVLong();
-                afterUsed = in.readVLong();
-                duration = in.readVLong();
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                out.writeVLong(startTime);
-                out.writeVLong(endTime);
-                out.writeVLong(max);
-                out.writeVLong(beforeUsed);
-                out.writeVLong(afterUsed);
-                out.writeVLong(duration);
-            }
-        }
-
         String name;
         long collectionCount;
         long collectionTime;
-        LastGc lastGc;
 
         GarbageCollector() {
         }
@@ -619,9 +377,6 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             name = in.readString();
             collectionCount = in.readVLong();
             collectionTime = in.readVLong();
-            if (in.readBoolean()) {
-                lastGc = LastGc.readLastGc(in);
-            }
         }
 
         @Override
@@ -629,44 +384,18 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             out.writeString(name);
             out.writeVLong(collectionCount);
             out.writeVLong(collectionTime);
-            if (lastGc == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                lastGc.writeTo(out);
-            }
-        }
-
-        public String name() {
-            return name;
         }
 
         public String getName() {
-            return name();
-        }
-
-        public long collectionCount() {
-            return collectionCount;
+            return this.name;
         }
 
         public long getCollectionCount() {
-            return collectionCount();
-        }
-
-        public TimeValue collectionTime() {
-            return new TimeValue(collectionTime, TimeUnit.MILLISECONDS);
+            return this.collectionCount;
         }
 
         public TimeValue getCollectionTime() {
-            return collectionTime();
-        }
-
-        public LastGc lastGc() {
-            return this.lastGc;
-        }
-
-        public LastGc getLastGc() {
-            return lastGc();
+            return new TimeValue(collectionTime, TimeUnit.MILLISECONDS);
         }
     }
 
@@ -678,20 +407,12 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         Threads() {
         }
 
-        public int count() {
+        public int getCount() {
             return count;
         }
 
-        public int getCount() {
-            return count();
-        }
-
-        public int peakCount() {
-            return peakCount;
-        }
-
         public int getPeakCount() {
-            return peakCount();
+            return peakCount;
         }
 
         public static Threads readThreads(StreamInput in) throws IOException {
@@ -740,44 +461,24 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             return pool;
         }
 
-        public String name() {
-            return this.name;
-        }
-
         public String getName() {
             return this.name;
         }
 
-        public ByteSizeValue used() {
+        public ByteSizeValue getUsed() {
             return new ByteSizeValue(used);
         }
 
-        public ByteSizeValue getUsed() {
-            return used();
-        }
-
-        public ByteSizeValue max() {
+        public ByteSizeValue getMax() {
             return new ByteSizeValue(max);
         }
 
-        public ByteSizeValue getMax() {
-            return max();
-        }
-
-        public ByteSizeValue peakUsed() {
+        public ByteSizeValue getPeakUsed() {
             return new ByteSizeValue(peakUsed);
         }
 
-        public ByteSizeValue getPeakUsed() {
-            return peakUsed();
-        }
-
-        public ByteSizeValue peakMax() {
-            return new ByteSizeValue(peakMax);
-        }
-
         public ByteSizeValue getPeakMax() {
-            return peakMax();
+            return new ByteSizeValue(peakMax);
         }
 
         @Override
@@ -849,67 +550,37 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             }
         }
 
-        public ByteSizeValue heapCommitted() {
+        public ByteSizeValue getHeapCommitted() {
             return new ByteSizeValue(heapCommitted);
         }
 
-        public ByteSizeValue getHeapCommitted() {
-            return heapCommitted();
-        }
-
-        public ByteSizeValue heapUsed() {
-            return new ByteSizeValue(heapUsed);
-        }
-
         public ByteSizeValue getHeapUsed() {
-            return heapUsed();
-        }
-
-        /**
-         * returns the maximum heap size. 0 bytes signals unknown.
-         */
-        public ByteSizeValue heapMax() {
-            return new ByteSizeValue(heapMax);
+            return new ByteSizeValue(heapUsed);
         }
 
         /**
          * returns the maximum heap size. 0 bytes signals unknown.
          */
         public ByteSizeValue getHeapMax() {
-            return heapMax();
+            return new ByteSizeValue(heapMax);
         }
 
         /**
          * returns the heap usage in percent. -1 signals unknown.
          */
-        public short heapUsedPercent() {
+        public short getHeapUsedPercent() {
             if (heapMax == 0) {
                 return -1;
             }
             return (short) (heapUsed * 100 / heapMax);
         }
 
-        /**
-         * returns the heap usage in percent. -1 signals unknown.
-         */
-        public short getHeapUsedPrecent() {
-            return heapUsedPercent();
-        }
-
-        public ByteSizeValue nonHeapCommitted() {
+        public ByteSizeValue getNonHeapCommitted() {
             return new ByteSizeValue(nonHeapCommitted);
         }
 
-        public ByteSizeValue getNonHeapCommitted() {
-            return nonHeapCommitted();
-        }
-
-        public ByteSizeValue nonHeapUsed() {
-            return new ByteSizeValue(nonHeapUsed);
-        }
-
         public ByteSizeValue getNonHeapUsed() {
-            return nonHeapUsed();
+            return new ByteSizeValue(nonHeapUsed);
         }
     }
 
@@ -930,36 +601,20 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
             this.used = used;
         }
 
-        public String name() {
-            return this.name;
-        }
-
         public String getName() {
             return this.name;
-        }
-
-        public long count() {
-            return this.count;
         }
 
         public long getCount() {
             return this.count;
         }
 
-        public ByteSizeValue totalCapacity() {
+        public ByteSizeValue getTotalCapacity() {
             return new ByteSizeValue(totalCapacity);
         }
 
-        public ByteSizeValue getTotalCapacity() {
-            return totalCapacity();
-        }
-
-        public ByteSizeValue used() {
-            return new ByteSizeValue(used);
-        }
-
         public ByteSizeValue getUsed() {
-            return used();
+            return new ByteSizeValue(used);
         }
 
         @Override

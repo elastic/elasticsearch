@@ -5,22 +5,19 @@
  */
 package org.elasticsearch.watcher.actions.email;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.Action;
-import org.elasticsearch.watcher.actions.ActionSettingsException;
 import org.elasticsearch.watcher.actions.email.service.*;
-import org.elasticsearch.watcher.support.Variables;
-import org.elasticsearch.watcher.support.template.Template;
-import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.watcher.support.Variables;
+import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.watch.Payload;
 
 import java.io.IOException;
 import java.util.Map;
@@ -32,31 +29,25 @@ public class EmailAction extends Action<EmailAction.Result> {
 
     public static final String TYPE = "email";
 
-    final Email emailPrototype;
+    final EmailTemplate emailTemplate;
     final Authentication auth;
     final Profile profile;
     final String account;
-    final @Nullable Template subject;
-    final @Nullable Template textBody;
-    final @Nullable Template htmlBody;
     final boolean attachPayload;
 
     final EmailService emailService;
+    final TemplateEngine templateEngine;
 
-    public EmailAction(ESLogger logger, EmailService emailService, Email emailPrototype,
-                       Authentication auth, Profile profile, String account, @Nullable Template subject,
-                       @Nullable Template textBody, @Nullable Template htmlBody, boolean attachPayload) {
-
+    public EmailAction(ESLogger logger, EmailTemplate emailTemplate, Authentication auth, Profile profile, String account, boolean attachPayload,
+                       EmailService emailService, TemplateEngine templateEngine) {
         super(logger);
-        this.emailService = emailService;
-        this.emailPrototype = emailPrototype;
+        this.emailTemplate = emailTemplate;
         this.auth = auth;
         this.profile = profile;
         this.account = account;
-        this.subject = subject;
-        this.textBody = textBody;
-        this.htmlBody = htmlBody;
         this.attachPayload = attachPayload;
+        this.emailService = emailService;
+        this.templateEngine = templateEngine;
     }
 
     @Override
@@ -64,44 +55,37 @@ public class EmailAction extends Action<EmailAction.Result> {
         return TYPE;
     }
 
-    @Override
     protected Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws IOException {
+        try {
+            return doExecute(actionId, ctx, payload);
+        } catch (Exception e) {
+            logger.error("could not send email [{}] for watch [{}]", e, actionId, ctx.watch().name());
+            return new Result.Failure("could not execute email action. error: " + e.getMessage());
+        }
+    }
+
+    protected Result doExecute(String actionId, WatchExecutionContext ctx, Payload payload) throws Exception {
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
 
-        Email.Builder email = Email.builder()
-                .id(ctx.id())
-                .copyFrom(emailPrototype);
-
+        Email.Builder email = emailTemplate.render(templateEngine, model);
         email.id(ctx.id());
-        email.subject(subject != null ? subject.render(model) : "");
-        email.textBody(textBody != null ? textBody.render(model) : "");
-
-        if (htmlBody != null) {
-            email.htmlBody(htmlBody.render(model));
-        }
 
         if (attachPayload) {
             Attachment.Bytes attachment = new Attachment.XContent.Yaml("payload", "payload.yml", payload);
             email.attach(attachment);
         }
 
-        try {
-            if (ctx.simulateAction(actionId)) {
-                return new Result.Simulated(email.build());
-            } else {
-                EmailService.EmailSent sent = emailService.send(email.build(), auth, profile, account);
-                return new Result.Success(sent);
-            }
-
-        } catch (EmailException ee) {
-            logger.error("could not send email [{}] for watch [{}]", ee, actionId, ctx.watch().name());
-            return new Result.Failure("could not send email for action [" + actionId +  "]. error: " + ee.getMessage());
+        if (ctx.simulateAction(actionId)) {
+            return new Result.Simulated(email.build());
         }
+
+        EmailService.EmailSent sent = emailService.send(email.build(), auth, profile, account);
+        return new Result.Success(sent);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(emailPrototype, auth, profile, account, subject, textBody, htmlBody, attachPayload);
+        return Objects.hash(emailTemplate, auth, profile, account, attachPayload);
     }
 
     @Override
@@ -113,19 +97,17 @@ public class EmailAction extends Action<EmailAction.Result> {
             return false;
         }
         final EmailAction other = (EmailAction) obj;
-        return Objects.equals(this.emailPrototype, other.emailPrototype)
+        return Objects.equals(this.emailTemplate, other.emailTemplate)
                 && Objects.equals(this.auth, other.auth)
                 && Objects.equals(this.profile, other.profile)
                 && Objects.equals(this.account, other.account)
-                && Objects.equals(this.subject, other.subject)
-                && Objects.equals(this.textBody, other.textBody)
-                && Objects.equals(this.htmlBody, other.htmlBody)
                 && Objects.equals(this.attachPayload, other.attachPayload);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        emailTemplate.xContentBody(builder, params);
         if (account != null) {
             builder.field(Parser.ACCOUNT_FIELD.getPreferredName(), account);
         }
@@ -134,36 +116,9 @@ public class EmailAction extends Action<EmailAction.Result> {
         }
         if (auth != null) {
             builder.field(Parser.USER_FIELD.getPreferredName(), auth.user());
-            builder.field(Parser.PASSWORD_FIELD.getPreferredName(), auth.password());
+            builder.field(Parser.PASSWORD_FIELD.getPreferredName(), new String(auth.password()));
         }
         builder.field(Parser.ATTACH_PAYLOAD_FIELD.getPreferredName(), attachPayload);
-        if (emailPrototype.from() != null) {
-            builder.field(Email.FROM_FIELD.getPreferredName(), emailPrototype.from());
-        }
-        if (emailPrototype.to() != null && !emailPrototype.to().isEmpty()) {
-            builder.field(Email.TO_FIELD.getPreferredName(), (ToXContent) emailPrototype.to());
-        }
-        if (emailPrototype.cc() != null && !emailPrototype.cc().isEmpty()) {
-            builder.field(Email.CC_FIELD.getPreferredName(), (ToXContent) emailPrototype.cc());
-        }
-        if (emailPrototype.bcc() != null && !emailPrototype.bcc().isEmpty()) {
-            builder.field(Email.BCC_FIELD.getPreferredName(), (ToXContent) emailPrototype.bcc());
-        }
-        if (emailPrototype.replyTo() != null && !emailPrototype.replyTo().isEmpty()) {
-            builder.field(Email.REPLY_TO_FIELD.getPreferredName(), (ToXContent) emailPrototype.replyTo());
-        }
-        if (subject != null) {
-            builder.field(Email.SUBJECT_FIELD.getPreferredName(), subject);
-        }
-        if (textBody != null) {
-            builder.field(Email.TEXT_BODY_FIELD.getPreferredName(), textBody);
-        }
-        if (htmlBody != null) {
-            builder.field(Email.HTML_BODY_FIELD.getPreferredName(), htmlBody);
-        }
-        if (emailPrototype.priority() != null) {
-            builder.field(Email.PRIORITY_FIELD.getPreferredName(), emailPrototype.priority());
-        }
         return builder.endObject();
     }
 
@@ -178,14 +133,14 @@ public class EmailAction extends Action<EmailAction.Result> {
         public static final ParseField REASON_FIELD = new ParseField("reason");
         public static final ParseField SIMULATED_EMAIL_FIELD = new ParseField("simulated_email");
 
-        private final Template.Parser templateParser;
         private final EmailService emailService;
+        private final TemplateEngine templateEngine;
 
         @Inject
-        public Parser(Settings settings, EmailService emailService, Template.Parser templateParser) {
+        public Parser(Settings settings, EmailService emailService, TemplateEngine templateEngine) {
             super(settings);
             this.emailService = emailService;
-            this.templateParser = templateParser;
+            this.templateEngine = templateEngine;
         }
 
         @Override
@@ -195,14 +150,11 @@ public class EmailAction extends Action<EmailAction.Result> {
 
         @Override
         public EmailAction parse(XContentParser parser) throws IOException {
+            EmailTemplate.Parser emailParser = EmailTemplate.parser();
             String user = null;
             String password = null;
             String account = null;
             Profile profile = null;
-            Email.Builder email = Email.builder().id("prototype");
-            Template subject = null;
-            Template textBody = null;
-            Template htmlBody = null;
             boolean attachPayload = false;
 
             String currentFieldName = null;
@@ -210,39 +162,9 @@ public class EmailAction extends Action<EmailAction.Result> {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if ((token.isValue() || token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) && currentFieldName != null) {
-                    if (Email.FROM_FIELD.match(currentFieldName)) {
-                        email.from(Email.Address.parse(currentFieldName, token, parser));
-                    } else if (Email.REPLY_TO_FIELD.match(currentFieldName)) {
-                        email.replyTo(Email.AddressList.parse(currentFieldName, token, parser));
-                    } else if (Email.TO_FIELD.match(currentFieldName)) {
-                        email.to(Email.AddressList.parse(currentFieldName, token, parser));
-                    } else if (Email.CC_FIELD.match(currentFieldName)) {
-                        email.cc(Email.AddressList.parse(currentFieldName, token, parser));
-                    } else if (Email.BCC_FIELD.match(currentFieldName)) {
-                        email.bcc(Email.AddressList.parse(currentFieldName, token, parser));
-                    } else if (Email.SUBJECT_FIELD.match(currentFieldName)) {
-                        try {
-                            subject = templateParser.parse(parser);
-                        } catch (Template.Parser.ParseException pe) {
-                            throw new ActionSettingsException("could not parse email [subject] template", pe);
-                        }
-                    } else if (Email.TEXT_BODY_FIELD.match(currentFieldName)) {
-                        try {
-                            textBody = templateParser.parse(parser);
-                        } catch (Template.Parser.ParseException pe) {
-                            throw new ActionSettingsException("could not parse email [text_body] template", pe);
-                        }
-                    } else if (Email.HTML_BODY_FIELD.match(currentFieldName)) {
-                        try {
-                            htmlBody = templateParser.parse(parser);
-                        } catch (Template.Parser.ParseException pe) {
-                            throw new ActionSettingsException("could not parse email [html_body] template", pe);
-                        }
-                    } else if (token == XContentParser.Token.VALUE_STRING) {
-                        if (Email.PRIORITY_FIELD.match(currentFieldName)) {
-                            email.priority(Email.Priority.resolve(parser.text()));
-                        }  else if (ACCOUNT_FIELD.match(currentFieldName)) {
+                } else if (!emailParser.handle(currentFieldName, parser)) {
+                    if (token == XContentParser.Token.VALUE_STRING) {
+                        if (ACCOUNT_FIELD.match(currentFieldName)) {
                             account = parser.text();
                         } else if (USER_FIELD.match(currentFieldName)) {
                             user = parser.text();
@@ -251,23 +173,23 @@ public class EmailAction extends Action<EmailAction.Result> {
                         } else if (PROFILE_FIELD.match(currentFieldName)) {
                             profile = Profile.resolve(parser.text());
                         } else {
-                            throw new ActionSettingsException("could not parse email action. unrecognized string field [" + currentFieldName + "]");
+                            throw new EmailActionException("could not parse [email] action. unrecognized string field [" + currentFieldName + "]");
                         }
                     } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                         if (ATTACH_PAYLOAD_FIELD.match(currentFieldName)) {
                             attachPayload = parser.booleanValue();
                         } else {
-                            throw new ActionSettingsException("could not parse email action. unrecognized boolean field [" + currentFieldName + "]");
+                            throw new EmailActionException("could not parse [email] action. unrecognized boolean field [" + currentFieldName + "]");
                         }
                     } else {
-                        throw new ActionSettingsException("could not parse email action. unexpected token [" + token + "]");
+                        throw new EmailActionException("could not parse [email] action. unexpected token [" + token + "]");
                     }
                 }
             }
 
-            Authentication auth = user != null ? new Authentication(user, password) : null;
+            Authentication auth = user != null ? new Authentication(user, password.toCharArray()) : null;
 
-            return new EmailAction(logger, emailService, email.build(), auth, profile, account, subject, textBody, htmlBody, attachPayload);
+            return new EmailAction(logger, emailParser.parsedTemplate(), auth, profile, account, attachPayload, emailService, templateEngine);
         }
 
         @Override
@@ -393,21 +315,14 @@ public class EmailAction extends Action<EmailAction.Result> {
 
     public static class SourceBuilder extends Action.SourceBuilder<SourceBuilder> {
 
-        private Email.Address from;
-        private Email.AddressList replyTo;
-        private Email.AddressList to;
-        private Email.AddressList cc;
-        private Email.AddressList bcc;
+        private final EmailTemplate email;
         private Authentication auth = null;
         private Profile profile = null;
         private String account = null;
-        private Template subject;
-        private Template textBody;
-        private Template htmlBody;
         private Boolean attachPayload;
 
-        public SourceBuilder(String id) {
-            super(id);
+        public SourceBuilder(EmailTemplate email) {
+            this.email = email;
         }
 
         @Override
@@ -415,24 +330,30 @@ public class EmailAction extends Action<EmailAction.Result> {
             return TYPE;
         }
 
+        public SourceBuilder auth(String username, char[] password) {
+            this.auth = new Authentication(username, password);
+            return this;
+        }
+
+        public SourceBuilder profile(Profile profile) {
+            this.profile = profile;
+            return this;
+        }
+
+        public SourceBuilder account(String account) {
+            this.account = account;
+            return this;
+        }
+
+        public SourceBuilder attachPayload(boolean attachPayload) {
+            this.attachPayload = attachPayload;
+            return this;
+        }
+
         @Override
         public XContentBuilder actionXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            if (from != null) {
-                builder.field(Email.FROM_FIELD.getPreferredName(), from);
-            }
-            if (replyTo != null && replyTo.size() != 0) {
-                builder.field(Email.REPLY_TO_FIELD.getPreferredName(), (ToXContent) replyTo);
-            }
-            if (to != null && to.size() != 0) {
-                builder.field(Email.TO_FIELD.getPreferredName(), (ToXContent) to);
-            }
-            if (cc != null && cc.size() != 0) {
-                builder.field(Email.CC_FIELD.getPreferredName(), (ToXContent) cc);
-            }
-            if (bcc != null && bcc.size() != 0) {
-                builder.field(Email.BCC_FIELD.getPreferredName(), (ToXContent) bcc);
-            }
+            email.xContentBody(builder, params);
             if (auth != null) {
                 builder.field(Parser.USER_FIELD.getPreferredName(), auth.user());
                 builder.field(Parser.PASSWORD_FIELD.getPreferredName(), auth.password());
@@ -442,15 +363,6 @@ public class EmailAction extends Action<EmailAction.Result> {
             }
             if (account != null) {
                 builder.field(Parser.ACCOUNT_FIELD.getPreferredName(), account);
-            }
-            if (subject != null) {
-                builder.field(Email.SUBJECT_FIELD.getPreferredName(), subject);
-            }
-            if (textBody != null) {
-                builder.field(Email.TEXT_BODY_FIELD.getPreferredName(), textBody);
-            }
-            if (htmlBody != null) {
-                builder.field(Email.HTML_BODY_FIELD.getPreferredName(), htmlBody);
             }
             if (attachPayload != null) {
                 builder.field(Parser.ATTACH_PAYLOAD_FIELD.getPreferredName(), attachPayload);

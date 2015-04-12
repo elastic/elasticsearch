@@ -5,16 +5,13 @@
  */
 package org.elasticsearch.watcher.support.template;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import java.util.Map;
 
 /**
  *
  */
-public class TemplateModule extends AbstractModule {
+public interface TemplateEngine {
 
-    @Override
-    protected void configure() {
-        bind(MustacheTemplateEngine.class).asEagerSingleton();
-        bind(TemplateEngine.class).to(MustacheTemplateEngine.class);
-    }
+    String render(Template template, Map<String, Object> model);
 }
+

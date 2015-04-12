@@ -23,9 +23,8 @@ import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.watch.Watch;
 
 import java.io.IOException;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 /**
  *
@@ -36,7 +35,7 @@ public class WatchSourceBuilder implements ToXContent {
     private Input.SourceBuilder input = NoneInput.SourceBuilder.INSTANCE;
     private Condition.SourceBuilder condition = ConditionBuilders.alwaysTrueCondition();
     private Transform.SourceBuilder transform = null;
-    private Set<Action.SourceBuilder> actions = new HashSet<>();
+    private Map<String, Action.SourceBuilder> actions = new HashMap<>();
     private TimeValue throttlePeriod = null;
     private Map<String, Object> metadata;
 
@@ -65,8 +64,8 @@ public class WatchSourceBuilder implements ToXContent {
         return this;
     }
 
-    public WatchSourceBuilder addAction(Action.SourceBuilder action) {
-        actions.add(action);
+    public WatchSourceBuilder addAction(String id, Action.SourceBuilder action) {
+        actions.put(id, action);
         return this;
     }
 
@@ -105,8 +104,8 @@ public class WatchSourceBuilder implements ToXContent {
         }
 
         builder.startObject(Watch.Parser.ACTIONS_FIELD.getPreferredName());
-        for (Action.SourceBuilder action : actions) {
-            builder.field(action.type(), action);
+        for (Map.Entry<String, Action.SourceBuilder> entry : actions.entrySet()) {
+            builder.field(entry.getKey(), entry.getValue());
         }
         builder.endObject();
 

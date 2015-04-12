@@ -23,7 +23,7 @@ public class HttpClientModule extends AbstractModule implements SpawnModules {
 
     @Override
     protected void configure() {
-        bind(TemplatedHttpRequest.Parser.class).asEagerSingleton();
+        bind(HttpRequestTemplate.Parser.class).asEagerSingleton();
         bind(HttpRequest.Parser.class).asEagerSingleton();
         bind(HttpClient.class).asEagerSingleton();
     }

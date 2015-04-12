@@ -25,7 +25,9 @@ import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.elasticsearch.watcher.watch.*;
+import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.watcher.watch.Watch;
+import org.elasticsearch.watcher.watch.WatchExecution;
 import org.junit.Test;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
@@ -57,11 +59,10 @@ public class WatchRecordTests extends AbstractWatcherIntegrationTests {
         WatchRecord watchRecord = new WatchRecord("_record", watch, event);
         WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(), event);
         ctx.onActionResult(new ActionWrapper.Result("_email", new EmailAction.Result.Failure("failed to send because blah")));
-        HttpRequest request = new HttpRequest();
-        request.host("localhost");
-        request.port(8000);
-        request.path("/watchfoo");
-        request.body("{'awesome' : 'us'}");
+        HttpRequest request = HttpRequest.builder("localhost", 8000)
+                .path("/watchfoo")
+                .body("{'awesome' : 'us'}")
+                .build();
         ctx.onActionResult(new ActionWrapper.Result("_webhook", new WebhookAction.Result.Executed(request, new HttpResponse(300))));
         Input.Result inputResult = new SimpleInput.Result(new Payload.Simple());
         Condition.Result conditionResult = AlwaysTrueCondition.RESULT;
@@ -87,11 +88,10 @@ public class WatchRecordTests extends AbstractWatcherIntegrationTests {
         WatchExecutionContext ctx = new TriggeredExecutionContext( watch, new DateTime(), event);
         WatchRecord watchRecord = new WatchRecord(ctx.id(), watch, event);
         ctx.onActionResult(new ActionWrapper.Result("_email", new EmailAction.Result.Failure("failed to send because blah")));
-        HttpRequest request = new HttpRequest();
-        request.host("localhost");
-        request.port(8000);
-        request.path("/watchfoo");
-        request.body("{'awesome' : 'us'}");
+        HttpRequest request = HttpRequest.builder("localhost", 8000)
+                .path("/watchfoo")
+                .body("{'awesome' : 'us'}")
+                .build();
         ctx.onActionResult(new ActionWrapper.Result("_webhook", new WebhookAction.Result.Executed(request, new HttpResponse(300))));
         Input.Result inputResult = new SimpleInput.Result(new Payload.Simple());
         Condition.Result conditionResult = AlwaysFalseCondition.RESULT;

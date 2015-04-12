@@ -13,9 +13,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.history.HistoryStore;
-import org.elasticsearch.watcher.support.http.TemplatedHttpRequest;
+import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.auth.BasicAuth;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
 import org.junit.Test;
@@ -28,11 +29,9 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
-import static org.elasticsearch.watcher.client.WatchSourceBuilders.template;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.httpInput;
-import static org.elasticsearch.watcher.support.http.TemplatedHttpRequest.sourceBuilder;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
@@ -63,12 +62,12 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
         watcherClient().preparePutWatch("_name")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
-                        .input(httpInput(sourceBuilder(address.getHostName(), address.getPort())
-                                .setPath("/index/_search")
-                                .setBody(jsonBuilder().startObject().field("size", 1).endObject())
-                                .setAuth(shieldEnabled() ? new BasicAuth("test", "changeme") : null)))
+                        .input(httpInput(HttpRequestTemplate.builder(address.getHostName(), address.getPort())
+                                .path("/index/_search")
+                                .body(jsonBuilder().startObject().field("size", 1).endObject())
+                                .auth(shieldEnabled() ? new BasicAuth("test", "changeme") : null)))
                         .condition(scriptCondition("ctx.payload.hits.total == 1"))
-                        .addAction(indexAction("_id", "idx", "action")))
+                        .addAction("_id", indexAction("idx", "action")))
                 .get();
 
         if (timeWarped()) {
@@ -91,11 +90,11 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
         XContentBuilder body = jsonBuilder().prettyPrint().startObject()
                     .field("query").value(termQuery("field", "value"))
                 .endObject();
-        TemplatedHttpRequest.SourceBuilder requestBuilder = new TemplatedHttpRequest.SourceBuilder(address.getHostName(), address.getPort())
-                .setPath(template("/idx/_search"))
-                .setBody(body);
+        HttpRequestTemplate.Builder requestBuilder = HttpRequestTemplate.builder(address.getHostName(), address.getPort())
+                .path(new Template("/idx/_search"))
+                .body(body);
         if (shieldEnabled()) {
-            requestBuilder.setAuth(new BasicAuth("test", "changeme"));
+            requestBuilder.auth(new BasicAuth("test", "changeme"));
         }
 
         watcherClient.preparePutWatch("_name1")

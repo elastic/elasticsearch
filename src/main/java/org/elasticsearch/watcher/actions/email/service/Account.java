@@ -68,14 +68,14 @@ public class Account {
                 user = InternetAddress.getLocalAddress(session).getAddress();
             }
         }
-        String password = auth != null ? auth.password() : null;
+        char[] password = auth != null ? auth.password() : null;
         if (password == null) {
             password = config.smtp.password;
         }
         if (profile == null) {
             profile = config.profile;
         }
-        transport.connect(config.smtp.host, config.smtp.port, user, password);
+        transport.connect(config.smtp.host, config.smtp.port, user, new String(password));
         try {
 
             MimeMessage message = profile.toMimeMessage(email, session);
@@ -127,14 +127,15 @@ public class Account {
             final String host;
             final int port;
             final String user;
-            final String password;
+            final char[] password;
             final Properties properties;
 
             public Smtp(Settings settings) {
                 host = settings.get("host", settings.get("localaddress", settings.get("local_address")));
                 port = settings.getAsInt("port", settings.getAsInt("localport", settings.getAsInt("local_port", 25)));
                 user = settings.get("user", settings.get("from", null));
-                password = settings.get("password", null);
+                String passStr = settings.get("password", null);
+                password = passStr != null ? passStr.toCharArray() : null;
                 properties = loadSmtpProperties(settings);
             }
 
@@ -194,13 +195,13 @@ public class Account {
             final String subject;
 
             public EmailDefaults(Settings settings) {
-                from = Email.Address.parse(settings, Email.FROM_FIELD.getPreferredName());
-                replyTo = Email.AddressList.parse(settings, Email.REPLY_TO_FIELD.getPreferredName());
-                priority = Email.Priority.parse(settings, Email.PRIORITY_FIELD.getPreferredName());
-                to = Email.AddressList.parse(settings, Email.TO_FIELD.getPreferredName());
-                cc = Email.AddressList.parse(settings, Email.CC_FIELD.getPreferredName());
-                bcc = Email.AddressList.parse(settings, Email.BCC_FIELD.getPreferredName());
-                subject = settings.get(Email.SUBJECT_FIELD.getPreferredName());
+                from = Email.Address.parse(settings, Email.Field.FROM.getPreferredName());
+                replyTo = Email.AddressList.parse(settings, Email.Field.REPLY_TO.getPreferredName());
+                priority = Email.Priority.parse(settings, Email.Field.PRIORITY.getPreferredName());
+                to = Email.AddressList.parse(settings, Email.Field.TO.getPreferredName());
+                cc = Email.AddressList.parse(settings, Email.Field.CC.getPreferredName());
+                bcc = Email.AddressList.parse(settings, Email.Field.BCC.getPreferredName());
+                subject = settings.get(Email.Field.SUBJECT.getPreferredName());
             }
 
             Email apply(Email email) {

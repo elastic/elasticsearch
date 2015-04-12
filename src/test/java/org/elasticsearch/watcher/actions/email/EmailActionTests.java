@@ -16,13 +16,11 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.watcher.actions.ActionSettingsException;
 import org.elasticsearch.watcher.actions.email.service.*;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
-import org.elasticsearch.watcher.support.template.ScriptTemplate;
-import org.elasticsearch.watcher.support.template.Template;
-import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.watch.Payload;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -55,15 +53,31 @@ public class EmailActionTests extends ElasticsearchTestCase {
                 return new EmailSent(account, email);
             }
         };
-        Email email = Email.builder().id("prototype").build();
-        Authentication auth = new Authentication("user", "passwd");
+        TemplateEngine engine = mock(TemplateEngine.class);
+
+        EmailTemplate.Builder emailBuilder = EmailTemplate.builder();
+        Template subject = null;
+        if (randomBoolean()) {
+            subject = new Template("_subject");
+            emailBuilder.subject(subject);
+        }
+        Template textBody = null;
+        if (randomBoolean()) {
+            textBody = new Template("_text_body");
+            emailBuilder.textBody(textBody);
+        }
+        Template htmlBody = null;
+        if (randomBoolean()) {
+            htmlBody = new Template("_html_body");
+            emailBuilder.htmlBody(htmlBody);
+        }
+        EmailTemplate email = emailBuilder.build();
+
+        Authentication auth = new Authentication("user", "passwd".toCharArray());
         Profile profile = randomFrom(Profile.values());
 
-        Template subject = randomBoolean() ? null : mock(Template.class);
-        Template textBody = randomBoolean() ? null : mock(Template.class);
-        Template htmlBody = randomBoolean() ? null : mock(Template.class);
         boolean attachPayload = randomBoolean();
-        EmailAction action = new EmailAction(logger, service, email, auth, profile, account, subject, textBody, htmlBody, attachPayload);
+        EmailAction action = new EmailAction(logger, email, auth, profile, account, attachPayload, service, engine);
 
         final Map<String, Object> data = new HashMap<>();
         Payload payload = new Payload() {
@@ -96,13 +110,13 @@ public class EmailActionTests extends ElasticsearchTestCase {
                 .build();
 
         if (subject != null) {
-            when(subject.render(expectedModel)).thenReturn("_subject");
+            when(engine.render(subject, expectedModel)).thenReturn(subject.getText());
         }
         if (textBody != null) {
-            when(textBody.render(expectedModel)).thenReturn("_text_body");
+            when(engine.render(textBody, expectedModel)).thenReturn(textBody.getText());
         }
         if (htmlBody != null) {
-            when (htmlBody.render(expectedModel)).thenReturn("_html_body");
+            when(engine.render(htmlBody, expectedModel)).thenReturn(htmlBody.getText());
         }
 
         EmailAction.Result result = action.execute("_id", ctx, payload);
@@ -113,11 +127,9 @@ public class EmailActionTests extends ElasticsearchTestCase {
         Email actualEmail = ((EmailAction.Result.Success) result).email();
         assertThat(actualEmail.id(), is(ctxId));
         assertThat(actualEmail, notNullValue());
-        assertThat(actualEmail.subject(), is(subject == null ? "" : "_subject"));
-        assertThat(actualEmail.textBody(), is(textBody == null ? "" : "_text_body"));
-        if (htmlBody != null) {
-            assertThat(actualEmail.htmlBody(), is("_html_body"));
-        }
+        assertThat(actualEmail.subject(), is(subject == null ? null : subject.getText()));
+        assertThat(actualEmail.textBody(), is(textBody == null ? null : textBody.getText()));
+        assertThat(actualEmail.htmlBody(), is(htmlBody == null ? null : htmlBody.getText()));
         if (attachPayload) {
             assertThat(actualEmail.attachments(), hasKey("payload"));
         }
@@ -125,7 +137,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
 
     @Test @Repeat(iterations = 20)
     public void testParser() throws Exception {
-        ScriptServiceProxy scriptService = mock(ScriptServiceProxy.class);
+        TemplateEngine engine = mock(TemplateEngine.class);
         EmailService emailService = mock(EmailService.class);
         Profile profile = randomFrom(Profile.values());
         Email.Priority priority = randomFrom(Email.Priority.values());
@@ -133,9 +145,9 @@ public class EmailActionTests extends ElasticsearchTestCase {
         Email.Address[] cc = rarely() ? null : Email.AddressList.parse(randomBoolean() ? "cc@domain" : "cc1@domain,cc2@domain").toArray();
         Email.Address[] bcc = rarely() ? null : Email.AddressList.parse(randomBoolean() ? "bcc@domain" : "bcc1@domain,bcc2@domain").toArray();
         Email.Address[] replyTo = rarely() ? null : Email.AddressList.parse(randomBoolean() ? "reply@domain" : "reply1@domain,reply2@domain").toArray();
-        ScriptTemplate subject = randomBoolean() ? new ScriptTemplate(scriptService, "_subject") : null;
-        ScriptTemplate textBody = randomBoolean() ? new ScriptTemplate(scriptService, "_text_body") : null;
-        ScriptTemplate htmlBody = randomBoolean() ? new ScriptTemplate(scriptService, "_text_html") : null;
+        Template subject = randomBoolean() ? new Template("_subject") : null;
+        Template textBody = randomBoolean() ? new Template("_text_body") : null;
+        Template htmlBody = randomBoolean() ? new Template("_text_html") : null;
         boolean attachPayload = randomBoolean();
         XContentBuilder builder = jsonBuilder().startObject()
                 .field("account", "_account")
@@ -175,93 +187,96 @@ public class EmailActionTests extends ElasticsearchTestCase {
         }
         if (subject != null) {
             if (randomBoolean()) {
-                builder.field("subject", subject.script().script());
+                builder.field("subject", subject.getText());
             } else {
                 builder.field("subject", subject);
             }
         }
         if (textBody != null) {
             if (randomBoolean()) {
-                builder.field("text_body", textBody.script().script());
+                builder.field("text_body", textBody.getText());
             } else {
                 builder.field("text_body", textBody);
             }
         }
         if (htmlBody != null) {
             if (randomBoolean()) {
-                builder.field("html_body", htmlBody.script().script());
+                builder.field("html_body", htmlBody.getText());
             } else {
                 builder.field("html_body", htmlBody);
             }
         }
         BytesReference bytes = builder.bytes();
+        logger.info("email action json [{}]", bytes.toUtf8());
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
 
-        EmailAction action = new EmailAction.Parser(ImmutableSettings.EMPTY, emailService,
-                new ScriptTemplate.Parser(ImmutableSettings.EMPTY, scriptService)).parse(parser);
+        EmailAction action = new EmailAction.Parser(ImmutableSettings.EMPTY, emailService, engine).parse(parser);
 
         assertThat(action, notNullValue());
         assertThat(action.account, is("_account"));
         assertThat(action.attachPayload, is(attachPayload));
         assertThat(action.auth, notNullValue());
         assertThat(action.auth.user(), is("_user"));
-        assertThat(action.auth.password(), is("_passwd"));
-        assertThat(action.subject, is((Template) subject));
-        assertThat(action.textBody, is((Template) textBody));
-        assertThat(action.htmlBody, is((Template) htmlBody));
-        assertThat(action.emailPrototype.priority(), is(priority));
+        assertThat(action.auth.password(), is("_passwd".toCharArray()));
+        assertThat(action.emailTemplate.priority(), is(new Template(priority.name())));
         if (to != null) {
-            assertThat(action.emailPrototype.to().toArray(), arrayContainingInAnyOrder(to));
+            assertThat(action.emailTemplate.to(), arrayContainingInAnyOrder(addressesToTemplates(to)));
         } else {
-            assertThat(action.emailPrototype.to(), nullValue());
+            assertThat(action.emailTemplate.to(), nullValue());
         }
         if (cc != null) {
-            assertThat(action.emailPrototype.cc().toArray(), arrayContainingInAnyOrder(cc));
+            assertThat(action.emailTemplate.cc(), arrayContainingInAnyOrder(addressesToTemplates(cc)));
         } else {
-            assertThat(action.emailPrototype.cc(), nullValue());
+            assertThat(action.emailTemplate.cc(), nullValue());
         }
         if (bcc != null) {
-            assertThat(action.emailPrototype.bcc().toArray(), arrayContainingInAnyOrder(bcc));
+            assertThat(action.emailTemplate.bcc(), arrayContainingInAnyOrder(addressesToTemplates(bcc)));
         } else {
-            assertThat(action.emailPrototype.bcc(), nullValue());
+            assertThat(action.emailTemplate.bcc(), nullValue());
         }
         if (replyTo != null) {
-            assertThat(action.emailPrototype.replyTo().toArray(), arrayContainingInAnyOrder(replyTo));
+            assertThat(action.emailTemplate.replyTo(), arrayContainingInAnyOrder(addressesToTemplates(replyTo)));
         } else {
-            assertThat(action.emailPrototype.replyTo(), nullValue());
+            assertThat(action.emailTemplate.replyTo(), nullValue());
         }
+    }
+
+    private static Template[] addressesToTemplates(Email.Address[] addresses) {
+        Template[] templates = new Template[addresses.length];
+        for (int i = 0; i < templates.length; i++) {
+            templates[i] = new Template(addresses[i].toString());
+        }
+        return templates;
     }
 
     @Test @Repeat(iterations = 20)
     public void testParser_SelfGenerated() throws Exception {
         EmailService service = mock(EmailService.class);
-        Email.Builder emailPrototypeBuilder = Email.builder().id("prototype");
+        TemplateEngine engine = mock(TemplateEngine.class);
+        EmailTemplate.Builder emailTemplate = EmailTemplate.builder();
         if (randomBoolean()) {
-            emailPrototypeBuilder.from(new Email.Address("from@domain"));
+            emailTemplate.from("from@domain");
         }
         if (randomBoolean()) {
-            emailPrototypeBuilder.to(Email.AddressList.parse(randomBoolean() ? "to@domain" : "to1@domain,to2@damain"));
+            emailTemplate.to(randomBoolean() ? "to@domain" : "to1@domain,to2@domain");
         }
         if (randomBoolean()) {
-            emailPrototypeBuilder.cc(Email.AddressList.parse(randomBoolean() ? "cc@domain" : "cc1@domain,cc2@damain"));
+            emailTemplate.cc(randomBoolean() ? "cc@domain" : "cc1@domain,cc2@domain");
         }
         if (randomBoolean()) {
-            emailPrototypeBuilder.bcc(Email.AddressList.parse(randomBoolean() ? "bcc@domain" : "bcc1@domain,bcc2@damain"));
+            emailTemplate.bcc(randomBoolean() ? "bcc@domain" : "bcc1@domain,bcc2@domain");
         }
         if (randomBoolean()) {
-            emailPrototypeBuilder.replyTo(Email.AddressList.parse(randomBoolean() ? "reply@domain" : "reply1@domain,reply2@damain"));
+            emailTemplate.replyTo(randomBoolean() ? "reply@domain" : "reply1@domain,reply2@domain");
         }
-        Email email = emailPrototypeBuilder.build();
-        Authentication auth = randomBoolean() ? null : new Authentication("_user", "_passwd");
+        EmailTemplate email = emailTemplate.build();
+        Authentication auth = randomBoolean() ? null : new Authentication("_user", "_passwd".toCharArray());
         Profile profile = randomFrom(Profile.values());
         String account = randomAsciiOfLength(6);
-        Template subject = new TemplateMock("_subject");
-        Template textBody = new TemplateMock("_text_body");
-        Template htmlBody = randomBoolean() ? null : new TemplateMock("_html_body");
         boolean attachPayload = randomBoolean();
 
-        EmailAction action = new EmailAction(logger, service, email, auth, profile, account, subject, textBody, htmlBody, attachPayload);
+        EmailAction action = new EmailAction(logger, email, auth, profile, account, attachPayload, service, engine);
 
         XContentBuilder builder = jsonBuilder();
         action.toXContent(builder, Attachment.XContent.EMPTY_PARAMS);
@@ -269,21 +284,18 @@ public class EmailActionTests extends ElasticsearchTestCase {
         System.out.println(bytes.toUtf8());
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
-        EmailAction parsed = new EmailAction.Parser(ImmutableSettings.EMPTY,service, new TemplateMock.Parser()).parse(parser);
+        EmailAction parsed = new EmailAction.Parser(ImmutableSettings.EMPTY, service, engine).parse(parser);
         assertThat(parsed, equalTo(action));
-
     }
 
-    @Test(expected = ActionSettingsException.class) @Repeat(iterations = 100)
+    @Test(expected = EmailActionException.class) @Repeat(iterations = 100)
     public void testParser_Invalid() throws Exception {
-        ScriptServiceProxy scriptService = mock(ScriptServiceProxy.class);
         EmailService emailService = mock(EmailService.class);
-        XContentBuilder builder = jsonBuilder().startObject()
-                .field("unknown_field", "value");
-        BytesReference bytes = builder.bytes();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
-        new EmailAction.Parser(ImmutableSettings.EMPTY, emailService,
-                new ScriptTemplate.Parser(ImmutableSettings.EMPTY, scriptService)).parse(parser);
+        TemplateEngine engine = mock(TemplateEngine.class);
+        XContentBuilder builder = jsonBuilder().startObject().field("unknown_field", "value");
+        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        parser.nextToken();
+        new EmailAction.Parser(ImmutableSettings.EMPTY, emailService, engine).parse(parser);
     }
 
     @Test @Repeat(iterations = 20)
@@ -313,7 +325,9 @@ public class EmailActionTests extends ElasticsearchTestCase {
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
-        EmailAction.Result result = new EmailAction.Parser(ImmutableSettings.EMPTY, mock(EmailService.class), new TemplateMock.Parser())
+        EmailService service = mock(EmailService.class);
+        TemplateEngine engine = mock(TemplateEngine.class);
+        EmailAction.Result result = new EmailAction.Parser(ImmutableSettings.EMPTY, service, engine)
                 .parseResult(parser);
 
         if (simulated) {
@@ -350,7 +364,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
-        EmailAction.Result result = new EmailAction.Parser(ImmutableSettings.EMPTY, mock(EmailService.class), new TemplateMock.Parser())
+        EmailAction.Result result = new EmailAction.Parser(ImmutableSettings.EMPTY, mock(EmailService.class), mock(TemplateEngine.class))
                 .parseResult(parser);
 
         assertThat(result, instanceOf(EmailAction.Result.Simulated.class));
@@ -365,51 +379,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
-        new EmailAction.Parser(ImmutableSettings.EMPTY, mock(EmailService.class), new TemplateMock.Parser())
+        new EmailAction.Parser(ImmutableSettings.EMPTY, mock(EmailService.class), mock(TemplateEngine.class))
                 .parseResult(parser);
-    }
-
-    static class TemplateMock implements Template {
-
-        private final String name;
-
-        public TemplateMock(String name) {
-            this.name = name;
-        }
-
-        @Override
-        public String render(Map<String, Object> model) {
-            return "";
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.value(name);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            TemplateMock that = (TemplateMock) o;
-
-            if (!name.equals(that.name)) return false;
-
-            return true;
-        }
-
-        @Override
-        public int hashCode() {
-            return name.hashCode();
-        }
-
-        public static class Parser implements Template.Parser<TemplateMock> {
-
-            @Override
-            public TemplateMock parse(XContentParser parser) throws IOException, ParseException {
-                return new TemplateMock(parser.text());
-            }
-        }
     }
 }

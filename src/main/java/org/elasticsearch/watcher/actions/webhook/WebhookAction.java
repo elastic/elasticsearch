@@ -19,8 +19,9 @@ import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Variables;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpRequest;
+import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.HttpResponse;
-import org.elasticsearch.watcher.support.http.TemplatedHttpRequest;
+import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.watch.Payload;
 
 import java.io.IOException;
@@ -34,16 +35,18 @@ public class WebhookAction extends Action<WebhookAction.Result> {
 
     private final HttpClient httpClient;
 
-    private final TemplatedHttpRequest templatedHttpRequest;
+    private final HttpRequestTemplate requestTemplate;
+    private final TemplateEngine templateEngine;
 
-    public WebhookAction(ESLogger logger, HttpClient httpClient, TemplatedHttpRequest templatedHttpRequest) {
+    public WebhookAction(ESLogger logger, HttpClient httpClient, HttpRequestTemplate requestTemplate, TemplateEngine templateEngine) {
         super(logger);
         this.httpClient = httpClient;
-        this.templatedHttpRequest = templatedHttpRequest;
+        this.requestTemplate = requestTemplate;
+        this.templateEngine = templateEngine;
     }
 
-    public TemplatedHttpRequest templatedHttpRequest() {
-        return templatedHttpRequest;
+    public HttpRequestTemplate requestTemplate() {
+        return requestTemplate;
     }
 
     @Override
@@ -55,7 +58,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
     protected Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws IOException {
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
 
-        HttpRequest request = templatedHttpRequest.render(model);
+        HttpRequest request = requestTemplate.render(templateEngine, model);
         try {
 
             if (ctx.simulateAction(actionId)) {
@@ -76,7 +79,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return templatedHttpRequest.toXContent(builder, params);
+        return requestTemplate.toXContent(builder, params);
     }
 
     @Override
@@ -86,7 +89,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
 
         WebhookAction that = (WebhookAction) o;
 
-        if (templatedHttpRequest != null ? !templatedHttpRequest.equals(that.templatedHttpRequest) : that.templatedHttpRequest != null)
+        if (requestTemplate != null ? !requestTemplate.equals(that.requestTemplate) : that.requestTemplate != null)
             return false;
 
         return true;
@@ -94,7 +97,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
 
     @Override
     public int hashCode() {
-        return templatedHttpRequest != null ? templatedHttpRequest.hashCode() : 0;
+        return requestTemplate != null ? requestTemplate.hashCode() : 0;
     }
 
     public abstract static class Result extends Action.Result {
@@ -177,16 +180,18 @@ public class WebhookAction extends Action<WebhookAction.Result> {
 
         private final HttpClient httpClient;
         private final HttpRequest.Parser requestParser;
-        private final TemplatedHttpRequest.Parser templatedRequestParser;
+        private final HttpRequestTemplate.Parser requestTemplateParser;
+        private final TemplateEngine templateEngine;
         private final ESLogger actionLogger;
 
         @Inject
         public Parser(Settings settings, HttpClient httpClient, HttpRequest.Parser requestParser,
-                      TemplatedHttpRequest.Parser templatedRequestParser) {
+                      HttpRequestTemplate.Parser requestTemplateParser, TemplateEngine templateEngine) {
             super(settings);
             this.httpClient = httpClient;
             this.requestParser = requestParser;
-            this.templatedRequestParser = templatedRequestParser;
+            this.requestTemplateParser = requestTemplateParser;
+            this.templateEngine = templateEngine;
             this.actionLogger = Loggers.getLogger(WebhookAction.class, settings);
         }
 
@@ -198,9 +203,9 @@ public class WebhookAction extends Action<WebhookAction.Result> {
         @Override
         public WebhookAction parse(XContentParser parser) throws IOException {
             try {
-                TemplatedHttpRequest request = templatedRequestParser.parse(parser);
-                return new WebhookAction(actionLogger, httpClient, request);
-            } catch (TemplatedHttpRequest.ParseException pe) {
+                HttpRequestTemplate request = requestTemplateParser.parse(parser);
+                return new WebhookAction(actionLogger, httpClient, request, templateEngine);
+            } catch (HttpRequestTemplate.ParseException pe) {
                 throw new ActionException("could not parse webhook action", pe);
             }
         }
@@ -259,11 +264,10 @@ public class WebhookAction extends Action<WebhookAction.Result> {
 
     public static class SourceBuilder extends Action.SourceBuilder<SourceBuilder> {
 
-        private final TemplatedHttpRequest.SourceBuilder httpRequest;
+        private final HttpRequestTemplate requestTemplate;
 
-        public SourceBuilder(String id, TemplatedHttpRequest.SourceBuilder httpRequest) {
-            super(id);
-            this.httpRequest = httpRequest;
+        public SourceBuilder(HttpRequestTemplate requestTemplate) {
+            this.requestTemplate = requestTemplate;
         }
 
         @Override
@@ -273,7 +277,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
 
         @Override
         public XContentBuilder actionXContent(XContentBuilder builder, Params params) throws IOException {
-            return httpRequest.toXContent(builder, params);
+            return requestTemplate.toXContent(builder, params);
 
         }
     }

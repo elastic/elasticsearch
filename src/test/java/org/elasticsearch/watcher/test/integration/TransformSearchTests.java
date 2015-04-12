@@ -54,7 +54,7 @@ public class TransformSearchTests extends AbstractWatcherIntegrationTests {
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(inputRequest))
                         .transform(searchTransform(transformRequest))
-                        .addAction(indexAction("_id", "my-payload-output", "result"))
+                        .addAction("_id", indexAction("my-payload-output", "result"))
                         .metadata(metadata)
                         .throttlePeriod(TimeValue.timeValueSeconds(0)))
                         .get();

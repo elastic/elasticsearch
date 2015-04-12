@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -18,10 +19,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.watcher.actions.Actions;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.email.EmailAction;
-import org.elasticsearch.watcher.actions.email.service.Authentication;
-import org.elasticsearch.watcher.actions.email.service.Email;
-import org.elasticsearch.watcher.actions.email.service.EmailService;
-import org.elasticsearch.watcher.actions.email.service.Profile;
+import org.elasticsearch.watcher.actions.email.service.*;
 import org.elasticsearch.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.watcher.input.search.SearchInput;
@@ -32,11 +30,12 @@ import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpMethod;
-import org.elasticsearch.watcher.support.http.TemplatedHttpRequest;
+import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
-import org.elasticsearch.watcher.support.template.ScriptTemplate;
+import org.elasticsearch.watcher.support.template.MustacheTemplateEngine;
 import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.transform.SearchTransform;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.CronSchedule;
@@ -126,30 +125,31 @@ public final class WatcherTestUtils {
 
         List<ActionWrapper> actions = new ArrayList<>();
 
-        TemplatedHttpRequest httpRequest = new TemplatedHttpRequest();
-
-        Template path = new ScriptTemplate(scriptService, "/foobarbaz/{{ctx.watch_id}}");
-        httpRequest.path(path);
-        Template body = new ScriptTemplate(scriptService, "{{ctx.watch_id}} executed with {{ctx.payload.response.hits.total_hits}} hits");
-        httpRequest.body(body);
-        httpRequest.host("localhost");
+        HttpRequestTemplate.Builder httpRequest = HttpRequestTemplate.builder("localhost", 80);
         httpRequest.method(HttpMethod.POST);
 
-        actions.add(new ActionWrapper("_webhook", new WebhookAction(logger, httpClient, httpRequest)));
+        Template path = new Template("/foobarbaz/{{ctx.watch_id}}");
+        httpRequest.path(path);
+        Template body = new Template("{{ctx.watch_id}} executed with {{ctx.payload.response.hits.total_hits}} hits");
+        httpRequest.body(body);
 
-        Email.Address from = new Email.Address("from@test.com");
-        List<Email.Address> emailAddressList = new ArrayList<>();
-        emailAddressList.add(new Email.Address("to@test.com"));
-        Email.AddressList to = new Email.AddressList(emailAddressList);
+        TemplateEngine engine = new MustacheTemplateEngine(ImmutableSettings.EMPTY, scriptService);
 
+        actions.add(new ActionWrapper("_webhook", new WebhookAction(logger, httpClient, httpRequest.build(), engine)));
 
-        Email.Builder emailBuilder = Email.builder().id("prototype");
-        emailBuilder.from(from);
-        emailBuilder.to(to);
+        String from = "from@test.com";
+        String to = "to@test.com";
 
+        EmailTemplate email = EmailTemplate.builder()
+                .from(from)
+                .to(to)
+                .build();
 
-        EmailAction emailAction = new EmailAction(logger, emailService, emailBuilder.build(),
-                new Authentication("testname", "testpassword"), Profile.STANDARD, "testaccount", body, body, null, true);
+        TemplateEngine templateEngine = new MustacheTemplateEngine(ImmutableSettings.EMPTY, scriptService);
+
+        Authentication auth = new Authentication("testname", "testpassword".toCharArray());
+
+        EmailAction emailAction = new EmailAction(logger, email, auth, Profile.STANDARD, "testaccount", false, emailService, templateEngine);
 
         actions.add(new ActionWrapper("_email", emailAction));
 

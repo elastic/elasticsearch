@@ -299,10 +299,6 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         return internalTestCluster().getInstance(ScriptServiceProxy.class);
     }
 
-    protected Template.Parser templateParser() {
-        return internalTestCluster().getInstance(Template.Parser.class);
-    }
-
     protected HttpClient httpClient() {
         return internalTestCluster().getInstance(HttpClient.class);
     }

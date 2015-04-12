@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.watcher.client;
 
-import org.elasticsearch.watcher.support.http.TemplatedHttpRequest;
-import org.elasticsearch.watcher.support.template.ScriptTemplate;
-
 /**
  *
  */
@@ -18,13 +15,5 @@ public final class WatchSourceBuilders {
 
     public static WatchSourceBuilder watchBuilder() {
         return new WatchSourceBuilder();
-    }
-
-    public static ScriptTemplate.SourceBuilder template(String text) {
-        return new ScriptTemplate.SourceBuilder(text);
-    }
-
-    public static TemplatedHttpRequest.SourceBuilder templatedHttpRequest(String host, int port) {
-        return new TemplatedHttpRequest.SourceBuilder(host, port);
     }
 }

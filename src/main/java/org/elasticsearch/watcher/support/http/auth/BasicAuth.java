@@ -8,13 +8,12 @@ package org.elasticsearch.watcher.support.http.auth;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
-import java.util.Locale;
 
 /**
  */
@@ -27,10 +26,10 @@ public class BasicAuth extends HttpAuth {
 
     private final String basicAuth;
 
-    public BasicAuth(String username, String password) throws UnsupportedEncodingException {
+    public BasicAuth(String username, String password) {
         this.username = username;
         this.password = password;
-        basicAuth = "Basic " + Base64.encodeBytes(String.format(Locale.ROOT, "%s:%s", username, password).getBytes("utf-8"));
+        basicAuth = "Basic " + Base64.encodeBytes((username + ":" + password).getBytes(Charsets.UTF_8));
     }
 
     public String type() {

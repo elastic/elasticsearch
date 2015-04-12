@@ -60,7 +60,7 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
                         .input(searchInput(matchAllRequest().indices("events")))
                         .condition(scriptCondition("ctx.payload.hits.total > 0"))
                         .transform(searchTransform(matchAllRequest().indices("events")))
-                        .addAction(indexAction("_id", "actions", "action")))
+                        .addAction("_id", indexAction("actions", "action")))
                 .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
@@ -131,7 +131,7 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
                         .input(searchInput(matchAllRequest().indices("events")))
                         .condition(scriptCondition("ctx.payload.hits.total > 0"))
                         .transform(searchTransform(matchAllRequest().indices("events")))
-                        .addAction(indexAction("_id", "actions", "action"))
+                        .addAction("_id", indexAction("actions", "action"))
                         .throttlePeriod(TimeValue.timeValueSeconds(10)))
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));

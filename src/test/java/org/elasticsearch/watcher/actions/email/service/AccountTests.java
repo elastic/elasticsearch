@@ -58,25 +58,25 @@ public class AccountTests extends ElasticsearchTestCase {
         if (randomBoolean()) {
             ImmutableSettings.Builder sb = ImmutableSettings.builder();
             if (randomBoolean()) {
-                sb.put(Email.FROM_FIELD.getPreferredName(), "from@domain");
+                sb.put(Email.Field.FROM.getPreferredName(), "from@domain");
             }
             if (randomBoolean()) {
-                sb.put(Email.REPLY_TO_FIELD.getPreferredName(), "replyto@domain");
+                sb.put(Email.Field.REPLY_TO.getPreferredName(), "replyto@domain");
             }
             if (randomBoolean()) {
-                sb.put(Email.PRIORITY_FIELD.getPreferredName(), randomFrom(Email.Priority.values()));
+                sb.put(Email.Field.PRIORITY.getPreferredName(), randomFrom(Email.Priority.values()));
             }
             if (randomBoolean()) {
-                sb.put(Email.TO_FIELD.getPreferredName(), "to@domain");
+                sb.put(Email.Field.TO.getPreferredName(), "to@domain");
             }
             if (randomBoolean()) {
-                sb.put(Email.CC_FIELD.getPreferredName(), "cc@domain");
+                sb.put(Email.Field.CC.getPreferredName(), "cc@domain");
             }
             if (randomBoolean()) {
-                sb.put(Email.BCC_FIELD.getPreferredName(), "bcc@domain");
+                sb.put(Email.Field.BCC.getPreferredName(), "bcc@domain");
             }
             if (randomBoolean()) {
-                sb.put(Email.SUBJECT_FIELD.getPreferredName(), "_subject");
+                sb.put(Email.Field.SUBJECT.getPreferredName(), "_subject");
             }
             Settings settings = sb.build();
             emailDefaults = new Account.Config.EmailDefaults(settings);
@@ -137,15 +137,17 @@ public class AccountTests extends ElasticsearchTestCase {
 
         Account.Config config = new Account.Config("_name", settings);
 
-        if (profile != null) {
-            assertThat(config.profile, is(profile));
-        }
+        assertThat(config.profile, is(profile));
         assertThat(config.defaults, equalTo(emailDefaults));
         assertThat(config.smtp, notNullValue());
         assertThat(config.smtp.port, is(port));
         assertThat(config.smtp.host, is(host));
         assertThat(config.smtp.user, is(user));
-        assertThat(config.smtp.password, is(password));
+        if (password != null) {
+            assertThat(config.smtp.password, is(password.toCharArray()));
+        } else {
+            assertThat(config.smtp.password, nullValue());
+        }
         assertThat(config.smtp.properties, equalTo(smtpProps));
     }
 
@@ -257,7 +259,7 @@ public class AccountTests extends ElasticsearchTestCase {
             }
         });
 
-        account.send(email, new Authentication(USERNAME, PASSWORD), Profile.STANDARD);
+        account.send(email, new Authentication(USERNAME, PASSWORD.toCharArray()), Profile.STANDARD);
 
         if (!latch.await(5, TimeUnit.SECONDS)) {
             fail("waiting for email too long");

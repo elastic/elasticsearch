@@ -23,8 +23,8 @@ import org.elasticsearch.watcher.actions.ActionRegistry;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.Actions;
 import org.elasticsearch.watcher.actions.email.EmailAction;
-import org.elasticsearch.watcher.actions.email.service.Email;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
+import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.email.service.Profile;
 import org.elasticsearch.watcher.actions.index.IndexAction;
 import org.elasticsearch.watcher.actions.webhook.WebhookAction;
@@ -43,14 +43,14 @@ import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpMethod;
 import org.elasticsearch.watcher.support.http.HttpRequest;
-import org.elasticsearch.watcher.support.http.TemplatedHttpRequest;
+import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.auth.BasicAuth;
 import org.elasticsearch.watcher.support.http.auth.HttpAuth;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
-import org.elasticsearch.watcher.support.template.ScriptTemplate;
 import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.transform.*;
 import org.elasticsearch.watcher.trigger.Trigger;
@@ -75,7 +75,7 @@ public class WatchTests extends ElasticsearchTestCase {
     private ClientProxy client;
     private HttpClient httpClient;
     private EmailService emailService;
-    private Template.Parser templateParser;
+    private TemplateEngine templateEngine;
     private HttpAuthRegistry authRegistry;
     private ESLogger logger;
     private Settings settings = ImmutableSettings.EMPTY;
@@ -86,7 +86,7 @@ public class WatchTests extends ElasticsearchTestCase {
         client = mock(ClientProxy.class);
         httpClient = mock(HttpClient.class);
         emailService = mock(EmailService.class);
-        templateParser = new ScriptTemplate.Parser(settings, scriptService);
+        templateEngine = mock(TemplateEngine.class);
         authRegistry = new HttpAuthRegistry(ImmutableMap.of("basic", (HttpAuth.Parser) new BasicAuth.Parser()));
         logger = Loggers.getLogger(WatchTests.class);
     }
@@ -263,18 +263,17 @@ public class WatchTests extends ElasticsearchTestCase {
         ImmutableList.Builder<ActionWrapper> list = ImmutableList.builder();
         if (randomBoolean()) {
             Transform transform = randomTransform();
-            list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), transform, new EmailAction(logger, emailService, Email.builder().id("prototype").build(), null, Profile.STANDARD, null, null, null, null, randomBoolean())));
+            list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), transform, new EmailAction(logger, EmailTemplate.builder().build(), null, Profile.STANDARD, null, randomBoolean(),  emailService, templateEngine)));
         }
         if (randomBoolean()) {
             list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomTransform(), new IndexAction(logger, client, "_index", "_type")));
         }
         if (randomBoolean()) {
-            TemplatedHttpRequest httpRequest = new TemplatedHttpRequest();
-            httpRequest.method(randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT));
-            httpRequest.host("test.host");
-            httpRequest.port(randomIntBetween(8000, 9000));
-            httpRequest.path(new ScriptTemplate(scriptService, "_url"));
-            list.add(new ActionWrapper("_webhook_" + randomAsciiOfLength(8), randomTransform(), new WebhookAction(logger, httpClient, httpRequest)));
+            HttpRequestTemplate httpRequest = HttpRequestTemplate.builder("test.host", randomIntBetween(8000, 9000))
+                    .method(randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT))
+                    .path(new Template("_url"))
+                    .build();
+            list.add(new ActionWrapper("_webhook_" + randomAsciiOfLength(8), randomTransform(), new WebhookAction(logger, httpClient, httpRequest, templateEngine)));
         }
         return new Actions(list.build());
     }
@@ -284,15 +283,14 @@ public class WatchTests extends ElasticsearchTestCase {
         for (ActionWrapper action : actions) {
             switch (action.action().type()) {
                 case EmailAction.TYPE:
-                    parsers.put(EmailAction.TYPE, new EmailAction.Parser(settings, emailService, templateParser));
+                    parsers.put(EmailAction.TYPE, new EmailAction.Parser(settings, emailService, templateEngine));
                     break;
                 case IndexAction.TYPE:
                     parsers.put(IndexAction.TYPE, new IndexAction.Parser(settings, client));
                     break;
                 case WebhookAction.TYPE:
                     parsers.put(WebhookAction.TYPE, new WebhookAction.Parser(settings,  httpClient,
-                            new HttpRequest.Parser(authRegistry),
-                            new TemplatedHttpRequest.Parser(new ScriptTemplate.Parser(settings, scriptService), authRegistry)));
+                            new HttpRequest.Parser(authRegistry), new HttpRequestTemplate.Parser(authRegistry), templateEngine));
                     break;
             }
         }

@@ -5,15 +5,18 @@
  */
 package org.elasticsearch.watcher.actions.email.service;
 
+import java.util.Arrays;
+import java.util.Objects;
+
 /**
 *
 */
 public class Authentication {
 
     private final String user;
-    private final String password;
+    private final char[] password;
 
-    public Authentication(String user, String password) {
+    public Authentication(String user, char[] password) {
         this.user = user;
         this.password = password;
     }
@@ -22,7 +25,7 @@ public class Authentication {
         return user;
     }
 
-    public String password() {
+    public char[] password() {
         return password;
     }
 
@@ -30,19 +33,13 @@ public class Authentication {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-
         Authentication that = (Authentication) o;
-
-        if (password != null ? !password.equals(that.password) : that.password != null) return false;
-        if (user != null ? !user.equals(that.user) : that.user != null) return false;
-
-        return true;
+        return Objects.equals(user, that.user) &&
+                Arrays.equals(password, that.password);
     }
 
     @Override
     public int hashCode() {
-        int result = user != null ? user.hashCode() : 0;
-        result = 31 * result + (password != null ? password.hashCode() : 0);
-        return result;
+        return Objects.hash(user, password);
     }
 }

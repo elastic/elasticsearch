@@ -49,7 +49,7 @@ public class WatchCrudTests extends AbstractWatcherIntegrationTests {
             source.condition(alwaysTrueCondition());
         }
         if (randomBoolean()) {
-            source.addAction(loggingAction("_action1", "{{ctx.watch_id}}"));
+            source.addAction("_action1", loggingAction("{{ctx.watch_id}}"));
         }
 
         PutWatchResponse response = watcherClient().preparePutWatch("_name").setSource(source).get();
@@ -65,7 +65,7 @@ public class WatchCrudTests extends AbstractWatcherIntegrationTests {
         watcherClient().preparePutWatch("_name").setSource(watchBuilder()
                 .input(simpleInput())
                 .condition(alwaysTrueCondition())
-                .addAction(loggingAction("_action1", "{{ctx.watch_id}}")))
+                .addAction("_action1", loggingAction("{{ctx.watch_id}}")))
                 .get();
     }
 
@@ -76,7 +76,7 @@ public class WatchCrudTests extends AbstractWatcherIntegrationTests {
                 .trigger(schedule(interval("5m")))
                 .input(simpleInput())
                 .condition(alwaysTrueCondition())
-                .addAction(loggingAction("_action1", "{{ctx.watch_id}}")))
+                .addAction("_action1", loggingAction("{{ctx.watch_id}}")))
                 .get();
 
         assertThat(putResponse, notNullValue());
@@ -117,7 +117,7 @@ public class WatchCrudTests extends AbstractWatcherIntegrationTests {
                 .trigger(schedule(interval("5m")))
                 .input(simpleInput())
                 .condition(alwaysTrueCondition())
-                .addAction(loggingAction("_action1", "{{ctx.watch_id}}")))
+                .addAction("_action1", loggingAction("{{ctx.watch_id}}")))
                 .get();
 
         assertThat(putResponse, notNullValue());

@@ -11,7 +11,6 @@ import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.base.Charsets;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.support.http.auth.BasicAuth;
@@ -62,24 +61,24 @@ public class HttpClientTest extends ElasticsearchTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(body));
 
 
-        HttpRequest request = new HttpRequest();
-        request.method(HttpMethod.POST);
-        request.host("localhost");
-        request.port(webPort);
-        request.path("/" + randomAsciiOfLength(5));
-        String paramKey;
-        String paramValue;
-        request.params(MapBuilder.<String, String>newMapBuilder()
-                .put(paramKey = randomAsciiOfLength(3), paramValue = randomAsciiOfLength(3))
-                .map());
-        String headerKey;
-        String headerValue;
-        request.headers(MapBuilder.<String, String>newMapBuilder()
-                .put(headerKey = randomAsciiOfLength(3), headerValue = randomAsciiOfLength(3))
-                .map());
-        request.body(randomAsciiOfLength(5));
+        HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webPort)
+                .method(HttpMethod.POST)
+                .path("/" + randomAsciiOfLength(5));
+
+        String paramKey = randomAsciiOfLength(3);
+        String paramValue = randomAsciiOfLength(3);
+        requestBuilder.setParam(paramKey, paramValue);
+
+        String headerKey = randomAsciiOfLength(3);
+        String headerValue = randomAsciiOfLength(3);
+        requestBuilder.setHeader(headerKey, headerValue);
+
+        requestBuilder.body(randomAsciiOfLength(5));
+        HttpRequest request = requestBuilder.build();
+
         HttpResponse response = httpClient.execute(request);
         RecordedRequest recordedRequest = webServer.takeRequest();
+
 
         assertThat(response.status(), equalTo(responseCode));
         assertThat(response.body().toUtf8(), equalTo(body));
@@ -93,14 +92,12 @@ public class HttpClientTest extends ElasticsearchTestCase {
     @Test
     public void testBasicAuth() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
-        HttpRequest request = new HttpRequest();
-        request.method(HttpMethod.POST);
-        request.host("localhost");
-        request.port(webPort);
-        request.path("/test");
-        request.auth(new BasicAuth("user", "pass"));
-        request.body("body");
-        HttpResponse response = httpClient.execute(request);
+        HttpRequest.Builder request = HttpRequest.builder("localhost", webPort)
+                .method(HttpMethod.POST)
+                .path("/test")
+                .auth(new BasicAuth("user", "pass"))
+                .body("body");
+        HttpResponse response = httpClient.execute(request.build());
         assertThat(response.status(), equalTo(200));
         assertThat(response.body().toUtf8(), equalTo("body"));
         RecordedRequest recordedRequest = webServer.takeRequest();
@@ -114,18 +111,15 @@ public class HttpClientTest extends ElasticsearchTestCase {
                 ImmutableSettings.builder()
                         .put(HttpClient.SETTINGS_SSL_TRUSTSTORE, resource.toString())
                         .put(HttpClient.SETTINGS_SSL_TRUSTSTORE_PASSWORD, "testnode")
-                        .build()
-        );
+                        .build());
         webServer.useHttps(httpClient.sslSocketFactory, false);
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
-        HttpRequest request = new HttpRequest();
-        request.scheme(Scheme.HTTPS);
-        request.host("localhost");
-        request.port(webPort);
-        request.path("/test");
-        request.body("body");
-        HttpResponse response = httpClient.execute(request);
+        HttpRequest.Builder request = HttpRequest.builder("localhost", webPort)
+                .scheme(Scheme.HTTPS)
+                .path("/test")
+                .body("body");
+        HttpResponse response = httpClient.execute(request.build());
         assertThat(response.status(), equalTo(200));
         assertThat(response.body().toUtf8(), equalTo("body"));
         RecordedRequest recordedRequest = webServer.takeRequest();

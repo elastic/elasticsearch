@@ -15,7 +15,7 @@ import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
-import org.elasticsearch.watcher.support.template.ScriptTemplate;
+import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchRequest;
@@ -48,12 +48,11 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
         boolean storeWatch = randomBoolean();
         String actionIdToSimulate = randomFrom("_all", "logging", null);
 
-        LoggingAction.SourceBuilder loggingAction = new LoggingAction.SourceBuilder("logging");
-        loggingAction.text(new ScriptTemplate.SourceBuilder("foobar"));
+        LoggingAction.SourceBuilder loggingAction = new LoggingAction.SourceBuilder(new Template("foobar"));
         WatchSourceBuilder testWatchBuilder = new WatchSourceBuilder();
         testWatchBuilder.trigger(new ScheduleTrigger.SourceBuilder(new CronSchedule("0 0 0 1 * ? 2099")));
         testWatchBuilder.condition(conditionAlwaysTrue ? new AlwaysTrueCondition.SourceBuilder() : new AlwaysFalseCondition.SourceBuilder());
-        testWatchBuilder.addAction(loggingAction);
+        testWatchBuilder.addAction("logging", loggingAction);
         testWatchBuilder.input(new SimpleInput.SourceBuilder((new Payload.Simple("foo", "bar").data())));
 
         if (storeWatch) {

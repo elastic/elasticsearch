@@ -15,15 +15,16 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ActionException;
-import org.elasticsearch.watcher.actions.ActionSettingsException;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Variables;
-import org.elasticsearch.watcher.support.template.ScriptTemplate;
 import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.watch.Payload;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  *
@@ -32,23 +33,39 @@ public class LoggingAction extends Action<LoggingAction.Result> {
 
     public static final String TYPE = "logging";
 
-    private final String category;
-    private final LoggingLevel level;
-    private final Template template;
+    private final Template text;
+    private final @Nullable String category;
+    private final @Nullable LoggingLevel level;
 
     private final ESLogger actionLogger;
+    private final TemplateEngine templateEngine;
 
-    public LoggingAction(ESLogger logger, ESLogger actionLogger, @Nullable String category, LoggingLevel level, Template template) {
+    public LoggingAction(ESLogger logger, Template text, @Nullable String category, @Nullable LoggingLevel level, Settings settings, TemplateEngine templateEngine) {
         super(logger);
+        this.text = text;
         this.category = category;
-        this.level = level;
-        this.template = template;
+        this.level = level != null ? level : LoggingLevel.INFO;
+        this.actionLogger = category != null ? Loggers.getLogger(category, settings) : logger;
+        this.templateEngine = templateEngine;
+    }
+
+    // for tests
+    LoggingAction(ESLogger logger, Template text, @Nullable String category, @Nullable LoggingLevel level, ESLogger actionLogger, TemplateEngine templateEngine) {
+        super(logger);
+        this.text = text;
+        this.category = category;
+        this.level = level != null ? level : LoggingLevel.INFO;
         this.actionLogger = actionLogger;
+        this.templateEngine = templateEngine;
     }
 
     @Override
     public String type() {
         return TYPE;
+    }
+
+    Template text() {
+        return text;
     }
 
     String category() {
@@ -59,27 +76,30 @@ public class LoggingAction extends Action<LoggingAction.Result> {
         return level;
     }
 
-    Template template() {
-        return template;
-    }
-
     ESLogger logger() {
         return actionLogger;
     }
 
     @Override
-    protected LoggingAction.Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws IOException {
+    protected Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws IOException {
         try {
-            String text = template.render(Variables.createCtxModel(ctx, payload));
-            if (ctx.simulateAction(actionId)) {
-                return new Result.Simulated(text);
-            }
-
-            level.log(actionLogger, text);
-            return new Result.Success(text);
+            return doExecute(actionId, ctx, payload);
         } catch (Exception e) {
-            return new Result.Failure("failed to execute log action: " + e.getMessage());
+            return new Result.Failure("failed to execute [logging] action. error: " + e.getMessage());
         }
+    }
+
+    protected Result doExecute(String actionId, WatchExecutionContext ctx, Payload payload) throws IOException {
+        Map<String, Object> model = Variables.createCtxModel(ctx, payload);
+
+        String loggedText = templateEngine.render(text, model);
+        if (ctx.simulateAction(actionId)) {
+            return new Result.Simulated(loggedText);
+        }
+
+        level.log(actionLogger, loggedText);
+        return new Result.Success(loggedText);
+
     }
 
     @Override
@@ -89,7 +109,7 @@ public class LoggingAction extends Action<LoggingAction.Result> {
             builder.field(Parser.CATEGORY_FIELD.getPreferredName(), category);
         }
         builder.field(Parser.LEVEL_FIELD.getPreferredName(), level);
-        builder.field(Parser.TEXT_FIELD.getPreferredName(), template);
+        builder.field(Parser.TEXT_FIELD.getPreferredName(), text);
         return builder.endObject();
     }
 
@@ -97,20 +117,15 @@ public class LoggingAction extends Action<LoggingAction.Result> {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-
         LoggingAction action = (LoggingAction) o;
-
-        if (category != null ? !category.equals(action.category) : action.category != null) return false;
-        if (level != action.level) return false;
-        return template.equals(action.template);
+        return Objects.equals(text, action.text) &&
+                Objects.equals(category, action.category) &&
+                Objects.equals(level, action.level);
     }
 
     @Override
     public int hashCode() {
-        int result = category != null ? category.hashCode() : 0;
-        result = 31 * result + level.hashCode();
-        result = 31 * result + template.hashCode();
-        return result;
+        return Objects.hash(text, category, level);
     }
 
     public static abstract class Result extends Action.Result {
@@ -187,14 +202,14 @@ public class LoggingAction extends Action<LoggingAction.Result> {
         static final ParseField REASON_FIELD = new ParseField("reason");
 
         private final Settings settings;
-        private final Template.Parser templateParser;
+        private final TemplateEngine templateEngine;
         private final ESLogger logger;
 
         @Inject
-        public Parser(Settings settings, Template.Parser templateParser) {
+        public Parser(Settings settings, TemplateEngine templateEngine) {
             this.settings = settings;
             this.logger = Loggers.getLogger(LoggingAction.class, settings);
-            this.templateParser = templateParser;
+            this.templateEngine = templateEngine;
         }
 
         @Override
@@ -215,6 +230,12 @@ public class LoggingAction extends Action<LoggingAction.Result> {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
+                } else if (TEXT_FIELD.match(currentFieldName)) {
+                    try {
+                        text = Template.parse(parser);
+                    } catch (Template.ParseException pe) {
+                        throw new LoggingActionException("failed to parse [logging] action. failed to parse text template", pe);
+                    }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if (CATEGORY_FIELD.match(currentFieldName)) {
                         category = parser.text();
@@ -222,39 +243,21 @@ public class LoggingAction extends Action<LoggingAction.Result> {
                         try {
                             level = LoggingLevel.valueOf(parser.text().toUpperCase(Locale.ROOT));
                         } catch (IllegalArgumentException iae) {
-                            throw new ActionSettingsException("failed to parse logging action. unknown logging level [" + parser.text() + "]");
-                        }
-                    } else if (TEXT_FIELD.match(currentFieldName)) {
-                        try {
-                            text = templateParser.parse(parser);
-                        } catch (Template.Parser.ParseException pe) {
-                            throw new ActionSettingsException("failed to parse logging action. failed to parse text template", pe);
+                            throw new LoggingActionException("failed to parse [logging] action. unknown logging level [" + parser.text() + "]");
                         }
                     } else {
-                        throw new ActionSettingsException("failed to parse logging action. unexpected string field [" + currentFieldName + "]");
-                    }
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (TEXT_FIELD.match(currentFieldName)) {
-                        try {
-                            text = templateParser.parse(parser);
-                        } catch (Template.Parser.ParseException pe) {
-                            throw new ActionSettingsException("failed to parse logging action. failed to parse text template", pe);
-                        }
-                    } else {
-                        throw new ActionSettingsException("failed to parse logging action. unexpected object field [" + currentFieldName + "]");
+                        throw new LoggingActionException("failed to parse [logging] action. unexpected string field [" + currentFieldName + "]");
                     }
                 } else {
-                    throw new ActionSettingsException("failed to parse logging action. unexpected token [" + token + "]");
+                    throw new LoggingActionException("failed to parse [logging] action. unexpected token [" + token + "]");
                 }
             }
 
             if (text == null) {
-                throw new ActionSettingsException("failed to parse logging action. missing [text] field");
+                throw new LoggingActionException("failed to parse [logging] action. missing [text] field");
             }
 
-            ESLogger actionLogger = category != null ? Loggers.getLogger(category, settings) : logger;
-
-            return new LoggingAction(logger, actionLogger, category, level, text);
+            return new LoggingAction(logger, text, category, level, settings, templateEngine);
         }
 
         @Override
@@ -277,21 +280,21 @@ public class LoggingAction extends Action<LoggingAction.Result> {
                     } else if (REASON_FIELD.match(currentFieldName)) {
                         reason = parser.text();
                     } else {
-                        throw new ActionException("could not parse logging result. unexpected string field [" + currentFieldName + "]");
+                        throw new LoggingActionException("could not parse [logging] result. unexpected string field [" + currentFieldName + "]");
                     }
                 } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                         if (Action.Result.SUCCESS_FIELD.match(currentFieldName)) {
                             success = parser.booleanValue();
                         }else {
-                            throw new ActionException("could not parse logging result. unexpected boolean field [" + currentFieldName + "]");
+                            throw new LoggingActionException("could not parse [logging] result. unexpected boolean field [" + currentFieldName + "]");
                         }
                 } else {
-                    throw new ActionException("could not parse logging result. unexpected token [" + token + "]");
+                    throw new LoggingActionException("could not parse [logging] result. unexpected token [" + token + "]");
                 }
             }
 
             if (success == null) {
-                throw new ActionException("could not parse logging result. expected boolean field [success]");
+                throw new LoggingActionException("could not parse [logging] result. expected boolean field [success]");
             }
 
             if (simulatedLoggedText != null) {
@@ -300,13 +303,13 @@ public class LoggingAction extends Action<LoggingAction.Result> {
 
             if (success) {
                 if (loggedText == null) {
-                    throw new ActionException("could not parse successful logging result. expected string field [logged_text]");
+                    throw new LoggingActionException("could not parse successful [logging] result. expected string field [logged_text]");
                 }
                 return new Result.Success(loggedText);
             }
 
             if (reason == null) {
-                throw new ActionException("could not parse failed logging result. expected string field [reason]");
+                throw new LoggingActionException("could not parse failed [logging] result. expected string field [reason]");
             }
 
             return new Result.Failure(reason);
@@ -315,26 +318,17 @@ public class LoggingAction extends Action<LoggingAction.Result> {
 
     public static class SourceBuilder extends Action.SourceBuilder<SourceBuilder> {
 
-        private Template.SourceBuilder text;
+        private Template text;
         private String category;
         private LoggingLevel level;
 
-        public SourceBuilder(String id) {
-            super(id);
+        public SourceBuilder(Template text) {
+            this.text = text;
         }
 
         @Override
         public String type() {
             return TYPE;
-        }
-
-        public SourceBuilder text(String text) {
-            return text(new ScriptTemplate.SourceBuilder(text));
-        }
-
-        public SourceBuilder text(Template.SourceBuilder text) {
-            this.text = text;
-            return this;
         }
 
         public SourceBuilder category(String category) {

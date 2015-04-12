@@ -15,16 +15,17 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputException;
 import org.elasticsearch.watcher.support.Variables;
 import org.elasticsearch.watcher.support.XContentFilterKeysUtils;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpRequest;
+import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.HttpResponse;
-import org.elasticsearch.watcher.support.http.TemplatedHttpRequest;
+import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.execution.WatchExecutionContext;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -39,13 +40,15 @@ public class HttpInput extends Input<HttpInput.Result> {
 
     private final HttpClient client;
     private final Set<String> extractKeys;
-    private final TemplatedHttpRequest request;
+    private final HttpRequestTemplate requestTemplate;
+    private final TemplateEngine templateEngine;
 
-    public HttpInput(ESLogger logger, HttpClient client, TemplatedHttpRequest request, Set<String> extractKeys) {
+    public HttpInput(ESLogger logger, HttpClient client, HttpRequestTemplate requestTemplate, Set<String> extractKeys, TemplateEngine templateEngine) {
         super(logger);
-        this.request = request;
+        this.requestTemplate = requestTemplate;
         this.client = client;
         this.extractKeys = extractKeys;
+        this.templateEngine = templateEngine;
     }
 
     @Override
@@ -56,7 +59,7 @@ public class HttpInput extends Input<HttpInput.Result> {
     @Override
     public Result execute(WatchExecutionContext ctx) throws IOException {
         Map<String, Object> model = Variables.createCtxModel(ctx, null);
-        HttpRequest request = this.request.render(model);
+        HttpRequest request = requestTemplate.render(templateEngine, model);
 
         HttpResponse response = client.execute(request);
         Payload payload;
@@ -75,7 +78,7 @@ public class HttpInput extends Input<HttpInput.Result> {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Parser.REQUEST_FIELD.getPreferredName());
-        builder = request.toXContent(builder, params);
+        builder = requestTemplate.toXContent(builder, params);
         if (extractKeys != null) {
             builder.startArray(Parser.EXTRACT_FIELD.getPreferredName());
             for (String extractKey : extractKeys) {
@@ -93,18 +96,18 @@ public class HttpInput extends Input<HttpInput.Result> {
 
         HttpInput httpInput = (HttpInput) o;
 
-        if (!request.equals(httpInput.request)) return false;
+        if (!requestTemplate.equals(httpInput.requestTemplate)) return false;
 
         return true;
     }
 
     @Override
     public int hashCode() {
-        return request.hashCode();
+        return requestTemplate.hashCode();
     }
 
-    TemplatedHttpRequest getRequest() {
-        return request;
+    HttpRequestTemplate getRequestTemplate() {
+        return requestTemplate;
     }
 
     public final static class Result extends Input.Result {
@@ -141,14 +144,16 @@ public class HttpInput extends Input<HttpInput.Result> {
 
         private final HttpClient client;
         private final HttpRequest.Parser requestParser;
-        private final TemplatedHttpRequest.Parser templatedRequestParser;
+        private final HttpRequestTemplate.Parser requestTemplateParser;
+        private final TemplateEngine templateEngine;
 
         @Inject
-        public Parser(Settings settings, HttpClient client, HttpRequest.Parser requestParser, TemplatedHttpRequest.Parser templatedRequestParser) {
+        public Parser(Settings settings, HttpClient client, HttpRequest.Parser requestParser, HttpRequestTemplate.Parser requestTemplateParser, TemplateEngine templateEngine) {
             super(settings);
             this.client = client;
             this.requestParser = requestParser;
-            this.templatedRequestParser = templatedRequestParser;
+            this.requestTemplateParser = requestTemplateParser;
+            this.templateEngine = templateEngine;
         }
 
         @Override
@@ -159,7 +164,7 @@ public class HttpInput extends Input<HttpInput.Result> {
         @Override
         public HttpInput parse(XContentParser parser) throws IOException {
             Set<String> extract = null;
-            TemplatedHttpRequest request = null;
+            HttpRequestTemplate request = null;
 
             String currentFieldName = null;
             for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
@@ -169,7 +174,7 @@ public class HttpInput extends Input<HttpInput.Result> {
                         break;
                     case START_OBJECT:
                         if (REQUEST_FIELD.getPreferredName().equals(currentFieldName)) {
-                            request = templatedRequestParser.parse(parser);
+                            request = requestTemplateParser.parse(parser);
                         } else {
                             throw new InputException("could not parse [http] input. unexpected field [" + currentFieldName + "]");
                         }
@@ -196,7 +201,7 @@ public class HttpInput extends Input<HttpInput.Result> {
                 throw new InputException("could not parse [http] input. http request is missing or null.");
             }
 
-            return new HttpInput(logger, client, request, extract);
+            return new HttpInput(logger, client, request, extract, templateEngine);
         }
 
         @Override
@@ -229,10 +234,10 @@ public class HttpInput extends Input<HttpInput.Result> {
 
     public final static class SourceBuilder implements Input.SourceBuilder {
 
-        private TemplatedHttpRequest.SourceBuilder request;
+        private HttpRequestTemplate request;
         private Set<String> extractKeys;
 
-        public SourceBuilder(TemplatedHttpRequest.SourceBuilder request) {
+        public SourceBuilder(HttpRequestTemplate request) {
             this.request = request;
         }
 

@@ -87,17 +87,7 @@ public abstract class Action<R extends Action.Result> implements ToXContent {
 
     public static abstract class SourceBuilder<SB extends SourceBuilder<SB>> implements ToXContent {
 
-        protected final String id;
-
         protected @Nullable Transform.SourceBuilder transform;
-
-        public SourceBuilder(String id) {
-            this.id = id;
-        }
-
-        public String id() {
-            return id;
-        }
 
         public SB transform(Transform.SourceBuilder transform) {
             this.transform = transform;

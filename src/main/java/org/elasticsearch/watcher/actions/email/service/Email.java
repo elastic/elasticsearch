@@ -27,18 +27,6 @@ import java.util.*;
  */
 public class Email implements ToXContent {
 
-    public static final ParseField ID_FIELD = new ParseField("id");
-    public static final ParseField FROM_FIELD = new ParseField("from");
-    public static final ParseField REPLY_TO_FIELD = new ParseField("reply_to");
-    public static final ParseField PRIORITY_FIELD = new ParseField("priority");
-    public static final ParseField SENT_DATE_FIELD = new ParseField("sent_date");
-    public static final ParseField TO_FIELD = new ParseField("to");
-    public static final ParseField CC_FIELD = new ParseField("cc");
-    public static final ParseField BCC_FIELD = new ParseField("bcc");
-    public static final ParseField SUBJECT_FIELD = new ParseField("subject");
-    public static final ParseField TEXT_BODY_FIELD = new ParseField("text_body");
-    public static final ParseField HTML_BODY_FIELD = new ParseField("html_body");
-
     final String id;
     final Address from;
     final AddressList replyTo;
@@ -127,30 +115,30 @@ public class Email implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ID_FIELD.getPreferredName(), id);
+        builder.field(Field.ID.getPreferredName(), id);
         if (from != null) {
-            builder.field(FROM_FIELD.getPreferredName(), from);
+            builder.field(Field.FROM.getPreferredName(), from);
         }
         if (replyTo != null) {
-            builder.field(REPLY_TO_FIELD.getPreferredName(), (ToXContent) replyTo);
+            builder.field(Field.REPLY_TO.getPreferredName(), (ToXContent) replyTo);
         }
         if (priority != null) {
-            builder.field(PRIORITY_FIELD.getPreferredName(), priority);
+            builder.field(Field.PRIORITY.getPreferredName(), priority);
         }
-        builder.field(SENT_DATE_FIELD.getPreferredName(), sentDate);
+        builder.field(Field.SENT_DATE.getPreferredName(), sentDate);
         if (to != null) {
-            builder.field(TO_FIELD.getPreferredName(), (ToXContent) to);
+            builder.field(Field.TO.getPreferredName(), (ToXContent) to);
         }
         if (cc != null) {
-            builder.field(CC_FIELD.getPreferredName(), (ToXContent) cc);
+            builder.field(Field.CC.getPreferredName(), (ToXContent) cc);
         }
         if (bcc != null) {
-            builder.field(BCC_FIELD.getPreferredName(), (ToXContent) bcc);
+            builder.field(Field.BCC.getPreferredName(), (ToXContent) bcc);
         }
-        builder.field(SUBJECT_FIELD.getPreferredName(), subject);
-        builder.field(TEXT_BODY_FIELD.getPreferredName(), textBody);
+        builder.field(Field.SUBJECT.getPreferredName(), subject);
+        builder.field(Field.TEXT_BODY.getPreferredName(), textBody);
         if (htmlBody != null) {
-            builder.field(HTML_BODY_FIELD.getPreferredName(), htmlBody);
+            builder.field(Field.HTML_BODY.getPreferredName(), htmlBody);
         }
         return builder.endObject();
     }
@@ -184,27 +172,27 @@ public class Email implements ToXContent {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if ((token.isValue() || token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) && currentFieldName != null) {
-                if (ID_FIELD.match(currentFieldName)) {
+                if (Field.ID.match(currentFieldName)) {
                     email.id(parser.text());
-                } else if (FROM_FIELD.match(currentFieldName)) {
+                } else if (Field.FROM.match(currentFieldName)) {
                     email.from(Address.parse(currentFieldName, token, parser));
-                } else if (REPLY_TO_FIELD.match(currentFieldName)) {
+                } else if (Field.REPLY_TO.match(currentFieldName)) {
                     email.replyTo(AddressList.parse(currentFieldName, token, parser));
-                } else if (TO_FIELD.match(currentFieldName)) {
+                } else if (Field.TO.match(currentFieldName)) {
                     email.to(AddressList.parse(currentFieldName, token, parser));
-                } else if (CC_FIELD.match(currentFieldName)) {
+                } else if (Field.CC.match(currentFieldName)) {
                     email.cc(AddressList.parse(currentFieldName, token, parser));
-                } else if (BCC_FIELD.match(currentFieldName)) {
+                } else if (Field.BCC.match(currentFieldName)) {
                     email.bcc(AddressList.parse(currentFieldName, token, parser));
-                } else if (PRIORITY_FIELD.match(currentFieldName)) {
+                } else if (Field.PRIORITY.match(currentFieldName)) {
                     email.priority(Email.Priority.resolve(parser.text()));
-                } else if (SENT_DATE_FIELD.match(currentFieldName)) {
+                } else if (Field.SENT_DATE.match(currentFieldName)) {
                     email.sentDate(new DateTime(parser.text()));
-                } else if (SUBJECT_FIELD.match(currentFieldName)) {
+                } else if (Field.SUBJECT.match(currentFieldName)) {
                     email.subject(parser.text());
-                } else if (TEXT_BODY_FIELD.match(currentFieldName)) {
+                } else if (Field.TEXT_BODY.match(currentFieldName)) {
                     email.textBody(parser.text());
-                } else if (HTML_BODY_FIELD.match(currentFieldName)) {
+                } else if (Field.HTML_BODY.match(currentFieldName)) {
                     email.htmlBody(parser.text());
                 } else {
                     throw new EmailException("could not parse email. unrecognized field [" + currentFieldName + "]");
@@ -255,6 +243,10 @@ public class Email implements ToXContent {
             return this;
         }
 
+        public Builder from(String address) throws AddressException {
+            return from(new Address(address));
+        }
+
         public Builder from(Address from) {
             this.from = from;
             return this;
@@ -263,6 +255,10 @@ public class Email implements ToXContent {
         public Builder replyTo(AddressList replyTo) {
             this.replyTo = replyTo;
             return this;
+        }
+
+        public Builder replyTo(String addresses) throws AddressException {
+            return replyTo(Email.AddressList.parse(addresses));
         }
 
         public Builder priority(Priority priority) {
@@ -275,6 +271,10 @@ public class Email implements ToXContent {
             return this;
         }
 
+        public Builder to(String addresses) throws AddressException {
+            return to(AddressList.parse(addresses));
+        }
+
         public Builder to(AddressList to) {
             this.to = to;
             return this;
@@ -284,9 +284,17 @@ public class Email implements ToXContent {
             return to;
         }
 
+        public Builder cc(String addresses) throws AddressException {
+            return cc(AddressList.parse(addresses));
+        }
+
         public Builder cc(AddressList cc) {
             this.cc = cc;
             return this;
+        }
+
+        public Builder bcc(String addresses) throws AddressException {
+            return bcc(AddressList.parse(addresses));
         }
 
         public Builder bcc(AddressList bcc) {
@@ -326,7 +334,7 @@ public class Email implements ToXContent {
 
     }
 
-    public static enum Priority implements ToXContent {
+    public enum Priority implements ToXContent {
 
         HIGHEST(1),
         HIGH(2),
@@ -338,7 +346,7 @@ public class Email implements ToXContent {
 
         private final int value;
 
-        private Priority(int value) {
+        Priority(int value) {
             this.value = value;
         }
 
@@ -549,6 +557,20 @@ public class Email implements ToXContent {
         public int hashCode() {
             return addresses.hashCode();
         }
+    }
+
+    interface Field {
+        ParseField ID = new ParseField("id");
+        ParseField FROM = new ParseField("from");
+        ParseField REPLY_TO = new ParseField("reply_to");
+        ParseField PRIORITY = new ParseField("priority");
+        ParseField SENT_DATE = new ParseField("sent_date");
+        ParseField TO = new ParseField("to");
+        ParseField CC = new ParseField("cc");
+        ParseField BCC = new ParseField("bcc");
+        ParseField SUBJECT = new ParseField("subject");
+        ParseField TEXT_BODY = new ParseField("text_body");
+        ParseField HTML_BODY = new ParseField("html_body");
     }
 
 }

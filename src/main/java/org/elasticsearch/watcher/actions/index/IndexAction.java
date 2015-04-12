@@ -278,8 +278,7 @@ public class IndexAction extends Action<IndexAction.Result> {
         private final String index;
         private final String type;
 
-        public SourceBuilder(String id, String index, String type) {
-            super(id);
+        public SourceBuilder(String index, String type) {
             this.index = index;
             this.type = type;
         }

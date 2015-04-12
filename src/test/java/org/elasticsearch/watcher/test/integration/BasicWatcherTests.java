@@ -62,11 +62,10 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(searchRequest))
                         .condition(scriptCondition("ctx.payload.hits.total == 1"))
-                        .addAction(loggingAction("_logger",
-                                "\n\n************\n" +
+                        .addAction("_logger", loggingAction("\n\n************\n" +
                                         "total hits: {{ctx.payload.hits.total}}\n" +
                                         "************\n")
-                                .category("_category")))
+                                        .category("_category")))
                 .get();
 
         if (timeWarped()) {
@@ -189,7 +188,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         WatchSourceBuilder source = watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(searchInput(searchRequest))
-                .addAction(indexAction("_id", "idx", "action"));
+                .addAction("_id", indexAction("idx", "action"));
 
         watcherClient().preparePutWatch("_name")
                 .setSource(source.condition(scriptCondition("ctx.payload.hits.total == 1")))

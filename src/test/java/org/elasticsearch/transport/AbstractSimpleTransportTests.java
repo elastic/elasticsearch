@@ -216,7 +216,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
     @Test
     public void testLocalNodeConnection() throws InterruptedException {
         assertTrue("serviceA is not connected to nodeA", serviceA.nodeConnected(nodeA));
-        if (((TransportService) serviceA).getLocalNodeId() != null) {
+        if (((TransportService) serviceA).getLocalNode() != null) {
             // this should be a noop
             serviceA.disconnectFromNode(nodeA);
         }

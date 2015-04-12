@@ -51,7 +51,7 @@ public class JvmService extends AbstractComponent {
     }
 
     public synchronized JvmStats stats() {
-        if ((System.currentTimeMillis() - jvmStats.timestamp()) > refreshInterval.millis()) {
+        if ((System.currentTimeMillis() - jvmStats.getTimestamp()) > refreshInterval.millis()) {
             jvmStats = JvmStats.jvmStats();
         }
         return jvmStats;

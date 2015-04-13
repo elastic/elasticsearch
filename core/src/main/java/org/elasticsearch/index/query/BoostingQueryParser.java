@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.queries.BoostingQuery;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -29,7 +27,7 @@ import java.io.IOException;
 /**
  *
  */
-public class BoostingQueryParser extends BaseQueryParserTemp {
+public class BoostingQueryParser extends BaseQueryParser {
 
     @Inject
     public BoostingQueryParser() {
@@ -41,14 +39,14 @@ public class BoostingQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        Query positiveQuery = null;
+        QueryBuilder positiveQuery = null;
         boolean positiveQueryFound = false;
-        Query negativeQuery = null;
+        QueryBuilder negativeQuery = null;
         boolean negativeQueryFound = false;
-        float boost = -1;
+        float boost = 1.0f;
         float negativeBoost = -1;
 
         String currentFieldName = null;
@@ -58,10 +56,10 @@ public class BoostingQueryParser extends BaseQueryParserTemp {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("positive".equals(currentFieldName)) {
-                    positiveQuery = parseContext.parseInnerQuery();
+                    positiveQuery = parseContext.parseInnerQueryBuilder();
                     positiveQueryFound = true;
                 } else if ("negative".equals(currentFieldName)) {
-                    negativeQuery = parseContext.parseInnerQuery();
+                    negativeQuery = parseContext.parseInnerQueryBuilder();
                     negativeQueryFound = true;
                 } else {
                     throw new QueryParsingException(parseContext, "[boosting] query does not support [" + currentFieldName + "]");
@@ -83,19 +81,16 @@ public class BoostingQueryParser extends BaseQueryParserTemp {
         if (negativeQuery == null && !negativeQueryFound) {
             throw new QueryParsingException(parseContext, "[boosting] query requires 'negative' query to be set'");
         }
-        if (negativeBoost == -1) {
-            throw new QueryParsingException(parseContext, "[boosting] query requires 'negative_boost' to be set'");
+        if (negativeBoost < 0) {
+            throw new QueryParsingException(parseContext, "[boosting] query requires 'negative_boost' to be set to be a positive value'");
         }
 
-        // parsers returned null
-        if (positiveQuery == null || negativeQuery == null) {
-            return null;
-        }
-
-        BoostingQuery boostingQuery = new BoostingQuery(positiveQuery, negativeQuery, negativeBoost);
-        if (boost != -1) {
-            boostingQuery.setBoost(boost);
-        }
+        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder();
+        boostingQuery.positive(positiveQuery);
+        boostingQuery.negative(negativeQuery);
+        boostingQuery.negativeBoost(negativeBoost);
+        boostingQuery.boost(boost);
+        boostingQuery.validate();
         return boostingQuery;
     }
 

@@ -60,9 +60,12 @@ public abstract class QueryBuilder<QB extends QueryBuilder> extends ToXContentTo
     }
 
     /**
-     * Converts this QueryBuilder to a lucene {@link Query}
+     * Converts this QueryBuilder to a lucene {@link Query}.
+     * Returns <tt>null</tt> if this query should be ignored in the context of
+     * parent queries.
+     *
      * @param parseContext additional information needed to construct the queries
-     * @return the {@link Query}
+     * @return the {@link Query} or <tt>null</tt> if this query should be ignored upstream
      * @throws QueryParsingException
      * @throws IOException
      */

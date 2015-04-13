@@ -27,7 +27,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.search.aggregations.reducers.ReducerBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -39,7 +38,6 @@ import java.util.Map;
 public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extends AbstractAggregationBuilder {
 
     private List<AbstractAggregationBuilder> aggregations;
-    private List<ReducerBuilder<?>> reducers;
     private BytesReference aggregationsBinary;
     private Map<String, Object> metaData;
 
@@ -59,18 +57,6 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
             aggregations = Lists.newArrayList();
         }
         aggregations.add(aggregation);
-        return (B) this;
-    }
-
-    /**
-     * Add a sub get to this bucket get.
-     */
-    @SuppressWarnings("unchecked")
-    public B subAggregation(ReducerBuilder<?> reducer) {
-        if (reducers == null) {
-            reducers = Lists.newArrayList();
-        }
-        reducers.add(reducer);
         return (B) this;
     }
 
@@ -135,17 +121,11 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
         builder.field(type);
         internalXContent(builder, params);
 
-        if (aggregations != null || aggregationsBinary != null || reducers != null) {
+        if (aggregations != null || aggregationsBinary != null) {
             builder.startObject("aggregations");
 
             if (aggregations != null) {
                 for (AbstractAggregationBuilder subAgg : aggregations) {
-                    subAgg.toXContent(builder, params);
-                }
-            }
-
-            if (reducers != null) {
-                for (ReducerBuilder<?> subAgg : reducers) {
                     subAgg.toXContent(builder, params);
                 }
             }

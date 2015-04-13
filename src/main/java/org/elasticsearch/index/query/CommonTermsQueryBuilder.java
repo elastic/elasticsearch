@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -27,7 +30,7 @@ import java.io.IOException;
 /**
  * CommonTermsQuery query is a query that executes high-frequency terms in a
  * optional sub-query to prevent slow queries due to "common" terms like
- * stopwords. This query basically builds 2 queries off the {@link #addAggregator(Term)
+ * stopwords. This query basically builds 2 queries off the {@link #add(Term)
  * added} terms where low-frequency terms are added to a required boolean clause
  * and high-frequency terms are added to an optional boolean clause. The
  * optional clause is only executed if the required "low-frequency' clause

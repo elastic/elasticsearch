@@ -150,9 +150,9 @@ public class BucketHelpers {
     }
 
     public static Double resolveBucketValue(InternalMultiBucketAggregation<?, ? extends InternalMultiBucketAggregation.Bucket> agg,
-            InternalMultiBucketAggregation.Bucket bucket, List<String> aggPathsList, GapPolicy gapPolicy) {
+            InternalMultiBucketAggregation.Bucket bucket, List<String> aggPathAsList, GapPolicy gapPolicy) {
         try {
-            Object propertyValue = bucket.getProperty(agg.getName(), aggPathsList);
+            Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList);
             if (propertyValue == null) {
                 throw new AggregationExecutionException(DerivativeParser.BUCKETS_PATH.getPreferredName()
                         + " must reference either a number value or a single value numeric metric aggregation");

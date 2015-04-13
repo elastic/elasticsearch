@@ -197,7 +197,6 @@ public class AggregatorParsers {
                 if (subFactories != null) {
                     throw new SearchParseException(context, "Aggregation [" + aggregationName + "] cannot define sub-aggregations");
                 }
-                // TODO: should we validate here like aggs?
                 factories.addReducer(reducerFactory);
             }
         }

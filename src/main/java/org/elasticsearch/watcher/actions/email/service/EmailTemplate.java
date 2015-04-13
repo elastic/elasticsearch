@@ -94,15 +94,15 @@ public class EmailTemplate implements ToXContent {
             builder.priority(Email.Priority.resolve(engine.render(priority, model)));
         }
         if (to != null) {
-            Email.AddressList addresses = templatesToAddressList(engine, replyTo, model);
+            Email.AddressList addresses = templatesToAddressList(engine, to, model);
             builder.to(addresses);
         }
         if (cc != null) {
-            Email.AddressList addresses = templatesToAddressList(engine, replyTo, model);
+            Email.AddressList addresses = templatesToAddressList(engine, cc, model);
             builder.cc(addresses);
         }
         if (bcc != null) {
-            Email.AddressList addresses = templatesToAddressList(engine, replyTo, model);
+            Email.AddressList addresses = templatesToAddressList(engine, bcc, model);
             builder.bcc(addresses);
         }
         if (subject != null) {

@@ -149,11 +149,8 @@ public class InternalEngine extends Engine {
                 long nextTranslogID = translogId.v2();
                 translog.newTranslog(nextTranslogID);
                 translogIdGenerator.set(nextTranslogID);
-                if (skipInitialTranslogRecovery == false) {
-                    transformer.beginTranslogRecovery();
-                    if (translogId.v1() != null) {
-                        recoverFromTranslog(translogId.v1(), transformer);
-                    }
+                if (translogId.v1() != null && skipInitialTranslogRecovery == false) {
+                    recoverFromTranslog(translogId.v1(), transformer);
                 } else {
                     flush(true, true);
                 }

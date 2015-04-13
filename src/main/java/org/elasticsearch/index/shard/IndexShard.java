@@ -92,7 +92,6 @@ import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchService;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
@@ -541,7 +540,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public Engine.DeleteByQuery prepareDeleteByQuery(BytesReference source, @Nullable String[] filteringAliases, Engine.Operation.Origin origin, String... types) throws ElasticsearchException {
-        return prepareDeleteByQuery(queryParserService,  mapperService, indexAliasesService, indexCache, source, filteringAliases, origin, types);
+        return prepareDeleteByQuery(queryParserService, mapperService, indexAliasesService, indexCache, source, filteringAliases, origin, types);
     }
 
     static Engine.DeleteByQuery prepareDeleteByQuery(IndexQueryParserService queryParserService, MapperService mapperService, IndexAliasesService indexAliasesService, IndexCache indexCache, BytesReference source, @Nullable String[] filteringAliases, Engine.Operation.Origin origin, String... types) throws ElasticsearchException {
@@ -811,11 +810,13 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
-        recoveryState.setStage(RecoveryState.Stage.START);
+        recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
         // also check here, before we apply the translog
         if (Booleans.parseBoolean(checkIndexOnStartup, false)) {
             checkIndex();
         }
+
+        recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
         // we disable deletes since we allow for operations to be executed against the shard while recovering
         // but we need to make sure we don't loose deletes until we are done recovering
         final EngineConfig config = newEngineConfig();
@@ -834,8 +835,6 @@ public class IndexShard extends AbstractIndexShardComponent {
        Set<String> recoveredTypes = internalPerformTranslogRecovery(true);
        assert recoveredTypes.isEmpty();
        assert recoveryState.getTranslog().recoveredOperations() == 0;
-       assert recoveryState.getStage() == RecoveryState.Stage.START : "START stage expected but was: " + recoveryState.getStage();
-       recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
     }
 
     /** called if recovery has to be restarted after network error / delay ** */
@@ -1178,7 +1177,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
         }
 
-        recoveryState.getStart().checkIndexTime(Math.max(0, System.currentTimeMillis() - time));
+        recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, System.currentTimeMillis() - time));
     }
 
     public Engine engine() {
@@ -1281,17 +1280,11 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     protected EngineConfig newEngineConfig() {
-        TranslogRecoveryPerformer translogRecoveryPerformer = new TranslogRecoveryPerformer(mapperService, mapperAnalyzer, queryParserService, indexAliasesService, indexCache) {
+        final TranslogRecoveryPerformer translogRecoveryPerformer = new TranslogRecoveryPerformer(mapperService, mapperAnalyzer, queryParserService, indexAliasesService, indexCache) {
             @Override
             protected void operationProcessed() {
                 assert recoveryState != null;
                 recoveryState.getTranslog().incrementRecoveredOperations();
-            }
-
-            @Override
-            public void beginTranslogRecovery() {
-                assert recoveryState != null;
-                recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
             }
         };
         return new EngineConfig(shardId,

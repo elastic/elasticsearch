@@ -18,30 +18,19 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.action.WriteFailureException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IgnoreOnRecoveryEngineException;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperAnalyzer;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
-import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -151,10 +140,6 @@ public class TranslogRecoveryPerformer {
     }
 
     protected void operationProcessed() {
-        // noop
-    }
-
-    public void beginTranslogRecovery() {
         // noop
     }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -67,6 +68,8 @@ public abstract class BaseQueryBuilder implements QueryBuilder {
         builder.endObject();
         return builder;
     }
+
+    public abstract Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException;
 
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 }

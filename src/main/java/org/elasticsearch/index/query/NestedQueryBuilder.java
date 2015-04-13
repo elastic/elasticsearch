@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
 
@@ -113,4 +114,8 @@ public class NestedQueryBuilder extends BaseQueryBuilder implements BoostableQue
         builder.endObject();
     }
 
+    @Override
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        return parseContext.indexQueryParserService().queryParser(NestedQueryParser.NAME).parse(parseContext);
+    }
 }

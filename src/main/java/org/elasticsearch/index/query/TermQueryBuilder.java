@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -144,5 +145,10 @@ public class TermQueryBuilder extends BaseQueryBuilder implements BoostableQuery
             builder.endObject();
         }
         builder.endObject();
+    }
+
+    @Override
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        return new TermQueryParser().parse(parseContext);
     }
 }

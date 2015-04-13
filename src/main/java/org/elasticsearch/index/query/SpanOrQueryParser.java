@@ -34,7 +34,7 @@ import static com.google.common.collect.Lists.newArrayList;
 /**
  *
  */
-public class SpanOrQueryParser implements QueryParser {
+public class SpanOrQueryParser extends BaseQueryParser {
 
     public static final String NAME = "span_or";
 

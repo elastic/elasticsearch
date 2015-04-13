@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -275,5 +276,10 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
 
         builder.endObject();
         builder.endObject();
+    }
+
+    @Override
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        return new MatchQueryParser().parse(parseContext);
     }
 }

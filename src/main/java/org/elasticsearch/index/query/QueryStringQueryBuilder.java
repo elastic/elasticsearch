@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -432,5 +433,10 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
             builder.field("time_zone", timeZone);
         }
         builder.endObject();
+    }
+
+    @Override
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        return parseContext.indexQueryParserService().queryParser(QueryStringQueryParser.NAME).parse(parseContext);
     }
 }

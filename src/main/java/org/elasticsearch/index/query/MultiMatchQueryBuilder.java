@@ -21,6 +21,8 @@ package org.elasticsearch.index.query;
 
 import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
 import com.google.common.collect.Lists;
+
+import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -404,4 +406,8 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
         builder.endObject();
     }
 
+    @Override
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        return new MultiMatchQueryParser().parse(parseContext);
+    }
 }

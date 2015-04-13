@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.common.Nullable;
@@ -437,5 +438,10 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
             builder.field("include", include);
         }
         builder.endObject();
+    }
+
+    @Override
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        return new MoreLikeThisQueryParser().parse(parseContext);
     }
 }

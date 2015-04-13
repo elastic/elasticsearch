@@ -285,9 +285,8 @@ public class QueryParseContext {
         innerHitsContext.addInnerHitDefinition(name, context);
     }
 
-    @Nullable
-    public Query parseInnerQuery() throws IOException, QueryParsingException {
-        // move to START object
+    public QueryBuilder toQueryBuilder() throws IOException {
+     // move to START object
         XContentParser.Token token;
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             token = parser.nextToken();
@@ -310,11 +309,19 @@ public class QueryParseContext {
         if (queryParser == null) {
             throw new QueryParsingException(index, "No query registered for [" + queryName + "]");
         }
-        Query result = queryParser.parse(this);
+        QueryBuilder result = queryParser.fromXContent(this);
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
             // if we are at END_OBJECT, move to the next one...
             parser.nextToken();
         }
+        return result;
+    }
+
+    @Nullable
+    public Query parseInnerQuery() throws IOException, QueryParsingException {
+        QueryBuilder builder = toQueryBuilder();
+
+        Query result = builder.toQuery(this);
         if (result instanceof NoCacheQuery) {
             propagateNoCache = true;
         }
@@ -481,4 +488,5 @@ public class QueryParseContext {
     public NestedScope nestedScope() {
         return nestedScope;
     }
+
 }

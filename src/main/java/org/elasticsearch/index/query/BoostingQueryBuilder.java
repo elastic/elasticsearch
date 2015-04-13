@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -94,5 +95,10 @@ public class BoostingQueryBuilder extends BaseQueryBuilder implements BoostableQ
             builder.field("boost", boost);
         }
         builder.endObject();
+    }
+
+    @Override
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        return new BoostingQueryParser().parse(parseContext);
     }
 }

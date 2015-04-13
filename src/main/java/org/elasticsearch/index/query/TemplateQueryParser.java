@@ -38,7 +38,7 @@ import java.util.Map;
  * In the simplest case, parse template string and variables from the request, compile the template and
  * execute the template against the given variables.
  * */
-public class TemplateQueryParser implements QueryParser {
+public class TemplateQueryParser extends BaseQueryParser {
 
     /** Name to reference this type of query. */
     public static final String NAME = "template";

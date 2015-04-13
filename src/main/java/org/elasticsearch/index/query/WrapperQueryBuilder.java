@@ -26,6 +26,8 @@ package org.elasticsearch.index.query;
  */
 
 import com.google.common.base.Charsets;
+
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -70,5 +72,10 @@ public class WrapperQueryBuilder extends BaseQueryBuilder {
         builder.startObject(WrapperQueryParser.NAME);
         builder.field("query", source, offset, length);
         builder.endObject();
+    }
+
+    @Override
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        return new WrapperQueryParser().parse(parseContext);
     }
 }

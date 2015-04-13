@@ -21,6 +21,7 @@ package org.elasticsearch.index.query.functionscore;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
+
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
@@ -37,9 +38,11 @@ import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.query.QueryWrappingQueryBuilder;
 import org.elasticsearch.index.query.functionscore.factor.FactorParser;
 
 import java.io.IOException;
@@ -264,5 +267,11 @@ public class FunctionScoreQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), NAME + " illegal boost_mode [" + boostMode + "]");
         }
         return cf;
+    }
+
+    @Override
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        Query query = parse(parseContext);
+        return new QueryWrappingQueryBuilder(query);
     }
 }

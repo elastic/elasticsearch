@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -94,5 +95,10 @@ public class PrefixQueryBuilder extends BaseQueryBuilder implements MultiTermQue
             builder.endObject();
         }
         builder.endObject();
+    }
+
+    @Override
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        return new PrefixQueryParser().parse(parseContext);
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -42,7 +43,7 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
     private Integer prefixLength;
 
     private Integer maxExpansions;
-    
+
     //LUCENE 4 UPGRADE  we need a testcase for this + documentation
     private Boolean transpositions;
 
@@ -83,7 +84,7 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
         this.maxExpansions = maxExpansions;
         return this;
     }
-    
+
     public FuzzyQueryBuilder transpositions(boolean transpositions) {
       this.transpositions = transpositions;
       return this;
@@ -126,5 +127,10 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
             builder.endObject();
         }
         builder.endObject();
+    }
+
+    @Override
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        return new FuzzyQueryParser().parse(parseContext);
     }
 }

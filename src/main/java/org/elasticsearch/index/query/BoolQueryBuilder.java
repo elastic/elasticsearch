@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -42,7 +43,7 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
     private Boolean disableCoord;
 
     private String minimumShouldMatch;
-    
+
     private Boolean adjustPureNegative;
 
     private String queryName;
@@ -126,7 +127,7 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
     public boolean hasClauses() {
         return !(mustClauses.isEmpty() && shouldClauses.isEmpty() && mustNotClauses.isEmpty());
     }
-    
+
     /**
      * If a boolean query contains only negative ("must not") clauses should the
      * BooleanQuery be enhanced with a {@link MatchAllDocsQuery} in order to act
@@ -183,6 +184,10 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
             }
             builder.endArray();
         }
+    }
+
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        return parseContext.indexQueryParserService().queryParser(BoolQueryParser.NAME).parse(parseContext);
     }
 
 }

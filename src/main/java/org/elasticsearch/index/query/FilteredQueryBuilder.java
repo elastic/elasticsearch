@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -84,5 +85,10 @@ public class FilteredQueryBuilder extends BaseQueryBuilder implements BoostableQ
             builder.field("_name", queryName);
         }
         builder.endObject();
+    }
+
+    @Override
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        return new FilteredQueryParser().parse(parseContext);
     }
 }

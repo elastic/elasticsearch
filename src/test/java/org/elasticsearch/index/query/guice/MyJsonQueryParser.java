@@ -25,9 +25,11 @@ import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.query.QueryWrappingQueryBuilder;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
@@ -60,5 +62,11 @@ public class MyJsonQueryParser extends AbstractIndexComponent implements QueryPa
 
     public Settings settings() {
         return settings;
+    }
+
+    @Override
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        Query query = parse(parseContext);
+        return new QueryWrappingQueryBuilder(query);
     }
 }

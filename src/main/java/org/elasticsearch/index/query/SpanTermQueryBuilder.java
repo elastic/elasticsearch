@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -92,5 +93,10 @@ public class SpanTermQueryBuilder extends BaseQueryBuilder implements SpanQueryB
             builder.endObject();
         }
         builder.endObject();
+    }
+
+    @Override
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        return new SpanTermQueryParser().parse(parseContext);
     }
 }

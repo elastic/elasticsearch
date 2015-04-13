@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -197,5 +198,10 @@ public class CommonTermsQueryBuilder extends BaseQueryBuilder implements Boostab
 
         builder.endObject();
         builder.endObject();
+    }
+
+    @Override
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        return new CommonTermsQueryParser().parse(parseContext);
     }
 }

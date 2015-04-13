@@ -32,7 +32,7 @@ import java.io.IOException;
 /**
  *
  */
-public class TermQueryParser implements QueryParser {
+public class TermQueryParser extends BaseQueryParser {
 
     public static final String NAME = "term";
 

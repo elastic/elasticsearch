@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query.functionscore;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -26,7 +27,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BaseQueryBuilder;
 import org.elasticsearch.index.query.BoostableQueryBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryParsingException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -226,5 +230,10 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
     public FunctionScoreQueryBuilder setMinScore(float minScore) {
         this.minScore = minScore;
         return this;
+    }
+
+    @Override
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        return parseContext.indexQueryParserService().queryParser(FunctionScoreQueryParser.NAME).parse(parseContext);
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -427,5 +428,10 @@ public class RangeQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
         }
         builder.endObject();
         builder.endObject();
+    }
+
+    @Override
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        return new RangeQueryParser().parse(parseContext);
     }
 }

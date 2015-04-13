@@ -106,7 +106,7 @@ public abstract class AbstractListenableActionFuture<T, L> extends AdapterAction
                     @Override
                     public void run() {
                         try {
-                            listener.onResponse(actionGet());
+                            listener.onResponse(actionGet(0));
                         } catch (ElasticsearchException e) {
                             listener.onFailure(e);
                         }
@@ -117,7 +117,7 @@ public abstract class AbstractListenableActionFuture<T, L> extends AdapterAction
             }
         } else {
             try {
-                listener.onResponse(actionGet());
+                listener.onResponse(actionGet(0));
             } catch (Throwable e) {
                 listener.onFailure(e);
             }

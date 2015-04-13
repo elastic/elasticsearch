@@ -25,7 +25,7 @@ grant {
 
   // contain read access to only what we need:
   // project base directory
-  permission java.io.FilePermission "${project.basedir}${/}-", "read";
+  permission java.io.FilePermission "${project.basedir}${/}target${/}-", "read";
   // mvn custom ./m2/repository for dependency jars
   permission java.io.FilePermission "${m2.repository}{/}-", "read";
   // maven default repo for settings.xml etc.

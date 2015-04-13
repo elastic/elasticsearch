@@ -49,7 +49,16 @@ public class ConditionRegistry {
                     throw new ConditionException("unknown condition type [" + type + "]");
                 }
                 condition = conditionParser.parse(parser);
+            } else if (token == XContentParser.Token.VALUE_STRING && type != null) {
+                Condition.Parser conditionParser = parsers.get(type);
+                if (conditionParser == null) {
+                    throw new ConditionException("unknown condition type [" + type + "]");
+                }
+                condition = conditionParser.parse(parser);
             }
+        }
+        if (condition == null) {
+            throw new ConditionException("failed to parse condition");
         }
         return condition;
     }

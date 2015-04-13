@@ -5,15 +5,9 @@
  */
 package org.elasticsearch.watcher.condition.script;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.watcher.WatcherSettingsException;
-import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.condition.ConditionException;
-import org.elasticsearch.watcher.support.Script;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
@@ -28,6 +23,12 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.watcher.WatcherSettingsException;
+import org.elasticsearch.watcher.condition.ConditionException;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.watcher.support.Script;
+import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.watch.Payload;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -36,8 +37,8 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
 
 /**
  */
@@ -76,10 +77,22 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
     }
 
     @Test
+    @Repeat(iterations =  5)
     public void testParser_Valid() throws Exception {
         ScriptCondition.Parser conditionParser = new ScriptCondition.Parser(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
 
-        XContentBuilder builder = createConditionContent("ctx.payload.hits.total > 1", null, null);
+        XContentBuilder builder;
+        if (randomBoolean()) {
+            //Create structure
+            builder = createConditionContent("ctx.payload.hits.total > 1", null, null);
+        } else {
+            //Create simple { "script : "ctx.payload.hits.total" } which should parse
+            builder = XContentFactory.jsonBuilder();
+            builder.startObject();
+            builder.field("script", "ctx.payload.hits.total > 1");
+            builder.endObject();
+        }
+
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
         ScriptCondition condition = conditionParser.parse(parser);

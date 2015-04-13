@@ -32,6 +32,7 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
+import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.TemplateUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -75,13 +76,14 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         when(watch.input()).thenReturn(null);
         when(watch.metadata()).thenReturn(null);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
-        WatchRecord watchRecord = new WatchRecord("_name#1970-01-01T00:00:00.000Z", watch, event);
+        Wid wid = new Wid("_name", 0, new DateTime(0, DateTimeZone.UTC));
+        WatchRecord watchRecord = new WatchRecord(wid, watch, event);
 
         IndexResponse indexResponse = mock(IndexResponse.class);
         long version = randomLong();
         when(indexResponse.getVersion()).thenReturn(version);
 
-        when(clientProxy.index(indexRequest(".watch_history_1970-01-01", HistoryStore.DOC_TYPE, "_name#1970-01-01T00:00:00.000Z", IndexRequest.OpType.CREATE))).thenReturn(indexResponse);
+        when(clientProxy.index(indexRequest(".watch_history_1970-01-01", HistoryStore.DOC_TYPE, wid.value(), IndexRequest.OpType.CREATE))).thenReturn(indexResponse);
         historyStore.put(watchRecord);
         assertThat(watchRecord.version(), equalTo(version));
     }
@@ -94,14 +96,15 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         when(watch.input()).thenReturn(null);
         when(watch.metadata()).thenReturn(null);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
-        WatchRecord watchRecord = new WatchRecord("_name#1970-01-01T00:00:00.000Z", watch, event);
+        Wid wid = new Wid("_name", 0, new DateTime(0, DateTimeZone.UTC));
+        WatchRecord watchRecord = new WatchRecord(wid, watch, event);
         watchRecord.version(4l);
 
         IndexResponse indexResponse = mock(IndexResponse.class);
         long version = randomLong();
         when(indexResponse.getVersion()).thenReturn(version);
 
-        when(clientProxy.index(indexRequest(".watch_history_1970-01-01", HistoryStore.DOC_TYPE, "_name#1970-01-01T00:00:00.000Z", 4L, null))).thenReturn(indexResponse);
+        when(clientProxy.index(indexRequest(".watch_history_1970-01-01", HistoryStore.DOC_TYPE, wid.value(), 4L, null))).thenReturn(indexResponse);
         historyStore.update(watchRecord);
         assertThat(watchRecord.version(), equalTo(version));
     }
@@ -315,7 +318,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
 
         WatchRecord watchRecord = mock(WatchRecord.class);
         when(watchRecord.state()).thenReturn(WatchRecord.State.AWAITS_EXECUTION);
-        when(parser.parse(any(BytesReference.class), eq("_id"), eq(1l))).thenReturn(watchRecord);
+        when(parser.parse(eq("_id"), eq(1l), any(BytesReference.class))).thenReturn(watchRecord);
 
         when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 1));
 

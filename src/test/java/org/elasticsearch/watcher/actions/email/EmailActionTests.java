@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.email.service.*;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.watch.Payload;
@@ -77,7 +78,9 @@ public class EmailActionTests extends ElasticsearchTestCase {
         Profile profile = randomFrom(Profile.values());
 
         boolean attachPayload = randomBoolean();
-        EmailAction action = new EmailAction(logger, email, auth, profile, account, attachPayload, service, engine);
+
+        EmailAction action = new EmailAction(email, account, auth, profile, attachPayload);
+        ExecutableEmailAction executable = new ExecutableEmailAction(action, logger, service, engine);
 
         final Map<String, Object> data = new HashMap<>();
         Payload payload = new Payload() {
@@ -94,9 +97,9 @@ public class EmailActionTests extends ElasticsearchTestCase {
 
         DateTime now = DateTime.now(UTC);
 
-        String ctxId = randomAsciiOfLength(5);
+        Wid wid = new Wid(randomAsciiOfLength(5), randomLong(), DateTime.now(UTC));
         WatchExecutionContext ctx = mockExecutionContext("watch1", now, payload);
-        when(ctx.id()).thenReturn(ctxId);
+        when(ctx.id()).thenReturn(wid);
         Map<String, Object> expectedModel = ImmutableMap.<String, Object>builder()
                 .put("ctx", ImmutableMap.<String, Object>builder()
                         .put("watch_id", "watch1")
@@ -119,13 +122,13 @@ public class EmailActionTests extends ElasticsearchTestCase {
             when(engine.render(htmlBody, expectedModel)).thenReturn(htmlBody.getText());
         }
 
-        EmailAction.Result result = action.execute("_id", ctx, payload);
+        EmailAction.Result result = executable.execute("_id", ctx, payload);
 
         assertThat(result, notNullValue());
         assertThat(result, instanceOf(EmailAction.Result.Success.class));
         assertThat(((EmailAction.Result.Success) result).account(), equalTo(account));
         Email actualEmail = ((EmailAction.Result.Success) result).email();
-        assertThat(actualEmail.id(), is(ctxId));
+        assertThat(actualEmail.id(), is(wid.value()));
         assertThat(actualEmail, notNullValue());
         assertThat(actualEmail.subject(), is(subject == null ? null : subject.getText()));
         assertThat(actualEmail.textBody(), is(textBody == null ? null : textBody.getText()));
@@ -211,34 +214,35 @@ public class EmailActionTests extends ElasticsearchTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
 
-        EmailAction action = new EmailAction.Parser(ImmutableSettings.EMPTY, emailService, engine).parse(parser);
+        ExecutableEmailAction executable = new EmailActionFactory(ImmutableSettings.EMPTY, emailService, engine)
+                .parseExecutable(randomAsciiOfLength(8), randomAsciiOfLength(3), parser);
 
-        assertThat(action, notNullValue());
-        assertThat(action.account, is("_account"));
-        assertThat(action.attachPayload, is(attachPayload));
-        assertThat(action.auth, notNullValue());
-        assertThat(action.auth.user(), is("_user"));
-        assertThat(action.auth.password(), is("_passwd".toCharArray()));
-        assertThat(action.emailTemplate.priority(), is(new Template(priority.name())));
+        assertThat(executable, notNullValue());
+        assertThat(executable.action().getAccount(), is("_account"));
+        assertThat(executable.action().isAttachPayload(), is(attachPayload));
+        assertThat(executable.action().getAuth(), notNullValue());
+        assertThat(executable.action().getAuth().user(), is("_user"));
+        assertThat(executable.action().getAuth().password(), is("_passwd".toCharArray()));
+        assertThat(executable.action().getEmail().priority(), is(new Template(priority.name())));
         if (to != null) {
-            assertThat(action.emailTemplate.to(), arrayContainingInAnyOrder(addressesToTemplates(to)));
+            assertThat(executable.action().getEmail().to(), arrayContainingInAnyOrder(addressesToTemplates(to)));
         } else {
-            assertThat(action.emailTemplate.to(), nullValue());
+            assertThat(executable.action().getEmail().to(), nullValue());
         }
         if (cc != null) {
-            assertThat(action.emailTemplate.cc(), arrayContainingInAnyOrder(addressesToTemplates(cc)));
+            assertThat(executable.action().getEmail().cc(), arrayContainingInAnyOrder(addressesToTemplates(cc)));
         } else {
-            assertThat(action.emailTemplate.cc(), nullValue());
+            assertThat(executable.action().getEmail().cc(), nullValue());
         }
         if (bcc != null) {
-            assertThat(action.emailTemplate.bcc(), arrayContainingInAnyOrder(addressesToTemplates(bcc)));
+            assertThat(executable.action().getEmail().bcc(), arrayContainingInAnyOrder(addressesToTemplates(bcc)));
         } else {
-            assertThat(action.emailTemplate.bcc(), nullValue());
+            assertThat(executable.action().getEmail().bcc(), nullValue());
         }
         if (replyTo != null) {
-            assertThat(action.emailTemplate.replyTo(), arrayContainingInAnyOrder(addressesToTemplates(replyTo)));
+            assertThat(executable.action().getEmail().replyTo(), arrayContainingInAnyOrder(addressesToTemplates(replyTo)));
         } else {
-            assertThat(action.emailTemplate.replyTo(), nullValue());
+            assertThat(executable.action().getEmail().replyTo(), nullValue());
         }
     }
 
@@ -276,16 +280,17 @@ public class EmailActionTests extends ElasticsearchTestCase {
         String account = randomAsciiOfLength(6);
         boolean attachPayload = randomBoolean();
 
-        EmailAction action = new EmailAction(logger, email, auth, profile, account, attachPayload, service, engine);
+        EmailAction action = new EmailAction(email, account, auth, profile, attachPayload);
+        ExecutableEmailAction executable = new ExecutableEmailAction(action, logger, service, engine);
 
         XContentBuilder builder = jsonBuilder();
-        action.toXContent(builder, Attachment.XContent.EMPTY_PARAMS);
+        executable.toXContent(builder, Attachment.XContent.EMPTY_PARAMS);
         BytesReference bytes = builder.bytes();
-        System.out.println(bytes.toUtf8());
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
-        EmailAction parsed = new EmailAction.Parser(ImmutableSettings.EMPTY, service, engine).parse(parser);
-        assertThat(parsed, equalTo(action));
+        ExecutableEmailAction parsed = new EmailActionFactory(ImmutableSettings.EMPTY, service, engine)
+                .parseExecutable(randomAsciiOfLength(4), randomAsciiOfLength(10), parser);
+        assertThat(parsed, equalTo(executable));
     }
 
     @Test(expected = EmailActionException.class) @Repeat(iterations = 100)
@@ -295,11 +300,15 @@ public class EmailActionTests extends ElasticsearchTestCase {
         XContentBuilder builder = jsonBuilder().startObject().field("unknown_field", "value");
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
-        new EmailAction.Parser(ImmutableSettings.EMPTY, emailService, engine).parse(parser);
+        new EmailActionFactory(ImmutableSettings.EMPTY, emailService, engine)
+                .parseExecutable(randomAsciiOfLength(3), randomAsciiOfLength(7), parser);
     }
 
     @Test @Repeat(iterations = 20)
     public void testParser_Result() throws Exception {
+        Wid wid = new Wid(randomAsciiOfLength(3), randomLong(), DateTime.now(UTC));
+        String actionId = randomAsciiOfLength(5);
+
         boolean success = randomBoolean();
         boolean simulated = randomBoolean();
         Email email = Email.builder().id("_id")
@@ -327,8 +336,8 @@ public class EmailActionTests extends ElasticsearchTestCase {
         parser.nextToken();
         EmailService service = mock(EmailService.class);
         TemplateEngine engine = mock(TemplateEngine.class);
-        EmailAction.Result result = new EmailAction.Parser(ImmutableSettings.EMPTY, service, engine)
-                .parseResult(parser);
+        EmailAction.Result result = new EmailActionFactory(ImmutableSettings.EMPTY, service, engine)
+                .parseResult(wid, actionId, parser);
 
         if (simulated) {
             assertThat(result, instanceOf(EmailAction.Result.Simulated.class));
@@ -348,6 +357,9 @@ public class EmailActionTests extends ElasticsearchTestCase {
 
     @Test
     public void testParser_Result_Simulated_SelfGenerated() throws Exception {
+        Wid wid = new Wid(randomAsciiOfLength(3), randomLong(), DateTime.now(UTC));
+        String actionId = randomAsciiOfLength(5);
+
         Email email = Email.builder().id("_id")
                 .from(new Email.Address("from@domain"))
                 .to(Email.AddressList.parse("to@domain"))
@@ -364,22 +376,25 @@ public class EmailActionTests extends ElasticsearchTestCase {
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
-        EmailAction.Result result = new EmailAction.Parser(ImmutableSettings.EMPTY, mock(EmailService.class), mock(TemplateEngine.class))
-                .parseResult(parser);
+        EmailAction.Result result = new EmailActionFactory(ImmutableSettings.EMPTY, mock(EmailService.class), mock(TemplateEngine.class))
+                .parseResult(wid, actionId, parser);
 
         assertThat(result, instanceOf(EmailAction.Result.Simulated.class));
         assertThat(((EmailAction.Result.Simulated) result).email(), equalTo(email));
     }
 
-    @Test(expected = EmailException.class)
+    @Test(expected = EmailActionException.class)
     public void testParser_Result_Invalid() throws Exception {
+        Wid wid = new Wid(randomAsciiOfLength(3), randomLong(), DateTime.now(UTC));
+        String actionId = randomAsciiOfLength(5);
+
         XContentBuilder builder = jsonBuilder().startObject()
                 .field("unknown_field", "value")
                 .endObject();
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
-        new EmailAction.Parser(ImmutableSettings.EMPTY, mock(EmailService.class), mock(TemplateEngine.class))
-                .parseResult(parser);
+        new EmailActionFactory(ImmutableSettings.EMPTY, mock(EmailService.class), mock(TemplateEngine.class))
+                .parseResult(wid, actionId, parser);
     }
 }

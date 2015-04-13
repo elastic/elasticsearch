@@ -22,6 +22,7 @@ import org.elasticsearch.watcher.actions.ActionException;
 import org.elasticsearch.watcher.actions.email.service.Attachment;
 import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -77,14 +78,15 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         String text = randomAsciiOfLength(10);
         System.out.println("**** text: " + text);
         Template template = new Template(text);
-        LoggingAction action = new LoggingAction(logger, template, "_category", level, actionLogger, engine);
+        LoggingAction action = new LoggingAction(template, level, "_category");
+        ExecutableLoggingAction executable = new ExecutableLoggingAction(action, logger, actionLogger, engine);
         when(engine.render(template, expectedModel)).thenReturn(text);
 
         Watch watch = mock(Watch.class);
         when(watch.name()).thenReturn("_watch_name");
         WatchExecutionContext ctx = new TriggeredExecutionContext(watch, now, new ScheduleTriggerEvent(now, now));
 
-        LoggingAction.Result result = action.execute("_id", ctx, new Payload.Simple());
+        LoggingAction.Result result = executable.execute("_id", ctx, new Payload.Simple());
         verifyLogger(actionLogger, level, text);
 
         assertThat(result, notNullValue());
@@ -96,7 +98,7 @@ public class LoggingActionTests extends ElasticsearchTestCase {
     @Test @Repeat(iterations = 10)
     public void testParser() throws Exception {
         Settings settings = ImmutableSettings.EMPTY;
-        LoggingAction.Parser parser = new LoggingAction.Parser(settings, engine);
+        LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
 
         String text = randomAsciiOfLength(10);
         Template template = new Template(text);
@@ -118,77 +120,70 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         XContentParser xContentParser = JsonXContent.jsonXContent.createParser(builder.bytes());
         xContentParser.nextToken();
 
-        LoggingAction action = parser.parse(xContentParser);
+        ExecutableLoggingAction executable = parser.parseExecutable(randomAsciiOfLength(5), randomAsciiOfLength(3), xContentParser);
 
-        assertThat(action, notNullValue());
-        assertThat(action.category(), is(category));
-        assertThat(action.level(), level == null ? is(LoggingLevel.INFO) : is(level));
-        assertThat(action.logger(), notNullValue());
-        assertThat(action.text(), notNullValue());
-        assertThat(action.text(), is(template));
+        assertThat(executable, notNullValue());
+        assertThat(executable.action().category, is(category));
+        assertThat(executable.action().level, level == null ? is(LoggingLevel.INFO) : is(level));
+        assertThat(executable.textLogger(), notNullValue());
+        assertThat(executable.action().text, notNullValue());
+        assertThat(executable.action().text, is(template));
     }
 
-    @Test //@Repeat(iterations = 10)
+    @Test @Repeat(iterations = 10)
     public void testParser_SelfGenerated() throws Exception {
         Settings settings = ImmutableSettings.EMPTY;
-        LoggingAction.Parser parser = new LoggingAction.Parser(settings, engine);
+        LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
 
         String text = randomAsciiOfLength(10);
         Template template = new Template(text);
         String category = randomAsciiOfLength(10);
-        LoggingAction action = new LoggingAction(logger, template, category, level, settings, engine);
+        LoggingAction action = new LoggingAction(template, level, category);
+        ExecutableLoggingAction executable = new ExecutableLoggingAction(action, logger, settings, engine);
         XContentBuilder builder = jsonBuilder();
-        action.toXContent(builder, Attachment.XContent.EMPTY_PARAMS);
+        executable.toXContent(builder, Attachment.XContent.EMPTY_PARAMS);
 
         XContentParser xContentParser = JsonXContent.jsonXContent.createParser(builder.bytes());
         xContentParser.nextToken();
 
-        LoggingAction parsedAction = parser.parse(xContentParser);
+        ExecutableLoggingAction parsedAction = parser.parseExecutable(randomAsciiOfLength(5), randomAsciiOfLength(5), xContentParser);
 
-        assertThat(parsedAction, equalTo(action));
+        assertThat(parsedAction, equalTo(executable));
     }
 
-    @Test //@Repeat(iterations = 10)
-    public void testParser_SourceBuilder() throws Exception {
+    @Test @Repeat(iterations = 10)
+    public void testParser_Builder() throws Exception {
         Settings settings = ImmutableSettings.EMPTY;
-        LoggingAction.Parser parser = new LoggingAction.Parser(settings, engine);
+        LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
 
         String text = randomAsciiOfLength(10);
         Template template = new Template(text);
-        LoggingAction.SourceBuilder sourceBuilder = loggingAction(template);
+        LoggingAction.Builder actionBuilder = loggingAction(template);
         String category = null;
         if (randomBoolean()) {
             category = randomAsciiOfLength(10);
-            sourceBuilder.category(category);
+            actionBuilder.setCategory(category);
         }
         LoggingLevel level = null;
         if (randomBoolean()) {
             level = randomFrom(LoggingLevel.values());
-            sourceBuilder.level(level);
+            actionBuilder.setLevel(level);
         }
+        LoggingAction action = actionBuilder.build();
 
-        XContentBuilder builder = jsonBuilder();
-        sourceBuilder.toXContent(builder, Attachment.XContent.EMPTY_PARAMS);
-
+        XContentBuilder builder = jsonBuilder().value(action);
         XContentParser xContentParser = JsonXContent.jsonXContent.createParser(builder.bytes());
 
         assertThat(xContentParser.nextToken(), is(XContentParser.Token.START_OBJECT));
-        assertThat(xContentParser.nextToken(), is(XContentParser.Token.FIELD_NAME));
-        assertThat(xContentParser.currentName(), is(LoggingAction.TYPE));
-        assertThat(xContentParser.nextToken(), is(XContentParser.Token.START_OBJECT));
-        LoggingAction action = parser.parse(xContentParser);
-        assertThat(action, notNullValue());
-        assertThat(action.category(), is(category));
-        assertThat(action.level(), level == null ? is(LoggingLevel.INFO) : is(level));
-        assertThat(action.logger(), notNullValue());
-        assertThat(action.text(), notNullValue());
-        assertThat(action.text(), is(template));
+        ExecutableLoggingAction executable = parser.parseExecutable(randomAsciiOfLength(4), randomAsciiOfLength(5), xContentParser);
+        assertThat(executable, notNullValue());
+        assertThat(executable.action(), is(action));
     }
 
     @Test(expected = ActionException.class)
     public void testParser_Failure() throws Exception {
         Settings settings = ImmutableSettings.EMPTY;
-        LoggingAction.Parser parser = new LoggingAction.Parser(settings, engine);
+        LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
 
         XContentBuilder builder = jsonBuilder()
                 .startObject().endObject();
@@ -197,13 +192,16 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         xContentParser.nextToken();
 
         // will fail as there's no text
-        parser.parse(xContentParser);
+        parser.parseExecutable(randomAsciiOfLength(5), randomAsciiOfLength(5), xContentParser);
     }
 
     @Test @Repeat(iterations = 30)
     public void testParser_Result_Success() throws Exception {
         Settings settings = ImmutableSettings.EMPTY;
-        LoggingAction.Parser parser = new LoggingAction.Parser(settings, engine);
+        LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
+
+        Wid wid = new Wid(randomAsciiOfLength(3), randomLong(), DateTime.now());
+        String actionId = randomAsciiOfLength(5);
 
         String text = randomAsciiOfLength(10);
         XContentBuilder builder = jsonBuilder().startObject()
@@ -215,7 +213,7 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         xContentParser.nextToken();
 
         // will fail as there's no text
-        LoggingAction.Result result = parser.parseResult(xContentParser);
+        LoggingAction.Result result = parser.parseResult(wid, actionId, xContentParser);
         assertThat(result, Matchers.notNullValue());
         assertThat(result.success(), is(true));
         assertThat(result, Matchers.instanceOf(LoggingAction.Result.Success.class));
@@ -225,7 +223,10 @@ public class LoggingActionTests extends ElasticsearchTestCase {
     @Test @Repeat(iterations = 30)
     public void testParser_Result_Failure() throws Exception {
         Settings settings = ImmutableSettings.EMPTY;
-        LoggingAction.Parser parser = new LoggingAction.Parser(settings, engine);
+        LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
+
+        Wid wid = new Wid(randomAsciiOfLength(3), randomLong(), DateTime.now());
+        String actionId = randomAsciiOfLength(5);
 
         String reason = randomAsciiOfLength(10);
         XContentBuilder builder = jsonBuilder().startObject()
@@ -237,7 +238,7 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         xContentParser.nextToken();
 
         // will fail as there's no text
-        LoggingAction.Result result = parser.parseResult(xContentParser);
+        LoggingAction.Result result = parser.parseResult(wid, actionId, xContentParser);
         assertThat(result, Matchers.notNullValue());
         assertThat(result.success(), is(false));
         assertThat(result, Matchers.instanceOf(LoggingAction.Result.Failure.class));
@@ -247,7 +248,10 @@ public class LoggingActionTests extends ElasticsearchTestCase {
     @Test @Repeat(iterations = 30)
     public void testParser_Result_Simulated() throws Exception {
         Settings settings = ImmutableSettings.EMPTY;
-        LoggingAction.Parser parser = new LoggingAction.Parser(settings, engine);
+        LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
+
+        Wid wid = new Wid(randomAsciiOfLength(3), randomLong(), DateTime.now());
+        String actionId = randomAsciiOfLength(5);
 
         String text = randomAsciiOfLength(10);
         XContentBuilder builder = jsonBuilder().startObject()
@@ -259,7 +263,7 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         xContentParser.nextToken();
 
         // will fail as there's no text
-        LoggingAction.Result result = parser.parseResult(xContentParser);
+        LoggingAction.Result result = parser.parseResult(wid, actionId, xContentParser);
         assertThat(result, Matchers.notNullValue());
         assertThat(result.success(), is(true));
         assertThat(result, Matchers.instanceOf(LoggingAction.Result.Simulated.class));
@@ -269,8 +273,11 @@ public class LoggingActionTests extends ElasticsearchTestCase {
     @Test
     public void testParser_Result_Simulated_SelfGenerated() throws Exception {
         Settings settings = ImmutableSettings.EMPTY;
-        LoggingAction.Parser actionParser = new LoggingAction.Parser(settings, engine);
+        LoggingActionFactory actionParser = new LoggingActionFactory(settings, engine);
         String text = randomAsciiOfLength(10);
+
+        Wid wid = new Wid(randomAsciiOfLength(3), randomLong(), DateTime.now());
+        String actionId = randomAsciiOfLength(5);
 
         LoggingAction.Result.Simulated simulatedResult = new LoggingAction.Result.Simulated(text);
 
@@ -285,7 +292,7 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         xContentParser.nextToken();
 
         // will fail as there's no text
-        LoggingAction.Result result = actionParser.parseResult(xContentParser);
+        LoggingAction.Result result = actionParser.parseResult(wid, actionId, xContentParser);
         assertThat(result, Matchers.notNullValue());
         assertThat(result.success(), is(true));
         assertThat(result, Matchers.instanceOf(LoggingAction.Result.Simulated.class));
@@ -295,7 +302,10 @@ public class LoggingActionTests extends ElasticsearchTestCase {
     @Test(expected = ActionException.class)
     public void testParser_Result_MissingSuccessField() throws Exception {
         Settings settings = ImmutableSettings.EMPTY;
-        LoggingAction.Parser parser = new LoggingAction.Parser(settings, engine);
+        LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
+
+        Wid wid = new Wid(randomAsciiOfLength(3), randomLong(), DateTime.now());
+        String actionId = randomAsciiOfLength(5);
 
         String text = randomAsciiOfLength(10);
         XContentBuilder builder = jsonBuilder().startObject()
@@ -306,13 +316,16 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         xContentParser.nextToken();
 
         // will fail as there's no success boolean field
-        parser.parseResult(xContentParser);
+        parser.parseResult(wid, actionId, xContentParser);
     }
 
     @Test(expected = ActionException.class)
     public void testParser_Result_Failure_WithoutReason() throws Exception {
         Settings settings = ImmutableSettings.EMPTY;
-        LoggingAction.Parser parser = new LoggingAction.Parser(settings, engine);
+        LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
+
+        Wid wid = new Wid(randomAsciiOfLength(3), randomLong(), DateTime.now());
+        String actionId = randomAsciiOfLength(5);
 
         String text = randomAsciiOfLength(10);
         XContentBuilder builder = jsonBuilder().startObject()
@@ -326,13 +339,16 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         xContentParser.nextToken();
 
         // will fail as the reason field is missing for the failure result
-        parser.parseResult(xContentParser);
+        parser.parseResult(wid, actionId, xContentParser);
     }
 
     @Test(expected = ActionException.class)
     public void testParser_Result_Success_WithoutLoggedText() throws Exception {
         Settings settings = ImmutableSettings.EMPTY;
-        LoggingAction.Parser parser = new LoggingAction.Parser(settings, engine);
+        LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
+
+        Wid wid = new Wid(randomAsciiOfLength(3), randomLong(), DateTime.now());
+        String actionId = randomAsciiOfLength(5);
 
         String text = randomAsciiOfLength(10);
         XContentBuilder builder = jsonBuilder().startObject()
@@ -346,7 +362,7 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         xContentParser.nextToken();
 
         // will fail as the logged_text field is missing for the successful result
-        parser.parseResult(xContentParser);
+        parser.parseResult(wid, actionId, xContentParser);
     }
 
     static void verifyLogger(ESLogger logger, LoggingLevel level, String text) {

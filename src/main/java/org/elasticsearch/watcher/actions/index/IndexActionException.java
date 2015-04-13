@@ -3,20 +3,20 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.actions.logging;
+package org.elasticsearch.watcher.actions.index;
 
 import org.elasticsearch.watcher.actions.ActionException;
 
 /**
  *
  */
-public class LoggingActionException extends ActionException {
+public class IndexActionException extends ActionException {
 
-    public LoggingActionException(String msg, Object... args) {
+    public IndexActionException(String msg, Object... args) {
         super(msg, args);
     }
 
-    public LoggingActionException(String msg, Throwable cause, Object... args) {
+    public IndexActionException(String msg, Throwable cause, Object... args) {
         super(msg, cause, args);
     }
 }

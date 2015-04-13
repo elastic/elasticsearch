@@ -12,11 +12,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.actions.ActionRegistry;
-import org.elasticsearch.watcher.actions.Actions;
+import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.ConditionRegistry;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputRegistry;
 import org.elasticsearch.watcher.throttle.Throttler;
@@ -34,13 +35,13 @@ public class WatchExecution implements ToXContent {
     private final Condition.Result conditionResult;
     private final Throttler.Result throttleResult;
     private final @Nullable Transform.Result transformResult;
-    private final Actions.Results actionsResults;
+    private final ExecutableActions.Results actionsResults;
 
     public WatchExecution(WatchExecutionContext context) {
         this(context.inputResult(), context.conditionResult(), context.throttleResult(), context.transformResult(), context.actionsResults());
     }
 
-    WatchExecution(Input.Result inputResult, Condition.Result conditionResult, Throttler.Result throttleResult, @Nullable Transform.Result transformResult, Actions.Results actionsResults) {
+    WatchExecution(Input.Result inputResult, Condition.Result conditionResult, Throttler.Result throttleResult, @Nullable Transform.Result transformResult, ExecutableActions.Results actionsResults) {
         this.inputResult = inputResult;
         this.conditionResult = conditionResult;
         this.throttleResult = throttleResult;
@@ -64,7 +65,7 @@ public class WatchExecution implements ToXContent {
         return transformResult;
     }
 
-    public Actions.Results actionsResults() {
+    public ExecutableActions.Results actionsResults() {
         return actionsResults;
     }
 
@@ -103,11 +104,11 @@ public class WatchExecution implements ToXContent {
         public static final ParseField THROTTLED = new ParseField("throttled");
         public static final ParseField THROTTLE_REASON = new ParseField("throttle_reason");
 
-        public static WatchExecution parse(XContentParser parser, ConditionRegistry conditionRegistry, ActionRegistry actionRegistry,
+        public static WatchExecution parse(Wid wid, XContentParser parser, ConditionRegistry conditionRegistry, ActionRegistry actionRegistry,
                                            InputRegistry inputRegistry, TransformRegistry transformRegistry) throws IOException {
             boolean throttled = false;
             String throttleReason = null;
-            Actions.Results actionResults = null;
+            ExecutableActions.Results actionResults = null;
             Input.Result inputResult = null;
             Condition.Result conditionResult = null;
             Transform.Result transformResult = null;
@@ -133,7 +134,7 @@ public class WatchExecution implements ToXContent {
                     } else if (Transform.Parser.TRANSFORM_RESULT_FIELD.match(currentFieldName)) {
                         transformResult = transformRegistry.parseResult(parser);
                     } else if (ACTIONS_RESULTS.match(currentFieldName)) {
-                        actionResults = actionRegistry.parseResults(parser);
+                        actionResults = actionRegistry.parseResults(wid, parser);
                     } else {
                         throw new WatcherException("unable to parse watch execution. unexpected field [" + currentFieldName + "]");
                     }

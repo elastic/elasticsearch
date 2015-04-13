@@ -11,14 +11,17 @@ import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
+import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.Collection;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -36,9 +39,10 @@ public class HistoryStoreLifeCycleTest extends AbstractWatcherIntegrationTests {
         for (int i = 0; i < watchRecords.length; i++) {
             DateTime dateTime = new DateTime(i, DateTimeZone.UTC);
             ScheduleTriggerEvent event = new ScheduleTriggerEvent(dateTime, dateTime);
-            watchRecords[i] = new WatchRecord("_record" + i,watch, event);
+            Wid wid = new Wid("record_" + i, randomLong(), DateTime.now(UTC));
+            watchRecords[i] = new WatchRecord(wid, watch, event);
             historyStore.put(watchRecords[i]);
-            GetResponse getResponse = client().prepareGet(HistoryStore.getHistoryIndexNameForTime(dateTime), HistoryStore.DOC_TYPE, watchRecords[i].id())
+            GetResponse getResponse = client().prepareGet(HistoryStore.getHistoryIndexNameForTime(dateTime), HistoryStore.DOC_TYPE, watchRecords[i].id().value())
                     .setVersion(1)
                     .get();
             assertThat(getResponse.isExists(), equalTo(true));
@@ -56,7 +60,7 @@ public class HistoryStoreLifeCycleTest extends AbstractWatcherIntegrationTests {
             assertThat(watchRecord.version(), equalTo(1l));
             watchRecord.update(WatchRecord.State.EXECUTED, "_message");
             historyStore.update(watchRecord);
-            GetResponse getResponse = client().prepareGet(HistoryStore.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime()), HistoryStore.DOC_TYPE, watchRecord.id())
+            GetResponse getResponse = client().prepareGet(HistoryStore.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime()), HistoryStore.DOC_TYPE, watchRecord.id().value())
                     .setVersion(2l)
                     .get();
             assertThat(getResponse.isExists(), equalTo(true));

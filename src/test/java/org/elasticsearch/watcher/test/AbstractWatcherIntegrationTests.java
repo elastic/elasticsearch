@@ -257,7 +257,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
                 {
                     builder.startObject("index")
                             .field("index", "my-index")
-                            .field("type", "trail")
+                            .field("doc_type", "trail")
                             .endObject();
                 }
                 builder.endObject();

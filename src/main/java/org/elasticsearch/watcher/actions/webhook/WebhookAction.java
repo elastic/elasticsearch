@@ -6,47 +6,27 @@
 package org.elasticsearch.watcher.actions.webhook;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.Action;
-import org.elasticsearch.watcher.actions.ActionException;
-import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.support.Variables;
-import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpRequest;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.HttpResponse;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
-import org.elasticsearch.watcher.watch.Payload;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
+ *
  */
-public class WebhookAction extends Action<WebhookAction.Result> {
+public class WebhookAction implements Action {
 
     public static final String TYPE = "webhook";
 
-    private final HttpClient httpClient;
+    final HttpRequestTemplate requestTemplate;
 
-    private final HttpRequestTemplate requestTemplate;
-    private final TemplateEngine templateEngine;
-
-    public WebhookAction(ESLogger logger, HttpClient httpClient, HttpRequestTemplate requestTemplate, TemplateEngine templateEngine) {
-        super(logger);
-        this.httpClient = httpClient;
+    public WebhookAction(HttpRequestTemplate requestTemplate) {
         this.requestTemplate = requestTemplate;
-        this.templateEngine = templateEngine;
-    }
-
-    public HttpRequestTemplate requestTemplate() {
-        return requestTemplate;
     }
 
     @Override
@@ -54,32 +34,8 @@ public class WebhookAction extends Action<WebhookAction.Result> {
         return TYPE;
     }
 
-    @Override
-    protected Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws IOException {
-        Map<String, Object> model = Variables.createCtxModel(ctx, payload);
-
-        HttpRequest request = requestTemplate.render(templateEngine, model);
-        try {
-
-            if (ctx.simulateAction(actionId)) {
-                return new Result.Simulated(request);
-            }
-            HttpResponse response = httpClient.execute(request);
-
-            int status = response.status();
-            if (status >= 300) {
-                logger.warn("received http status [{}] when connecting to [{}] [{}]", status, request.host(), request.path());
-            }
-            return new Result.Executed(request, response);
-        } catch (IOException ioe) {
-            logger.error("failed to execute webhook action [{}]. could not connect to [{}]", ioe, actionId, ctx.watch().name(), request.toString());
-            return new Result.Failure("failed to send http request. " + ioe.getMessage());
-        }
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return requestTemplate.toXContent(builder, params);
+    public HttpRequestTemplate getRequest() {
+        return requestTemplate;
     }
 
     @Override
@@ -87,23 +43,38 @@ public class WebhookAction extends Action<WebhookAction.Result> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        WebhookAction that = (WebhookAction) o;
+        WebhookAction action = (WebhookAction) o;
 
-        if (requestTemplate != null ? !requestTemplate.equals(that.requestTemplate) : that.requestTemplate != null)
-            return false;
-
-        return true;
+        return requestTemplate.equals(action.requestTemplate);
     }
 
     @Override
     public int hashCode() {
-        return requestTemplate != null ? requestTemplate.hashCode() : 0;
+        return requestTemplate.hashCode();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return requestTemplate.toXContent(builder, params);
+    }
+
+    public static WebhookAction parse(String watchId, String actionId, XContentParser parser, HttpRequestTemplate.Parser requestParser) throws IOException {
+        try {
+            HttpRequestTemplate request = requestParser.parse(parser);
+            return new WebhookAction(request);
+        } catch (HttpRequestTemplate.ParseException pe) {
+            throw new WebhookActionException("could not parse [{}] action [{}/{}]. failed parsing http request template", pe, TYPE, watchId, actionId);
+        }
+    }
+
+    public static Builder builder(HttpRequestTemplate requestTemplate) {
+        return new Builder(requestTemplate);
     }
 
     public abstract static class Result extends Action.Result {
 
-        public Result(String type, boolean success) {
-            super(type, success);
+        public Result(boolean success) {
+            super(TYPE, success);
         }
 
         public static class Executed extends Result {
@@ -112,7 +83,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
             private final HttpResponse response;
 
             public Executed(HttpRequest request, HttpResponse response) {
-                super(TYPE, response.status() < 400);
+                super(response.status() < 400);
                 this.request = request;
                 this.response = response;
             }
@@ -127,18 +98,18 @@ public class WebhookAction extends Action<WebhookAction.Result> {
 
             @Override
             protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                return builder.field(Parser.REQUEST_FIELD.getPreferredName(), request)
-                        .field(Parser.RESPONSE_FIELD.getPreferredName(), response);
+                return builder.field(Field.REQUEST.getPreferredName(), request)
+                        .field(Field.RESPONSE.getPreferredName(), response);
             }
         }
 
-        public static class Failure extends Result {
+        static class Failure extends Result {
 
             private final String reason;
 
-            public Failure(String reason) {
-                super(TYPE, false);
-                this.reason = reason;
+            Failure(String reason, Object... args) {
+                super(false);
+                this.reason = LoggerMessageFormat.format(reason, args);
             }
 
             public String reason() {
@@ -147,15 +118,16 @@ public class WebhookAction extends Action<WebhookAction.Result> {
 
             @Override
             protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                return builder.field(WebhookAction.Parser.REASON_FIELD.getPreferredName(), reason);
+                return builder.field(Field.REASON.getPreferredName(), reason);
             }
         }
 
-        public static class Simulated extends Result {
+        static class Simulated extends Result {
+
             private final HttpRequest request;
 
             public Simulated(HttpRequest request) {
-                super(TYPE, true);
+                super(true);
                 this.request = request;
             }
 
@@ -165,53 +137,11 @@ public class WebhookAction extends Action<WebhookAction.Result> {
 
             @Override
             protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                return builder.field(Parser.SIMULATED_REQUEST_FIELD.getPreferredName(), request);
-            }
-        }
-    }
-
-
-    public static class Parser extends AbstractComponent implements Action.Parser<Result, WebhookAction> {
-
-        public static final ParseField REQUEST_FIELD = new ParseField("request");
-        public static final ParseField SIMULATED_REQUEST_FIELD = new ParseField("simulated_request");
-        public static final ParseField RESPONSE_FIELD = new ParseField("response");
-        public static final ParseField REASON_FIELD = new ParseField("reason");
-
-        private final HttpClient httpClient;
-        private final HttpRequest.Parser requestParser;
-        private final HttpRequestTemplate.Parser requestTemplateParser;
-        private final TemplateEngine templateEngine;
-        private final ESLogger actionLogger;
-
-        @Inject
-        public Parser(Settings settings, HttpClient httpClient, HttpRequest.Parser requestParser,
-                      HttpRequestTemplate.Parser requestTemplateParser, TemplateEngine templateEngine) {
-            super(settings);
-            this.httpClient = httpClient;
-            this.requestParser = requestParser;
-            this.requestTemplateParser = requestTemplateParser;
-            this.templateEngine = templateEngine;
-            this.actionLogger = Loggers.getLogger(WebhookAction.class, settings);
-        }
-
-        @Override
-        public String type() {
-            return TYPE;
-        }
-
-        @Override
-        public WebhookAction parse(XContentParser parser) throws IOException {
-            try {
-                HttpRequestTemplate request = requestTemplateParser.parse(parser);
-                return new WebhookAction(actionLogger, httpClient, request, templateEngine);
-            } catch (HttpRequestTemplate.ParseException pe) {
-                throw new ActionException("could not parse webhook action", pe);
+                return builder.field(Field.SIMULATED_REQUEST.getPreferredName(), request);
             }
         }
 
-        @Override
-        public Result parseResult(XContentParser parser) throws IOException {
+        public static Result parse(String watchId, String actionId, XContentParser parser, HttpRequest.Parser requestParser) throws IOException {
             Boolean success = null;
             String reason = null;
             HttpRequest request = null;
@@ -223,62 +153,82 @@ public class WebhookAction extends Action<WebhookAction.Result> {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (REQUEST_FIELD.match(currentFieldName)) {
+                } else if (Field.REQUEST.match(currentFieldName)) {
+                    try {
                         request = requestParser.parse(parser);
-                    } else if (SIMULATED_REQUEST_FIELD.match(currentFieldName)) {
+                    } catch (HttpRequest.Parser.ParseException pe) {
+                        throw new WebhookActionException("could not parse [{}] action result [{}/{}]. failed parsing [{}] field", pe, TYPE, watchId, actionId, currentFieldName);
+                    }
+                } else if (Field.SIMULATED_REQUEST.match(currentFieldName)) {
+                    try {
                         simulatedRequest = requestParser.parse(parser);
-                    } else if (RESPONSE_FIELD.match(currentFieldName)) {
+                    } catch (HttpRequest.Parser.ParseException pe) {
+                        throw new WebhookActionException("could not parse [{}] action result [{}/{}]. failed parsing [{}] field", pe, TYPE, watchId, actionId, currentFieldName);
+                    }
+                } else if (Field.RESPONSE.match(currentFieldName)) {
+                    try {
                         response = HttpResponse.parse(parser);
-                    } else {
-                        throw new ActionException("unable to parse webhook action result. unexpected object field [" + currentFieldName + "]");
+                    } catch (HttpResponse.ParseException pe) {
+                        throw new WebhookActionException("could not parse [{}] action result [{}/{}]. failed parsing [{}] field", pe, TYPE, watchId, actionId, currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if (REASON_FIELD.match(currentFieldName)) {
+                    if (Field.REASON.match(currentFieldName)) {
                         reason = parser.text();
                     } else {
-                        throw new ActionException("unable to parse webhook action result. unexpected string field [" + currentFieldName + "]");
+                        throw new WebhookActionException("could not parse [{}] action result [{}/{}]. unexpected string field [{}]", TYPE, watchId, actionId, currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                    if (Action.Result.SUCCESS_FIELD.match(currentFieldName)) {
+                    if (Field.SUCCESS.match(currentFieldName)) {
                         success = parser.booleanValue();
                     } else {
-                        throw new ActionException("unable to parse webhook action result. unexpected boolean field [" + currentFieldName + "]");
+                        throw new WebhookActionException("could not parse [{}] action result [{}/{}]. unexpected boolean field [{}]", TYPE, watchId, actionId, watchId, currentFieldName);
                     }
                 } else {
-                    throw new ActionException("unable to parse webhook action result. unexpected token [" + token + "]" );
+                    throw new WebhookActionException("could not parse [{}] action result [{}/{}]. unexpected token [{}]", TYPE, watchId, actionId, token);
                 }
             }
 
             if (success == null) {
-                throw new ActionException("could not parse webhook result. expected boolean field [success]");
+                throw new WebhookActionException("could not parse [{}] action result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, currentFieldName, Field.SUCCESS.getPreferredName());
             }
 
             if (simulatedRequest != null) {
-                return new Result.Simulated(simulatedRequest);
+                return new Simulated(simulatedRequest);
             }
 
-            return (reason == null) ? new Result.Executed(request, response) : new Result.Failure(reason);
+            if (reason != null) {
+                return new Failure(reason);
+            }
+
+            if (request == null) {
+                throw new WebhookActionException("could not parse executed [{}] action result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, currentFieldName, Field.REQUEST.getPreferredName());
+            }
+
+            if (response == null) {
+                throw new WebhookActionException("could not parse executed [{}] action result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, currentFieldName, Field.RESPONSE.getPreferredName());
+            }
+
+            return new Executed(request, response);
         }
     }
 
-    public static class SourceBuilder extends Action.SourceBuilder<SourceBuilder> {
+    public static class Builder implements Action.Builder<WebhookAction> {
 
-        private final HttpRequestTemplate requestTemplate;
+        final HttpRequestTemplate requestTemplate;
 
-        public SourceBuilder(HttpRequestTemplate requestTemplate) {
+        private Builder(HttpRequestTemplate requestTemplate) {
             this.requestTemplate = requestTemplate;
         }
 
         @Override
-        public String type() {
-            return TYPE;
+        public WebhookAction build() {
+            return new WebhookAction(requestTemplate);
         }
+    }
 
-        @Override
-        public XContentBuilder actionXContent(XContentBuilder builder, Params params) throws IOException {
-            return requestTemplate.toXContent(builder, params);
-
-        }
+    interface Field extends Action.Field {
+        ParseField REQUEST = new ParseField("request");
+        ParseField SIMULATED_REQUEST = new ParseField("simulated_request");
+        ParseField RESPONSE = new ParseField("response");
     }
 }

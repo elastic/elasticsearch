@@ -24,7 +24,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.watcher.actions.ActionRegistry;
-import org.elasticsearch.watcher.actions.Actions;
+import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.ConditionRegistry;
 import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
@@ -44,6 +44,7 @@ import org.elasticsearch.watcher.trigger.TriggerService;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.watcher.support.WatcherDateUtils.*;
 
@@ -53,7 +54,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
     private final Trigger trigger;
     private final Input input;
     private final Condition condition;
-    private final Actions actions;
+    private final ExecutableActions actions;
     private final Throttler throttler;
     private final Status status;
     private final TimeValue throttlePeriod;
@@ -64,8 +65,10 @@ public class Watch implements TriggerEngine.Job, ToXContent {
     @Nullable
     private final Transform transform;
 
+    private final transient AtomicLong nonceCounter = new AtomicLong();
+
     public Watch(String name, Clock clock, LicenseService licenseService, Trigger trigger, Input input, Condition condition, @Nullable Transform transform,
-                 Actions actions, @Nullable Map<String, Object> metadata, @Nullable TimeValue throttlePeriod, @Nullable Status status) {
+                 ExecutableActions actions, @Nullable Map<String, Object> metadata, @Nullable TimeValue throttlePeriod, @Nullable Status status) {
         this.name = name;
         this.trigger = trigger;
         this.input = input;
@@ -100,7 +103,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         return throttler;
     }
 
-    public Actions actions() {
+    public ExecutableActions actions() {
         return actions;
     }
 
@@ -127,6 +130,10 @@ public class Watch implements TriggerEngine.Job, ToXContent {
 
     public boolean acked() {
         return status.ackStatus.state == Status.AckStatus.State.ACKED;
+    }
+
+    public long nonce() {
+        return nonceCounter.getAndIncrement();
     }
 
     @Override
@@ -215,11 +222,11 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             }
         }
 
-        public Watch parse(String name, boolean includeStatus, XContentParser parser) throws IOException {
+        public Watch parse(String id, boolean includeStatus, XContentParser parser) throws IOException {
             Trigger trigger = null;
             Input input = defaultInput;
             Condition condition = defaultCondition;
-            Actions actions = null;
+            ExecutableActions actions = null;
             Transform transform = null;
             Map<String, Object> metatdata = null;
             Status status = null;
@@ -231,16 +238,16 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == null ){
-                    throw new WatcherException("could not parse watch [" + name + "]. null token");
+                    throw new WatcherException("could not parse watch [" + id + "]. null token");
                 } else if ((token.isValue() || token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) && currentFieldName !=null ) {
                     if (TRIGGER_FIELD.match(currentFieldName)) {
-                        trigger = triggerService.parseTrigger(name, parser);
+                        trigger = triggerService.parseTrigger(id, parser);
                     } else if (INPUT_FIELD.match(currentFieldName)) {
                         input = inputRegistry.parse(parser);
                     } else if (CONDITION_FIELD.match(currentFieldName)) {
                         condition = conditionRegistry.parse(parser);
                     } else if (ACTIONS_FIELD.match(currentFieldName)) {
-                        actions = actionRegistry.parseActions(parser);
+                        actions = actionRegistry.parseActions(id, parser);
                     } else if (TRANSFORM_FIELD.match(currentFieldName)) {
                         transform = transformRegistry.parse(parser);
                     } else if (META_FIELD.match(currentFieldName)) {
@@ -253,19 +260,19 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                         } else if (token == XContentParser.Token.VALUE_NUMBER) {
                             throttlePeriod = TimeValue.timeValueMillis(parser.longValue());
                         } else {
-                            throw new WatcherSettingsException("could not parse watch [" + name + "] throttle period. could not parse token [" + token + "] as time value (must either be string or number)");
+                            throw new WatcherSettingsException("could not parse watch [" + id + "] throttle period. could not parse token [" + token + "] as time value (must either be string or number)");
                         }
                     }
                 }
             }
             if (trigger == null) {
-                throw new WatcherSettingsException("could not parse watch [" + name + "]. missing watch trigger");
+                throw new WatcherSettingsException("could not parse watch [" + id + "]. missing watch trigger");
             }
             if (actions == null) {
-                throw new WatcherSettingsException("could not parse watch [" + name + "]. missing watch actions");
+                throw new WatcherSettingsException("could not parse watch [" + id + "]. missing watch actions");
             }
 
-            return new Watch(name, clock, licenseService, trigger, input, condition, transform, actions, metatdata, throttlePeriod, status);
+            return new Watch(id, clock, licenseService, trigger, input, condition, transform, actions, metatdata, throttlePeriod, status);
         }
 
     }

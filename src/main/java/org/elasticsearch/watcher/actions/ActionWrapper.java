@@ -9,10 +9,11 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.transform.TransformRegistry;
 import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.execution.WatchExecutionContext;
 
 import java.io.IOException;
 
@@ -23,13 +24,13 @@ public class ActionWrapper implements ToXContent {
 
     private String id;
     private final @Nullable Transform transform;
-    private final Action action;
+    private final ExecutableAction action;
 
-    public ActionWrapper(String id, Action action) {
+    public ActionWrapper(String id, ExecutableAction action) {
         this(id, null, action);
     }
 
-    public ActionWrapper(String id, @Nullable Transform transform, Action action) {
+    public ActionWrapper(String id, @Nullable Transform transform, ExecutableAction action) {
         this.id = id;
         this.transform = transform;
         this.action = action;
@@ -43,7 +44,7 @@ public class ActionWrapper implements ToXContent {
         return transform;
     }
 
-    public Action action() {
+    public ExecutableAction action() {
         return action;
     }
 
@@ -91,11 +92,11 @@ public class ActionWrapper implements ToXContent {
         return builder.endObject();
     }
 
-    static ActionWrapper parse(XContentParser parser, String id, ActionRegistry actionRegistry, TransformRegistry transformRegistry) throws IOException {
+    static ActionWrapper parse(String watchId, String actionId, XContentParser parser, ActionRegistry actionRegistry, TransformRegistry transformRegistry) throws IOException {
         assert parser.currentToken() == XContentParser.Token.START_OBJECT;
 
         Transform transform = null;
-        Action action = null;
+        ExecutableAction action = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -107,18 +108,18 @@ public class ActionWrapper implements ToXContent {
                     transform = transformRegistry.parse(parser);
                 } else {
                     // it's the type of the action
-                    Action.Parser actionParser = actionRegistry.parser(currentFieldName);
-                    if (actionParser == null) {
-                        throw new ActionException("could not parse action [" + id + "]. unknown action type [" + currentFieldName + "]");
+                    ActionFactory actionFactory = actionRegistry.factory(currentFieldName);
+                    if (actionFactory == null) {
+                        throw new ActionException("could not parse action [{}/{}]. unknown action type [{}]", watchId, actionId, currentFieldName);
                     }
-                    action = actionParser.parse(parser);
+                    action = actionFactory.parseExecutable(watchId, actionId, parser);
                 }
             }
         }
         if (action == null) {
-            throw new ActionException("could not parse watch action [" + id + "]. missing action type");
+            throw new ActionException("could not parse watch action [{}/{}]. missing action type", watchId, actionId);
         }
-        return new ActionWrapper(id, transform, action);
+        return new ActionWrapper(actionId, transform, action);
     }
 
     public static class Result implements ToXContent {
@@ -181,7 +182,7 @@ public class ActionWrapper implements ToXContent {
             return builder.endObject();
         }
 
-        static Result parse(XContentParser parser, String id, ActionRegistry actionRegistry, TransformRegistry transformRegistry) throws IOException {
+        static Result parse(Wid wid, String actionId, XContentParser parser, ActionRegistry actionRegistry, TransformRegistry transformRegistry) throws IOException {
             assert parser.currentToken() == XContentParser.Token.START_OBJECT;
 
             Transform.Result transformResult = null;
@@ -197,18 +198,18 @@ public class ActionWrapper implements ToXContent {
                         transformResult = transformRegistry.parseResult(parser);
                     } else {
                         // it's the type of the action
-                        Action.Parser actionParser = actionRegistry.parser(currentFieldName);
-                        if (actionParser == null) {
-                            throw new ActionException("could not parse action result [" + id + "]. unknown action type [" + currentFieldName + "]");
+                        ActionFactory actionFactory = actionRegistry.factory(currentFieldName);
+                        if (actionFactory == null) {
+                            throw new ActionException("could not parse action result [{}/{}]. unknown action type [{}]", wid, actionId, currentFieldName);
                         }
-                        actionResult = actionParser.parseResult(parser);
+                        actionResult = actionFactory.parseResult(wid, actionId, parser);
                     }
                 }
             }
             if (actionResult == null) {
-                throw new ActionException("could not parse watch action result [" + id + "]. missing action result type");
+                throw new ActionException("could not parse watch action result [{}/{}]. missing action result type", wid, actionId);
             }
-            return new Result(id, transformResult, actionResult);
+            return new Result(actionId, transformResult, actionResult);
         }
     }
 

@@ -21,6 +21,7 @@ import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.watcher.actions.ActionRegistry;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.ConditionRegistry;
+import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputRegistry;
 import org.elasticsearch.watcher.transform.TransformRegistry;
@@ -36,7 +37,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class WatchRecord implements ToXContent {
 
-    private String id;
+    private Wid id;
     private String name;
     private TriggerEvent triggerEvent;
     private Input input;
@@ -55,7 +56,7 @@ public class WatchRecord implements ToXContent {
     WatchRecord() {
     }
 
-    public WatchRecord(String id, Watch watch, TriggerEvent triggerEvent) {
+    public WatchRecord(Wid id, Watch watch, TriggerEvent triggerEvent) {
         this.id = id;
         this.name = watch.name();
         this.triggerEvent = triggerEvent;
@@ -66,7 +67,7 @@ public class WatchRecord implements ToXContent {
         this.version = 1;
     }
 
-    public String id() {
+    public Wid id() {
         return id;
     }
 
@@ -170,7 +171,7 @@ public class WatchRecord implements ToXContent {
 
     @Override
     public String toString() {
-        return id;
+        return id.toString();
     }
 
     public enum State {
@@ -226,17 +227,17 @@ public class WatchRecord implements ToXContent {
             this.triggerService = triggerService;
         }
 
-        public WatchRecord parse(BytesReference source, String historyId, long version) {
+        public WatchRecord parse(String id, long version, BytesReference source) {
             try (XContentParser parser = XContentHelper.createParser(source)) {
-                return parse(parser, historyId, version);
+                return parse(id, version, parser);
             } catch (IOException e) {
                 throw new ElasticsearchException("unable to parse watch record", e);
             }
         }
 
-        public WatchRecord parse(XContentParser parser, String id, long version) throws IOException {
+        public WatchRecord parse(String id, long version, XContentParser parser) throws IOException {
             WatchRecord record = new WatchRecord();
-            record.id = id;
+            record.id = new Wid(id);
             record.version = version;
 
             String currentFieldName = null;
@@ -253,7 +254,7 @@ public class WatchRecord implements ToXContent {
                     } else if (METADATA_FIELD.match(currentFieldName)) {
                         record.metadata = parser.map();
                     } else if (WATCH_EXECUTION_FIELD.match(currentFieldName)) {
-                        record.execution = WatchExecution.Parser.parse(parser, conditionRegistry, actionRegistry, inputRegistry, transformRegistry);
+                        record.execution = WatchExecution.Parser.parse(record.id, parser, conditionRegistry, actionRegistry, inputRegistry, transformRegistry);
                     } else if (TRIGGER_EVENT_FIELD.match(currentFieldName)) {
                         record.triggerEvent = triggerService.parseTriggerEvent(id, parser);
                     } else {

@@ -60,7 +60,7 @@ public class HistoryStore extends AbstractComponent {
     public void put(WatchRecord watchRecord) throws HistoryException {
         String index = getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
         try {
-            IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id())
+            IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
                     .source(XContentFactory.jsonBuilder().value(watchRecord))
                     .opType(IndexRequest.OpType.CREATE);
             IndexResponse response = client.index(request);
@@ -74,7 +74,7 @@ public class HistoryStore extends AbstractComponent {
         logger.debug("updating watch record [{}]...", watchRecord);
         try {
             BytesReference bytes = XContentFactory.jsonBuilder().value(watchRecord).bytes();
-            IndexRequest request = new IndexRequest(getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime()), DOC_TYPE, watchRecord.id())
+            IndexRequest request = new IndexRequest(getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime()), DOC_TYPE, watchRecord.id().value())
                     .source(bytes, true)
                     .version(watchRecord.version());
             IndexResponse response = client.index(request);
@@ -126,8 +126,8 @@ public class HistoryStore extends AbstractComponent {
                 response = client.searchScroll(response.getScrollId(), scrollTimeout);
                 while (response.getHits().hits().length != 0) {
                     for (SearchHit sh : response.getHits()) {
-                        String historyId = sh.getId();
-                        WatchRecord record = recordParser.parse(sh.getSourceRef(), historyId, sh.version());
+                        String id = sh.getId();
+                        WatchRecord record = recordParser.parse(id, sh.version(), sh.getSourceRef());
                         assert record.state() == recordState;
                         logger.debug("loaded watch record [{}/{}/{}]", sh.index(), sh.type(), sh.id());
                         records.add(record);

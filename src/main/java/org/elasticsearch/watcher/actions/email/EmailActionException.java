@@ -12,11 +12,11 @@ import org.elasticsearch.watcher.actions.ActionException;
  */
 public class EmailActionException extends ActionException {
 
-    public EmailActionException(String msg) {
-        super(msg);
+    public EmailActionException(String msg, Object... args) {
+        super(msg, args);
     }
 
-    public EmailActionException(String msg, Throwable cause) {
-        super(msg, cause);
+    public EmailActionException(String msg, Throwable cause, Object... args) {
+        super(msg, cause, args);
     }
 }

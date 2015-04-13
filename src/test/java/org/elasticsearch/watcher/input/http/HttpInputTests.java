@@ -17,7 +17,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.ActionWrapper;
-import org.elasticsearch.watcher.actions.Actions;
+import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
@@ -87,7 +87,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
                 new SimpleInput(logger, new Payload.Simple()),
                 new AlwaysTrueCondition(logger),
                 null,
-                new Actions(new ArrayList<ActionWrapper>()),
+                new ExecutableActions(new ArrayList<ActionWrapper>()),
                 null,
                 null,
                 new Watch.Status());

@@ -10,14 +10,14 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.watcher.actions.Actions;
 import org.elasticsearch.watcher.actions.ActionWrapper;
+import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
+import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.search.SearchInput;
@@ -35,11 +35,13 @@ import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchService;
 import org.elasticsearch.watcher.watch.WatchStore;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -89,7 +91,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                 new SearchInput(logger, scriptService(), ClientProxy.of(client()), searchRequest, null),
                 new ScriptCondition(logger, scriptService(), new Script("return true")),
                 new SearchTransform(logger, scriptService(), ClientProxy.of(client()), searchRequest),
-                new Actions(new ArrayList<ActionWrapper>()),
+                new ExecutableActions(new ArrayList<ActionWrapper>()),
                 null, // metadata
                 new TimeValue(0),
                 new Watch.Status());
@@ -101,16 +103,17 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
         refresh();
         assertThat(indexResponse.isCreated(), is(true));
 
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        DateTime now = DateTime.now(UTC);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(now, now);
-        WatchRecord watchRecord = new WatchRecord("_record", watch, event);
+        Wid wid = new Wid("_record", randomLong(), DateTime.now(UTC));
+        WatchRecord watchRecord = new WatchRecord(wid, watch, event);
         String actionHistoryIndex = HistoryStore.getHistoryIndexNameForTime(now);
 
         createIndex(actionHistoryIndex);
         ensureGreen(actionHistoryIndex);
         logger.info("Created index {}", actionHistoryIndex);
 
-        indexResponse = client().prepareIndex(actionHistoryIndex, HistoryStore.DOC_TYPE, watchRecord.id())
+        indexResponse = client().prepareIndex(actionHistoryIndex, HistoryStore.DOC_TYPE, watchRecord.id().value())
                 .setConsistencyLevel(WriteConsistencyLevel.ALL)
                 .setSource(jsonBuilder().value(watchRecord))
                 .get();
@@ -128,7 +131,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
     @Test
     @TestLogging("watcher.actions:DEBUG")
     public void testBootStrapManyHistoryIndices() throws Exception {
-        DateTime now = new DateTime(DateTimeZone.UTC);
+        DateTime now = new DateTime(UTC);
         long numberOfWatchHistoryIndices = randomIntBetween(2, 8);
         long numberOfWatchRecordsPerIndex = randomIntBetween(5, 10);
         SearchRequest searchRequest = WatcherTestUtils.newInputSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
@@ -151,7 +154,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                                 searchRequest, null),
                         new ScriptCondition(logger, scriptService(), new Script("return true")),
                         new SearchTransform(logger, scriptService(), ClientProxy.of(client()), searchRequest),
-                        new Actions(new ArrayList<ActionWrapper>()),
+                        new ExecutableActions(new ArrayList<ActionWrapper>()),
                         null, // metatdata
                         new TimeValue(0),
                         new Watch.Status());
@@ -162,12 +165,13 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                 assertThat(putWatchResponse.isCreated(), is(true));
 
                 ScheduleTriggerEvent event = new ScheduleTriggerEvent(historyIndexDate, historyIndexDate);
-                WatchRecord watchRecord = new WatchRecord("_record-" + i + "-" + j,watch, event);
+                Wid wid = new Wid("record_" + i, randomLong(), DateTime.now(UTC));
+                WatchRecord watchRecord = new WatchRecord(wid, watch, event);
 
                 XContentBuilder jsonBuilder2 = jsonBuilder();
                 watchRecord.toXContent(jsonBuilder2, ToXContent.EMPTY_PARAMS);
 
-                IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, HistoryStore.DOC_TYPE, watchRecord.id())
+                IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, HistoryStore.DOC_TYPE, watchRecord.id().value())
                         .setConsistencyLevel(WriteConsistencyLevel.ALL)
                         .setSource(jsonBuilder2.bytes())
                         .get();

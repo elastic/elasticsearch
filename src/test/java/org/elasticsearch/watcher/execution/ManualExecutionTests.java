@@ -6,28 +6,30 @@
 package org.elasticsearch.watcher.execution;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.watcher.condition.simple.AlwaysFalseCondition;
 import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
-import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
-import org.elasticsearch.watcher.trigger.schedule.CronSchedule;
-import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
-import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.junit.Test;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
+import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysFalseCondition;
+import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysTrueCondition;
+import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
+import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.SUITE, randomDynamicTemplates = false)
@@ -38,22 +40,21 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
         return false;
     }
 
-    @Test
-    @Repeat(iterations = 10)
+    @Test @Repeat(iterations = 10)
     public void testExecuteWatch() throws Exception {
         ensureWatcherStarted();
         boolean ignoreCondition = randomBoolean();
         boolean persistRecord = randomBoolean();
         boolean conditionAlwaysTrue = randomBoolean();
         boolean storeWatch = randomBoolean();
-        String actionIdToSimulate = randomFrom("_all", "logging", null);
+        String actionIdToSimulate = randomFrom("_all", "log", null);
 
-        LoggingAction.SourceBuilder loggingAction = new LoggingAction.SourceBuilder(new Template("foobar"));
-        WatchSourceBuilder testWatchBuilder = new WatchSourceBuilder();
-        testWatchBuilder.trigger(new ScheduleTrigger.SourceBuilder(new CronSchedule("0 0 0 1 * ? 2099")));
-        testWatchBuilder.condition(conditionAlwaysTrue ? new AlwaysTrueCondition.SourceBuilder() : new AlwaysFalseCondition.SourceBuilder());
-        testWatchBuilder.addAction("logging", loggingAction);
-        testWatchBuilder.input(new SimpleInput.SourceBuilder((new Payload.Simple("foo", "bar").data())));
+        LoggingAction.Builder loggingAction = LoggingAction.builder(new Template("foobar"));
+        WatchSourceBuilder testWatchBuilder = watchBuilder()
+                .trigger(schedule(cron("0 0 0 1 * ? 2099")))
+                .input(simpleInput("foo", "bar"))
+                .condition(conditionAlwaysTrue ? alwaysTrueCondition() : alwaysFalseCondition())
+                .addAction("log", loggingAction);
 
         if (storeWatch) {
             PutWatchResponse putWatchResponse = watcherClient().putWatch(new PutWatchRequest("testrun", testWatchBuilder)).actionGet();
@@ -98,12 +99,12 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
         }
 
         if ((ignoreCondition || conditionAlwaysTrue) && actionIdToSimulate == null) {
-            assertThat("The action should have run non simulated", watchRecord.execution().actionsResults().get("logging").action(),
+            assertThat("The action should have run non simulated", watchRecord.execution().actionsResults().get("log").action(),
             not(instanceOf(LoggingAction.Result.Simulated.class)) );
         }
 
         if ((ignoreCondition || conditionAlwaysTrue) && actionIdToSimulate != null ) {
-            assertThat("The action should have run simulated", watchRecord.execution().actionsResults().get("logging").action(), instanceOf(LoggingAction.Result.Simulated.class));
+            assertThat("The action should have run simulated", watchRecord.execution().actionsResults().get("log").action(), instanceOf(LoggingAction.Result.Simulated.class));
         }
     }
 }

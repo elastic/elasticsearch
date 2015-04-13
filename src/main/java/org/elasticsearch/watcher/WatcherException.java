@@ -6,17 +6,18 @@
 package org.elasticsearch.watcher;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 
 /**
  * A base class for all watcher exceptions
  */
 public class WatcherException extends ElasticsearchException {
 
-    public WatcherException(String msg) {
-        super(msg);
+    public WatcherException(String msg, Object... args) {
+        super(LoggerMessageFormat.format(msg, args));
     }
 
-    public WatcherException(String msg, Throwable cause) {
-        super(msg, cause);
+    public WatcherException(String msg, Throwable cause, Object... args) {
+        super(LoggerMessageFormat.format(msg, args), cause);
     }
 }

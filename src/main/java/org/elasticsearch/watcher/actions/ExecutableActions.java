@@ -16,11 +16,11 @@ import java.util.Map;
 /**
  *
  */
-public class Actions implements Iterable<ActionWrapper>, ToXContent {
+public class ExecutableActions implements Iterable<ActionWrapper>, ToXContent {
 
     private final List<ActionWrapper> actions;
 
-    public Actions(List<ActionWrapper> actions) {
+    public ExecutableActions(List<ActionWrapper> actions) {
         this.actions = actions;
     }
 
@@ -47,7 +47,7 @@ public class Actions implements Iterable<ActionWrapper>, ToXContent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        Actions actions1 = (Actions) o;
+        ExecutableActions actions1 = (ExecutableActions) o;
 
         if (!actions.equals(actions1.actions)) return false;
 

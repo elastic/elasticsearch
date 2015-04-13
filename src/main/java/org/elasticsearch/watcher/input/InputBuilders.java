@@ -7,6 +7,8 @@ package org.elasticsearch.watcher.input;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.watcher.input.http.HttpInput;
 import org.elasticsearch.watcher.input.search.SearchInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
@@ -33,6 +35,18 @@ public final class InputBuilders {
 
     public static SimpleInput.SourceBuilder simpleInput() {
         return simpleInput(new HashMap<String, Object>());
+    }
+
+    public static SimpleInput.SourceBuilder simpleInput(String key, Object value) {
+        return simpleInput(MapBuilder.<String, Object>newMapBuilder().put(key, value));
+    }
+
+    public static SimpleInput.SourceBuilder simpleInput(ImmutableMap.Builder<String, Object> data) {
+        return simpleInput(data.build());
+    }
+
+    public static SimpleInput.SourceBuilder simpleInput(MapBuilder<String, Object> data) {
+        return simpleInput(data.map());
     }
 
     public static SimpleInput.SourceBuilder simpleInput(Map<String, Object> data) {

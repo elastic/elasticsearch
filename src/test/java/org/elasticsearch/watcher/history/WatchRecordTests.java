@@ -17,6 +17,7 @@ import org.elasticsearch.watcher.condition.simple.AlwaysFalseCondition;
 import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.support.http.HttpRequest;
@@ -41,10 +42,11 @@ public class WatchRecordTests extends AbstractWatcherIntegrationTests {
     public void testParser() throws Exception {
         Watch watch = WatcherTestUtils.createTestWatch("fired_test", scriptService(), httpClient(), noopEmailService(), logger);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(DateTime.now(UTC), DateTime.now(UTC));
-        WatchRecord watchRecord = new WatchRecord("_record", watch, event);
+        Wid wid = new Wid("_record", randomLong(), DateTime.now(UTC));
+        WatchRecord watchRecord = new WatchRecord(wid, watch, event);
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         watchRecord.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-        WatchRecord parsedWatchRecord = watchRecordParser().parse(jsonBuilder.bytes(), watchRecord.id(), 0);
+        WatchRecord parsedWatchRecord = watchRecordParser().parse(watchRecord.id().value(), 0, jsonBuilder.bytes());
 
         XContentBuilder jsonBuilder2 = XContentFactory.jsonBuilder();
         parsedWatchRecord.toXContent(jsonBuilder2, ToXContent.EMPTY_PARAMS);
@@ -56,7 +58,8 @@ public class WatchRecordTests extends AbstractWatcherIntegrationTests {
     public void testParser_WithSealedWatchRecord() throws Exception {
         Watch watch = WatcherTestUtils.createTestWatch("fired_test", scriptService(), httpClient(), noopEmailService(), logger);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(DateTime.now(UTC), DateTime.now(UTC));
-        WatchRecord watchRecord = new WatchRecord("_record", watch, event);
+        Wid wid = new Wid("_record", randomLong(), DateTime.now(UTC));
+        WatchRecord watchRecord = new WatchRecord(wid, watch, event);
         WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(), event);
         ctx.onActionResult(new ActionWrapper.Result("_email", new EmailAction.Result.Failure("failed to send because blah")));
         HttpRequest request = HttpRequest.builder("localhost", 8000)
@@ -73,7 +76,7 @@ public class WatchRecordTests extends AbstractWatcherIntegrationTests {
 
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         watchRecord.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-        WatchRecord parsedWatchRecord = watchRecordParser().parse(jsonBuilder.bytes(), watchRecord.id(), 0);
+        WatchRecord parsedWatchRecord = watchRecordParser().parse(watchRecord.id().value(), 0, jsonBuilder.bytes());
 
         XContentBuilder jsonBuilder2 = XContentFactory.jsonBuilder();
         parsedWatchRecord.toXContent(jsonBuilder2, ToXContent.EMPTY_PARAMS);
@@ -102,7 +105,7 @@ public class WatchRecordTests extends AbstractWatcherIntegrationTests {
 
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         watchRecord.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-        WatchRecord parsedWatchRecord = watchRecordParser().parse(jsonBuilder.bytes(), watchRecord.id(), 0);
+        WatchRecord parsedWatchRecord = watchRecordParser().parse(watchRecord.id().value(), 0, jsonBuilder.bytes());
 
         XContentBuilder jsonBuilder2 = XContentFactory.jsonBuilder();
         parsedWatchRecord.toXContent(jsonBuilder2, ToXContent.EMPTY_PARAMS);

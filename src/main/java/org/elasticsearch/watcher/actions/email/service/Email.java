@@ -20,6 +20,7 @@ import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.text.ParseException;
 import java.util.*;
 
 /**
@@ -195,7 +196,7 @@ public class Email implements ToXContent {
                 } else if (Field.HTML_BODY.match(currentFieldName)) {
                     email.htmlBody(parser.text());
                 } else {
-                    throw new EmailException("could not parse email. unrecognized field [" + currentFieldName + "]");
+                    throw new ParseException("could not parse email. unrecognized field [" + currentFieldName + "]");
                 }
             }
         }
@@ -416,7 +417,7 @@ public class Email implements ToXContent {
                 try {
                     return new Email.Address(parser.text());
                 } catch (AddressException ae) {
-                    throw new EmailException("could not parse [" + text + "] in field [" + field + "] as address. address must be RFC822 encoded", ae);
+                    throw new ParseException("could not parse [" + text + "] in field [" + field + "] as address. address must be RFC822 encoded", ae);
                 }
             }
 
@@ -433,21 +434,21 @@ public class Email implements ToXContent {
                         } else if (ADDRESS_NAME_FIELD.match(currentFieldName)) {
                             name = parser.text();
                         } else {
-                            throw new EmailException("could not parse [" + field + "] object as address. unknown address field [" + currentFieldName + "]");
+                            throw new ParseException("could not parse [" + field + "] object as address. unknown address field [" + currentFieldName + "]");
                         }
                     }
                 }
                 if (email == null) {
-                    throw new EmailException("could not parse [" + field + "] as address. address object must define an [email] field");
+                    throw new ParseException("could not parse [" + field + "] as address. address object must define an [email] field");
                 }
                 try {
                     return name != null ? new Email.Address(email, name) : new Email.Address(email);
                 } catch (AddressException ae) {
-                    throw new EmailException("could not parse [" + field + "] as address", ae);
+                    throw new ParseException("could not parse [" + field + "] as address", ae);
                 }
 
             }
-            throw new EmailException("could not parse [" + field + "] as address. address must either be a string (RFC822 encoded) or an object specifying the address [name] and [email]");
+            throw new ParseException("could not parse [" + field + "] as address. address must either be a string (RFC822 encoded) or an object specifying the address [name] and [email]");
         }
 
         public static Address parse(Settings settings, String name) {
@@ -527,7 +528,7 @@ public class Email implements ToXContent {
                 try {
                     return parse(parser.text());
                 } catch (AddressException ae) {
-                    throw new EmailException("could not parse field [" + field + "] with value [" + text + "] as address list. address(es) must be RFC822 encoded", ae);
+                    throw new ParseException("could not parse field [" + field + "] with value [" + text + "] as address list. address(es) must be RFC822 encoded", ae);
                 }
             }
             if (token == XContentParser.Token.START_ARRAY) {
@@ -537,7 +538,7 @@ public class Email implements ToXContent {
                 }
                 return new Email.AddressList(addresses);
             }
-            throw new EmailException("could not parse [" + field + "] as address list. field must either be a string " +
+            throw new ParseException("could not parse [" + field + "] as address list. field must either be a string " +
                     "(comma-separated list of RFC822 encoded addresses) or an array of objects representing addresses");
         }
 
@@ -556,6 +557,17 @@ public class Email implements ToXContent {
         @Override
         public int hashCode() {
             return addresses.hashCode();
+        }
+    }
+
+    public static class ParseException extends EmailException {
+
+        public ParseException(String msg) {
+            super(msg);
+        }
+
+        public ParseException(String msg, Throwable cause) {
+            super(msg, cause);
         }
     }
 

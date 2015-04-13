@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.client;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -35,7 +36,7 @@ public class WatchSourceBuilder implements ToXContent {
     private Input.SourceBuilder input = NoneInput.SourceBuilder.INSTANCE;
     private Condition.SourceBuilder condition = ConditionBuilders.alwaysTrueCondition();
     private Transform.SourceBuilder transform = null;
-    private Map<String, Action.SourceBuilder> actions = new HashMap<>();
+    private Map<String, TransformedAction> actions = new HashMap<>();
     private TimeValue throttlePeriod = null;
     private Map<String, Object> metadata;
 
@@ -64,9 +65,18 @@ public class WatchSourceBuilder implements ToXContent {
         return this;
     }
 
-    public WatchSourceBuilder addAction(String id, Action.SourceBuilder action) {
-        actions.put(id, action);
+    public WatchSourceBuilder addAction(String id, Transform.SourceBuilder transform, Action action) {
+        actions.put(id, new TransformedAction(id, action, transform));
         return this;
+    }
+
+    public WatchSourceBuilder addAction(String id, Action action) {
+        actions.put(id, new TransformedAction(id, action));
+        return this;
+    }
+
+    public WatchSourceBuilder addAction(String id, Action.Builder action) {
+        return addAction(id, action.build());
     }
 
     public WatchSourceBuilder metadata(Map<String, Object> metadata) {
@@ -104,7 +114,7 @@ public class WatchSourceBuilder implements ToXContent {
         }
 
         builder.startObject(Watch.Parser.ACTIONS_FIELD.getPreferredName());
-        for (Map.Entry<String, Action.SourceBuilder> entry : actions.entrySet()) {
+        for (Map.Entry<String, TransformedAction> entry : actions.entrySet()) {
             builder.field(entry.getKey(), entry.getValue());
         }
         builder.endObject();
@@ -126,7 +136,36 @@ public class WatchSourceBuilder implements ToXContent {
         }
     }
 
-    public class BuilderException extends WatcherException {
+    static class TransformedAction implements ToXContent {
+
+        private final String id;
+        private final Action action;
+        private final @Nullable Transform.SourceBuilder transform;
+
+        public TransformedAction(String id, Action action) {
+            this(id, action, null);
+        }
+
+        public TransformedAction(String id, Action action, @Nullable Transform.SourceBuilder transform) {
+            this.id = id;
+            this.transform = transform;
+            this.action = action;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (transform != null) {
+                builder.startObject(Transform.Parser.TRANSFORM_FIELD.getPreferredName())
+                        .field(transform.type(), transform)
+                        .endObject();
+            }
+            builder.field(action.type(), action);
+            return builder.endObject();
+        }
+    }
+
+    public static class BuilderException extends WatcherException {
 
         public BuilderException(String msg) {
             super(msg);
@@ -136,4 +175,5 @@ public class WatchSourceBuilder implements ToXContent {
             super(msg, cause);
         }
     }
+
 }

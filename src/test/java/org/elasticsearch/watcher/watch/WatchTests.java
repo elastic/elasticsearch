@@ -18,16 +18,22 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.watcher.actions.Action;
+import org.elasticsearch.watcher.actions.ActionFactory;
 import org.elasticsearch.watcher.actions.ActionRegistry;
 import org.elasticsearch.watcher.actions.ActionWrapper;
-import org.elasticsearch.watcher.actions.Actions;
+import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.actions.email.EmailAction;
+import org.elasticsearch.watcher.actions.email.EmailActionFactory;
+import org.elasticsearch.watcher.actions.email.ExecutableEmailAction;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.email.service.Profile;
+import org.elasticsearch.watcher.actions.index.ExecutableIndexAction;
 import org.elasticsearch.watcher.actions.index.IndexAction;
+import org.elasticsearch.watcher.actions.index.IndexActionFactory;
+import org.elasticsearch.watcher.actions.webhook.ExecutableWebhookAction;
 import org.elasticsearch.watcher.actions.webhook.WebhookAction;
+import org.elasticsearch.watcher.actions.webhook.WebhookActionFactory;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.ConditionRegistry;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
@@ -110,7 +116,7 @@ public class WatchTests extends ElasticsearchTestCase {
 
         Transform transform = randomTransform();
 
-        Actions actions = randomActions();
+        ExecutableActions actions = randomActions();
         ActionRegistry actionRegistry = registry(actions, transformRegistry);
 
         Map<String, Object> metadata = ImmutableMap.<String, Object>of("_key", "_val");
@@ -259,37 +265,40 @@ public class WatchTests extends ElasticsearchTestCase {
         return registry;
     }
 
-    private Actions randomActions() {
+    private ExecutableActions randomActions() {
         ImmutableList.Builder<ActionWrapper> list = ImmutableList.builder();
         if (randomBoolean()) {
             Transform transform = randomTransform();
-            list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), transform, new EmailAction(logger, EmailTemplate.builder().build(), null, Profile.STANDARD, null, randomBoolean(),  emailService, templateEngine)));
+            EmailAction action = new EmailAction(EmailTemplate.builder().build(), null, null, Profile.STANDARD, randomBoolean());
+            list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), transform, new ExecutableEmailAction(action, logger, emailService, templateEngine)));
         }
         if (randomBoolean()) {
-            list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomTransform(), new IndexAction(logger, client, "_index", "_type")));
+            IndexAction aciton = new IndexAction("_index", "_type");
+            list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomTransform(), new ExecutableIndexAction(aciton, logger, client)));
         }
         if (randomBoolean()) {
             HttpRequestTemplate httpRequest = HttpRequestTemplate.builder("test.host", randomIntBetween(8000, 9000))
                     .method(randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT))
                     .path(new Template("_url"))
                     .build();
-            list.add(new ActionWrapper("_webhook_" + randomAsciiOfLength(8), randomTransform(), new WebhookAction(logger, httpClient, httpRequest, templateEngine)));
+            WebhookAction action = new WebhookAction(httpRequest);
+            list.add(new ActionWrapper("_webhook_" + randomAsciiOfLength(8), randomTransform(), new ExecutableWebhookAction(action, logger, httpClient, templateEngine)));
         }
-        return new Actions(list.build());
+        return new ExecutableActions(list.build());
     }
 
-    private ActionRegistry registry(Actions actions, TransformRegistry transformRegistry) {
-        ImmutableMap.Builder<String, Action.Parser> parsers = ImmutableMap.builder();
+    private ActionRegistry registry(ExecutableActions actions, TransformRegistry transformRegistry) {
+        ImmutableMap.Builder<String, ActionFactory> parsers = ImmutableMap.builder();
         for (ActionWrapper action : actions) {
             switch (action.action().type()) {
                 case EmailAction.TYPE:
-                    parsers.put(EmailAction.TYPE, new EmailAction.Parser(settings, emailService, templateEngine));
+                    parsers.put(EmailAction.TYPE, new EmailActionFactory(settings, emailService, templateEngine));
                     break;
                 case IndexAction.TYPE:
-                    parsers.put(IndexAction.TYPE, new IndexAction.Parser(settings, client));
+                    parsers.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
                     break;
                 case WebhookAction.TYPE:
-                    parsers.put(WebhookAction.TYPE, new WebhookAction.Parser(settings,  httpClient,
+                    parsers.put(WebhookAction.TYPE, new WebhookActionFactory(settings,  httpClient,
                             new HttpRequest.Parser(authRegistry), new HttpRequestTemplate.Parser(authRegistry), templateEngine));
                     break;
             }

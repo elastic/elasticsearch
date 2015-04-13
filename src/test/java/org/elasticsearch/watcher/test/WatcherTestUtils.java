@@ -16,12 +16,18 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.watcher.actions.Actions;
 import org.elasticsearch.watcher.actions.ActionWrapper;
+import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.actions.email.EmailAction;
-import org.elasticsearch.watcher.actions.email.service.*;
+import org.elasticsearch.watcher.actions.email.ExecutableEmailAction;
+import org.elasticsearch.watcher.actions.email.service.Authentication;
+import org.elasticsearch.watcher.actions.email.service.EmailService;
+import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
+import org.elasticsearch.watcher.actions.email.service.Profile;
+import org.elasticsearch.watcher.actions.webhook.ExecutableWebhookAction;
 import org.elasticsearch.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.input.search.SearchInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.license.LicenseService;
@@ -43,7 +49,6 @@ import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.execution.WatchExecutionContext;
 
 import javax.mail.internet.AddressException;
 import java.util.ArrayList;
@@ -135,7 +140,7 @@ public final class WatcherTestUtils {
 
         TemplateEngine engine = new MustacheTemplateEngine(ImmutableSettings.EMPTY, scriptService);
 
-        actions.add(new ActionWrapper("_webhook", new WebhookAction(logger, httpClient, httpRequest.build(), engine)));
+        actions.add(new ActionWrapper("_webhook", new ExecutableWebhookAction(new WebhookAction(httpRequest.build()), logger, httpClient, engine)));
 
         String from = "from@test.com";
         String to = "to@test.com";
@@ -149,9 +154,10 @@ public final class WatcherTestUtils {
 
         Authentication auth = new Authentication("testname", "testpassword".toCharArray());
 
-        EmailAction emailAction = new EmailAction(logger, email, auth, Profile.STANDARD, "testaccount", false, emailService, templateEngine);
+        EmailAction action = new EmailAction(email, "testaccount", auth, Profile.STANDARD, false);
+        ExecutableEmailAction executale = new ExecutableEmailAction(action, logger, emailService, templateEngine);
 
-        actions.add(new ActionWrapper("_email", emailAction));
+        actions.add(new ActionWrapper("_email", executale));
 
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("foo", "bar");
@@ -170,7 +176,7 @@ public final class WatcherTestUtils {
                 new SimpleInput(logger, new Payload.Simple(inputData)),
                 new ScriptCondition(logger, scriptService, new Script("return true")),
                 new SearchTransform(logger, scriptService, client, transformRequest),
-                new Actions(actions),
+                new ExecutableActions(actions),
                 metadata,
                 new TimeValue(0),
                 new Watch.Status());

@@ -21,32 +21,32 @@ public final class ActionBuilders {
     private ActionBuilders() {
     }
 
-    public static EmailAction.SourceBuilder emailAction(EmailTemplate.Builder email) {
+    public static EmailAction.Builder emailAction(EmailTemplate.Builder email) {
         return emailAction(email.build());
     }
 
-    public static EmailAction.SourceBuilder emailAction(EmailTemplate email) {
-        return new EmailAction.SourceBuilder(email);
+    public static EmailAction.Builder emailAction(EmailTemplate email) {
+        return EmailAction.builder(email);
     }
 
-    public static IndexAction.SourceBuilder indexAction(String index, String type) {
-        return new IndexAction.SourceBuilder(index, type);
+    public static IndexAction.Builder indexAction(String index, String type) {
+        return IndexAction.builder(index, type);
     }
 
-    public static WebhookAction.SourceBuilder webhookAction(HttpRequestTemplate.Builder httpRequest) {
-        return new WebhookAction.SourceBuilder(httpRequest.build());
+    public static WebhookAction.Builder webhookAction(HttpRequestTemplate.Builder httpRequest) {
+        return webhookAction(httpRequest.build());
     }
 
-    public static WebhookAction.SourceBuilder webhookAction(HttpRequestTemplate httpRequest) {
-        return new WebhookAction.SourceBuilder(httpRequest);
+    public static WebhookAction.Builder webhookAction(HttpRequestTemplate httpRequest) {
+        return WebhookAction.builder(httpRequest);
     }
 
-    public static LoggingAction.SourceBuilder loggingAction(String text) {
+    public static LoggingAction.Builder loggingAction(String text) {
         return loggingAction(new Template(text));
     }
 
-    public static LoggingAction.SourceBuilder loggingAction(Template text) {
-        return new LoggingAction.SourceBuilder(text);
+    public static LoggingAction.Builder loggingAction(Template text) {
+        return LoggingAction.builder(text);
     }
 
 }

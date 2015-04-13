@@ -21,6 +21,7 @@ package org.elasticsearch.bwcompat;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.util.concurrent.ListenableFuture;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
@@ -55,13 +56,18 @@ import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Modifier;
 import java.net.URL;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileVisitResult;
+import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -75,7 +81,8 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     // We have a 0.20.6.zip etc for this.
 
     static List<String> indexes;
-    static Path indicesDir;
+    static Path singleDataPath;
+    static Path[] multiDataPath;
 
     @BeforeClass
     public static void initIndexesList() throws Exception {
@@ -93,7 +100,8 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     @AfterClass
     public static void tearDownStatics() {
         indexes = null;
-        indicesDir = null;
+        singleDataPath = null;
+        multiDataPath = null;
     }
 
     @Override
@@ -108,17 +116,37 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     void setupCluster() throws Exception {
         ListenableFuture<List<String>> replicas = internalCluster().startNodesAsync(1); // for replicas
 
-        Path dataDir = newTempDirPath(LifecycleScope.SUITE);
+        Path baseTempDir = newTempDirPath(LifecycleScope.SUITE);
+        // start single data path node
         ImmutableSettings.Builder nodeSettings = ImmutableSettings.builder()
-                .put("path.data", dataDir.toAbsolutePath())
-                .put("node.master", false); // workaround for dangling index loading issue when node is master
-        String loadingNode = internalCluster().startNode(nodeSettings.build());
+            .put("path.data", baseTempDir.resolve("single-path").toAbsolutePath())
+            .put("node.master", false); // workaround for dangling index loading issue when node is master
+        ListenableFuture<String> singleDataPathNode = internalCluster().startNodeAsync(nodeSettings.build());
 
-        Path[] nodePaths = internalCluster().getInstance(NodeEnvironment.class, loadingNode).nodeDataPaths();
+        // start multi data path node
+        nodeSettings = ImmutableSettings.builder()
+            .put("path.data", baseTempDir.resolve("multi-path1").toAbsolutePath() + "," + baseTempDir.resolve("multi-path2").toAbsolutePath())
+            .put("node.master", false); // workaround for dangling index loading issue when node is master
+        ListenableFuture<String> multiDataPathNode = internalCluster().startNodeAsync(nodeSettings.build());
+
+        // find single data path dir
+        Path[] nodePaths = internalCluster().getInstance(NodeEnvironment.class, singleDataPathNode.get()).nodeDataPaths();
         assertEquals(1, nodePaths.length);
-        indicesDir = nodePaths[0].resolve(NodeEnvironment.INDICES_FOLDER);
-        assertFalse(Files.exists(indicesDir));
-        Files.createDirectories(indicesDir);
+        singleDataPath = nodePaths[0].resolve(NodeEnvironment.INDICES_FOLDER);
+        assertFalse(Files.exists(singleDataPath));
+        Files.createDirectories(singleDataPath);
+        logger.info("--> Single data path: " + singleDataPath.toString());
+
+        // find multi data path dirs
+        nodePaths = internalCluster().getInstance(NodeEnvironment.class, multiDataPathNode.get()).nodeDataPaths();
+        assertEquals(2, nodePaths.length);
+        multiDataPath = new Path[] {nodePaths[0].resolve(NodeEnvironment.INDICES_FOLDER),
+                                   nodePaths[1].resolve(NodeEnvironment.INDICES_FOLDER)};
+        assertFalse(Files.exists(multiDataPath[0]));
+        assertFalse(Files.exists(multiDataPath[1]));
+        Files.createDirectories(multiDataPath[0]);
+        Files.createDirectories(multiDataPath[1]);
+        logger.info("--> Multi data paths: " + multiDataPath[0].toString() + ", " + multiDataPath[1].toString());
 
         replicas.get(); // wait for replicas
     }
@@ -143,13 +171,15 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
 
         // the bwc scripts packs the indices under this path
         Path src = list[0].resolve("nodes/0/indices/" + indexName);
-        Path dest = indicesDir.resolve(indexName);
         assertTrue("[" + indexFile + "] missing index dir: " + src.toString(), Files.exists(src));
 
-        logger.info("--> injecting index [{}] into path [{}]", indexName, dest);
-        Files.move(src, dest);
-        assertFalse(Files.exists(src));
-        assertTrue(Files.exists(dest));
+        if (randomBoolean()) {
+            logger.info("--> injecting index [{}] into single data path", indexName);
+            copyIndex(src, indexName, singleDataPath);
+        } else {
+            logger.info("--> injecting index [{}] into multi data path", indexName);
+            copyIndex(src, indexName, multiDataPath);
+        }
 
         // force reloading dangling indices with a cluster state republish
         client().admin().cluster().prepareReroute().get();
@@ -157,8 +187,43 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         return indexName;
     }
 
+    // randomly distribute the files from src over dests paths
+    void copyIndex(final Path src, final String indexName, final Path... dests) throws IOException {
+        for (Path dest : dests) {
+            Path indexDir = dest.resolve(indexName);
+            assertFalse(Files.exists(indexDir));
+            Files.createDirectories(indexDir);
+        }
+        Files.walkFileTree(src, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                Path relativeDir = src.relativize(dir);
+                for (Path dest : dests) {
+                    Path destDir = dest.resolve(indexName).resolve(relativeDir);
+                    Files.createDirectories(destDir);
+                }
+                return FileVisitResult.CONTINUE;
+            }
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                if (file.getFileName().toString().equals(IndexWriter.WRITE_LOCK_NAME)) {
+                    // skip lock file, we don't need it
+                    logger.trace("Skipping lock file: " + file.toString());
+                    return FileVisitResult.CONTINUE;
+                }
+
+                Path relativeFile = src.relativize(file);
+                Path destFile = dests[randomInt(dests.length - 1)].resolve(indexName).resolve(relativeFile);
+                logger.trace("--> Moving " + relativeFile.toString() + " to " + destFile.toString());
+                Files.move(file, destFile);
+                assertFalse(Files.exists(file));
+                assertTrue(Files.exists(destFile));
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    }
+
     void unloadIndex(String indexName) throws Exception {
-        client().admin().indices().prepareFlush(indexName).setWaitIfOngoing(true).setForce(true).get(); // temporary for debugging
         ElasticsearchAssertions.assertAcked(client().admin().indices().prepareDelete(indexName).get());
         ElasticsearchAssertions.assertAllFilesClosed();
     }
@@ -201,20 +266,6 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
 
         Collections.shuffle(indexes, getRandom());
         for (String index : indexes) {
-            if (index.equals("index-0.90.13.zip") == false) {
-                long startTime = System.currentTimeMillis();
-                logger.info("--> Testing old index " + index);
-                assertOldIndexWorks(index);
-                logger.info("--> Done testing " + index + ", took " + ((System.currentTimeMillis() - startTime) / 1000.0) + " seconds");
-            }
-        }
-    }
-
-    @TestLogging("test.engine:TRACE,index.engine:TRACE,test.engine.lucene:TRACE,index.engine.lucene:TRACE")
-    public void testShitSlowIndex() throws Exception {
-        setupCluster();
-        for (int i = 0; i < 5; i++) {
-            String index = "index-0.90.13.zip";
             long startTime = System.currentTimeMillis();
             logger.info("--> Testing old index " + index);
             assertOldIndexWorks(index);
@@ -320,7 +371,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.builder()
                         .put("number_of_replicas", numReplicas)
         ).execute().actionGet());
-        ensureGreen(TimeValue.timeValueMinutes(1), indexName);
+        ensureGreen(TimeValue.timeValueMinutes(2), indexName);
         logger.debug("--> index [{}] is green, took [{}]", indexName, TimeValue.timeValueMillis(System.currentTimeMillis() - startTime));
         logger.debug("--> recovery status:\n{}", XContentHelper.toString(client().admin().indices().prepareRecoveries(indexName).get()));
 

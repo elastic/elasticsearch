@@ -22,10 +22,6 @@ include::queries/dis-max-query.asciidoc[]
 
 include::queries/filtered-query.asciidoc[]
 
-include::queries/flt-query.asciidoc[]
-
-include::queries/flt-field-query.asciidoc[]
-
 include::queries/function-score-query.asciidoc[]
 
 include::queries/fuzzy-query.asciidoc[]

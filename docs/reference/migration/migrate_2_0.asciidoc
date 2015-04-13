@@ -380,3 +380,9 @@ http.cors.allow-origin: /https?:\/\/localhost(:[0-9]+)?/
 The cluster state api doesn't return the `routing_nodes` section anymore when
 `routing_table` is requested. The newly introduced `routing_nodes` flag can
 be used separately to control whether `routing_nodes` should be returned.
+=== Query DSL
+
+The `fuzzy_like_this` and `fuzzy_like_this_field` queries have been removed.
+
+The `limit` filter is deprecated and becomes a no-op. You can achieve similar
+behaviour using the <<search-request-body,terminate_after>> parameter.

@@ -107,7 +107,7 @@ should be enabled. It is specified as a `|`-delimited string with the
 --------------------------------------------------
 {
     "simple_query_string" : {
-        "query" : "foo | bar  & baz*",
+        "query" : "foo | bar + baz*",
         "flags" : "OR|AND|PREFIX"
     }
 }

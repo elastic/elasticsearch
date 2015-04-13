@@ -209,7 +209,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         builder.field(Fields.MAX, count != 0 ? max : null);
         builder.field(Fields.AVG, count != 0 ? getAvg() : null);
         builder.field(Fields.SUM, count != 0 ? sum : null);
-        if (count != 0 && valueFormatter != null) {
+        if (count != 0 && valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
             builder.field(Fields.MIN_AS_STRING, valueFormatter.format(min));
             builder.field(Fields.MAX_AS_STRING, valueFormatter.format(max));
             builder.field(Fields.AVG_AS_STRING, valueFormatter.format(getAvg()));

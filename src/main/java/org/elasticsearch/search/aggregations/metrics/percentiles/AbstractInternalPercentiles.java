@@ -114,7 +114,7 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
                 String key = String.valueOf(keys[i]);
                 double value = value(keys[i]);
                 builder.field(key, value);
-                if (valueFormatter != null) {
+                if (valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
                     builder.field(key + "_as_string", valueFormatter.format(value));
                 }
             }
@@ -126,7 +126,7 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
                 builder.startObject();
                 builder.field(CommonFields.KEY, keys[i]);
                 builder.field(CommonFields.VALUE, value);
-                if (valueFormatter != null) {
+                if (valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
                     builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(value));
                 }
                 builder.endObject();

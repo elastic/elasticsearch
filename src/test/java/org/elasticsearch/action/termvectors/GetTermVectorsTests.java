@@ -313,7 +313,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
             if (ft.storeTermVectors()) {
                 Terms terms = fields.terms("field");
                 assertThat(terms.size(), equalTo(8l));
-                TermsEnum iterator = terms.iterator(null);
+                TermsEnum iterator = terms.iterator();
                 for (int j = 0; j < values.length; j++) {
                     String string = values[j];
                     BytesRef next = iterator.next();
@@ -448,7 +448,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         Fields fields = response.getFields();
         assertThat(fields.size(), equalTo(1));
         Terms terms = fields.terms("field");
-        TermsEnum iterator = terms.iterator(null);
+        TermsEnum iterator = terms.iterator();
         while (iterator.next() != null) {
             String term = iterator.term().utf8ToString();
             PostingsEnum docsAndPositions = iterator.postings(null, null, PostingsEnum.ALL);
@@ -636,7 +636,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
 
         Terms terms = fields.terms(fieldName);
         assertThat(terms.size(), equalTo(8l));
-        TermsEnum iterator = terms.iterator(null);
+        TermsEnum iterator = terms.iterator();
         for (int j = 0; j < values.length; j++) {
             String string = values[j];
             BytesRef next = iterator.next();
@@ -722,8 +722,8 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         assertThat(terms1, notNullValue());
         assertThat(terms0.size(), equalTo(terms1.size()));
 
-        TermsEnum iter0 = terms0.iterator(null);
-        TermsEnum iter1 = terms1.iterator(null);
+        TermsEnum iter0 = terms0.iterator();
+        TermsEnum iter1 = terms1.iterator();
         for (int i = 0; i < terms0.size(); i++) {
             BytesRef next0 = iter0.next();
             assertThat(next0, notNullValue());
@@ -1003,7 +1003,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
             assertThat("Existing field " + fieldName + "should have been returned", terms, notNullValue());
             // check overridden by keyword analyzer ...
             if (perFieldAnalyzer.containsKey(fieldName)) {
-                TermsEnum iterator = terms.iterator(null);
+                TermsEnum iterator = terms.iterator();
                 assertThat("Analyzer for " + fieldName + " should have been overridden!", iterator.next().utf8ToString(), equalTo("some text here"));
                 assertThat(iterator.next(), nullValue());
             }
@@ -1090,7 +1090,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
                     (int) terms.getSumTotalTermFreq(),
                     equalOrLessThanTo(fieldStatistics.get("sum_ttf"), isEqual));
 
-            final TermsEnum termsEnum = terms.iterator(null);
+            final TermsEnum termsEnum = terms.iterator();
             BytesRef text;
             while((text = termsEnum.next()) != null) {
                 String term = text.utf8ToString();

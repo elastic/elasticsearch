@@ -142,7 +142,7 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
         if (fields != null) {
             final Terms terms = fields.terms(identifier.field());
             if (terms != null) {
-                TermsEnum termsEnum = terms.iterator(null);
+                TermsEnum termsEnum = terms.iterator();
                 if (termsEnum.seekExact(identifier.bytes())) {
                     newPostings = termsEnum.postings(reader.getLiveDocs(), postings, luceneFlags);
                 }

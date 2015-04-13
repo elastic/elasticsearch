@@ -129,7 +129,7 @@ class VersionFieldUpgrader extends FilterCodecReader {
             if (VersionFieldMapper.NAME.equals(field.name)) {
                 // uninvert into a packed ints and expose as docvalues
                 final Terms terms = reader.terms(UidFieldMapper.NAME);
-                final TermsEnum uids = terms.iterator(null);
+                final TermsEnum uids = terms.iterator();
                 final GrowableWriter versions = new GrowableWriter(2, reader.maxDoc(), PackedInts.COMPACT);
                 PostingsEnum dpe = null;
                 for (BytesRef uid = uids.next(); uid != null; uid = uids.next()) {

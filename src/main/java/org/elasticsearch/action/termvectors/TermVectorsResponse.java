@@ -201,7 +201,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
         // write field statistics
         buildFieldStatistics(builder, curTerms);
         builder.startObject(FieldStrings.TERMS);
-        TermsEnum termIter = curTerms.iterator(null);
+        TermsEnum termIter = curTerms.iterator();
         for (int i = 0; i < curTerms.size(); i++) {
             buildTerm(builder, spare, curTerms, termIter);
         }

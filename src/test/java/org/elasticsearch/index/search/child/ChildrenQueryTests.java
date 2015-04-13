@@ -229,7 +229,7 @@ public class ChildrenQueryTests extends AbstractChildTests {
                 Terms terms = slowLeafReader.terms(UidFieldMapper.NAME);
                 if (terms != null) {
                     NavigableMap<String, FloatArrayList> parentIdToChildScores = childValueToParentIds.lget();
-                    TermsEnum termsEnum = terms.iterator(null);
+                    TermsEnum termsEnum = terms.iterator();
                     PostingsEnum docsEnum = null;
                     for (Map.Entry<String, FloatArrayList> entry : parentIdToChildScores.entrySet()) {
                         int count = entry.getValue().elementsCount;

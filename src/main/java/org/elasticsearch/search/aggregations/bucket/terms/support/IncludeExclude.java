@@ -165,7 +165,7 @@ public class IncludeExclude {
         }
 
         @Override
-        public TermsEnum iterator(TermsEnum reuse) throws IOException {
+        public TermsEnum iterator() throws IOException {
             return values.termsEnum();
         }
 

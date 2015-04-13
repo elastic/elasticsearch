@@ -196,7 +196,7 @@ public class TopChildrenQuery extends Query {
                 if (terms == null) {
                     continue;
                 }
-                TermsEnum termsEnum = terms.iterator(null);
+                TermsEnum termsEnum = terms.iterator();
                 if (!termsEnum.seekExact(Uid.createUidAsBytes(parentType, parentId))) {
                     continue;
                 }

@@ -239,22 +239,8 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
         }
 
         @Override
-        public TermsEnum iterator(TermsEnum reuse) throws IOException {
-            TermsEnum result;
-            if ((reuse != null) && (reuse instanceof BloomFilteredTermsEnum)) {
-                // recycle the existing BloomFilteredTermsEnum by asking the delegate
-                // to recycle its contained TermsEnum
-                BloomFilteredTermsEnum bfte = (BloomFilteredTermsEnum) reuse;
-                if (bfte.filter == filter) {
-                    bfte.reset(this.in);
-                    return bfte;
-                }
-                reuse = bfte.reuse;
-            }
-            // We have been handed something we cannot reuse (either null, wrong
-            // class or wrong filter) so allocate a new object
-            result = new BloomFilteredTermsEnum(this.in, reuse, filter);
-            return result;
+        public TermsEnum iterator() throws IOException {
+            return new BloomFilteredTermsEnum(this.in, filter);
         }
     }
 
@@ -262,17 +248,14 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
 
         private Terms delegateTerms;
         private TermsEnum delegateTermsEnum;
-        private TermsEnum reuse;
         private BloomFilter filter;
 
-        public BloomFilteredTermsEnum(Terms other, TermsEnum reuse, BloomFilter filter) {
+        public BloomFilteredTermsEnum(Terms other, BloomFilter filter) {
             this.delegateTerms = other;
-            this.reuse = reuse;
             this.filter = filter;
         }
 
         void reset(Terms others) {
-            reuse = this.delegateTermsEnum;
             this.delegateTermsEnum = null;
             this.delegateTerms = others;
         }
@@ -283,7 +266,7 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
                  * this can be a relatively heavy operation depending on the 
                  * delegate postings format and they underlying directory
                  * (clone IndexInput) */
-                delegateTermsEnum = delegateTerms.iterator(reuse);
+                delegateTermsEnum = delegateTerms.iterator();
             }
             return delegateTermsEnum;
         }
@@ -385,7 +368,7 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
                     continue;
                 }
                 FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
-                TermsEnum termsEnum = terms.iterator(null);
+                TermsEnum termsEnum = terms.iterator();
 
                 BloomFilter bloomFilter = null;
 

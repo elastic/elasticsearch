@@ -52,10 +52,8 @@ final class TermVectorsWriter {
 
     void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<Flag> flags, Fields topLevelFields, @Nullable AggregatedDfs dfs) throws IOException {
         int numFieldsWritten = 0;
-        TermsEnum iterator = null;
         PostingsEnum docsAndPosEnum = null;
         PostingsEnum docsEnum = null;
-        TermsEnum topLevelIterator = null;
         for (String field : termVectorsByField) {
             if ((selectedFields != null) && (!selectedFields.contains(field))) {
                 continue;
@@ -69,7 +67,7 @@ final class TermVectorsWriter {
                 topLevelTerms = fieldTermVector;
             }
 
-            topLevelIterator = topLevelTerms.iterator(topLevelIterator);
+            TermsEnum topLevelIterator = topLevelTerms.iterator();
             boolean positions = flags.contains(Flag.Positions) && fieldTermVector.hasPositions();
             boolean offsets = flags.contains(Flag.Offsets) && fieldTermVector.hasOffsets();
             boolean payloads = flags.contains(Flag.Payloads) && fieldTermVector.hasPayloads();
@@ -81,7 +79,7 @@ final class TermVectorsWriter {
                     writeFieldStatistics(topLevelTerms);
                 }
             }
-            iterator = fieldTermVector.iterator(iterator);
+            TermsEnum iterator = fieldTermVector.iterator();
             final boolean useDocsAndPos = positions || offsets || payloads;
             while (iterator.next() != null) { // iterate all terms of the
                 // current field

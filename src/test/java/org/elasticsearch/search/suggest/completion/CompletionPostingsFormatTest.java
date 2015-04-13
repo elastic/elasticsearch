@@ -364,7 +364,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
                 if (field.equals("foo")) {
                     return new Terms() {
                         @Override
-                        public TermsEnum iterator(TermsEnum reuse) throws IOException {
+                        public TermsEnum iterator() throws IOException {
                             final Iterator<TermPosAndPayload> iterator = terms.iterator();
                             return new TermsEnum() {
                                 private TermPosAndPayload current = null;

@@ -49,7 +49,7 @@ final class ParentChildIntersectTermsEnum extends TermsEnum {
         for (String field : fields) {
             Terms terms = atomicReader.terms(field);
             if (terms != null) {
-                fieldEnums.add(terms.iterator(null));
+                fieldEnums.add(terms.iterator());
             }
         }
         states = new ArrayList<>(fieldEnums.size());

@@ -84,7 +84,7 @@ public class FilterableTermsEnum extends TermsEnum {
             if (terms == null) {
                 continue;
             }
-            TermsEnum termsEnum = terms.iterator(null);
+            TermsEnum termsEnum = terms.iterator();
             if (termsEnum == null) {
                 continue;
             }

@@ -196,7 +196,7 @@ public class SimpleLuceneTests extends ElasticsearchTestCase {
 
         indexWriter.close();
 
-        TermsEnum termDocs = SlowCompositeReaderWrapper.wrap(reader).terms("_id").iterator(null);
+        TermsEnum termDocs = SlowCompositeReaderWrapper.wrap(reader).terms("_id").iterator();
         termDocs.next();
     }
 
@@ -233,7 +233,7 @@ public class SimpleLuceneTests extends ElasticsearchTestCase {
         LeafReader atomicReader = SlowCompositeReaderWrapper.wrap(reader);
 
         Terms terms = atomicReader.terms("int1");
-        TermsEnum termsEnum = terms.iterator(null);
+        TermsEnum termsEnum = terms.iterator();
         termsEnum.next();
 
         PostingsEnum termDocs = termsEnum.postings(atomicReader.getLiveDocs(), null);
@@ -242,7 +242,7 @@ public class SimpleLuceneTests extends ElasticsearchTestCase {
         assertThat(termDocs.freq(), equalTo(1));
 
         terms = atomicReader.terms("int2");
-        termsEnum = terms.iterator(termsEnum);
+        termsEnum = terms.iterator();
         termsEnum.next();
         termDocs =  termsEnum.postings(atomicReader.getLiveDocs(), termDocs);
         assertThat(termDocs.nextDoc(), equalTo(0));

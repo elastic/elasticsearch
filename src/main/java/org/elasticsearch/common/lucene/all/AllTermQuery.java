@@ -25,12 +25,12 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
 import org.apache.lucene.search.spans.SpanScorer;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.search.spans.SpanWeight;
+import org.apache.lucene.search.spans.Spans;
 import org.apache.lucene.search.spans.TermSpans;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -51,7 +51,7 @@ public class AllTermQuery extends SpanTermQuery {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+    public SpanWeight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
         // TODO: needsScores
         // we should be able to just return a regular SpanTermWeight, at most here if needsScores == false?
         return new AllTermWeight(this, searcher);
@@ -68,8 +68,12 @@ public class AllTermQuery extends SpanTermQuery {
             if (this.stats == null) {
                 return null;
             }
+            TermSpans spans = (TermSpans) query.getSpans(context, acceptDocs, termContexts);
+            if (spans == null) {
+                return null;
+            }
             SimScorer sloppySimScorer = similarity.simScorer(stats, context);
-            return new AllTermSpanScorer((TermSpans) query.getSpans(context, acceptDocs, termContexts), this, sloppySimScorer);
+            return new AllTermSpanScorer(spans, this, sloppySimScorer);
         }
 
         protected class AllTermSpanScorer extends SpanScorer {
@@ -77,31 +81,43 @@ public class AllTermQuery extends SpanTermQuery {
             protected float payloadScore;
             protected int payloadsSeen;
 
-            public AllTermSpanScorer(TermSpans spans, Weight weight, Similarity.SimScorer docScorer) throws IOException {
+            public AllTermSpanScorer(TermSpans spans, SpanWeight weight, Similarity.SimScorer docScorer) throws IOException {
                 super(spans, weight, docScorer);
                 positions = spans.getPostings();
             }
 
             @Override
-            protected boolean setFreqCurrentDoc() throws IOException {
-                if (!more) {
-                    return false;
-                }
-                doc = spans.doc();
+            protected void setFreqCurrentDoc() throws IOException {
                 freq = 0.0f;
                 numMatches = 0;
                 payloadScore = 0;
                 payloadsSeen = 0;
+
+                assert spans.startPosition() == -1 : "incorrect initial start position, spans="+spans;
+                assert spans.endPosition() == -1 : "incorrect initial end position, spans="+spans;
+                int prevStartPos = -1;
+                int prevEndPos = -1;
+
+                int startPos = spans.nextStartPosition();
+                assert startPos != Spans.NO_MORE_POSITIONS : "initial startPos NO_MORE_POSITIONS, spans="+spans;
                 do {
-                    int matchLength = spans.end() - spans.start();
-
-                    freq += docScorer.computeSlopFactor(matchLength);
+                    assert startPos >= prevStartPos;
+                    int endPos = spans.endPosition();
+                    assert endPos != Spans.NO_MORE_POSITIONS;
+                    // This assertion can fail for Or spans on the same term:
+                    // assert (startPos != prevStartPos) || (endPos > prevEndPos) : "non increased endPos="+endPos;
+                    assert (startPos != prevStartPos) || (endPos >= prevEndPos) : "decreased endPos="+endPos;
                     numMatches++;
+                    int matchLength = endPos - startPos;
+                    freq += docScorer.computeSlopFactor(matchLength);
                     processPayload();
+                    prevStartPos = startPos;
+                    prevEndPos = endPos;
+                    startPos = spans.nextStartPosition();
+                } while (startPos != Spans.NO_MORE_POSITIONS);
 
-                    more = spans.next();// this moves positions to the next match
-                } while (more && (doc == spans.doc()));
-                return true;
+                assert spans.startPosition() == Spans.NO_MORE_POSITIONS : "incorrect final start position, spans="+spans;
+                assert spans.endPosition() == Spans.NO_MORE_POSITIONS : "incorrect final end position, spans="+spans;
             }
 
             protected void processPayload() throws IOException {
@@ -120,7 +136,7 @@ public class AllTermQuery extends SpanTermQuery {
              * @throws IOException
              */
             @Override
-            public float score() throws IOException {
+            public float scoreCurrentDoc() throws IOException {
                 return getSpanScore() * getPayloadScore();
             }
 
@@ -134,7 +150,7 @@ public class AllTermQuery extends SpanTermQuery {
              * @see #score()
              */
             protected float getSpanScore() throws IOException {
-                return super.score();
+                return super.scoreCurrentDoc();
             }
 
             /**

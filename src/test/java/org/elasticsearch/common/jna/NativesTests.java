@@ -46,6 +46,7 @@ public class NativesTests extends ElasticsearchTestCase {
 
     @Before
     public void saveProperties() {
+        assumeTrue("Natives can't load libraries from path if security manager is enabled.", System.getSecurityManager() == null);
         for (String p : JNA_INVARIANT_PROPERTIES) {
             properties.put(p, System.getProperty(p));
         }

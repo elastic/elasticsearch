@@ -22,8 +22,16 @@
 // everything not allowed here is forbidden!
 
 grant {
-  // permissions for file access, write access only to sandbox:
-  permission java.io.FilePermission "<<ALL FILES>>", "read";
+
+  // contain read access to only what we need:
+  // project base directory
+  permission java.io.FilePermission "${project.basedir}${/}-", "read";
+  // mvn custom ./m2/repository for dependency jars
+  permission java.io.FilePermission "${m2.repository}{/}-", "read";
+  // maven default repo for settings.xml etc.
+  permission java.io.FilePermission "${user.home}${/}.m2${/}-", "read";
+  // system jar resources
+  permission java.io.FilePermission "${java.home}${/}-", "read";
   permission java.io.FilePermission "${junit4.childvm.cwd}", "read,write";
   permission java.io.FilePermission "${junit4.childvm.cwd}${/}-", "read,write,delete";
   permission java.io.FilePermission "${junit4.tempDir}${/}*", "read,write,delete";

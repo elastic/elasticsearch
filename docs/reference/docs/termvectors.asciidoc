@@ -95,12 +95,6 @@ the <<mlt-query-term-selection,second phase>> of the
 <<query-dsl-mlt-query,More Like This Query>>. See <<docs-termvectors-terms-filtering,example 5>>
 for usage.
 
-[NOTE]
-====
-In order to compute the score of each term `term_statistics` and
-`field_statistics` must be set to `true`.
-====
-
 The following sub-parameters are supported:
 
 [horizontal]

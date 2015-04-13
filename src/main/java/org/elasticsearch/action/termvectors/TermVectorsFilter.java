@@ -208,17 +208,21 @@ public class TermVectorsFilter {
                 BytesRef termBytesRef = termsEnum.term();
                 topLevelTermsEnum.seekExact(termBytesRef);
                 Term term = new Term(fieldName, termBytesRef);
-
-                TermStatistics termStats = getTermStatistics(topLevelTermsEnum, term);
+                
+                // remove noise words
                 int freq = getTermFreq(termsEnum, docsEnum);
-
-                // filter terms based on stats first
-                if (!isAccepted(freq, termStats.docFreq(), term.bytes().utf8ToString())) {
+                if (isNoise(term.bytes().utf8ToString(), freq)) {
                     continue;
                 }
-
-                // then based on a score
-                float score = computeScore(termStats, freq, numDocs);
+                
+                // now call on docFreq
+                long docFreq = getTermStatistics(topLevelTermsEnum, term).docFreq();
+                if (!isAccepted(docFreq)) {
+                    continue;
+                }
+                
+                // filter based on score
+                float score = computeScore(docFreq, freq, numDocs);
                 queue.addOrUpdate(new ScoreTerm(term.field(), term.bytes().utf8ToString(), score));
             }
 
@@ -231,15 +235,27 @@ public class TermVectorsFilter {
         }
     }
 
-    private boolean isAccepted(int freq, long docFreq, String word) {
+    private boolean isNoise(String word, int freq) {
+        // filter out words based on length
+        int len = word.length();
+        if (minWordLength > 0 && len < minWordLength) {
+            return true;
+        }
+        if (maxWordLength > 0 && len > maxWordLength) {
+            return true;
+        }
         // filter out words that don't occur enough times in the source
         if (minTermFreq > 0 && freq < minTermFreq) {
-            return false;
+            return true;
         }
-        // filter out words that occur in the source
+        // filter out words that occur too many times in the source
         if (freq > maxTermFreq) {
-            return false;
+            return true;
         }
+        return false;
+    }
+
+    private boolean isAccepted(long docFreq) {
         // filter out words that don't occur in enough docs
         if (minDocFreq > 0 && docFreq < minDocFreq) {
             return false;
@@ -250,14 +266,6 @@ public class TermVectorsFilter {
         }
         // index update problem?
         if (docFreq == 0) {
-            return false;
-        }
-        // filter out words based on length
-        int len = word.length();
-        if (minWordLength > 0 && len < minWordLength) {
-            return false;
-        }
-        if (maxWordLength > 0 && len > maxWordLength) {
             return false;
         }
         return true;
@@ -283,8 +291,8 @@ public class TermVectorsFilter {
         return docsEnum.freq();
     }
 
-    private float computeScore(TermStatistics termStats, int freq, long numDocs) {
-        return freq * similarity.idf(termStats.docFreq(), numDocs);
+    private float computeScore(long docFreq, int freq, long numDocs) {
+        return freq * similarity.idf(docFreq, numDocs);
     }
 
     private static class ScoreTermsQueue extends org.apache.lucene.util.PriorityQueue<ScoreTerm> {

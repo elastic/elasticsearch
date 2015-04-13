@@ -93,7 +93,7 @@ final class TermVectorsWriter {
             final boolean useDocsAndPos = positions || offsets || payloads;
             while (iterator.next() != null) { // iterate all terms of the current field
                 BytesRef termBytesRef = iterator.term();
-                topLevelIterator.seekExact(termBytesRef);
+                boolean foundTerm = topLevelIterator.seekExact(termBytesRef);
                 Term term = new Term(field, termBytesRef);
 
                 // with filtering we only keep the best terms

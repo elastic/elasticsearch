@@ -111,6 +111,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
                     topLevelFields = termVectorsByField;
                 }
                 termVectorsResponse.setArtificial(!docFromTranslog);
+                termVectorsResponse.setExists(true);
             }
             /* or from an existing document */
             else if (docIdAndVersion != null) {
@@ -126,6 +127,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
                     termVectorsByField = addGeneratedTermVectors(get, termVectorsByField, request, selectedFields);
                 }
                 termVectorsResponse.setDocVersion(docIdAndVersion.version);
+                termVectorsResponse.setExists(true);
             }
             /* no term vectors generated or found */
             else {
@@ -137,7 +139,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
                     dfs = getAggregatedDfs(termVectorsByField, request);
                 }
 
-                if (useTermVectorsFilter(request)) {
+                if (request.filterSettings() != null) {
                     termVectorsFilter = new TermVectorsFilter(termVectorsByField, topLevelFields, request.selectedFields(), dfs);
                     termVectorsFilter.setSettings(request.filterSettings());
                     try {
@@ -146,10 +148,8 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
                         e.printStackTrace();
                     }
                 }
-
                 // write term vectors
                 termVectorsResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs, termVectorsFilter);
-                termVectorsResponse.setExists(true);
             }
         } catch (Throwable ex) {
             throw new ElasticsearchException("failed to execute term vector request", ex);
@@ -345,10 +345,6 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
 
     private boolean useDfs(TermVectorsRequest request) {
         return request.dfs() && (request.fieldStatistics() || request.termStatistics());
-    }
-
-    private boolean useTermVectorsFilter(TermVectorsRequest request) {
-        return request.filterSettings() != null && request.fieldStatistics() && request.termStatistics();
     }
 
     private AggregatedDfs getAggregatedDfs(Fields termVectorsFields, TermVectorsRequest request) throws IOException {

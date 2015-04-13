@@ -91,7 +91,7 @@ public class TransportClusterStatsAction extends TransportNodesOperationAction<C
     }
 
     @Override
-    protected ClusterStatsRequest newRequest() {
+    protected ClusterStatsRequest newRequestInstance() {
         return new ClusterStatsRequest();
     }
 

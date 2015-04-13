@@ -95,7 +95,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     }
 
     @Override
-    protected CountRequest newRequest() {
+    protected CountRequest newRequestInstance() {
         return new CountRequest();
     }
 

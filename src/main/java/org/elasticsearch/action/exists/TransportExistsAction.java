@@ -95,7 +95,7 @@ public class TransportExistsAction extends TransportBroadcastOperationAction<Exi
     }
 
     @Override
-    protected ExistsRequest newRequest() {
+    protected ExistsRequest newRequestInstance() {
         return new ExistsRequest();
     }
 

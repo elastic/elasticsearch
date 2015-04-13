@@ -74,7 +74,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     }
 
     @Override
-    protected Request newRequest() {
+    protected Request newRequestInstance() {
         return new Request();
     }
 

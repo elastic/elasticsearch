@@ -86,7 +86,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
     }
 
     @Override
-    protected Request newRequest() {
+    protected Request newRequestInstance() {
         return new Request();
     }
 

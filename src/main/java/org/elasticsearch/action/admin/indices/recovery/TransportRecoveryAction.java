@@ -71,7 +71,7 @@ public class TransportRecoveryAction extends
     }
 
     @Override
-    protected RecoveryRequest newRequest() {
+    protected RecoveryRequest newRequestInstance() {
         return new RecoveryRequest();
     }
 

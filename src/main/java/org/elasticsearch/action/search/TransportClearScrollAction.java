@@ -35,6 +35,7 @@ import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -105,10 +106,10 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
 
             if (contexts.isEmpty()) {
                 for (final DiscoveryNode node : nodes) {
-                    searchServiceTransportAction.sendClearAllScrollContexts(node, request, new ActionListener<Boolean>() {
+                    searchServiceTransportAction.sendClearAllScrollContexts(node, request, new ActionListener<TransportResponse>() {
                         @Override
-                        public void onResponse(Boolean freed) {
-                            onFreedContext(freed);
+                        public void onResponse(TransportResponse response) {
+                            onFreedContext(true);
                         }
 
                         @Override
@@ -126,10 +127,10 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
                             continue;
                         }
 
-                        searchServiceTransportAction.sendFreeContext(node, target.v2(), request, new ActionListener<Boolean>() {
+                        searchServiceTransportAction.sendFreeContext(node, target.v2(), request, new ActionListener<SearchServiceTransportAction.SearchFreeContextResponse>() {
                             @Override
-                            public void onResponse(Boolean freed) {
-                                onFreedContext(freed);
+                            public void onResponse(SearchServiceTransportAction.SearchFreeContextResponse freed) {
+                                onFreedContext(freed.isFreed());
                             }
 
                             @Override

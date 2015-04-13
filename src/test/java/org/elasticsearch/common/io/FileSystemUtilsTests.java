@@ -26,15 +26,13 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.io.InputStream;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Properties;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 
@@ -47,7 +45,7 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
     private Path dst;
 
     @Before
-    public void copySourceFilesToTarget() throws IOException {
+    public void copySourceFilesToTarget() throws IOException, URISyntaxException {
         src = newTempDirPath();
         dst = newTempDirPath();
         Files.createDirectories(src);
@@ -55,12 +53,8 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
         // We first copy sources test files from src/test/resources
         // Because after when the test runs, src files are moved to their destination
-        Properties props = new Properties();
-        try (InputStream is = FileSystemUtilsTests.class.getResource("rootdir.properties").openStream()) {
-            props.load(is);
-        }
-
-        FileSystemUtils.copyDirectoryRecursively(Paths.get(props.getProperty("copyappend.root.dir")), src);
+        final Path path = Paths.get(FileSystemUtilsTests.class.getResource("/org/elasticsearch/common/io/copyappend").toURI());
+        FileSystemUtils.copyDirectoryRecursively(path, src);
     }
 
     @Test

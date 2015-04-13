@@ -19,11 +19,14 @@
 
 package org.elasticsearch.common.lucene.all;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.payloads.AveragePayloadFunction;
 import org.apache.lucene.search.payloads.PayloadTermQuery;
 import org.apache.lucene.search.similarities.Similarity;
@@ -117,6 +120,24 @@ public final class AllTermQuery extends PayloadTermQuery {
         if (getClass() != obj.getClass())
             return false;
         return true;
+    }
+
+    @Override
+    public Query rewrite(IndexReader reader) throws IOException {
+        boolean hasPayloads = false;
+        for (LeafReaderContext context : reader.leaves()) {
+            final Terms terms = context.reader().terms(term.field());
+            if (terms.hasPayloads()) {
+                hasPayloads = true;
+                break;
+            }
+        }
+        if (hasPayloads == false) {
+            TermQuery rewritten = new TermQuery(term);
+            rewritten.setBoost(getBoost());
+            return rewritten;
+        }
+        return this;
     }
 
 }

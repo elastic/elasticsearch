@@ -19,15 +19,31 @@
 package org.elasticsearch.index.mapper.dynamic;
 
 import com.google.common.base.Predicate;
+import com.google.common.collect.ImmutableMap;
+
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMappers;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.StrictDynamicMappingException;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -39,7 +55,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
 
-    @Test
     public void testDynamicTrue() throws IOException {
         String mapping = jsonBuilder().startObject().startObject("type")
                 .field("dynamic", "true")
@@ -60,7 +75,6 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(doc.rootDoc().get("field2"), equalTo("value2"));
     }
 
-    @Test
     public void testDynamicFalse() throws IOException {
         String mapping = jsonBuilder().startObject().startObject("type")
                 .field("dynamic", "false")
@@ -82,7 +96,6 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
     }
 
 
-    @Test
     public void testDynamicStrict() throws IOException {
         String mapping = jsonBuilder().startObject().startObject("type")
                 .field("dynamic", "strict")
@@ -116,7 +129,6 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
         }
     }
 
-    @Test
     public void testDynamicFalseWithInnerObjectButDynamicSetOnRoot() throws IOException {
         String mapping = jsonBuilder().startObject().startObject("type")
                 .field("dynamic", "false")
@@ -140,7 +152,6 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(doc.rootDoc().get("obj1.field2"), nullValue());
     }
 
-    @Test
     public void testDynamicStrictWithInnerObjectButDynamicSetOnRoot() throws IOException {
         String mapping = jsonBuilder().startObject().startObject("type")
                 .field("dynamic", "strict")
@@ -173,7 +184,6 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
         assertTrue(mappers != null && mappers.isEmpty() == false);
     }
 
-    @Test
     public void testIndexingFailureDoesStillCreateType() throws IOException, InterruptedException {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("_default_")
                 .field("dynamic", "strict")
@@ -202,7 +212,6 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
 
     }
 
-    @Test
     public void testTypeCreatedProperly() throws IOException, InterruptedException {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("_default_")
                 .field("dynamic", "strict")
@@ -243,7 +252,6 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
         assertNotNull(getMappingsResponse.getMappings().get("test").get("type"));
     }
 
-    @Test
     public void testFieldsCreatedWithPartialParsing() throws IOException, InterruptedException {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("doc")
                 .startObject("properties")
@@ -303,5 +311,179 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
                 return ((LinkedHashMap) mappings.get("properties")).get("a") != null && ((LinkedHashMap) mappings.get("properties")).get("z") != null;
             }
         }));
+    }
+
+    private String serialize(ToXContent mapper) throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        mapper.toXContent(builder, new ToXContent.MapParams(ImmutableMap.<String, String>of()));
+        return builder.endObject().string();
+    }
+
+    private Mapper parse(DocumentMapper mapper, DocumentMapperParser parser, XContentBuilder builder) throws Exception {
+        Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        ParseContext.InternalParseContext ctx = new ParseContext.InternalParseContext("test", settings, parser, mapper, new ContentPath(0));
+        SourceToParse source = SourceToParse.source(builder.bytes());
+        ctx.reset(XContentHelper.createParser(source.source()), new ParseContext.Document(), source, null);
+        assertEquals(XContentParser.Token.START_OBJECT, ctx.parser().nextToken());
+        ctx.parser().nextToken();
+        return mapper.root().parse(ctx);
+    }
+
+    public void testDynamicMappingsNotNeeded() throws Exception {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("foo").field("type", "string").endObject().endObject()
+                .endObject().string();
+
+        DocumentMapper mapper = parser.parse(mapping);
+        Mapper update = parse(mapper, parser, XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject());
+        // foo is already defined in the mappings
+        assertNull(update);
+    }
+
+    public void testField() throws Exception {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").endObject().endObject()
+                .endObject().string();
+
+        DocumentMapper mapper = parser.parse(mapping);
+        assertEquals(mapping, serialize(mapper));
+
+        Mapper update = parse(mapper, parser, XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject());
+        assertNotNull(update);
+        // original mapping not modified
+        assertEquals(mapping, serialize(mapper));
+        // but we have an update
+        assertEquals("{\"type\":{\"properties\":{\"foo\":{\"type\":\"string\"}}}}", serialize(update));
+    }
+
+    public void testIncremental() throws Exception {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        // Make sure that mapping updates are incremental, this is important for performance otherwise
+        // every new field introduction runs in linear time with the total number of fields
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("foo").field("type", "string").endObject().endObject()
+                .endObject().string();
+
+        DocumentMapper mapper = parser.parse(mapping);
+        assertEquals(mapping, serialize(mapper));
+
+        Mapper update = parse(mapper, parser, XContentFactory.jsonBuilder().startObject().field("foo", "bar").field("bar", "baz").endObject());
+        assertNotNull(update);
+        // original mapping not modified
+        assertEquals(mapping, serialize(mapper));
+        // but we have an update
+        assertEquals(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+                // foo is NOT in the update
+                .startObject("bar").field("type", "string").endObject()
+                .endObject().endObject().string(), serialize(update));
+    }
+
+    public void testIntroduceTwoFields() throws Exception {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").endObject().endObject()
+                .endObject().string();
+
+        DocumentMapper mapper = parser.parse(mapping);
+        assertEquals(mapping, serialize(mapper));
+
+        Mapper update = parse(mapper, parser, XContentFactory.jsonBuilder().startObject().field("foo", "bar").field("bar", "baz").endObject());
+        assertNotNull(update);
+        // original mapping not modified
+        assertEquals(mapping, serialize(mapper));
+        // but we have an update
+        assertEquals(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+                .startObject("bar").field("type", "string").endObject()
+                .startObject("foo").field("type", "string").endObject()
+                .endObject().endObject().string(), serialize(update));
+    }
+
+    public void testObject() throws Exception {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").endObject().endObject()
+                .endObject().string();
+
+        DocumentMapper mapper = parser.parse(mapping);
+        assertEquals(mapping, serialize(mapper));
+
+        Mapper update = parse(mapper, parser, XContentFactory.jsonBuilder().startObject().startObject("foo").startObject("bar").field("baz", "foo").endObject().endObject().endObject());
+        assertNotNull(update);
+        // original mapping not modified
+        assertEquals(mapping, serialize(mapper));
+        // but we have an update
+        assertEquals(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+                .startObject("foo").startObject("properties").startObject("bar").startObject("properties").startObject("baz").field("type", "string").endObject().endObject().endObject().endObject().endObject()
+                .endObject().endObject().endObject().string(), serialize(update));
+    }
+
+    public void testArray() throws Exception {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").endObject().endObject()
+                .endObject().string();
+
+        DocumentMapper mapper = parser.parse(mapping);
+        assertEquals(mapping, serialize(mapper));
+
+        Mapper update = parse(mapper, parser, XContentFactory.jsonBuilder().startObject().startArray("foo").value("bar").value("baz").endArray().endObject());
+        assertNotNull(update);
+        // original mapping not modified
+        assertEquals(mapping, serialize(mapper));
+        // but we have an update
+        assertEquals(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+                .startObject("foo").field("type", "string").endObject()
+                .endObject().endObject().endObject().string(), serialize(update));
+    }
+
+    public void testInnerDynamicMapping() throws Exception {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type") .startObject("properties")
+                .startObject("foo").field("type", "object").endObject()
+                .endObject().endObject().endObject().string();
+        
+        DocumentMapper mapper = parser.parse(mapping);
+        assertEquals(mapping, serialize(mapper));
+
+        Mapper update = parse(mapper, parser, XContentFactory.jsonBuilder().startObject().startObject("foo").startObject("bar").field("baz", "foo").endObject().endObject().endObject());
+        assertNotNull(update);
+        // original mapping not modified
+        assertEquals(mapping, serialize(mapper));
+        // but we have an update
+        assertEquals(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+                .startObject("foo").startObject("properties").startObject("bar").startObject("properties").startObject("baz").field("type", "string").endObject().endObject().endObject().endObject().endObject()
+                .endObject().endObject().endObject().string(), serialize(update));
+    }
+
+    public void testComplexArray() throws Exception {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").endObject().endObject()
+                .endObject().string();
+
+        DocumentMapper mapper = parser.parse(mapping);
+        assertEquals(mapping, serialize(mapper));
+
+        Mapper update = parse(mapper, parser, XContentFactory.jsonBuilder().startObject().startArray("foo")
+                .startObject().field("bar", "baz").endObject()
+                .startObject().field("baz", 3).endObject()
+                .endArray().endObject());
+        assertEquals(mapping, serialize(mapper));
+        assertEquals(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+                .startObject("foo").startObject("properties")
+                .startObject("bar").field("type", "string").endObject()
+                .startObject("baz").field("type", "long").endObject()
+                .endObject().endObject()
+                .endObject().endObject().endObject().string(), serialize(update));
     }
 }

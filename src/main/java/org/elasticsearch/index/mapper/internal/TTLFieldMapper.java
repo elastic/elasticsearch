@@ -175,7 +175,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException, MapperParsingException {
+    public Mapper parse(ParseContext context) throws IOException, MapperParsingException {
         if (context.sourceToParse().ttl() < 0) { // no ttl has been provided externally
             long ttl;
             if (context.parser().currentToken() == XContentParser.Token.VALUE_STRING) {
@@ -188,6 +188,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
             }
             context.sourceToParse().ttl(ttl);
         }
+        return null;
     }
 
     @Override

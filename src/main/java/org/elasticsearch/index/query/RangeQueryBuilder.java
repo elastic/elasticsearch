@@ -428,4 +428,10 @@ public class RangeQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
         builder.endObject();
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return RangeQueryParser.NAME;
+    }
+
 }

@@ -42,7 +42,7 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
     private Boolean disableCoord;
 
     private String minimumShouldMatch;
-    
+
     private Boolean adjustPureNegative;
 
     private String queryName;
@@ -126,7 +126,7 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
     public boolean hasClauses() {
         return !(mustClauses.isEmpty() && shouldClauses.isEmpty() && mustNotClauses.isEmpty());
     }
-    
+
     /**
      * If a boolean query contains only negative ("must not") clauses should the
      * BooleanQuery be enhanced with a {@link MatchAllDocsQuery} in order to act
@@ -185,4 +185,7 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
         }
     }
 
+    final protected String parserName() {
+        return BoolQueryParser.NAME;
+    }
 }

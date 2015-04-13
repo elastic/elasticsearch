@@ -42,7 +42,7 @@ import org.elasticsearch.index.search.shape.ShapeFetchService;
 
 import java.io.IOException;
 
-public class GeoShapeQueryParser implements QueryParser {
+public class GeoShapeQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "geo_shape";
 
@@ -181,7 +181,7 @@ public class GeoShapeQueryParser implements QueryParser {
     public void setFetchService(@Nullable ShapeFetchService fetchService) {
         this.fetchService = fetchService;
     }
-    
+
     public static SpatialArgs getArgs(ShapeBuilder shape, ShapeRelation relation) {
         switch(relation) {
         case DISJOINT:
@@ -192,7 +192,7 @@ public class GeoShapeQueryParser implements QueryParser {
             return new SpatialArgs(SpatialOperation.IsWithin, shape.build());
         default:
             throw new ElasticsearchIllegalArgumentException("");
-        
+
         }
     }
 }

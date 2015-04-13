@@ -433,4 +433,8 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
         }
         builder.endObject();
     }
+
+    final protected String parserName() {
+        return QueryStringQueryParser.NAME;
+    }
 }

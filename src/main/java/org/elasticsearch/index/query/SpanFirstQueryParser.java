@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  *
  */
-public class SpanFirstQueryParser implements QueryParser {
+public class SpanFirstQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "span_first";
 

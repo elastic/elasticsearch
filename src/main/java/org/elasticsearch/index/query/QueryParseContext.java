@@ -156,7 +156,7 @@ public class QueryParseContext {
     public XContentParser parser() {
         return parser;
     }
-    
+
     public IndexQueryParserService indexQueryParserService() {
         return indexQueryParser;
     }
@@ -285,8 +285,11 @@ public class QueryParseContext {
         innerHitsContext.addInnerHitDefinition(name, context);
     }
 
-    @Nullable
-    public Query parseInnerQuery() throws IOException, QueryParsingException {
+    /**
+     * @return a new QueryBuilder based on the current state of the parser
+     * @throws IOException
+     */
+    public QueryBuilder parseInnerQueryBuilder() throws IOException {
         // move to START object
         XContentParser.Token token;
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
@@ -310,22 +313,45 @@ public class QueryParseContext {
         if (queryParser == null) {
             throw new QueryParsingException(index, "No query registered for [" + queryName + "]");
         }
-        Query result = queryParser.parse(this);
+        QueryBuilder result = queryParser.fromXContent(this);
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
             // if we are at END_OBJECT, move to the next one...
             parser.nextToken();
         }
-        if (result instanceof NoCacheQuery) {
+        return result;
+    }
+
+    /**
+     * @deprecated replaced by calls to parseInnerQueryBuilder() and checkCachable() for the resulting queries
+     */
+    @Nullable
+    @Deprecated
+    public Query parseInnerQuery() throws IOException, QueryParsingException {
+        QueryBuilder builder = parseInnerQueryBuilder();
+
+        Query result = builder.toQuery(this);
+        checkCachable(result);
+        return result;
+    }
+
+    /**
+     * Checks if the given lucene query should be cached or wrapped, sets flags in this QueryParseContext accordingly
+     * @param query
+     */
+    void checkCachable(Query query) {
+        if (query instanceof NoCacheQuery) {
             propagateNoCache = true;
         }
-        if (CustomQueryWrappingFilter.shouldUseCustomQueryWrappingFilter(result)) {
+        if (CustomQueryWrappingFilter.shouldUseCustomQueryWrappingFilter(query)) {
             requireCustomQueryWrappingFilter = true;
-            // If later on, either directly or indirectly this query gets wrapped in a query filter it must never
-            // get cached even if a filter higher up the chain is configured to do this. This will happen, because
-            // the result filter will be instance of NoCacheFilter (CustomQueryWrappingFilter) which will in
+            // If later on, either directly or indirectly this query gets
+            // wrapped in a query filter it must never
+            // get cached even if a filter higher up the chain is configured to
+            // do this. This will happen, because
+            // the result filter will be instance of NoCacheFilter
+            // (CustomQueryWrappingFilter) which will in
             // #executeFilterParser() set propagateNoCache to true.
         }
-        return result;
     }
 
     @Nullable
@@ -481,4 +507,5 @@ public class QueryParseContext {
     public NestedScope nestedScope() {
         return nestedScope;
     }
+
 }

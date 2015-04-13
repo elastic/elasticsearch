@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -98,5 +99,9 @@ public class DisMaxQueryBuilder extends BaseQueryBuilder implements BoostableQue
         }
         builder.endArray();
         builder.endObject();
+    }
+
+    final protected String parserName() {
+        return DisMaxQueryParser.NAME;
     }
 }

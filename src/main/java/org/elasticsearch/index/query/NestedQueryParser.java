@@ -37,7 +37,7 @@ import org.elasticsearch.search.internal.SubSearchContext;
 
 import java.io.IOException;
 
-public class NestedQueryParser implements QueryParser {
+public class NestedQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "nested";
 

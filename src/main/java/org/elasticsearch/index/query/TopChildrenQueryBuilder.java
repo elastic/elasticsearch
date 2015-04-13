@@ -113,4 +113,9 @@ public class TopChildrenQueryBuilder extends BaseQueryBuilder implements Boostab
         }
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return TopChildrenQueryParser.NAME;
+    }
 }

@@ -69,4 +69,9 @@ public class SpanFirstQueryBuilder extends BaseQueryBuilder implements SpanQuery
         }
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return SpanFirstQueryParser.NAME;
+    }
 }

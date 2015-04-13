@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -197,5 +200,9 @@ public class CommonTermsQueryBuilder extends BaseQueryBuilder implements Boostab
 
         builder.endObject();
         builder.endObject();
+    }
+
+    final protected String parserName() {
+        return CommonTermsQueryParser.NAME;
     }
 }

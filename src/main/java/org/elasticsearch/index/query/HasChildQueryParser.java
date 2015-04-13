@@ -47,7 +47,7 @@ import static org.elasticsearch.index.query.QueryParserUtils.ensureNotDeleteByQu
 /**
  *
  */
-public class HasChildQueryParser implements QueryParser {
+public class HasChildQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "has_child";
 

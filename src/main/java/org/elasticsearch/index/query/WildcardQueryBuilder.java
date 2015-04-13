@@ -105,4 +105,9 @@ public class WildcardQueryBuilder extends BaseQueryBuilder implements MultiTermQ
         }
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return WildcardQueryParser.NAME;
+    }
 }

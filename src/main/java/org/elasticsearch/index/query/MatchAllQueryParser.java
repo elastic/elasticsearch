@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  *
  */
-public class MatchAllQueryParser implements QueryParser {
+public class MatchAllQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "match_all";
 

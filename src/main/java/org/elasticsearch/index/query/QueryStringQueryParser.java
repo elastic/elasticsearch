@@ -47,7 +47,7 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
 /**
  *
  */
-public class QueryStringQueryParser implements QueryParser {
+public class QueryStringQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "query_string";
     private static final ParseField FUZZINESS = Fuzziness.FIELD.withDeprecation("fuzzy_min_sim");

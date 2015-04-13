@@ -96,5 +96,9 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
         }
         builder.endObject();
     }
+
+    final protected String parserName() {
+        return HasParentQueryParser.NAME;
+    }
 }
 

@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.BooleanClause;
@@ -53,7 +54,7 @@ import static org.elasticsearch.index.mapper.Uid.createUidAsBytes;
 /**
  *
  */
-public class MoreLikeThisQueryParser implements QueryParser {
+public class MoreLikeThisQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "mlt";
     private MoreLikeThisFetchService fetchService = null;

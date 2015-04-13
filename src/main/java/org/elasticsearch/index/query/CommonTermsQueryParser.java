@@ -39,7 +39,7 @@ import java.io.IOException;
 /**
  *
  */
-public class CommonTermsQueryParser implements QueryParser {
+public class CommonTermsQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "common";
 

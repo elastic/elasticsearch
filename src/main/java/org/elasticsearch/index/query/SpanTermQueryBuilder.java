@@ -93,4 +93,9 @@ public class SpanTermQueryBuilder extends BaseQueryBuilder implements SpanQueryB
         }
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return SpanTermQueryParser.NAME;
+    }
 }

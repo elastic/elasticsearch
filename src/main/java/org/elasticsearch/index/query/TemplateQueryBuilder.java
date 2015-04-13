@@ -77,4 +77,9 @@ public class TemplateQueryBuilder extends BaseQueryBuilder {
         builder.field(TemplateQueryParser.PARAMS, vars);
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return TemplateQueryParser.NAME;
+    }
 }

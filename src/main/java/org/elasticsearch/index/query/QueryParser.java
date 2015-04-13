@@ -35,11 +35,27 @@ public interface QueryParser {
     String[] names();
 
     /**
-     * Parses the into a query from the current parser location. Will be at "START_OBJECT" location,
-     * and should end when the token is at the matching "END_OBJECT".
+     * Parses the into a query from the current parser location. Will be at
+     * "START_OBJECT" location, and should end when the token is at the matching
+     * "END_OBJECT".
      * <p/>
-     * Returns <tt>null</tt> if this query should be ignored in the context of the DSL.
+     * Returns <tt>null</tt> if this query should be ignored in the context of
+     * the DSL.
      */
     @Nullable
     Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException;
+
+    /**
+     * Create a new QueryBuilder from the query as XContent stored int the
+     * parseContext
+     *
+     * @param parseContext
+     *            the input parse context. The state on the parser contained in
+     *            this context will be changed as a side effect of this method
+     *            call
+     * @return the new QueryBuilder
+     * @throws IOException
+     * @throws QueryParsingException
+     */
+    QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException;
 }

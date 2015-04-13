@@ -37,7 +37,7 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
 /**
  *
  */
-public class BoolQueryParser implements QueryParser {
+public class BoolQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "bool";
 
@@ -62,7 +62,7 @@ public class BoolQueryParser implements QueryParser {
         List<BooleanClause> clauses = newArrayList();
         boolean adjustPureNegative = true;
         String queryName = null;
-        
+
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

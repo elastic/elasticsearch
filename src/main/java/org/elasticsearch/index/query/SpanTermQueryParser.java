@@ -33,7 +33,7 @@ import java.io.IOException;
 /**
  *
  */
-public class SpanTermQueryParser implements QueryParser {
+public class SpanTermQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "span_term";
 

@@ -190,4 +190,9 @@ public class TermsQueryBuilder extends BaseQueryBuilder implements BoostableQuer
 
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return TermsQueryParser.NAME;
+    }
 }

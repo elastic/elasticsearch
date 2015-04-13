@@ -69,7 +69,7 @@ import java.util.Map;
  * {@code fields} - fields to search, defaults to _all if not set, allows
  * boosting a field with ^n
  */
-public class SimpleQueryStringParser implements QueryParser {
+public class SimpleQueryStringParser extends BaseQueryParserTemp {
 
     public static final String NAME = "simple_query_string";
 

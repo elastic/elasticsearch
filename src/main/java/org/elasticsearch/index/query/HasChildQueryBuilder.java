@@ -141,4 +141,8 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
         }
         builder.endObject();
     }
+
+    final protected String parserName() {
+        return HasChildQueryParser.NAME;
+    }
 }

@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  * Query parser for JSON Queries.
  */
-public class WrapperQueryParser implements QueryParser {
+public class WrapperQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "wrapper";
 

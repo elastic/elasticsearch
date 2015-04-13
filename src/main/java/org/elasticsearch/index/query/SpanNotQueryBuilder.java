@@ -119,4 +119,9 @@ public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBu
         }
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return SpanNotQueryParser.NAME;
+    }
 }

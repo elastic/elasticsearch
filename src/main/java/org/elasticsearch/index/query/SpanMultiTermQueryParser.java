@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  *
  */
-public class SpanMultiTermQueryParser implements QueryParser {
+public class SpanMultiTermQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "span_multi";
     public static final String MATCH_NAME = "match";

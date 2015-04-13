@@ -33,7 +33,7 @@ import static com.google.common.collect.Lists.newArrayList;
 /**
  *
  */
-public class DisMaxQueryParser implements QueryParser {
+public class DisMaxQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "dis_max";
 

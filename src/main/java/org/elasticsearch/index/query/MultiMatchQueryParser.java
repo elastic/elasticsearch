@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.Maps;
+
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
@@ -36,7 +37,7 @@ import java.util.Map;
 /**
  * Same as {@link MatchQueryParser} but has support for multiple fields.
  */
-public class MultiMatchQueryParser implements QueryParser {
+public class MultiMatchQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "multi_match";
 

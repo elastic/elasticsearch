@@ -20,29 +20,18 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
 /**
- * Base interface for all classes producing lucene queries.
- * Supports conversion to BytesReference and creation of lucene Query objects.
+ * Class used during the query parsers refactoring.
+ * All query parsers that have a refactored "fromXContent" method can be changed to extend this instead of {@link BaseQueryParserTemp}.
+ * Keeps old {@link QueryParser#parse(QueryParseContext)} method as a stub delegating to
+ * {@link QueryParser#fromXContent(QueryParseContext)} and {@link QueryBuilder#toQuery(QueryParseContext)}}
  */
-public interface QueryBuilder extends ToXContent {
+public abstract class BaseQueryParser implements QueryParser {
 
-    BytesReference buildAsBytes() throws ElasticsearchException;
-
-    BytesReference buildAsBytes(XContentType contentType) throws ElasticsearchException;
-
-    /**
-     * Create a {@link Query} based on this QueryBuilder
-     * @param parseContext additional information needed to construct the queries
-     * @return the {@link Query}
-     * @throws QueryParsingException
-     * @throws IOException
-     */
-    Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException;
+    public final Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        return fromXContent(parseContext).toQuery(parseContext);
+    }
 }

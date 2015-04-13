@@ -42,4 +42,8 @@ public class SpanMultiTermQueryBuilder extends BaseQueryBuilder implements SpanQ
         builder.endObject();
     }
 
+    @Override
+    protected String parserName() {
+        return SpanMultiTermQueryParser.NAME;
+    }
 }

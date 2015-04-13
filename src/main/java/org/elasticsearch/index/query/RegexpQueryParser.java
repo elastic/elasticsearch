@@ -36,7 +36,7 @@ import java.io.IOException;
 /**
  *
  */
-public class RegexpQueryParser implements QueryParser {
+public class RegexpQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "regexp";
 

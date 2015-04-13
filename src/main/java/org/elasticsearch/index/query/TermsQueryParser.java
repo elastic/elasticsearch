@@ -44,7 +44,7 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
  * }
  * </pre>
  */
-public class TermsQueryParser implements QueryParser {
+public class TermsQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "terms";
 

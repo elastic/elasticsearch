@@ -35,7 +35,7 @@ import java.io.IOException;
 /**
  *
  */
-public class FuzzyQueryParser implements QueryParser {
+public class FuzzyQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "fuzzy";
     private static final Fuzziness DEFAULT_FUZZINESS = Fuzziness.AUTO;

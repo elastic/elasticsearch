@@ -33,7 +33,7 @@ import java.io.IOException;
 /**
  *
  */
-public class ConstantScoreQueryParser implements QueryParser {
+public class ConstantScoreQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "constant_score";
 

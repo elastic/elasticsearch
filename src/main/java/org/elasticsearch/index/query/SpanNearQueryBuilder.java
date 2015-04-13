@@ -105,4 +105,9 @@ public class SpanNearQueryBuilder extends BaseQueryBuilder implements SpanQueryB
         }
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return SpanNearQueryParser.NAME;
+    }
 }

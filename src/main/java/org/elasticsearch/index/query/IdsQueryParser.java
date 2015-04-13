@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+
 import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
@@ -39,7 +40,7 @@ import java.util.List;
 /**
  *
  */
-public class IdsQueryParser implements QueryParser {
+public class IdsQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "ids";
 

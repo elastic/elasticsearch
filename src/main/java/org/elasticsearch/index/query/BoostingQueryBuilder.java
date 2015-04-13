@@ -95,4 +95,8 @@ public class BoostingQueryBuilder extends BaseQueryBuilder implements BoostableQ
         }
         builder.endObject();
     }
+
+    final protected String parserName() {
+        return BoostingQueryParser.NAME;
+    }
 }

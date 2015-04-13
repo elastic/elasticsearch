@@ -74,4 +74,9 @@ public class SpanOrQueryBuilder extends BaseQueryBuilder implements SpanQueryBui
         }
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return SpanOrQueryParser.NAME;
+    }
 }

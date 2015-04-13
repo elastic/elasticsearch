@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -35,7 +36,7 @@ public class ConstantScoreQueryBuilder extends BaseQueryBuilder implements Boost
     private final QueryBuilder queryBuilder;
 
     private float boost = -1;
-    
+
 
     /**
      * A query that wraps a filter and simply returns a constant score equal to the
@@ -56,7 +57,7 @@ public class ConstantScoreQueryBuilder extends BaseQueryBuilder implements Boost
     public ConstantScoreQueryBuilder(QueryBuilder queryBuilder) {
         this.filterBuilder = null;
         this.queryBuilder = queryBuilder;
-    }    
+    }
 
     /**
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
@@ -77,12 +78,16 @@ public class ConstantScoreQueryBuilder extends BaseQueryBuilder implements Boost
             queryBuilder.toXContent(builder, params);
         } else {
             builder.field("filter");
-            filterBuilder.toXContent(builder, params);  
+            filterBuilder.toXContent(builder, params);
         }
-        
+
         if (boost != -1) {
             builder.field("boost", boost);
         }
         builder.endObject();
+    }
+
+    final protected String parserName() {
+        return ConstantScoreQueryParser.NAME;
     }
 }

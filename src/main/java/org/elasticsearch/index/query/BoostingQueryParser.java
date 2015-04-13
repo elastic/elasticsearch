@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  *
  */
-public class BoostingQueryParser implements QueryParser {
+public class BoostingQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "boosting";
 

@@ -42,7 +42,7 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
     private Integer prefixLength;
 
     private Integer maxExpansions;
-    
+
     //LUCENE 4 UPGRADE  we need a testcase for this + documentation
     private Boolean transpositions;
 
@@ -83,7 +83,7 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
         this.maxExpansions = maxExpansions;
         return this;
     }
-    
+
     public FuzzyQueryBuilder transpositions(boolean transpositions) {
       this.transpositions = transpositions;
       return this;
@@ -126,5 +126,9 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
             builder.endObject();
         }
         builder.endObject();
+    }
+
+    final protected String parserName() {
+        return FuzzyQueryParser.NAME;
     }
 }

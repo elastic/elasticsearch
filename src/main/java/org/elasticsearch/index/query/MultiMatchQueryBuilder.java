@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -404,4 +405,7 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
         builder.endObject();
     }
 
+    final protected String parserName() {
+        return MultiMatchQueryParser.NAME;
+    }
 }

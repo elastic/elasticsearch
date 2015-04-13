@@ -24,7 +24,11 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
@@ -437,5 +441,9 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
             builder.field("include", include);
         }
         builder.endObject();
+    }
+
+    final protected String parserName() {
+        return MoreLikeThisQueryParser.NAME;
     }
 }

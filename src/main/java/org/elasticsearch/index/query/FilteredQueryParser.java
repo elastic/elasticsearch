@@ -41,7 +41,7 @@ import java.io.IOException;
 /**
  *
  */
-public class FilteredQueryParser implements QueryParser {
+public class FilteredQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "filtered";
 

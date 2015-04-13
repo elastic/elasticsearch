@@ -103,4 +103,8 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements BoostableQueryB
         }
         builder.endObject();
     }
+
+    final protected String parserName() {
+        return IdsQueryParser.NAME;
+    }
 }

@@ -19,39 +19,35 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 /**
- * A query that matches on all documents.
- *
- *
+ * Temporary wrapper for keeping pre-parsed lucene query in a QueryBuilder field in nested queries.
+ * Can be removed after query refactoring is done.
  */
-public class MatchAllQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<MatchAllQueryBuilder> {
+public class QueryWrappingQueryBuilder extends BaseQueryBuilder {
 
-    private float boost = -1;
+    private Query query;
 
-    /**
-     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
-     * weightings) have their score multiplied by the boost provided.
-     */
-    @Override
-    public MatchAllQueryBuilder boost(float boost) {
-        this.boost = boost;
-        return this;
+    public QueryWrappingQueryBuilder(Query query) {
+        this.query = query;
     }
 
     @Override
-    public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(MatchAllQueryParser.NAME);
-        if (boost != -1) {
-            builder.field("boost", boost);
-        }
-        builder.endObject();
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        return this.query;
     }
 
     final protected String parserName() {
-        return MatchAllQueryParser.NAME;
+        // this should not be called since we overwrite BaseQueryBuilder#toQuery() in this class
+        throw new UnsupportedOperationException();
     }
 }

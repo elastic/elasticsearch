@@ -124,4 +124,9 @@ public class RegexpQueryBuilder extends BaseQueryBuilder implements BoostableQue
         }
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return RegexpQueryParser.NAME;
+    }
 }

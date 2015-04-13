@@ -21,7 +21,6 @@ package org.elasticsearch.index.query.functionscore;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BaseQueryBuilder;
 import org.elasticsearch.index.query.BoostableQueryBuilder;
@@ -226,5 +225,10 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
     public FunctionScoreQueryBuilder setMinScore(float minScore) {
         this.minScore = minScore;
         return this;
+    }
+
+    @Override
+    protected String parserName() {
+        return FunctionScoreQueryParser.NAME;
     }
 }

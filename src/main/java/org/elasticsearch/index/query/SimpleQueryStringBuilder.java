@@ -198,4 +198,9 @@ public class SimpleQueryStringBuilder extends BaseQueryBuilder {
 
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return SimpleQueryStringParser.NAME;
+    }
 }

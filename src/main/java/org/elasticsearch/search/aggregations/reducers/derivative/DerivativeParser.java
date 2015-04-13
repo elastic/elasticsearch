@@ -19,15 +19,9 @@
 
 package org.elasticsearch.search.aggregations.reducers.derivative;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.rounding.DateTimeUnit;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
@@ -38,23 +32,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
+
 public class DerivativeParser implements Reducer.Parser {
 
     public static final ParseField FORMAT = new ParseField("format");
     public static final ParseField GAP_POLICY = new ParseField("gap_policy");
-    public static final ParseField UNITS = new ParseField("units");
-
-    private final ImmutableMap<String, DateTimeUnit> dateFieldUnits;
-
-    public DerivativeParser() {
-        dateFieldUnits = MapBuilder.<String, DateTimeUnit> newMapBuilder().put("year", DateTimeUnit.YEAR_OF_CENTURY)
-                .put("1y", DateTimeUnit.YEAR_OF_CENTURY).put("quarter", DateTimeUnit.QUARTER).put("1q", DateTimeUnit.QUARTER)
-                .put("month", DateTimeUnit.MONTH_OF_YEAR).put("1M", DateTimeUnit.MONTH_OF_YEAR).put("week", DateTimeUnit.WEEK_OF_WEEKYEAR)
-                .put("1w", DateTimeUnit.WEEK_OF_WEEKYEAR).put("day", DateTimeUnit.DAY_OF_MONTH).put("1d", DateTimeUnit.DAY_OF_MONTH)
-                .put("hour", DateTimeUnit.HOUR_OF_DAY).put("1h", DateTimeUnit.HOUR_OF_DAY).put("minute", DateTimeUnit.MINUTES_OF_HOUR)
-                .put("1m", DateTimeUnit.MINUTES_OF_HOUR).put("second", DateTimeUnit.SECOND_OF_MINUTE)
-                .put("1s", DateTimeUnit.SECOND_OF_MINUTE).immutableMap();
-    }
 
     @Override
     public String type() {
@@ -67,7 +50,6 @@ public class DerivativeParser implements Reducer.Parser {
         String currentFieldName = null;
         String[] bucketsPaths = null;
         String format = null;
-        String units = null;
         GapPolicy gapPolicy = GapPolicy.IGNORE;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -80,8 +62,6 @@ public class DerivativeParser implements Reducer.Parser {
                     bucketsPaths = new String[] { parser.text() };
                 } else if (GAP_POLICY.match(currentFieldName)) {
                     gapPolicy = GapPolicy.parse(context, parser.text());
-                } else if (UNITS.match(currentFieldName)) {
-                    units = parser.text();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
                             + currentFieldName + "].");
@@ -113,20 +93,7 @@ public class DerivativeParser implements Reducer.Parser {
             formatter = ValueFormat.Patternable.Number.format(format).formatter();
         }
 
-        long xAxisUnits = -1;
-        if (units != null) {
-            DateTimeUnit dateTimeUnit = dateFieldUnits.get(units);
-            if (dateTimeUnit != null) {
-                xAxisUnits = dateTimeUnit.field().getDurationField().getUnitMillis();
-            } else {
-                TimeValue timeValue = TimeValue.parseTimeValue(units, null);
-                if (timeValue != null) {
-                    xAxisUnits = timeValue.getMillis();
-                }
-            }
-        }
-
-        return new DerivativeReducer.Factory(reducerName, bucketsPaths, formatter, gapPolicy, xAxisUnits);
+        return new DerivativeReducer.Factory(reducerName, bucketsPaths, formatter, gapPolicy);
     }
 
 }

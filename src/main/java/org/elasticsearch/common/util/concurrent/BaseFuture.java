@@ -20,7 +20,6 @@
 package org.elasticsearch.common.util.concurrent;
 
 import com.google.common.annotations.Beta;
-
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.transport.Transports;
 
@@ -92,7 +91,7 @@ public abstract class BaseFuture<V> implements Future<V> {
     @Override
     public V get(long timeout, TimeUnit unit) throws InterruptedException,
             TimeoutException, ExecutionException {
-        Transports.assertNotTransportThread("Blocking operation");
+        assert timeout <= 0 || Transports.assertNotTransportThread("Blocking operation");
         return sync.get(unit.toNanos(timeout));
     }
 
@@ -114,7 +113,7 @@ public abstract class BaseFuture<V> implements Future<V> {
      */
     @Override
     public V get() throws InterruptedException, ExecutionException {
-        Transports.assertNotTransportThread("Blocking operation");
+        assert Transports.assertNotTransportThread("Blocking operation");
         return sync.get();
     }
 

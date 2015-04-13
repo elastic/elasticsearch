@@ -226,6 +226,11 @@ def generate_index(client, version, index_name):
         }
       }
     }
+    mappings['auto_boost'] = {
+      '_all': {
+        'auto_boost': True
+      }
+    }
 
   client.indices.create(index=index_name, body={
       'settings': {

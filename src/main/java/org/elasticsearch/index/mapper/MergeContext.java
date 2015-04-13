@@ -19,41 +19,33 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.Lists;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
  *
  */
-public class MergeContext {
+public abstract class MergeContext {
 
-    private final DocumentMapper documentMapper;
     private final DocumentMapper.MergeFlags mergeFlags;
-    private final List<String> mergeConflicts = Lists.newArrayList();
 
-    public MergeContext(DocumentMapper documentMapper, DocumentMapper.MergeFlags mergeFlags) {
-        this.documentMapper = documentMapper;
+    public MergeContext(DocumentMapper.MergeFlags mergeFlags) {
         this.mergeFlags = mergeFlags;
     }
 
-    public DocumentMapper docMapper() {
-        return documentMapper;
-    }
+    public abstract void addFieldMappers(List<FieldMapper<?>> fieldMappers);
+
+    public abstract void addObjectMappers(Collection<ObjectMapper> objectMappers);
 
     public DocumentMapper.MergeFlags mergeFlags() {
         return mergeFlags;
     }
 
-    public void addConflict(String mergeFailure) {
-        mergeConflicts.add(mergeFailure);
-    }
+    public abstract void addConflict(String mergeFailure);
 
-    public boolean hasConflicts() {
-        return !mergeConflicts.isEmpty();
-    }
+    public abstract boolean hasConflicts();
 
-    public String[] buildConflicts() {
-        return mergeConflicts.toArray(new String[mergeConflicts.size()]);
-    }
+    public abstract String[] buildConflicts();
 }

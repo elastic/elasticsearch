@@ -515,7 +515,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public Mapper parse(ParseContext context) throws IOException {
         ContentPath.Type origPathType = context.path().pathType();
         context.path().pathType(pathType);
         context.path().add(name());
@@ -565,6 +565,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
 
         context.path().remove();
         context.path().pathType(origPathType);
+        return null;
     }
 
     private void parseGeohashField(ParseContext context, String geohash) throws IOException {

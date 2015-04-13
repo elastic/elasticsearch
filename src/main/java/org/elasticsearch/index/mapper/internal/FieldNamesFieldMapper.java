@@ -184,8 +184,9 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public Mapper parse(ParseContext context) throws IOException {
         // we parse in post parse
+        return null;
     }
 
     @Override

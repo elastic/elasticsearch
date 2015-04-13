@@ -147,18 +147,35 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
         if (logger.isDebugEnabled()) {
             logger.debug("using node location [{}], local_node_id [{}]", nodePaths, localNodeId);
         }
-        if (logger.isTraceEnabled()) {
+
+        // We do some I/O in here, so skip it if INFO is not enabled:
+        if (logger.isInfoEnabled()) {
             StringBuilder sb = new StringBuilder("node data locations details:\n");
             for (Path file : nodePaths) {
-                sb.append(" -> ")
-                        .append(file.toAbsolutePath())
-                        .append(", free_space [")
-                        .append(new ByteSizeValue(Files.getFileStore(file).getUnallocatedSpace()))
+                // NOTE: FSDirectory.open creates the directory up above so it will exist here:
+                sb.append(" -> ").append(file.toAbsolutePath());
+                try {
+                    FileStore fileStore = getFileStore(file);
+                    boolean spins = IOUtils.spins(file);
+                    sb.append(", free_space [")
+                        .append(new ByteSizeValue(fileStore.getUnallocatedSpace()))
                         .append("], usable_space [")
-                        .append(new ByteSizeValue(Files.getFileStore(file).getUsableSpace()))
-                        .append("]\n");
+                        .append(new ByteSizeValue(fileStore.getUsableSpace()))
+                        .append("], total_space [")
+                        .append(new ByteSizeValue(fileStore.getTotalSpace()))
+                        .append("], spins? [")
+                        .append(spins ? "possibly" : "no")
+                        .append("], mount [")
+                        .append(fileStore)
+                        .append("], type [")
+                        .append(fileStore.type())
+                        .append(']');
+                } catch (Exception e) {
+                    sb.append(", ignoring exception gathering filesystem details: " + e);
+                }
+                sb.append('\n');
             }
-            logger.trace(sb.toString());
+            logger.info(sb.toString());
         }
 
         this.nodeIndicesPaths = new Path[nodePaths.length];
@@ -167,7 +184,32 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
         }
     }
 
+    // NOTE: poached from Lucene's IOUtils:
 
+    // Files.getFileStore(Path) useless here!
+    // don't complain, just try it yourself
+    static FileStore getFileStore(Path path) throws IOException {
+        FileStore store = Files.getFileStore(path);
+        String mount = getMountPoint(store);
+
+        // find the "matching" FileStore from system list, it's the one we want.
+        for (FileStore fs : path.getFileSystem().getFileStores()) {
+            if (mount.equals(getMountPoint(fs))) {
+                return fs;
+            }
+        }
+
+        // fall back to crappy one we got from Files.getFileStore
+        return store;    
+    }
+
+    // NOTE: poached from Lucene's IOUtils:
+
+    // these are hacks that are not guaranteed
+    static String getMountPoint(FileStore store) {
+        String desc = store.toString();
+        return desc.substring(0, desc.lastIndexOf('(') - 1);
+    }
 
     /**
      * Deletes a shard data directory iff the shards locks were successfully acquired.

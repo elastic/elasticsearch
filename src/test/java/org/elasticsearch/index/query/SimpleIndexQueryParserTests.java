@@ -25,7 +25,6 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.queries.*;
-import org.apache.lucene.sandbox.queries.FuzzyLikeThisQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.*;
 import org.apache.lucene.spatial.prefix.IntersectsPrefixTreeFilter;
@@ -1282,20 +1281,6 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
-    public void testLimitFilter() throws Exception {
-        IndexQueryParserService queryParser = queryParser();
-        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/limit-filter.json");
-        Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        assertThat(filteredQuery.getFilter(), instanceOf(LimitFilter.class));
-        assertThat(((LimitFilter) filteredQuery.getFilter()).getLimit(), equalTo(2));
-
-        assertThat(filteredQuery.getQuery(), instanceOf(TermQuery.class));
-        assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
-    }
-
-    @Test
     public void testTermFilterQuery() throws Exception {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/term-filter.json");
@@ -1793,74 +1778,6 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
             strings += term;
         }
         return strings;
-    }
-
-    @Test
-    public void testFuzzyLikeThisBuilder() throws Exception {
-        IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(fuzzyLikeThisQuery("name.first", "name.last").likeText("something").maxQueryTerms(12)).query();
-        assertThat(parsedQuery, instanceOf(FuzzyLikeThisQuery.class));
-        parsedQuery = queryParser.parse(fuzzyLikeThisQuery("name.first", "name.last").likeText("something").maxQueryTerms(12).fuzziness(Fuzziness.build("4"))).query();
-        assertThat(parsedQuery, instanceOf(FuzzyLikeThisQuery.class));
-
-        Query parsedQuery1 = queryParser.parse(fuzzyLikeThisQuery("name.first", "name.last").likeText("something").maxQueryTerms(12).fuzziness(Fuzziness.build("4.0"))).query();
-        assertThat(parsedQuery1, instanceOf(FuzzyLikeThisQuery.class));
-        assertThat(parsedQuery, equalTo(parsedQuery1));
-
-        try {
-            queryParser.parse(fuzzyLikeThisQuery("name.first", "name.last").likeText("something").maxQueryTerms(12).fuzziness(Fuzziness.build("4.1"))).query();
-            fail("exception expected - fractional edit distance");
-        } catch (ElasticsearchException ex) {
-           //
-        }
-
-        try {
-            queryParser.parse(fuzzyLikeThisQuery("name.first", "name.last").likeText("something").maxQueryTerms(12).fuzziness(Fuzziness.build("-" + between(1, 100)))).query();
-            fail("exception expected - negative edit distance");
-        } catch (ElasticsearchException ex) {
-            //
-        }
-        String[] queries = new String[] {
-                "{\"flt\": {\"fields\": [\"comment\"], \"like_text\": \"FFFdfds\",\"fuzziness\": \"4\"}}",
-                "{\"flt\": {\"fields\": [\"comment\"], \"like_text\": \"FFFdfds\",\"fuzziness\": \"4.00000000\"}}",
-                "{\"flt\": {\"fields\": [\"comment\"], \"like_text\": \"FFFdfds\",\"fuzziness\": \"4.\"}}",
-                "{\"flt\": {\"fields\": [\"comment\"], \"like_text\": \"FFFdfds\",\"fuzziness\": 4}}",
-                "{\"flt\": {\"fields\": [\"comment\"], \"like_text\": \"FFFdfds\",\"fuzziness\": 4.0}}"
-        };
-        int iters = scaledRandomIntBetween(5, 100);
-        for (int i = 0; i < iters; i++) {
-            parsedQuery = queryParser.parse(new BytesArray((String) randomFrom(queries))).query();
-            parsedQuery1 = queryParser.parse(new BytesArray((String) randomFrom(queries))).query();
-            assertThat(parsedQuery1, instanceOf(FuzzyLikeThisQuery.class));
-            assertThat(parsedQuery, instanceOf(FuzzyLikeThisQuery.class));
-            assertThat(parsedQuery, equalTo(parsedQuery1));
-        }
-    }
-
-    @Test
-    public void testFuzzyLikeThis() throws Exception {
-        IndexQueryParserService queryParser = queryParser();
-        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/fuzzyLikeThis.json");
-        Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FuzzyLikeThisQuery.class));
-//        FuzzyLikeThisQuery fuzzyLikeThisQuery = (FuzzyLikeThisQuery) parsedQuery;
-    }
-
-    @Test
-    public void testFuzzyLikeFieldThisBuilder() throws Exception {
-        IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(fuzzyLikeThisFieldQuery("name.first").likeText("something").maxQueryTerms(12)).query();
-        assertThat(parsedQuery, instanceOf(FuzzyLikeThisQuery.class));
-//        FuzzyLikeThisQuery fuzzyLikeThisQuery = (FuzzyLikeThisQuery) parsedQuery;
-    }
-
-    @Test
-    public void testFuzzyLikeThisField() throws Exception {
-        IndexQueryParserService queryParser = queryParser();
-        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/fuzzyLikeThisField.json");
-        Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FuzzyLikeThisQuery.class));
-//        FuzzyLikeThisQuery fuzzyLikeThisQuery = (FuzzyLikeThisQuery) parsedQuery;
     }
 
     @Test

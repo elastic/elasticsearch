@@ -87,6 +87,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
 
     @After
     public void tearDown() throws Exception {
+        logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
         super.tearDown();
         cleanup(resetNodeAfterTest());
     }
@@ -230,7 +231,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
      * It is useful to ensure that all action on the cluster have finished and all shards that were currently relocating
      * are now allocated and started.
      */
-    public ClusterHealthStatus  ensureGreen(String... indices) {
+    public ClusterHealthStatus ensureGreen(String... indices) {
         return ensureGreen(TimeValue.timeValueSeconds(30), indices);
     }
 

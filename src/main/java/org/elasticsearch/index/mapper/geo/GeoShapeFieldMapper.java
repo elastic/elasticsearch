@@ -41,6 +41,8 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
@@ -259,6 +261,50 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
             }
         } catch (Exception e) {
             throw new MapperParsingException("failed to parse [" + names.fullName() + "]", e);
+        }
+    }
+
+    @Override
+    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+        super.merge(mergeWith, mergeContext);
+        if (!this.getClass().equals(mergeWith.getClass())) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different field type");
+            return;
+        }
+        final GeoShapeFieldMapper fieldMergeWith = (GeoShapeFieldMapper) mergeWith;
+        if (!mergeContext.mergeFlags().simulate()) {
+            final PrefixTreeStrategy mergeWithStrategy = fieldMergeWith.defaultStrategy;
+
+            // prevent user from changing strategies
+            if (!(this.defaultStrategy.getClass().equals(mergeWithStrategy.getClass()))) {
+                mergeContext.addConflict("mapper [" + names.fullName() + "] has different strategy");
+            }
+
+            final SpatialPrefixTree grid = this.defaultStrategy.getGrid();
+            final SpatialPrefixTree mergeGrid = mergeWithStrategy.getGrid();
+
+            // prevent user from changing trees (changes encoding)
+            if (!grid.getClass().equals(mergeGrid.getClass())) {
+                mergeContext.addConflict("mapper [" + names.fullName() + "] has different tree");
+            }
+
+            // TODO we should allow this, but at the moment levels is used to build bookkeeping variables
+            // in lucene's SpatialPrefixTree implementations, need a patch to correct that first
+            if (grid.getMaxLevels() != mergeGrid.getMaxLevels()) {
+                mergeContext.addConflict("mapper [" + names.fullName() + "] has different tree_levels or precision");
+            }
+
+            // bail if there were merge conflicts
+            if (mergeContext.hasConflicts()) {
+                return;
+            }
+
+            // change distance error percent
+            this.defaultStrategy.setDistErrPct(mergeWithStrategy.getDistErrPct());
+
+            // change orientation - this is allowed because existing dateline spanning shapes
+            // have already been unwound and segmented
+            this.shapeOrientation = fieldMergeWith.shapeOrientation;
         }
     }
 

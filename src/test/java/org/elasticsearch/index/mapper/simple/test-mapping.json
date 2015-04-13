@@ -6,19 +6,7 @@
         date_formats:["yyyy-MM-dd", "dd-MM-yyyy"],
         dynamic:false,
         enabled:true,
-        _id:{
-            name:"_id",
-            index_name:"_id"
-        },
         _source:{
-            name:"_source"
-        },
-        _type:{
-            name:"_type"
-        },
-        _boost:{
-            name:"_boost",
-            null_value:2.0
         },
         properties:{
             name:{
@@ -42,8 +30,7 @@
                         properties:{
                             location:{
                                 type:"string",
-                                store:"yes",
-                                index_name:"firstLocation"
+                                store:"yes"
                             }
                         }
                     },
@@ -68,8 +55,7 @@
                 type:"boolean"
             },
             dogs:{
-                type:"string",
-                index_name:"dog"
+                type:"string"
             },
             complex:{
                 type:"object",

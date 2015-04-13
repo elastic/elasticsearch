@@ -39,6 +39,8 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+
 /**
  */
 public class NodeService extends AbstractComponent {
@@ -132,7 +134,7 @@ public class NodeService extends AbstractComponent {
         );
     }
 
-    public NodeStats stats() {
+    public NodeStats stats() throws IOException {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
         return new NodeStats(discovery.localNode(), System.currentTimeMillis(),

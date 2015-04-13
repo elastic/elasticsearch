@@ -1,0 +1,17 @@
+{
+    "filtered": {
+        "query": {
+            "term": {
+                "name.first": "shay"
+            }
+        },
+        "filter": {
+            "regexp": {
+                "name.first": {
+		    "value": "s.*y",
+		    "max_determinized_states": 6000
+		}
+            }
+        }
+    }
+}

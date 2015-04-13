@@ -143,9 +143,7 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
         analyzer = in.readOptionalString();
         tokenizer = in.readOptionalString();
         tokenFilters = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-            charFilters = in.readStringArray();
-        }
+        charFilters = in.readStringArray();
         field = in.readOptionalString();
     }
 
@@ -156,9 +154,7 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
         out.writeOptionalString(analyzer);
         out.writeOptionalString(tokenizer);
         out.writeStringArray(tokenFilters);
-        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            out.writeStringArray(charFilters);
-        }
+        out.writeStringArray(charFilters);
         out.writeOptionalString(field);
     }
 }

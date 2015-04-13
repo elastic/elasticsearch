@@ -123,6 +123,7 @@ public class CategoryContextMapping extends ContextMapping {
 
         if (fieldName != null) {
             mapping.fieldName(fieldName.toString());
+            config.remove(FIELD_FIELDNAME);
         }
 
         if (defaultValues != null) {
@@ -133,6 +134,7 @@ public class CategoryContextMapping extends ContextMapping {
             } else {
                 mapping.addDefaultValue(defaultValues.toString());
             }
+            config.remove(FIELD_MISSING);
         }
 
         return mapping.build();
@@ -276,6 +278,7 @@ public class CategoryContextMapping extends ContextMapping {
             this.values = values;
         }
 
+        @Override
         public Automaton toAutomaton() {
             List<Automaton> automatons = new ArrayList<>();
             for (CharSequence value : values) {

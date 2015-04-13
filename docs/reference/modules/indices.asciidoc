@@ -46,6 +46,9 @@ The following settings can be set to manage the recovery policy:
 `indices.recovery.concurrent_streams`::
     defaults to `3`.
 
+`indices.recovery.concurrent_small_file_streams`::
+    defaults to `2`.
+
 `indices.recovery.file_chunk_size`::
     defaults to `512kb`.
 
@@ -59,18 +62,5 @@ The following settings can be set to manage the recovery policy:
     defaults to `true`.
 
 `indices.recovery.max_bytes_per_sec`::
-    defaults to `20mb`.
-
-[float]
-[[throttling]]
-=== Store level throttling
-
-The following settings can be set to control the store throttling:
-
-[horizontal]
-`indices.store.throttle.type`::
-    could be `merge` (default), `none` or `all`. See <<index-modules-store>>.
-
-`indices.store.throttle.max_bytes_per_sec`::
-    defaults to `20mb`.
+    defaults to `40mb`.
 

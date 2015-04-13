@@ -1,9 +1,6 @@
 ---
 "TTL":
 
- - skip:
-      features: gtelte
-
  - do:
       indices.create:
           index:    test_1
@@ -12,7 +9,6 @@
                 test:
                   _ttl:
                     enabled:  1
-                    store:    yes
                     default:  10s
  - do:
       cluster.health:

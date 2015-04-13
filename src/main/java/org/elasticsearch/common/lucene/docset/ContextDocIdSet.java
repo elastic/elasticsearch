@@ -19,18 +19,18 @@
 
 package org.elasticsearch.common.lucene.docset;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 
 /**
- * A holder for a {@link DocIdSet} and the {@link AtomicReaderContext} it is associated with.
+ * A holder for a {@link DocIdSet} and the {@link LeafReaderContext} it is associated with.
  */
 public class ContextDocIdSet {
 
-    public final AtomicReaderContext context;
+    public final LeafReaderContext context;
     public final DocIdSet docSet;
 
-    public ContextDocIdSet(AtomicReaderContext context, DocIdSet docSet) {
+    public ContextDocIdSet(LeafReaderContext context, DocIdSet docSet) {
         this.context = context;
         this.docSet = docSet;
     }

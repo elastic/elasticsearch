@@ -27,10 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 
@@ -39,8 +36,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestMasterAction extends AbstractCatAction {
 
     @Inject
-    public RestMasterAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestMasterAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_cat/master", this);
     }
 

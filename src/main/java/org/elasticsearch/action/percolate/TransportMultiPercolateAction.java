@@ -136,7 +136,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
 
     }
 
-    private class ASyncAction {
+    private final class ASyncAction {
 
         final ActionListener<MultiPercolateResponse> finalListener;
         final Map<ShardId, TransportShardMultiPercolateAction.Request> requestsByShard;
@@ -188,7 +188,9 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
                         continue;
                     }
 
-                    responsesByItemAndShard.set(slot, new AtomicReferenceArray(shards.size()));
+                    // The shard id is used as index in the atomic ref array, so we need to find out how many shards there are regardless of routing:
+                    int numShards = clusterService.operationRouting().searchShardsCount(clusterState, percolateRequest.indices(), concreteIndices, null, null);
+                    responsesByItemAndShard.set(slot, new AtomicReferenceArray(numShards));
                     expectedOperationsPerItem.set(slot, new AtomicInteger(shards.size()));
                     for (ShardIterator shard : shards) {
                         ShardId shardId = shard.shardId();
@@ -244,7 +246,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
 
         @SuppressWarnings("unchecked")
         void onShardResponse(ShardId shardId, TransportShardMultiPercolateAction.Response response) {
-            logger.debug("{} Percolate shard response", shardId);
+            logger.trace("{} Percolate shard response", shardId);
             try {
                 for (TransportShardMultiPercolateAction.Response.Item item : response.items()) {
                     AtomicReferenceArray shardResults = responsesByItemAndShard.get(item.slot());

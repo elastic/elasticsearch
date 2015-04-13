@@ -40,7 +40,7 @@ import java.io.ByteArrayOutputStream;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.queryString;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -209,7 +209,9 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testExplainWithFilteredAlias() throws Exception {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias1").filter(FilterBuilders.termFilter("field2", "value2"))));
+        assertAcked(prepareCreate("test")
+                .addMapping("test", "field2", "type=string")
+                .addAlias(new Alias("alias1").filter(FilterBuilders.termFilter("field2", "value2"))));
         ensureGreen("test");
 
         client().prepareIndex("test", "test", "1").setSource("field1", "value1", "field2", "value1").get();
@@ -225,6 +227,7 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
     @Test
     public void testExplainWithFilteredAliasFetchSource() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("test", "field2", "type=string")
                 .addAlias(new Alias("alias1").filter(FilterBuilders.termFilter("field2", "value2"))));
         ensureGreen("test");
 
@@ -259,7 +262,7 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
 
         refresh();
 
-        ExplainResponse explainResponse = client().prepareExplain("test", "type", "1").setQuery(queryString("past:[now-2M/d TO now/d]")).get();
+        ExplainResponse explainResponse = client().prepareExplain("test", "type", "1").setQuery(queryStringQuery("past:[now-2M/d TO now/d]")).get();
         assertThat(explainResponse.isExists(), equalTo(true));
         assertThat(explainResponse.isMatch(), equalTo(true));
     }

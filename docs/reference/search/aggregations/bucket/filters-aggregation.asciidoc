@@ -1,8 +1,6 @@
 [[search-aggregations-bucket-filters-aggregation]]
 === Filters Aggregation
 
-coming[1.4.0]
-
 Defines a multi bucket aggregations where each bucket is associated with a
 filter. Each bucket will collect all documents that match its associated
 filter.

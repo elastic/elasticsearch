@@ -1,6 +1,6 @@
 {
   "cat.recovery": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cat-recovery.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-recovery.html",
     "methods": ["GET"],
     "url": {
       "path": "/_cat/recovery",
@@ -33,7 +33,7 @@
         "v": {
           "type": "boolean",
           "description": "Verbose mode. Display column headers",
-          "default": false
+          "default": true
         }
       }
     },

@@ -44,8 +44,8 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestClearIndicesCacheAction extends BaseRestHandler {
 
     @Inject
-    public RestClearIndicesCacheAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestClearIndicesCacheAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(POST, "/_cache/clear", this);
         controller.registerHandler(POST, "/{index}/_cache/clear", this);
 

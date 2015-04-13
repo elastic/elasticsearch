@@ -9,7 +9,6 @@
                 test:
                   _timestamp:
                     enabled:  1
-                    store:    yes
  - do:
       cluster.health:
           wait_for_status: yellow

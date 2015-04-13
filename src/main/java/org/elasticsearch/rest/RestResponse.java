@@ -43,11 +43,6 @@ public abstract class RestResponse implements HasRestHeaders {
     public abstract String contentType();
 
     /**
-     * Can the content byte[] be used only with this thread (<tt>false</tt>), or by any thread (<tt>true</tt>).
-     */
-    public abstract boolean contentThreadSafe();
-
-    /**
      * The response content. Note, if the content is {@link org.elasticsearch.common.lease.Releasable} it
      * should automatically be released when done by the channel sending it.
      */
@@ -90,6 +85,7 @@ public abstract class RestResponse implements HasRestHeaders {
     /**
      * Returns custom headers that have been added, or null if none have been set.
      */
+    @Override
     @Nullable
     public Map<String, List<String>> getHeaders() {
         return customHeaders;

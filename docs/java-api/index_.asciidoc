@@ -45,8 +45,7 @@ String json = "{" +
 [[using-map]]
 ==== Using Map
 
-Map is a key:values pair collection. It represents very well a JSON
-structure:
+Map is a key:values pair collection. It represents a JSON structure:
 
 [source,java]
 --------------------------------------------------
@@ -87,7 +86,7 @@ import com.fasterxml.jackson.databind.*;
 ObjectMapper mapper = new ObjectMapper(); // create once, reuse
 
 // generate json
-String json = mapper.writeValueAsString(yourbeaninstance);
+byte[] json = mapper.writeValueAsBytes(yourbeaninstance);
 --------------------------------------------------
 
 
@@ -173,19 +172,8 @@ String _type = response.getType();
 String _id = response.getId();
 // Version (if it's the first time you index this document, you will get: 1)
 long _version = response.getVersion();
---------------------------------------------------
-
-If you use percolation while indexing, `IndexResponse` object will give
-you a percolator that have matched:
-
-[source,java]
---------------------------------------------------
-IndexResponse response = client.prepareIndex("twitter", "tweet", "1")
-        .setSource(json)
-        .execute()
-        .actionGet();
-
-List<String> matches = response.matches();
+// isCreated() is true if the document is a new one, false if it has been updated
+boolean created = response.isCreated();
 --------------------------------------------------
 
 For more information on the index operation, check out the REST

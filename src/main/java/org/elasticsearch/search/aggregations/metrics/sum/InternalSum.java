@@ -18,15 +18,19 @@
  */
 package org.elasticsearch.search.aggregations.metrics.sum;
 
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 /**
 *
@@ -52,9 +56,10 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
 
     InternalSum() {} // for serialization
 
-    InternalSum(String name, double sum) {
-        super(name);
+    InternalSum(String name, double sum, @Nullable ValueFormatter formatter, Map<String, Object> metaData) {
+        super(name, metaData);
         this.sum = sum;
+        this.valueFormatter = formatter;
     }
 
     @Override
@@ -62,6 +67,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
         return sum;
     }
 
+    @Override
     public double getValue() {
         return sum;
     }
@@ -72,24 +78,22 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalSum reduce(ReduceContext reduceContext) {
+    public InternalSum reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double sum = 0;
-        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+        for (InternalAggregation aggregation : aggregations) {
             sum += ((InternalSum) aggregation).sum;
         }
-        return new InternalSum(name, sum);
+        return new InternalSum(name, sum, valueFormatter, getMetaData());
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         valueFormatter = ValueFormatterStreams.readOptional(in);
         sum = in.readDouble();
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         ValueFormatterStreams.writeOptional(valueFormatter, out);
         out.writeDouble(sum);
     }

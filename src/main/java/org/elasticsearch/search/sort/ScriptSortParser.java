@@ -19,30 +19,30 @@
 
 package org.elasticsearch.search.sort;
 
-import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
-import org.elasticsearch.index.mapper.ObjectMappers;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.query.ParsedFilter;
+import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
+import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -66,8 +66,7 @@ public class ScriptSortParser implements SortParser {
         Map<String, Object> params = null;
         boolean reverse = false;
         MultiValueMode sortMode = null;
-        String nestedPath = null;
-        Filter nestedFilter = null;
+        NestedInnerQueryParseSupport nestedHelper = null;
 
         XContentParser.Token token;
         String currentName = parser.currentName();
@@ -79,8 +78,10 @@ public class ScriptSortParser implements SortParser {
                 if ("params".equals(currentName)) {
                     params = parser.map();
                 } else if ("nested_filter".equals(currentName) || "nestedFilter".equals(currentName)) {
-                    ParsedFilter parsedFilter = context.queryParserService().parseInnerFilter(parser);
-                    nestedFilter = parsedFilter == null ? null : parsedFilter.filter();
+                    if (nestedHelper == null) {
+                        nestedHelper = new NestedInnerQueryParseSupport(parser, context);
+                    }
+                    nestedHelper.filter();
                 }
             } else if (token.isValue()) {
                 if ("reverse".equals(currentName)) {
@@ -103,7 +104,10 @@ public class ScriptSortParser implements SortParser {
                 } else if ("mode".equals(currentName)) {
                     sortMode = MultiValueMode.fromString(parser.text());
                 } else if ("nested_path".equals(currentName) || "nestedPath".equals(currentName)) {
-                    nestedPath = parser.text();
+                    if (nestedHelper == null) {
+                        nestedHelper = new NestedInnerQueryParseSupport(parser, context);
+                    }
+                    nestedHelper.setPath(parser.text());
                 }
             }
         }
@@ -114,7 +118,7 @@ public class ScriptSortParser implements SortParser {
         if (type == null) {
             throw new SearchParseException(context, "_script sorting requires setting the type of the script");
         }
-        final SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, params);
+        final SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, ScriptContext.Standard.SEARCH, params);
 
         if (STRING_SORT_TYPE.equals(type) && (sortMode == MultiValueMode.SUM || sortMode == MultiValueMode.AVG)) {
             throw new SearchParseException(context, "type [string] doesn't support mode [" + sortMode + "]");
@@ -125,24 +129,14 @@ public class ScriptSortParser implements SortParser {
         }
 
         // If nested_path is specified, then wrap the `fieldComparatorSource` in a `NestedFieldComparatorSource`
-        ObjectMapper objectMapper;
         final Nested nested;
-        if (nestedPath != null) {
-            ObjectMappers objectMappers = context.mapperService().objectMapper(nestedPath);
-            if (objectMappers == null) {
-                throw new ElasticsearchIllegalArgumentException("failed to find nested object mapping for explicit nested path [" + nestedPath + "]");
-            }
-            objectMapper = objectMappers.mapper();
-            if (!objectMapper.nested().isNested()) {
-                throw new ElasticsearchIllegalArgumentException("mapping for explicit nested path is not mapped as nested: [" + nestedPath + "]");
-            }
-
-            FixedBitSetFilter rootDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE);
-            FixedBitSetFilter innerDocumentsFilter;
-            if (nestedFilter != null) {
-                innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(nestedFilter);
+        if (nestedHelper != null && nestedHelper.getPath() != null) {
+            BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE);
+            Filter innerDocumentsFilter;
+            if (nestedHelper.filterFound()) {
+                innerDocumentsFilter = context.filterCache().cache(nestedHelper.getInnerFilter(), null, context.queryParserService().autoFilterCachePolicy());
             } else {
-                innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(objectMapper.nestedTypeFilter());
+                innerDocumentsFilter = context.filterCache().cache(nestedHelper.getNestedObjectMapper().nestedTypeFilter(), null, context.queryParserService().autoFilterCachePolicy());
             }
             nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
         } else {
@@ -153,15 +147,16 @@ public class ScriptSortParser implements SortParser {
         switch (type) {
             case STRING_SORT_TYPE:
                 fieldComparatorSource = new BytesRefFieldComparatorSource(null, null, sortMode, nested) {
+                    LeafSearchScript leafScript;
                     @Override
-                    protected SortedBinaryDocValues getValues(AtomicReaderContext context) {
-                        searchScript.setNextReader(context);
+                    protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
+                        leafScript = searchScript.getLeafSearchScript(context);
                         final BinaryDocValues values = new BinaryDocValues() {
                             final BytesRefBuilder spare = new BytesRefBuilder();
                             @Override
                             public BytesRef get(int docID) {
-                                searchScript.setNextDocId(docID);
-                                spare.copyChars(searchScript.run().toString());
+                                leafScript.setDocument(docID);
+                                spare.copyChars(leafScript.run().toString());
                                 return spare.get();
                             }
                         };
@@ -169,28 +164,29 @@ public class ScriptSortParser implements SortParser {
                     }
                     @Override
                     protected void setScorer(Scorer scorer) {
-                        searchScript.setScorer(scorer);
+                        leafScript.setScorer(scorer);
                     }
                 };
                 break;
             case NUMBER_SORT_TYPE:
                 // TODO: should we rather sort missing values last?
                 fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, sortMode, nested) {
+                    LeafSearchScript leafScript;
                     @Override
-                    protected SortedNumericDoubleValues getValues(AtomicReaderContext context) {
-                        searchScript.setNextReader(context);
+                    protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
+                        leafScript = searchScript.getLeafSearchScript(context);
                         final NumericDoubleValues values = new NumericDoubleValues() {
                             @Override
                             public double get(int docID) {
-                                searchScript.setNextDocId(docID);
-                                return searchScript.runAsDouble();
+                                leafScript.setDocument(docID);
+                                return leafScript.runAsDouble();
                             }
                         };
                         return FieldData.singleton(values, null);
                     }
                     @Override
                     protected void setScorer(Scorer scorer) {
-                        searchScript.setScorer(scorer);
+                        leafScript.setScorer(scorer);
                     }
                 };
                 break;

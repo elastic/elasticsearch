@@ -19,7 +19,6 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -72,6 +71,8 @@ public class IndicesOptions {
     /**
      * @return Whether to ignore if a wildcard expression resolves to no concrete indices.
      *         The `_all` string or empty list of indices count as wildcard expressions too.
+     *         Also when an alias points to a closed index this option decides if no concrete indices
+     *         are allowed.
      */
     public boolean allowNoIndices() {
         return (id & ALLOW_NO_INDICES) != 0;
@@ -108,17 +109,7 @@ public class IndicesOptions {
     }
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_1_2_2)) {
-            out.write(id);
-        } else if (out.getVersion().before(Version.V_1_2_0)) {
-            // Target node doesn't know about the FORBID_CLOSED_INDICES and FORBID_ALIASES_TO_MULTIPLE_INDICES flags,
-            // so unset the bits starting from the 5th position.
-            out.write(id & 0xf);
-        } else {
-            // Target node doesn't know about the FORBID_CLOSED_INDICES flag,
-            // so unset the bits starting from the 6th position.
-            out.write(id & 0x1f);
-        }
+        out.write(id);
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {

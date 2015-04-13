@@ -38,6 +38,7 @@ public abstract class Scoping {
      * in(Scopes.NO_SCOPE)}, where the 'NO_SCOPE' has been explicitly applied.
      */
     public static final Scoping UNSCOPED = new Scoping() {
+        @Override
         public <V> V acceptVisitor(BindingScopingVisitor<V> visitor) {
             return visitor.visitNoScoping();
         }
@@ -52,12 +53,14 @@ public abstract class Scoping {
             return Scopes.NO_SCOPE.toString();
         }
 
+        @Override
         public void applyTo(ScopedBindingBuilder scopedBindingBuilder) {
             // do nothing
         }
     };
 
     public static final Scoping SINGLETON_ANNOTATION = new Scoping() {
+        @Override
         public <V> V acceptVisitor(BindingScopingVisitor<V> visitor) {
             return visitor.visitScopeAnnotation(Singleton.class);
         }
@@ -72,12 +75,14 @@ public abstract class Scoping {
             return Singleton.class.getName();
         }
 
+        @Override
         public void applyTo(ScopedBindingBuilder scopedBindingBuilder) {
             scopedBindingBuilder.in(Singleton.class);
         }
     };
 
     public static final Scoping SINGLETON_INSTANCE = new Scoping() {
+        @Override
         public <V> V acceptVisitor(BindingScopingVisitor<V> visitor) {
             return visitor.visitScope(Scopes.SINGLETON);
         }
@@ -92,12 +97,14 @@ public abstract class Scoping {
             return Scopes.SINGLETON.toString();
         }
 
+        @Override
         public void applyTo(ScopedBindingBuilder scopedBindingBuilder) {
             scopedBindingBuilder.in(Scopes.SINGLETON);
         }
     };
 
     public static final Scoping EAGER_SINGLETON = new Scoping() {
+        @Override
         public <V> V acceptVisitor(BindingScopingVisitor<V> visitor) {
             return visitor.visitEagerSingleton();
         }
@@ -112,6 +119,7 @@ public abstract class Scoping {
             return "eager singleton";
         }
 
+        @Override
         public void applyTo(ScopedBindingBuilder scopedBindingBuilder) {
             scopedBindingBuilder.asEagerSingleton();
         }
@@ -123,6 +131,7 @@ public abstract class Scoping {
         }
 
         return new Scoping() {
+            @Override
             public <V> V acceptVisitor(BindingScopingVisitor<V> visitor) {
                 return visitor.visitScopeAnnotation(scopingAnnotation);
             }
@@ -137,6 +146,7 @@ public abstract class Scoping {
                 return scopingAnnotation.getName();
             }
 
+            @Override
             public void applyTo(ScopedBindingBuilder scopedBindingBuilder) {
                 scopedBindingBuilder.in(scopingAnnotation);
             }
@@ -149,6 +159,7 @@ public abstract class Scoping {
         }
 
         return new Scoping() {
+            @Override
             public <V> V acceptVisitor(BindingScopingVisitor<V> visitor) {
                 return visitor.visitScope(scope);
             }
@@ -163,6 +174,7 @@ public abstract class Scoping {
                 return scope.toString();
             }
 
+            @Override
             public void applyTo(ScopedBindingBuilder scopedBindingBuilder) {
                 scopedBindingBuilder.in(scope);
             }

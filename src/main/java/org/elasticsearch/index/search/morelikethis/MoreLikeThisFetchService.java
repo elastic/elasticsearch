@@ -20,19 +20,18 @@
 package org.elasticsearch.index.search.morelikethis;
 
 import org.apache.lucene.index.Fields;
-import org.elasticsearch.action.get.MultiGetRequest;
-import org.elasticsearch.action.termvector.MultiTermVectorsItemResponse;
-import org.elasticsearch.action.termvector.MultiTermVectorsRequest;
-import org.elasticsearch.action.termvector.MultiTermVectorsResponse;
-import org.elasticsearch.action.termvector.TermVectorResponse;
+import org.elasticsearch.action.termvectors.*;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  *
@@ -47,23 +46,39 @@ public class MoreLikeThisFetchService extends AbstractComponent {
         this.client = client;
     }
 
-    public Fields[] fetch(List<MultiGetRequest.Item> items) throws IOException {
-        MultiTermVectorsRequest request = new MultiTermVectorsRequest();
-        for (MultiGetRequest.Item item : items) {
-            request.add(item);
-        }
+    public Fields[] fetch(MultiTermVectorsRequest requests) throws IOException {
+        return getFields(fetchResponse(requests), requests);
+    }
+
+    public MultiTermVectorsResponse fetchResponse(MultiTermVectorsRequest requests) throws IOException {
+        return client.multiTermVectors(requests).actionGet();
+    }
+
+    public static Fields[] getFields(MultiTermVectorsResponse responses, MultiTermVectorsRequest requests) throws IOException {
         List<Fields> likeFields = new ArrayList<>();
-        MultiTermVectorsResponse responses = client.multiTermVectors(request).actionGet();
+
+        Set<Item> items = new HashSet<>();
+        for (TermVectorsRequest request : requests) {
+            items.add(new Item(request.index(), request.type(), request.id()));
+        }
+
         for (MultiTermVectorsItemResponse response : responses) {
+            if (!hasResponseFromRequest(response, items)) {
+                continue;
+            }
             if (response.isFailed()) {
                 continue;
             }
-            TermVectorResponse getResponse = response.getResponse();
+            TermVectorsResponse getResponse = response.getResponse();
             if (!getResponse.isExists()) {
                 continue;
             }
             likeFields.add(getResponse.getFields());
         }
         return likeFields.toArray(Fields.EMPTY_ARRAY);
+    }
+
+    private static boolean hasResponseFromRequest(MultiTermVectorsItemResponse response, Set<Item> items) {
+        return items.contains(new Item(response.getIndex(), response.getType(), response.getId()));
     }
 }

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 
@@ -39,7 +39,7 @@ class BitSetCollector extends NoopCollector {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext context) throws IOException {
+    protected void doSetNextReader(LeafReaderContext context) throws IOException {
         docBase = context.docBase;
     }
 

@@ -37,7 +37,7 @@ public class LeastUsedDistributor extends AbstractDistributor {
     }
 
     @Override
-    public Directory doAny() {
+    public Directory doAny() throws IOException {
         Directory directory = null;
         long size = Long.MIN_VALUE;
         int sameSize = 0;

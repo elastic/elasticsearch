@@ -89,16 +89,8 @@ public final class MapperBuilders {
         return new ParentFieldMapper.Builder();
     }
 
-    public static BoostFieldMapper.Builder boost(String name) {
-        return new BoostFieldMapper.Builder(name);
-    }
-
     public static AllFieldMapper.Builder all() {
         return new AllFieldMapper.Builder();
-    }
-
-    public static AnalyzerMapper.Builder analyzer() {
-        return new AnalyzerMapper.Builder();
     }
 
     public static RootObjectMapper.Builder rootObject(String name) {

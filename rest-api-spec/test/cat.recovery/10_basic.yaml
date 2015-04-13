@@ -2,7 +2,8 @@
 "Test cat recovery output":
 
   - do:
-      cat.recovery: {}
+      cat.recovery:
+        v: false
 
   - match:
       $body: |
@@ -19,7 +20,8 @@
        cluster.health:
          wait_for_status: yellow
   - do:
-      cat.recovery: {}
+      cat.recovery:
+        v: false
 
   - match:
       $body: |
@@ -38,6 +40,11 @@
                 \d+\.\d+%   \s+                                 # files_percent
                 \d+         \s+                                 # bytes
                 \d+\.\d+%   \s+                                 # bytes_percent
+                \d+         \s+                                 # total_files
+                \d+         \s+                                 # total_bytes
+                \d+         \s+                                 # translog
+                -?\d+\.\d+% \s+                                 # translog_percent
+                -?\d+       \s+                                 # total_translog
                 \n
               )+
               $/

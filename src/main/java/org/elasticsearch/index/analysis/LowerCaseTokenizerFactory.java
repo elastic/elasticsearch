@@ -27,8 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.io.Reader;
-
 /**
  *
  */
@@ -40,7 +38,7 @@ public class LowerCaseTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Override
-    public Tokenizer create(Reader reader) {
-        return new LowerCaseTokenizer(version, reader);
+    public Tokenizer create() {
+        return new LowerCaseTokenizer();
     }
 }

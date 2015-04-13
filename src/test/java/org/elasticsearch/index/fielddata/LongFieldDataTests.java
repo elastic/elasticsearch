@@ -47,6 +47,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
         return new FieldDataType("long", getFieldDataSettings());
     }
 
+    @Override
     protected void add2SingleValuedDocumentsAndDeleteOneOfThem() throws Exception {
         Document d = new Document();
         d.add(new StringField("_id", "1", Field.Store.NO));
@@ -182,6 +183,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
         writer.addDocument(d);
     }
 
+    @Override
     protected void fillExtendedMvSet() throws Exception {
         Document d = new Document();
         d.add(new StringField("_id", "1", Field.Store.NO));
@@ -238,6 +240,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
     // TODO: use random() when migrating to Junit
     public static enum Data {
         SINGLE_VALUED_DENSE_ENUM {
+            @Override
             public int numValues(Random r) {
                 return 1;
             }
@@ -248,6 +251,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
             }
         },
         SINGLE_VALUED_DENSE_DATE {
+            @Override
             public int numValues(Random r) {
                 return 1;
             }
@@ -259,6 +263,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
             }
         },
         MULTI_VALUED_DATE {
+            @Override
             public int numValues(Random r) {
                 return r.nextInt(3);
             }
@@ -270,6 +275,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
             }
         },
         MULTI_VALUED_ENUM {
+            @Override
             public int numValues(Random r) {
                 return r.nextInt(3);
             }
@@ -280,6 +286,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
             }
         },
         SINGLE_VALUED_SPARSE_RANDOM {
+            @Override
             public int numValues(Random r) {
                 return r.nextFloat() < 0.01 ? 1 : 0;
             }
@@ -290,6 +297,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
             }
         },
         MULTI_VALUED_SPARSE_RANDOM {
+            @Override
             public int numValues(Random r) {
                 return r.nextFloat() < 0.01f ? 1 + r.nextInt(5) : 0;
             }
@@ -300,6 +308,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
             }
         },
         MULTI_VALUED_DENSE_RANDOM {
+            @Override
             public int numValues(Random r) {
                 return 1 + r.nextInt(3);
             }

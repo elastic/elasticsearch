@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.multifield;
 
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -32,12 +33,14 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.core.*;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
@@ -71,19 +74,19 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         assertThat(f.name(), equalTo("name"));
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.fieldType().stored(), equalTo(true));
-        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getField("name.indexed");
         assertThat(f.name(), equalTo("name.indexed"));
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.fieldType().stored(), equalTo(false));
-        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getField("name.not_indexed");
         assertThat(f.name(), equalTo("name.not_indexed"));
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.fieldType().stored(), equalTo(true));
-        assertThat(f.fieldType().indexed(), equalTo(false));
+        assertEquals(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getField("object1.multi1");
         assertThat(f.name(), equalTo("object1.multi1"));
@@ -94,32 +97,32 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
 
         assertThat(docMapper.mappers().fullName("name").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("name").mapper(), instanceOf(StringFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("name").mapper().fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().fullName("name").mapper().fieldType().indexOptions());
         assertThat(docMapper.mappers().fullName("name").mapper().fieldType().stored(), equalTo(true));
         assertThat(docMapper.mappers().fullName("name").mapper().fieldType().tokenized(), equalTo(true));
 
         assertThat(docMapper.mappers().fullName("name.indexed").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("name.indexed").mapper(), instanceOf(StringFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("name.indexed").mapper().fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().fullName("name.indexed").mapper().fieldType().indexOptions());
         assertThat(docMapper.mappers().fullName("name.indexed").mapper().fieldType().stored(), equalTo(false));
         assertThat(docMapper.mappers().fullName("name.indexed").mapper().fieldType().tokenized(), equalTo(true));
 
         assertThat(docMapper.mappers().fullName("name.not_indexed").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("name.not_indexed").mapper(), instanceOf(StringFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("name.not_indexed").mapper().fieldType().indexed(), equalTo(false));
+        assertEquals(IndexOptions.NONE, docMapper.mappers().fullName("name.not_indexed").mapper().fieldType().indexOptions());
         assertThat(docMapper.mappers().fullName("name.not_indexed").mapper().fieldType().stored(), equalTo(true));
         assertThat(docMapper.mappers().fullName("name.not_indexed").mapper().fieldType().tokenized(), equalTo(true));
 
         assertThat(docMapper.mappers().fullName("name.test1").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("name.test1").mapper(), instanceOf(StringFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("name.test1").mapper().fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().fullName("name.test1").mapper().fieldType().indexOptions());
         assertThat(docMapper.mappers().fullName("name.test1").mapper().fieldType().stored(), equalTo(true));
         assertThat(docMapper.mappers().fullName("name.test1").mapper().fieldType().tokenized(), equalTo(true));
         assertThat(docMapper.mappers().fullName("name.test1").mapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.EAGER));
 
         assertThat(docMapper.mappers().fullName("name.test2").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("name.test2").mapper(), instanceOf(TokenCountFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("name.test2").mapper().fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().fullName("name.test2").mapper().fieldType().indexOptions());
         assertThat(docMapper.mappers().fullName("name.test2").mapper().fieldType().stored(), equalTo(true));
         assertThat(docMapper.mappers().fullName("name.test2").mapper().fieldType().tokenized(), equalTo(false));
         assertThat(((TokenCountFieldMapper) docMapper.mappers().fullName("name.test2").mapper()).analyzer(), equalTo("simple"));
@@ -129,7 +132,7 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         assertThat(docMapper.mappers().fullName("object1.multi1").mapper(), instanceOf(DateFieldMapper.class));
         assertThat(docMapper.mappers().fullName("object1.multi1.string").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("object1.multi1.string").mapper(), instanceOf(StringFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("object1.multi1.string").mapper().fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().fullName("object1.multi1.string").mapper().fieldType().indexOptions());
         assertThat(docMapper.mappers().fullName("object1.multi1.string").mapper().fieldType().tokenized(), equalTo(false));
     }
 
@@ -159,20 +162,20 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         assertThat(f.name(), equalTo("name"));
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.fieldType().stored(), equalTo(true));
-        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getField("name.indexed");
         assertThat(f.name(), equalTo("name.indexed"));
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.fieldType().tokenized(), equalTo(true));
         assertThat(f.fieldType().stored(), equalTo(false));
-        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getField("name.not_indexed");
         assertThat(f.name(), equalTo("name.not_indexed"));
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.fieldType().stored(), equalTo(true));
-        assertThat(f.fieldType().indexed(), equalTo(false));
+        assertEquals(IndexOptions.NONE, f.fieldType().indexOptions());
     }
 
     @Test
@@ -187,29 +190,29 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         assertThat(f.name(), equalTo("name.indexed"));
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.fieldType().stored(), equalTo(false));
-        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getField("name.not_indexed");
         assertThat(f.name(), equalTo("name.not_indexed"));
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.fieldType().stored(), equalTo(true));
-        assertThat(f.fieldType().indexed(), equalTo(false));
+        assertEquals(IndexOptions.NONE, f.fieldType().indexOptions());
 
         assertThat(docMapper.mappers().fullName("name").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("name").mapper(), instanceOf(StringFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("name").mapper().fieldType().indexed(), equalTo(false));
+        assertEquals(IndexOptions.NONE, docMapper.mappers().fullName("name").mapper().fieldType().indexOptions());
         assertThat(docMapper.mappers().fullName("name").mapper().fieldType().stored(), equalTo(false));
         assertThat(docMapper.mappers().fullName("name").mapper().fieldType().tokenized(), equalTo(true));
 
         assertThat(docMapper.mappers().fullName("name.indexed").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("name.indexed").mapper(), instanceOf(StringFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("name.indexed").mapper().fieldType().indexed(), equalTo(true));
+        assertNotNull(docMapper.mappers().fullName("name.indexed").mapper().fieldType().indexOptions());
         assertThat(docMapper.mappers().fullName("name.indexed").mapper().fieldType().stored(), equalTo(false));
         assertThat(docMapper.mappers().fullName("name.indexed").mapper().fieldType().tokenized(), equalTo(true));
 
         assertThat(docMapper.mappers().fullName("name.not_indexed").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("name.not_indexed").mapper(), instanceOf(StringFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("name.not_indexed").mapper().fieldType().indexed(), equalTo(false));
+        assertEquals(IndexOptions.NONE, docMapper.mappers().fullName("name.not_indexed").mapper().fieldType().indexOptions());
         assertThat(docMapper.mappers().fullName("name.not_indexed").mapper().fieldType().stored(), equalTo(true));
         assertThat(docMapper.mappers().fullName("name.not_indexed").mapper().fieldType().tokenized(), equalTo(true));
 
@@ -218,29 +221,29 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         assertThat(f.name(), equalTo("age.not_stored"));
         assertThat(f.numericValue(), equalTo((Number) 28L));
         assertThat(f.fieldType().stored(), equalTo(false));
-        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getField("age.stored");
         assertThat(f.name(), equalTo("age.stored"));
         assertThat(f.numericValue(), equalTo((Number) 28L));
         assertThat(f.fieldType().stored(), equalTo(true));
-        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         assertThat(docMapper.mappers().fullName("age").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("age").mapper(), instanceOf(LongFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("age").mapper().fieldType().indexed(), equalTo(false));
+        assertEquals(IndexOptions.NONE, docMapper.mappers().fullName("age").mapper().fieldType().indexOptions());
         assertThat(docMapper.mappers().fullName("age").mapper().fieldType().stored(), equalTo(false));
         assertThat(docMapper.mappers().fullName("age").mapper().fieldType().tokenized(), equalTo(false));
 
         assertThat(docMapper.mappers().fullName("age.not_stored").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("age.not_stored").mapper(), instanceOf(LongFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("age.not_stored").mapper().fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().fullName("age.not_stored").mapper().fieldType().indexOptions());
         assertThat(docMapper.mappers().fullName("age.not_stored").mapper().fieldType().stored(), equalTo(false));
         assertThat(docMapper.mappers().fullName("age.not_stored").mapper().fieldType().tokenized(), equalTo(false));
 
         assertThat(docMapper.mappers().fullName("age.stored").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("age.stored").mapper(), instanceOf(LongFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("age.stored").mapper().fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().fullName("age.stored").mapper().fieldType().indexOptions());
         assertThat(docMapper.mappers().fullName("age.stored").mapper().fieldType().stored(), equalTo(true));
         assertThat(docMapper.mappers().fullName("age.stored").mapper().fieldType().tokenized(), equalTo(false));
     }
@@ -252,13 +255,13 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
 
         assertThat(docMapper.mappers().fullName("a").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("a").mapper(), instanceOf(StringFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("a").mapper().fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().fullName("a").mapper().fieldType().indexOptions());
         assertThat(docMapper.mappers().fullName("a").mapper().fieldType().stored(), equalTo(false));
         assertThat(docMapper.mappers().fullName("a").mapper().fieldType().tokenized(), equalTo(false));
 
         assertThat(docMapper.mappers().fullName("a.b").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("a.b").mapper(), instanceOf(GeoPointFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("a.b").mapper().fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().fullName("a.b").mapper().fieldType().indexOptions());
         assertThat(docMapper.mappers().fullName("a.b").mapper().fieldType().stored(), equalTo(false));
         assertThat(docMapper.mappers().fullName("a.b").mapper().fieldType().tokenized(), equalTo(false));
 
@@ -273,24 +276,24 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         assertThat(f.name(), equalTo("a"));
         assertThat(f.stringValue(), equalTo("-1,-1"));
         assertThat(f.fieldType().stored(), equalTo(false));
-        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getField("a.b");
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("a.b"));
         assertThat(f.stringValue(), equalTo("-1.0,-1.0"));
         assertThat(f.fieldType().stored(), equalTo(false));
-        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         assertThat(docMapper.mappers().fullName("b").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("b").mapper(), instanceOf(GeoPointFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("b").mapper().fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().fullName("b").mapper().fieldType().indexOptions());
         assertThat(docMapper.mappers().fullName("b").mapper().fieldType().stored(), equalTo(false));
         assertThat(docMapper.mappers().fullName("b").mapper().fieldType().tokenized(), equalTo(false));
 
         assertThat(docMapper.mappers().fullName("b.a").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("b.a").mapper(), instanceOf(StringFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("b.a").mapper().fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().fullName("b.a").mapper().fieldType().indexOptions());
         assertThat(docMapper.mappers().fullName("b.a").mapper().fieldType().stored(), equalTo(false));
         assertThat(docMapper.mappers().fullName("b.a").mapper().fieldType().tokenized(), equalTo(false));
 
@@ -305,14 +308,14 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         assertThat(f.name(), equalTo("b"));
         assertThat(f.stringValue(), equalTo("-1.0,-1.0"));
         assertThat(f.fieldType().stored(), equalTo(false));
-        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getField("b.a");
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("b.a"));
         assertThat(f.stringValue(), equalTo("-1,-1"));
         assertThat(f.fieldType().stored(), equalTo(false));
-        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         json = jsonBuilder().startObject()
                 .field("_id", "1")
@@ -325,14 +328,14 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         assertThat(f.name(), equalTo("b"));
         assertThat(f.stringValue(), equalTo("-1.0,-1.0"));
         assertThat(f.fieldType().stored(), equalTo(false));
-        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getFields("b")[1];
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("b"));
         assertThat(f.stringValue(), equalTo("-2.0,-2.0"));
         assertThat(f.fieldType().stored(), equalTo(false));
-        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getField("b.a");
         assertThat(f, notNullValue());
@@ -342,7 +345,7 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         // This happens if coordinates are specified as array and object.
         assertThat(f.stringValue(), equalTo("]"));
         assertThat(f.fieldType().stored(), equalTo(false));
-        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
     }
 
     @Test
@@ -352,13 +355,13 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
 
         assertThat(docMapper.mappers().fullName("a").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("a").mapper(), instanceOf(StringFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("a").mapper().fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().fullName("a").mapper().fieldType().indexOptions());
         assertThat(docMapper.mappers().fullName("a").mapper().fieldType().stored(), equalTo(false));
         assertThat(docMapper.mappers().fullName("a").mapper().fieldType().tokenized(), equalTo(false));
 
         assertThat(docMapper.mappers().fullName("a.b").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("a.b").mapper(), instanceOf(CompletionFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("a.b").mapper().fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().fullName("a.b").mapper().fieldType().indexOptions());
         assertThat(docMapper.mappers().fullName("a.b").mapper().fieldType().stored(), equalTo(false));
         assertThat(docMapper.mappers().fullName("a.b").mapper().fieldType().tokenized(), equalTo(true));
 
@@ -373,24 +376,24 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         assertThat(f.name(), equalTo("a"));
         assertThat(f.stringValue(), equalTo("complete me"));
         assertThat(f.fieldType().stored(), equalTo(false));
-        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getField("a.b");
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("a.b"));
         assertThat(f.stringValue(), equalTo("complete me"));
         assertThat(f.fieldType().stored(), equalTo(false));
-        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         assertThat(docMapper.mappers().fullName("b").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("b").mapper(), instanceOf(CompletionFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("b").mapper().fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().fullName("b").mapper().fieldType().indexOptions());
         assertThat(docMapper.mappers().fullName("b").mapper().fieldType().stored(), equalTo(false));
         assertThat(docMapper.mappers().fullName("b").mapper().fieldType().tokenized(), equalTo(true));
 
         assertThat(docMapper.mappers().fullName("b.a").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("b.a").mapper(), instanceOf(StringFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("b.a").mapper().fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().fullName("b.a").mapper().fieldType().indexOptions());
         assertThat(docMapper.mappers().fullName("b.a").mapper().fieldType().stored(), equalTo(false));
         assertThat(docMapper.mappers().fullName("b.a").mapper().fieldType().tokenized(), equalTo(false));
 
@@ -405,14 +408,14 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         assertThat(f.name(), equalTo("b"));
         assertThat(f.stringValue(), equalTo("complete me"));
         assertThat(f.fieldType().stored(), equalTo(false));
-        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getField("b.a");
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("b.a"));
         assertThat(f.stringValue(), equalTo("complete me"));
         assertThat(f.fieldType().stored(), equalTo(false));
-        assertThat(f.fieldType().indexed(), equalTo(true));
+        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
     }
 
     @Test
@@ -444,5 +447,38 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         for (String field : multiFields.keySet()) {
             assertThat(field, equalTo(multiFieldNames[i++]));
         }
+    }
+    
+    @Test
+    // The fielddata settings need to be the same after deserializing/re-serialsing, else unneccesary mapping sync's can be triggered
+    public void testMultiFieldsFieldDataSettingsInConsistentOrder() throws Exception {
+        final String MY_MULTI_FIELD = "multi_field";
+        
+        // Possible fielddata settings
+        Map<String, Object> possibleSettings = new TreeMap<String, Object>();
+        possibleSettings.put("filter.frequency.min", 1);
+        possibleSettings.put("filter.frequency.max", 2);
+        possibleSettings.put("filter.regex.pattern", ".*");
+        possibleSettings.put("format", "fst");
+        possibleSettings.put("loading", "eager");
+        possibleSettings.put("foo", "bar");
+        possibleSettings.put("zetting", "zValue");
+        possibleSettings.put("aSetting", "aValue");
+        
+        // Generate a mapping with the a random subset of possible fielddata settings
+        XContentBuilder builder = jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("my_field").field("type", "string").startObject("fields").startObject(MY_MULTI_FIELD)
+            .field("type", "string").startObject("fielddata");
+        String[] keys = possibleSettings.keySet().toArray(new String[]{});
+        Collections.shuffle(Arrays.asList(keys));
+        for(int i = randomIntBetween(0, possibleSettings.size()-1); i >= 0; --i)
+            builder.field(keys[i], possibleSettings.get(keys[i]));
+        builder.endObject().endObject().endObject().endObject().endObject().endObject().endObject();
+        
+        // Check the mapping remains identical when deserialed/re-serialsed 
+        final DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapper docMapper = parser.parse(builder.string());
+        DocumentMapper docMapper2 = parser.parse(docMapper.mappingSource().string());
+        assertThat(docMapper.mappingSource(), equalTo(docMapper2.mappingSource()));
     }
 }

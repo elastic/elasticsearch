@@ -52,6 +52,7 @@ public abstract class AbstractModule implements Module {
 
     Binder binder;
 
+    @Override
     public final synchronized void configure(Binder builder) {
         checkState(this.binder == null, "Re-entry is not allowed.");
 

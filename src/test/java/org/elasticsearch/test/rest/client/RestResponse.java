@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.rest.client;
 
+import org.elasticsearch.test.rest.Stash;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.test.rest.json.JsonPath;
 
@@ -44,7 +45,21 @@ public class RestResponse {
         return response.getReasonPhrase();
     }
 
-    public String getBody() {
+    /**
+     * Returns the body properly parsed depending on the content type.
+     * Might be a string or a json object parsed as a map.
+     */
+    public Object getBody() throws IOException {
+        if (isJson()) {
+            return parsedResponse().evaluate("");
+        }
+        return response.getBody();
+    }
+
+    /**
+     * Returns the body as a string
+     */
+    public String getBodyAsString() {
         return response.getBody();
     }
 
@@ -56,6 +71,13 @@ public class RestResponse {
      * Parses the response body as json and extracts a specific value from it (identified by the provided path)
      */
     public Object evaluate(String path) throws IOException {
+        return evaluate(path, Stash.EMPTY);
+    }
+
+    /**
+     * Parses the response body as json and extracts a specific value from it (identified by the provided path)
+     */
+    public Object evaluate(String path, Stash stash) throws IOException {
 
         if (response == null) {
             return null;
@@ -73,7 +95,12 @@ public class RestResponse {
             return null;
         }
 
-        return jsonPath.evaluate(path);
+        return jsonPath.evaluate(path, stash);
+    }
+
+    private boolean isJson() {
+        String contentType = response.getHeaders().get("Content-Type");
+        return contentType != null && contentType.contains("application/json");
     }
 
     private JsonPath parsedResponse() throws IOException {

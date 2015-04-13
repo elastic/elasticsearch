@@ -82,14 +82,17 @@ public class ConcurrentHashMapLong<T> implements ConcurrentMapLong<T> {
         return map.containsValue(value);
     }
 
+    @Override
     public T put(Long key, T value) {
         return map.put(key, value);
     }
 
+    @Override
     public T putIfAbsent(Long key, T value) {
         return map.putIfAbsent(key, value);
     }
 
+    @Override
     public void putAll(Map<? extends Long, ? extends T> m) {
         map.putAll(m);
     }
@@ -104,10 +107,12 @@ public class ConcurrentHashMapLong<T> implements ConcurrentMapLong<T> {
         return map.remove(key, value);
     }
 
+    @Override
     public boolean replace(Long key, T oldValue, T newValue) {
         return map.replace(key, oldValue, newValue);
     }
 
+    @Override
     public T replace(Long key, T value) {
         return map.replace(key, value);
     }

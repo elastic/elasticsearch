@@ -51,8 +51,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestExplainAction extends BaseRestHandler {
 
     @Inject
-    public RestExplainAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestExplainAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_explain", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_explain", this);
     }
@@ -66,11 +66,11 @@ public class RestExplainAction extends BaseRestHandler {
         String sourceString = request.param("source");
         String queryString = request.param("q");
         if (request.hasContent()) {
-            explainRequest.source(request.content(), request.contentUnsafe());
+            explainRequest.source(request.content());
         } else if (sourceString != null) {
-            explainRequest.source(new BytesArray(request.param("source")), false);
+            explainRequest.source(new BytesArray(request.param("source")));
         } else if (queryString != null) {
-            QueryStringQueryBuilder queryStringBuilder = QueryBuilders.queryString(queryString);
+            QueryStringQueryBuilder queryStringBuilder = QueryBuilders.queryStringQuery(queryString);
             queryStringBuilder.defaultField(request.param("df"));
             queryStringBuilder.analyzer(request.param("analyzer"));
             queryStringBuilder.analyzeWildcard(request.paramAsBoolean("analyze_wildcard", false));
@@ -106,10 +106,9 @@ public class RestExplainAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(ExplainResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                //null checks for bw comp, since we only added in 1.4 index, type and id to ExplainResponse
-                builder.field(Fields._INDEX, response.getIndex() != null ? response.getIndex() : explainRequest.index())
-                        .field(Fields._TYPE, response.getType() != null ? response.getType() : explainRequest.type())
-                        .field(Fields._ID, response.getId() != null ? response.getId() : explainRequest.id())
+                builder.field(Fields._INDEX, response.getIndex())
+                        .field(Fields._TYPE, response.getType())
+                        .field(Fields._ID, response.getId())
                         .field(Fields.MATCHED, response.isMatch());
 
                 if (response.hasExplanation()) {

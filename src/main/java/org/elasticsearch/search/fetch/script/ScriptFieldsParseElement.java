@@ -20,8 +20,8 @@
 package org.elasticsearch.search.fetch.script;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.*;
+import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -52,8 +52,8 @@ public class ScriptFieldsParseElement implements SearchParseElement {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 String fieldName = currentFieldName;
+                ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
                 String script = null;
-                String scriptLang = null;
                 ScriptService.ScriptType scriptType = null;
                 Map<String, Object> params = null;
                 boolean ignoreException = false;
@@ -63,23 +63,20 @@ public class ScriptFieldsParseElement implements SearchParseElement {
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         params = parser.map();
                     } else if (token.isValue()) {
-                        if ("script".equals(currentFieldName)) {
-                            script = parser.text();
-                            scriptType = ScriptService.ScriptType.INLINE;
-                        } else if ("script_id".equals(currentFieldName)) {
-                            script = parser.text();
-                            scriptType = ScriptService.ScriptType.INDEXED;
-                        } else if ("file".equals(currentFieldName)) {
-                            script = parser.text();
-                            scriptType = ScriptService.ScriptType.FILE;
-                        } else if ("lang".equals(currentFieldName)) {
-                            scriptLang = parser.text();
-                        } else if ("ignore_failure".equals(currentFieldName)) {
+                        if ("ignore_failure".equals(currentFieldName)) {
                             ignoreException = parser.booleanValue();
+                        } else {
+                            scriptParameterParser.token(currentFieldName, token, parser);
                         }
                     }
                 }
-                SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, params);
+
+                ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
+                if (scriptValue != null) {
+                    script = scriptValue.script();
+                    scriptType = scriptValue.scriptType();
+                }
+                SearchScript searchScript = context.scriptService().search(context.lookup(), scriptParameterParser.lang(), script, scriptType, ScriptContext.Standard.SEARCH, params);
                 context.scriptFields().add(new ScriptFieldsContext.ScriptField(fieldName, searchScript, ignoreException));
             }
         }

@@ -19,7 +19,7 @@ and  perform poorly.
 eg `30%` of node heap space, or an absolute value, eg `12GB`. Defaults
 to unbounded.
 
-|`indices.fielddata.cache.expire` |A time based setting that expires
+|`indices.fielddata.cache.expire` |experimental[] A time based setting that expires
 field data after a certain time of inactivity. Defaults to `-1`. For
 example, can be set to `5m` for a 5 minute expiry.
 |=======================================================================
@@ -27,8 +27,6 @@ example, can be set to `5m` for a 5 minute expiry.
 [float]
 [[circuit-breaker]]
 === Circuit Breaker
-
-coming[1.4.0,Prior to 1.4.0 there was only a single circuit breaker for fielddata]
 
 Elasticsearch contains multiple circuit breakers used to prevent operations from
 causing an OutOfMemoryError. Each breaker specifies a limit for how much memory
@@ -47,7 +45,7 @@ settings API.
 [[fielddata-circuit-breaker]]
 ==== Field data circuit breaker
 The field data circuit breaker allows Elasticsearch to estimate the amount of
-memory a field will required to be loaded into memory. It can then prevent the
+memory a field will require to be loaded into memory. It can then prevent the
 field data loading by raising an exception. By default the limit is configured
 to 60% of the maximum JVM heap. It can be configured with the following
 parameters:
@@ -59,17 +57,9 @@ parameters:
     A constant that all field data estimations are multiplied with to determine a
     final estimation. Defaults to 1.03
 
-`indices.fielddata.breaker.limit`::
-    deprecated[1.4.0,Replaced by `indices.breaker.fielddata.limit`]
-
-`indices.fielddata.breaker.overhead`::
-    deprecated[1.4.0,Replaced by `indices.breaker.fielddata.overhead`]
-
 [float]
 [[request-circuit-breaker]]
 ==== Request circuit breaker
-
-coming[1.4.0]
 
 The request circuit breaker allows Elasticsearch to prevent per-request data
 structures (for example, memory used for calculating aggregations during a
@@ -138,7 +128,7 @@ field data format.
 `doc_values`::
     Computes and stores field data data-structures on disk at indexing time.
     Lowers memory usage but only works on non-analyzed strings (`index`: `no` or
-    `not_analyzed`) and doesn't support <<field-data-filtering,filtering>>.
+    `not_analyzed`).
 
 [float]
 ==== Numeric field data types
@@ -148,7 +138,6 @@ field data format.
 
 `doc_values`::
     Computes and stores field data data-structures on disk at indexing time.
-    Doesn't support <<field-data-filtering,filtering>>.
 
 [float]
 ==== Geo point field data types
@@ -161,8 +150,6 @@ field data format.
 
 [float]
 ==== Global ordinals
-
-added[1.2.0]
 
 Global ordinals is a data-structure on top of field data, that maintains an
 incremental numbering for all the terms in field data in a lexicographic order.
@@ -278,7 +265,8 @@ to reload the fielddata using the new filters.
 
 The frequency filter allows you to only load terms whose frequency falls
 between a `min` and `max` value, which can be expressed an absolute
-number or as a percentage (eg `0.01` is `1%`). Frequency is calculated
+number (when the number is bigger than 1.0) or as a percentage
+(eg `0.01` is `1%` and `1.0` is `100%`). Frequency is calculated
 *per segment*. Percentages are based on the number of docs which have a
 value for the field, as opposed to all docs in the segment.
 

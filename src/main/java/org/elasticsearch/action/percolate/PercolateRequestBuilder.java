@@ -214,15 +214,7 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
      * Raw variant of {@link #setSource(PercolateSourceBuilder)}
      */
     public PercolateRequestBuilder setSource(BytesReference source) {
-        request.source(source, false);
-        return this;
-    }
-
-    /**
-     * Raw variant of {@link #setSource(PercolateSourceBuilder)}
-     */
-    public PercolateRequestBuilder setSource(BytesReference source, boolean unsafe) {
-        request.source(source, unsafe);
+        request.source(source);
         return this;
     }
 
@@ -239,14 +231,6 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
      */
     public PercolateRequestBuilder setSource(byte[] source, int offset, int length) {
         request.source(source, offset, length);
-        return this;
-    }
-
-    /**
-     * Raw variant of {@link #setSource(PercolateSourceBuilder)}
-     */
-    public PercolateRequestBuilder setSource(byte[] source, int offset, int length, boolean unsafe) {
-        request.source(source, offset, length, unsafe);
         return this;
     }
 

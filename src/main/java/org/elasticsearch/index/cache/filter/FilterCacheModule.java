@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.cache.filter;
 
+import org.apache.lucene.search.FilterCachingPolicy;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.settings.Settings;
@@ -44,5 +45,10 @@ public class FilterCacheModule extends AbstractModule {
         bind(FilterCache.class)
                 .to(settings.getAsClass(FilterCacheSettings.FILTER_CACHE_TYPE, WeightedFilterCache.class, "org.elasticsearch.index.cache.filter.", "FilterCache"))
                 .in(Scopes.SINGLETON);
+        // the filter cache is a node-level thing, however we want the most popular filters
+        // to be computed on a per-index basis, that is why we don't use the SINGLETON
+        // scope below
+        bind(FilterCachingPolicy.class)
+                .to(AutoFilterCachingPolicy.class);
     }
 }

@@ -19,12 +19,13 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.FieldCache.Doubles;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -56,7 +57,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
         return SortField.Type.DOUBLE;
     }
 
-    protected SortedNumericDoubleValues getValues(AtomicReaderContext context) {
+    protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
         return indexFieldData.load(context).getDoubleValues();
     }
 
@@ -69,24 +70,19 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
         final double dMissingValue = (Double) missingObject(missingValue, reversed);
         // NOTE: it's important to pass null as a missing value in the constructor so that
         // the comparator doesn't check docsWithField since we replace missing values in select()
-        return new FieldComparator.DoubleComparator(numHits, null, null, null) {
+        return new FieldComparator.DoubleComparator(numHits, null, null) {
             @Override
-            protected Doubles getDoubleValues(AtomicReaderContext context, String field) throws IOException {
+            protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
                 final SortedNumericDoubleValues values = getValues(context);
                 final NumericDoubleValues selectedValues;
                 if (nested == null) {
                     selectedValues = sortMode.select(values, dMissingValue);
                 } else {
-                    final FixedBitSet rootDocs = nested.rootDocs(context);
-                    final FixedBitSet innerDocs = nested.innerDocs(context);
+                    final BitSet rootDocs = nested.rootDocs(context).bits();
+                    final DocIdSet innerDocs = nested.innerDocs(context);
                     selectedValues = sortMode.select(values, dMissingValue, rootDocs, innerDocs, context.reader().maxDoc());
                 }
-                return new Doubles() {
-                    @Override
-                    public double get(int docID) {
-                        return selectedValues.get(docID);
-                    }
-                };
+                return selectedValues.getRawDoubleValues();
             }
             @Override
             public void setScorer(Scorer scorer) {

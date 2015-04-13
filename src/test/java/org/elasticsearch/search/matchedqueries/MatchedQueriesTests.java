@@ -20,6 +20,7 @@
 package org.elasticsearch.search.matchedqueries;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -223,8 +224,8 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
                     .setQuery(
                             boolQuery()
                                     .minimumNumberShouldMatch(1)
-                                    .should(queryString("dolor").queryName("dolor"))
-                                    .should(queryString("elit").queryName("elit"))
+                                    .should(queryStringQuery("dolor").queryName("dolor"))
+                                    .should(queryStringQuery("elit").queryName("elit"))
                     )
                     .setPreference("_primary")
                     .get();
@@ -241,6 +242,27 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
                     fail("Unexpected document returned with id " + hit.id());
                 }
             }
+        }
+    }
+
+    @Test
+    public void testMatchedWithWrapperQuery() throws Exception {
+        createIndex("test");
+        ensureGreen();
+
+        client().prepareIndex("test", "type1", "1").setSource("content", "Lorem ipsum dolor sit amet").get();
+        refresh();
+
+        QueryBuilder[] queries = new QueryBuilder[]{
+                wrapperQuery(matchQuery("content", "amet").queryName("abc").buildAsBytes().toUtf8()),
+                constantScoreQuery(wrapperFilter(termFilter("content", "amet").filterName("abc").buildAsBytes().toUtf8()))
+        };
+        for (QueryBuilder query : queries) {
+            SearchResponse searchResponse = client().prepareSearch()
+                    .setQuery(query)
+                    .get();
+            assertHitCount(searchResponse, 1l);
+            assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("abc"));
         }
     }
 }

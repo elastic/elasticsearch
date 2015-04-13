@@ -45,7 +45,6 @@ public class AliasesBenchmark {
         int NUM_ADD_ALIAS_REQUEST = 1000;
 
         Settings settings = ImmutableSettings.settingsBuilder()
-                .put("gateway.type", "local")
                 .put("node.master", false).build();
         Node node1 = NodeBuilder.nodeBuilder().settings(
                 ImmutableSettings.settingsBuilder().put(settings).put("node.master", true)

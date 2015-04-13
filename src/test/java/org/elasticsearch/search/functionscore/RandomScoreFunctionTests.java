@@ -25,7 +25,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.CoreMatchers;
 import org.junit.Ignore;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -41,7 +40,6 @@ import static org.hamcrest.Matchers.*;
 
 public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
 
-    @Test
     public void testConsistentHitsWithSameSeed() throws Exception {
         createIndex("test");
         ensureGreen(); // make sure we are done otherwise preference could change?
@@ -103,7 +101,6 @@ public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @Test
     public void testScoreAccessWithinScript() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type", "body", "type=string", "index", "type=" + randomFrom(new String[]{"short", "float", "long", "integer", "double"})));
@@ -170,7 +167,6 @@ public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
         assertThat(firstHit.getScore(), greaterThan(1f));
     }
 
-    @Test
     public void testSeedReportedInExplain() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -201,7 +197,6 @@ public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
         assertEquals(0, resp.getHits().totalHits());
     }
 
-    @Test
     public void testScoreRange() throws Exception {
         // all random scores should be in range [0.0, 1.0]
         createIndex("test");
@@ -227,8 +222,32 @@ public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
             }
         }
     }
+    
+    public void testSeeds() throws Exception {
+        createIndex("test");
+        ensureGreen();
+        final int docCount = randomIntBetween(100, 200);
+        for (int i = 0; i < docCount; i++) {
+            index("test", "type", "" + i, jsonBuilder().startObject().endObject());
+        }
+        flushAndRefresh();
 
-    @Test
+        assertNoFailures(client().prepareSearch()
+            .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
+            .setQuery(functionScoreQuery(matchAllQuery(), randomFunction(randomInt())))
+            .execute().actionGet());
+
+        assertNoFailures(client().prepareSearch()
+            .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
+            .setQuery(functionScoreQuery(matchAllQuery(), randomFunction(randomLong())))
+            .execute().actionGet());
+
+        assertNoFailures(client().prepareSearch()
+            .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
+            .setQuery(functionScoreQuery(matchAllQuery(), randomFunction(randomRealisticUnicodeOfLengthBetween(10, 20))))
+            .execute().actionGet());
+    }
+
     @Ignore
     public void checkDistribution() throws Exception {
         int count = 10000;

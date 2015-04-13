@@ -24,11 +24,21 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.BigArray;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregator;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -37,11 +47,13 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geoBounds;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.core.IsNull.notNullValue;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  *
@@ -142,9 +154,31 @@ public class GeoBoundsTests extends ElasticsearchIntegrationTest {
                     .field("tag", "tag" + i)
                     .endObject()));
         }
-        
+
         indexRandom(true, builders);
         ensureSearchable();
+
+        // Added to debug a test failure where the terms aggregation seems to be reporting two documents with the same value for NUMBER_FIELD_NAME.  This will check that after
+        // random indexing each document only has 1 value for NUMBER_FIELD_NAME and it is the correct value. Following this initial change its seems that this call was getting 
+        // more that 2000 hits (actual value was 2059) so now it will also check to ensure all hits have the correct index and type 
+        SearchResponse response = client().prepareSearch("high_card_idx").addField(NUMBER_FIELD_NAME).addSort(SortBuilders.fieldSort(NUMBER_FIELD_NAME).order(SortOrder.ASC)).setSize(5000).get();
+        assertSearchResponse(response);
+        long totalHits = response.getHits().totalHits();
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        logger.info("Full high_card_idx Response Content:\n{ {} }", builder.string());
+        for (int i = 0; i < totalHits; i++) {
+            SearchHit searchHit = response.getHits().getAt(i);
+            assertThat("Hit " + i + " with id: " + searchHit.getId(), searchHit.getIndex(), equalTo("high_card_idx"));
+            assertThat("Hit " + i + " with id: " + searchHit.getId(), searchHit.getType(), equalTo("type"));
+            SearchHitField hitField = searchHit.field(NUMBER_FIELD_NAME);
+            
+            assertThat("Hit " + i + " has wrong number of values", hitField.getValues().size(), equalTo(1));
+            Integer value = hitField.getValue();
+            assertThat("Hit " + i + " has wrong value", value, equalTo(i));
+        }
+        assertThat(totalHits, equalTo(2000l));
     }
 
     private void updateBoundsBottomRight(GeoPoint geoPoint, GeoPoint currentBound) {
@@ -188,6 +222,40 @@ public class GeoBoundsTests extends ElasticsearchIntegrationTest {
         assertThat(topLeft.lon(), equalTo(singleTopLeft.lon()));
         assertThat(bottomRight.lat(), equalTo(singleBottomRight.lat()));
         assertThat(bottomRight.lon(), equalTo(singleBottomRight.lon()));
+    }
+
+    @Test
+    public void testSingleValuedField_getProperty() throws Exception {
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(
+                        global("global").subAggregation(geoBounds("geoBounds").field(SINGLE_VALUED_FIELD_NAME).wrapLongitude(false)))
+                .execute().actionGet();
+
+        assertSearchResponse(searchResponse);
+
+        Global global = searchResponse.getAggregations().get("global");
+        assertThat(global, notNullValue());
+        assertThat(global.getName(), equalTo("global"));
+        assertThat(global.getDocCount(), equalTo((long) numDocs));
+        assertThat(global.getAggregations(), notNullValue());
+        assertThat(global.getAggregations().asMap().size(), equalTo(1));
+
+        GeoBounds geobounds = global.getAggregations().get("geoBounds");
+        assertThat(geobounds, notNullValue());
+        assertThat(geobounds.getName(), equalTo("geoBounds"));
+        assertThat((GeoBounds) global.getProperty("geoBounds"), sameInstance(geobounds));
+        GeoPoint topLeft = geobounds.topLeft();
+        GeoPoint bottomRight = geobounds.bottomRight();
+        assertThat(topLeft.lat(), equalTo(singleTopLeft.lat()));
+        assertThat(topLeft.lon(), equalTo(singleTopLeft.lon()));
+        assertThat(bottomRight.lat(), equalTo(singleBottomRight.lat()));
+        assertThat(bottomRight.lon(), equalTo(singleBottomRight.lon()));
+        assertThat((double) global.getProperty("geoBounds.top"), equalTo(singleTopLeft.lat()));
+        assertThat((double) global.getProperty("geoBounds.left"), equalTo(singleTopLeft.lon()));
+        assertThat((double) global.getProperty("geoBounds.bottom"), equalTo(singleBottomRight.lat()));
+        assertThat((double) global.getProperty("geoBounds.right"), equalTo(singleBottomRight.lon()));
     }
 
     @Test
@@ -335,7 +403,7 @@ public class GeoBoundsTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < 10; i++) {
             Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat("Bucket " + bucket.getKey() + " has wrong number of documents", bucket.getDocCount(), equalTo(1l));
             GeoBounds geoBounds = bucket.getAggregations().get("geoBounds");
             assertThat(geoBounds, notNullValue());
             assertThat(geoBounds.getName(), equalTo("geoBounds"));

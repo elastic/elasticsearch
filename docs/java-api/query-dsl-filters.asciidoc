@@ -9,11 +9,12 @@ Once your query is ready, you can use the <<search,Search API>>.
 
 See also how to build <<query-dsl-queries,Queries>>.
 
-To use `FilterBuilders` just import them in your class:
+To use `QueryBuilders` or `FilterBuilders` just import them in your class:
 
 [source,java]
 --------------------------------------------------
-import org.elasticsearch.index.query.FilterBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.FilterBuilders.*;
 --------------------------------------------------
 
 Note that you can easily print (aka debug) JSON generated queries using
@@ -25,14 +26,13 @@ Note that you can easily print (aka debug) JSON generated queries using
 
 See {ref}/query-dsl-and-filter.html[And Filter]
 
-
 [source,java]
 --------------------------------------------------
-FilterBuilders.andFilter(
-    FilterBuilders.rangeFilter("postDate").from("2010-03-01").to("2010-04-01"),
-    FilterBuilders.prefixFilter("name.second", "ba")
-    );
+FilterBuilder filter = andFilter(
+    rangeFilter("postDate").from("2010-03-01").to("2010-04-01"),    <1>
+    prefixFilter("name.second", "ba"));                             <1>
 --------------------------------------------------
+<1> filters
 
 Note that you can cache the result using
 `AndFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
@@ -43,15 +43,17 @@ Note that you can cache the result using
 
 See {ref}/query-dsl-bool-filter.html[Bool Filter]
 
-
 [source,java]
 --------------------------------------------------
-FilterBuilders.boolFilter()
-    .must(FilterBuilders.termFilter("tag", "wow"))
-    .mustNot(FilterBuilders.rangeFilter("age").from("10").to("20"))
-    .should(FilterBuilders.termFilter("tag", "sometag"))
-    .should(FilterBuilders.termFilter("tag", "sometagtag"));
+FilterBuilder filter = boolFilter()
+    .must(termFilter("tag", "wow"))                     <1>
+    .mustNot(rangeFilter("age").from("10").to("20"))    <2>
+    .should(termFilter("tag", "sometag"))               <3>
+    .should(termFilter("tag", "sometagtag"));           <3>
 --------------------------------------------------
+<1> must filter
+<2> must not filter
+<3> should filter
 
 Note that you can cache the result using
 `BoolFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
@@ -62,11 +64,11 @@ Note that you can cache the result using
 
 See {ref}/query-dsl-exists-filter.html[Exists Filter].
 
-
 [source,java]
 --------------------------------------------------
-FilterBuilders.existsFilter("user");
+FilterBuilder filter = existsFilter("user");    <1>
 --------------------------------------------------
+<1> field
 
 
 [[ids-filter]]
@@ -74,14 +76,15 @@ FilterBuilders.existsFilter("user");
 
 See {ref}/query-dsl-ids-filter.html[IDs Filter]
 
-
 [source,java]
 --------------------------------------------------
-FilterBuilders.idsFilter("my_type", "type2").addIds("1", "4", "100");
+FilterBuilder filter = idsFilter("my_type", "type2")
+    .addIds("1", "4", "100");
 
-// Type is optional
-FilterBuilders.idsFilter().addIds("1", "4", "100");
+FilterBuilder filter = idsFilter() <1>
+    .addIds("1", "4", "100");
 --------------------------------------------------
+<1> type is optional
 
 
 [[limit-filter]]
@@ -89,11 +92,11 @@ FilterBuilders.idsFilter().addIds("1", "4", "100");
 
 See {ref}/query-dsl-limit-filter.html[Limit Filter]
 
-
 [source,java]
 --------------------------------------------------
-FilterBuilders.limitFilter(100);
+FilterBuilder filter = limitFilter(100);    <1>
 --------------------------------------------------
+<1> number of documents per shard
 
 
 [[type-filter]]
@@ -101,11 +104,11 @@ FilterBuilders.limitFilter(100);
 
 See {ref}/query-dsl-type-filter.html[Type Filter]
 
-
 [source,java]
 --------------------------------------------------
-FilterBuilders.typeFilter("my_type");
+FilterBuilder filter = typeFilter("my_type");   <1>
 --------------------------------------------------
+<1> type
 
 
 [[geo-bbox-filter]]
@@ -116,10 +119,13 @@ Bounding Box Filter]
 
 [source,java]
 --------------------------------------------------
-FilterBuilders.geoBoundingBoxFilter("pin.location")
-    .topLeft(40.73, -74.1)
-    .bottomRight(40.717, -73.99);
+FilterBuilder filter = geoBoundingBoxFilter("pin.location") <1>
+    .topLeft(40.73, -74.1)                                  <2>
+    .bottomRight(40.717, -73.99);                           <3>
 --------------------------------------------------
+<1> field
+<2> bounding box top left point
+<3> bounding box bottom right point
 
 Note that you can cache the result using
 `GeoBoundingBoxFilterBuilder#cache(boolean)` method. See
@@ -134,12 +140,18 @@ Distance Filter]
 
 [source,java]
 --------------------------------------------------
-FilterBuilders.geoDistanceFilter("pin.location")
-    .point(40, -70)
-    .distance(200, DistanceUnit.KILOMETERS)
-    .optimizeBbox("memory")                    // Can be also "indexed" or "none"
-    .geoDistance(GeoDistance.ARC);            // Or GeoDistance.PLANE
+FilterBuilder filter = geoDistanceFilter("pin.location")    <1>
+    .point(40, -70)                                         <2>
+    .distance(200, DistanceUnit.KILOMETERS)                 <3>
+    .optimizeBbox("memory")                                 <4>
+    .geoDistance(GeoDistance.ARC);                          <5>
 --------------------------------------------------
+<1> field
+<2> center point
+<3> distance from center point
+<4> optimize bounding box: `memory`, `indexed` or `none`
+<5> distance computation mode: `GeoDistance.SLOPPY_ARC` (default), `GeoDistance.ARC` (slighly more precise but
+    significantly slower) or `GeoDistance.PLANE` (faster, but inaccurate on long distances and close to the poles)
 
 Note that you can cache the result using
 `GeoDistanceFilterBuilder#cache(boolean)` method. See
@@ -154,15 +166,24 @@ Distance Range Filter]
 
 [source,java]
 --------------------------------------------------
-FilterBuilders.geoDistanceRangeFilter("pin.location")
-    .point(40, -70)
-    .from("200km")
-    .to("400km")
-    .includeLower(true)
-    .includeUpper(false)
-    .optimizeBbox("memory")                    // Can be also "indexed" or "none"
-    .geoDistance(GeoDistance.ARC);            // Or GeoDistance.PLANE
+FilterBuilder filter = geoDistanceRangeFilter("pin.location")   <1>
+    .point(40, -70)                                             <2>
+    .from("200km")                                              <3>
+    .to("400km")                                                <4>
+    .includeLower(true)                                         <5>
+    .includeUpper(false)                                        <6>
+    .optimizeBbox("memory")                                     <7>
+    .geoDistance(GeoDistance.ARC);                              <8>
 --------------------------------------------------
+<1> field
+<2> center point
+<3> starting distance from center point
+<4> ending distance from center point
+<5> include lower value means that `from` is `gt` when `false` or `gte` when `true`
+<6> include upper value means that `to` is `lt` when `false` or `lte` when `true`
+<7> optimize bounding box: `memory`, `indexed` or `none`
+<8> distance computation mode: `GeoDistance.SLOPPY_ARC` (default), `GeoDistance.ARC` (slighly more precise but
+    significantly slower) or `GeoDistance.PLANE` (faster, but inaccurate on long distances and close to the poles)
 
 Note that you can cache the result using
 `GeoDistanceRangeFilterBuilder#cache(boolean)` method. See
@@ -177,11 +198,13 @@ Filter]
 
 [source,java]
 --------------------------------------------------
-FilterBuilders.geoPolygonFilter("pin.location")
-    .addPoint(40, -70)
-    .addPoint(30, -80)
-    .addPoint(20, -90);
+FilterBuilder filter = geoPolygonFilter("pin.location") <1>
+    .addPoint(40, -70)                                  <2>
+    .addPoint(30, -80)                                  <2>
+    .addPoint(20, -90);                                 <2>
 --------------------------------------------------
+<1> field
+<2> add your polygon of points a document should fall within
 
 Note that you can cache the result using
 `GeoPolygonFilterBuilder#cache(boolean)` method. See
@@ -203,13 +226,13 @@ to your classpath in order to use this type:
 <dependency>
     <groupId>com.spatial4j</groupId>
     <artifactId>spatial4j</artifactId>
-    <version>0.3</version>
+    <version>0.4.1</version>                        <1>
 </dependency>
 
 <dependency>
     <groupId>com.vividsolutions</groupId>
     <artifactId>jts</artifactId>
-    <version>1.12</version>
+    <version>1.13</version>                         <2>
     <exclusions>
         <exclusion>
             <groupId>xerces</groupId>
@@ -218,6 +241,8 @@ to your classpath in order to use this type:
     </exclusions>
 </dependency>
 -----------------------------------------------
+<1> check for updates in http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.spatial4j%22%20AND%20a%3A%22spatial4j%22[Maven Central]
+<2> check for updates in http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.vividsolutions%22%20AND%20a%3A%22jts%22[Maven Central]
 
 [source,java]
 --------------------------------------------------
@@ -233,19 +258,42 @@ import org.elasticsearch.common.geo.ShapeRelation;
 [source,java]
 --------------------------------------------------
 // Shape within another
-filter = FilterBuilders.geoShapeFilter("location",
-    new RectangleImpl(0,10,0,10,SpatialContext.GEO))
-    .relation(ShapeRelation.WITHIN);
-
-// Intersect shapes
-filter = FilterBuilders.geoShapeFilter("location",
-    new PointImpl(0, 0, SpatialContext.GEO))
-    .relation(ShapeRelation.INTERSECTS);
-
-// Using pre-indexed shapes
-filter = FilterBuilders.geoShapeFilter("location", "New Zealand", "countries")
-    .relation(ShapeRelation.DISJOINT);
+FilterBuilder filter = geoShapeFilter(
+        "location",                                     <1>
+        new RectangleImpl(0,10,0,10,SpatialContext.GEO) <2>
+    )
+    .relation(ShapeRelation.WITHIN);                    <3>
 --------------------------------------------------
+<1> field
+<2> shape
+<3> relation
+
+[source,java]
+--------------------------------------------------
+// Intersect shapes
+FilterBuilder filter = geoShapeFilter(
+        "location",                                     <1>
+        new PointImpl(0, 0, SpatialContext.GEO)         <2>
+    )
+    .relation(ShapeRelation.INTERSECTS);                <3>
+--------------------------------------------------
+<1> field
+<2> shape
+<3> relation
+
+[source,java]
+--------------------------------------------------
+// Using pre-indexed shapes
+FilterBuilder filter = geoShapeFilter(
+        "location",                                     <1>
+        "New Zealand",                                  <2>
+        "countries")                                    <3>
+    .relation(ShapeRelation.DISJOINT);                  <4>
+--------------------------------------------------
+<1> field
+<2> indexed shape id
+<3> index type of the indexed shapes
+<4> relation
 
 
 [[has-child-parent-filter]]
@@ -258,13 +306,24 @@ See:
 [source,java]
 --------------------------------------------------
 // Has Child
-QFilterBuilders.hasChildFilter("blog_tag",
-    QueryBuilders.termQuery("tag", "something"));
-
-// Has Parent
-QFilterBuilders.hasParentFilter("blog",
-    QueryBuilders.termQuery("tag", "something"));
+QueryBuilder qb = hasChildFilter(
+    "blog_tag",                     <1>
+    termFilter("tag","something")   <2>
+);
 --------------------------------------------------
+<1> child type to query against
+<2> filter (could be also a query)
+
+[source,java]
+--------------------------------------------------
+// Has Parent
+QueryBuilder qb = hasParentFilter(
+    "blog",                         <1>
+    termFilter("tag","something")   <2>
+);
+--------------------------------------------------
+<1> parent type to query against
+<2> filter (could be also a query)
 
 
 [[match-all-filter]]
@@ -274,7 +333,7 @@ See {ref}/query-dsl-match-all-filter.html[Match All Filter]
 
 [source,java]
 --------------------------------------------------
-FilterBuilders.matchAllFilter();
+FilterBuilder filter = matchAllFilter();
 --------------------------------------------------
 
 
@@ -286,11 +345,13 @@ See {ref}/query-dsl-missing-filter.html[Missing Filter]
 
 [source,java]
 --------------------------------------------------
-FilterBuilders.missingFilter("user")
-    .existence(true)
-    .nullValue(true);
+FilterBuilder filter = missingFilter("user")    <1>
+    .existence(true)                            <2>
+    .nullValue(true);                           <3>
 --------------------------------------------------
-
+<1> field
+<2> find missing field that doesn’t exist
+<3> find missing field with an explicit `null` value
 
 [[not-filter]]
 === Not Filter
@@ -300,9 +361,11 @@ See {ref}/query-dsl-not-filter.html[Not Filter]
 
 [source,java]
 --------------------------------------------------
-FilterBuilders.notFilter(
-    FilterBuilders.rangeFilter("price").from("1").to("2"));
+FilterBuilder filter = notFilter(
+    rangeFilter("price").from("1").to("2")  <1>
+);
 --------------------------------------------------
+<1> filter
 
 
 [[or-filter]]
@@ -313,11 +376,12 @@ See {ref}/query-dsl-or-filter.html[Or Filter]
 
 [source,java]
 --------------------------------------------------
-FilterBuilders.orFilter(
-        FilterBuilders.termFilter("name.second", "banon"),
-        FilterBuilders.termFilter("name.nick", "kimchy")
+FilterBuilder filter = orFilter(
+        termFilter("name.second", "banon"), <1>
+        termFilter("name.nick", "kimchy")   <1>
     );
 --------------------------------------------------
+<1> filters
 
 Note that you can cache the result using
 `OrFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
@@ -331,8 +395,13 @@ See {ref}/query-dsl-prefix-filter.html[Prefix Filter]
 
 [source,java]
 --------------------------------------------------
-FilterBuilders.prefixFilter("user", "ki");
+FilterBuilder filter = prefixFilter(
+    "user", <1>
+    "ki"    <2>
+);
 --------------------------------------------------
+<1> field
+<2> prefix
 
 Note that you can cache the result using
 `PrefixFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
@@ -346,10 +415,11 @@ See {ref}/query-dsl-query-filter.html[Query Filter]
 
 [source,java]
 --------------------------------------------------
-FilterBuilders.queryFilter(
-        QueryBuilders.queryString("this AND that OR thus")
+FilterBuilder filter = queryFilter(
+        queryString("this AND that OR thus")    <1>
     );
 --------------------------------------------------
+<1> query you want to wrap as a filter
 
 Note that you can cache the result using
 `QueryFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
@@ -363,17 +433,28 @@ See {ref}/query-dsl-range-filter.html[Range Filter]
 
 [source,java]
 --------------------------------------------------
-FilterBuilders.rangeFilter("age")
-    .from("10")
-    .to("20")
-    .includeLower(true)
-    .includeUpper(false);
-
-// A simplified form using gte, gt, lt or lte
-FilterBuilders.rangeFilter("age")
-    .gte("10")
-    .lt("20");
+FilterBuilder filter = rangeFilter("age")   <1>
+    .from("10")                             <2>
+    .to("20")                               <3>
+    .includeLower(true)                     <4>
+    .includeUpper(false);                   <5>
 --------------------------------------------------
+<1> field
+<2> from
+<3> to
+<4> include lower value means that `from` is `gt` when `false` or `gte` when `true`
+<5> include upper value means that `to` is `lt` when `false` or `lte` when `true`
+
+[source,java]
+--------------------------------------------------
+// A simplified form using gte, gt, lt or lte
+FilterBuilder filter = rangeFilter("age")   <1>
+    .gte("10")                              <2>
+    .lt("20");                              <3>
+--------------------------------------------------
+<1> field
+<2> set `from` to 10 and `includeLower` to true
+<3> set `to` to 20 and `includeUpper` to false
 
 Note that you can ask not to cache the result using
 `RangeFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
@@ -387,10 +468,12 @@ See {ref}/query-dsl-script-filter.html[Script Filter]
 
 [source,java]
 --------------------------------------------------
-FilterBuilder filter = FilterBuilders.scriptFilter(
-        "doc['age'].value > param1"
-    ).addParam("param1", 10);
+FilterBuilder filter = scriptFilter(
+        "doc['age'].value > param1" <1>
+    ).addParam("param1", 10);       <2>
 --------------------------------------------------
+<1> script to execute
+<2> parameters
 
 Note that you can cache the result using
 `ScriptFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
@@ -404,8 +487,13 @@ See {ref}/query-dsl-term-filter.html[Term Filter]
 
 [source,java]
 --------------------------------------------------
-FilterBuilders.termFilter("user", "kimchy");
+FilterBuilder filter = termFilter(
+    "user",     <1>
+    "kimchy"    <2>
+);
 --------------------------------------------------
+<1> field
+<2> value
 
 Note that you can ask not to cache the result using
 `TermFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
@@ -419,10 +507,16 @@ See {ref}/query-dsl-terms-filter.html[Terms Filter]
 
 [source,java]
 --------------------------------------------------
-FilterBuilders.termsFilter("user", "kimchy", "elasticsearch")
-    .execution("plain");     // Optional, can be also "bool", "and" or "or"
-                            // or "bool_nocache", "and_nocache" or "or_nocache"
+FilterBuilder filter = termsFilter(
+        "user",             <1>
+        "kimchy",           <2>
+        "elasticsearch"     <2>
+    )
+    .execution("plain");    <3>
 --------------------------------------------------
+<1> field
+<2> terms
+<3> execution mode: could be `plain`, `fielddata`, `bool`, `and`, `or`, `bool_nocache`, `and_nocache` or `or_nocache`
 
 Note that you can ask not to cache the result using
 `TermsFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
@@ -436,12 +530,14 @@ See {ref}/query-dsl-nested-filter.html[Nested Filter]
 
 [source,java]
 --------------------------------------------------
-FilterBuilders.nestedFilter("obj1",
-    QueryBuilders.boolQuery()
-        .must(QueryBuilders.matchQuery("obj1.name", "blue"))
-        .must(QueryBuilders.rangeQuery("obj1.count").gt(5))
+FilterBuilder filter = nestedFilter("obj1",                     <1>
+    boolFilter()                                                <2>
+        .must(termFilter("obj1.name", "blue"))
+        .must(rangeFilter("obj1.count").gt(5))
     );
 --------------------------------------------------
+<1> path to nested document
+<2> filter
 
 Note that you can ask not to cache the result using
 `NestedFilterBuilder#cache(boolean)` method. See <<query-dsl-filters-caching>>.
@@ -454,9 +550,10 @@ tuning control using `cache(boolean)` method when exists.  For example:
 
 [source,java]
 --------------------------------------------------
-FilterBuilder filter = FilterBuilders.andFilter(
-        FilterBuilders.rangeFilter("postDate").from("2010-03-01").to("2010-04-01"),
-        FilterBuilders.prefixFilter("name.second", "ba")
-        )
-    .cache(true);
+FilterBuilder filter = andFilter(
+        rangeFilter("postDate").from("2010-03-01").to("2010-04-01"),
+        prefixFilter("name.second", "ba")
+    )
+    .cache(true);   <1>
 --------------------------------------------------
+<1> force caching filter

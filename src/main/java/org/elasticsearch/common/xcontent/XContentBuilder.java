@@ -646,6 +646,25 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
+    public XContentBuilder field(String name, boolean... value) throws IOException {
+        startArray(name);
+        for (boolean o : value) {
+            value(o);
+        }
+        endArray();
+        return this;
+    }
+
+
+    public XContentBuilder field(XContentBuilderString name, boolean... value) throws IOException {
+        startArray(name);
+        for (boolean o : value) {
+            value(o);
+        }
+        endArray();
+        return this;
+    }
+
     public XContentBuilder field(String name, String... value) throws IOException {
         startArray(name);
         for (String o : value) {
@@ -1121,6 +1140,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
+    @Override
     public void close() {
         try {
             generator.close();
@@ -1272,7 +1292,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
             generator.writeEndArray();
         } else if (value instanceof short[]) {
             generator.writeStartArray();
-            for (float v : (short[]) value) {
+            for (short v : (short[]) value) {
                 generator.writeNumber(v);
             }
             generator.writeEndArray();

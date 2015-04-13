@@ -45,8 +45,8 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestCountAction extends BaseRestHandler {
 
     @Inject
-    public RestCountAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestCountAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(POST, "/_count", this);
         controller.registerHandler(GET, "/_count", this);
         controller.registerHandler(POST, "/{index}/_count", this);
@@ -61,7 +61,7 @@ public class RestCountAction extends BaseRestHandler {
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
         countRequest.listenerThreaded(false);
         if (request.hasContent()) {
-            countRequest.source(request.content(), request.contentUnsafe());
+            countRequest.source(request.content());
         } else {
             String source = request.param("source");
             if (source != null) {

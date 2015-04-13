@@ -21,14 +21,13 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
-import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
+import org.elasticsearch.search.internal.SubSearchContext;
 
 import java.io.IOException;
 
@@ -42,8 +41,11 @@ public class HasParentFilterParser implements FilterParser {
 
     public static final String NAME = "has_parent";
 
+    private final InnerHitsQueryParserHelper innerHitsQueryParserHelper;
+
     @Inject
-    public HasParentFilterParser() {
+    public HasParentFilterParser(InnerHitsQueryParserHelper innerHitsQueryParserHelper) {
+        this.innerHitsQueryParserHelper = innerHitsQueryParserHelper;
     }
 
     @Override
@@ -59,11 +61,12 @@ public class HasParentFilterParser implements FilterParser {
         boolean queryFound = false;
         boolean filterFound = false;
         String parentType = null;
+        Tuple<String, SubSearchContext> innerHits = null;
 
         String filterName = null;
         String currentFieldName = null;
         XContentParser.Token token;
-        XContentStructure.InnerQuery innerQuery = null;
+        XContentStructure.InnerQuery iq = null;
         XContentStructure.InnerFilter innerFilter = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -74,11 +77,13 @@ public class HasParentFilterParser implements FilterParser {
                 // XContentStructure.<type> facade to parse if available,
                 // or delay parsing if not.
                 if ("query".equals(currentFieldName)) {
-                    innerQuery = new XContentStructure.InnerQuery(parseContext, parentType == null ? null : new String[] {parentType});
+                    iq = new XContentStructure.InnerQuery(parseContext, parentType == null ? null : new String[] {parentType});
                     queryFound = true;
                 } else if ("filter".equals(currentFieldName)) {
                     innerFilter = new XContentStructure.InnerFilter(parseContext, parentType == null ? null : new String[] {parentType});
                     filterFound = true;
+                } else if ("inner_hits".equals(currentFieldName)) {
+                    innerHits = innerHitsQueryParserHelper.parse(parseContext);
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_parent] filter does not support [" + currentFieldName + "]");
                 }
@@ -103,18 +108,18 @@ public class HasParentFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "[has_parent] filter requires 'parent_type' field");
         }
 
-        Query query;
+        Query innerQuery;
         if (queryFound) {
-            query = innerQuery.asQuery(parentType);
+            innerQuery = iq.asQuery(parentType);
         } else {
-            query = innerFilter.asFilter(parentType);
+            innerQuery = innerFilter.asFilter(parentType);
         }
 
-        if (query == null) {
+        if (innerQuery == null) {
             return null;
         }
 
-        Query parentQuery = createParentQuery(query, parentType, false, parseContext);
+        Query parentQuery = createParentQuery(innerQuery, parentType, false, parseContext, innerHits);
         if (parentQuery == null) {
             return null;
         }

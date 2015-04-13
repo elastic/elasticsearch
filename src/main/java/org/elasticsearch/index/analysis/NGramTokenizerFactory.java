@@ -96,22 +96,22 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
         this.matcher = parseTokenChars(settings.getAsArray("token_chars"));
-        this.esVersion = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT);
+        this.esVersion = org.elasticsearch.Version.indexCreated(indexSettings);
     }
 
     @SuppressWarnings("deprecation")
     @Override
-    public Tokenizer create(Reader reader) {
-        if (version.onOrAfter(Version.LUCENE_43) && esVersion.onOrAfter(org.elasticsearch.Version.V_0_90_2)) {
+    public Tokenizer create() {
+        if (version.onOrAfter(Version.LUCENE_4_3) && esVersion.onOrAfter(org.elasticsearch.Version.V_0_90_2)) {
             /*
              * We added this in 0.90.2 but 0.90.1 used LUCENE_43 already so we can not rely on the lucene version.
              * Yet if somebody uses 0.90.2 or higher with a prev. lucene version we should also use the deprecated version.
              */
-            final Version version = this.version == Version.LUCENE_43 ? Version.LUCENE_44 : this.version; // always use 4.4 or higher
+            final Version version = this.version == Version.LUCENE_4_3 ? Version.LUCENE_4_4 : this.version; // always use 4.4 or higher
             if (matcher == null) {
-                return new NGramTokenizer(version, reader, minGram, maxGram);
+                return new NGramTokenizer(minGram, maxGram);
             } else {
-                return new NGramTokenizer(version, reader, minGram, maxGram) {
+                return new NGramTokenizer(minGram, maxGram) {
                     @Override
                     protected boolean isTokenChar(int chr) {
                         return matcher.isTokenChar(chr);
@@ -119,7 +119,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
                 };
             }
         } else {
-            return new Lucene43NGramTokenizer(reader, minGram, maxGram);
+            return new Lucene43NGramTokenizer(minGram, maxGram);
         }
     }
 

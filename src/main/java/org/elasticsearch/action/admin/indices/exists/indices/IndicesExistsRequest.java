@@ -32,7 +32,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class IndicesExistsRequest extends MasterNodeReadOperationRequest<IndicesExistsRequest> implements IndicesRequest {
+public class IndicesExistsRequest extends MasterNodeReadOperationRequest<IndicesExistsRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
@@ -46,6 +46,7 @@ public class IndicesExistsRequest extends MasterNodeReadOperationRequest<Indices
         return indices;
     }
 
+    @Override
     public IndicesExistsRequest indices(String[] indices) {
         this.indices = indices;
         return this;
@@ -75,7 +76,6 @@ public class IndicesExistsRequest extends MasterNodeReadOperationRequest<Indices
         super.readFrom(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        readLocal(in, Version.V_1_0_0_RC2);
     }
 
     @Override
@@ -83,6 +83,5 @@ public class IndicesExistsRequest extends MasterNodeReadOperationRequest<Indices
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        writeLocal(out, Version.V_1_0_0_RC2);
     }
 }

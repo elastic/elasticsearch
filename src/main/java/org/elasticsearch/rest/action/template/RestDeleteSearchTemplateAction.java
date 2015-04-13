@@ -24,19 +24,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.script.RestDeleteIndexedScriptAction;
+import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteSearchTemplateAction extends RestDeleteIndexedScriptAction {
 
     @Inject
-    public RestDeleteSearchTemplateAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestDeleteSearchTemplateAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, false, client);
         controller.registerHandler(DELETE, "/_search/template/{id}", this);
     }
 
     @Override
     protected String getScriptLang(RestRequest request) {
-        return "mustache";
+        return MustacheScriptEngineService.NAME;
     }
 }

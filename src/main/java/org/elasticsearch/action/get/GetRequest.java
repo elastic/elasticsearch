@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
@@ -287,7 +286,7 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        type = in.readSharedString();
+        type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
         preference = in.readOptionalString();
@@ -305,12 +304,10 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
         } else if (realtime == 1) {
             this.realtime = true;
         }
-        if(in.getVersion().onOrAfter(Version.V_1_4_0)) {
-            this.ignoreErrorsOnGeneratedFields = in.readBoolean();
-        }
+        this.ignoreErrorsOnGeneratedFields = in.readBoolean();
 
         this.versionType = VersionType.fromValue(in.readByte());
-        this.version = Versions.readVersionWithVLongForBW(in);
+        this.version = in.readLong();
 
         fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
     }
@@ -318,7 +315,7 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeSharedString(type);
+        out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
@@ -339,11 +336,9 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
         } else {
             out.writeByte((byte) 1);
         }
-        if(out.getVersion().onOrAfter(Version.V_1_4_0)) {
-            out.writeBoolean(ignoreErrorsOnGeneratedFields);
-        }
+        out.writeBoolean(ignoreErrorsOnGeneratedFields);
         out.writeByte(versionType.getValue());
-        Versions.writeVersionWithVLongForBW(version, out);
+        out.writeLong(version);
 
         FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
     }

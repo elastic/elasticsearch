@@ -30,7 +30,6 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.net.URL;
@@ -66,14 +65,14 @@ public class URLRepository extends BlobStoreRepository {
     public URLRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository) throws IOException {
         super(name.getName(), repositorySettings, indexShardRepository);
         URL url;
-        String path = repositorySettings.settings().get("url", componentSettings.get("url"));
+        String path = repositorySettings.settings().get("url", settings.get("repositories.uri.url"));
         if (path == null) {
             throw new RepositoryException(name.name(), "missing url");
         } else {
             url = new URL(path);
         }
-        listDirectories = repositorySettings.settings().getAsBoolean("list_directories", componentSettings.getAsBoolean("list_directories", true));
-        blobStore = new URLBlobStore(componentSettings, url);
+        listDirectories = repositorySettings.settings().getAsBoolean("list_directories", settings.getAsBoolean("repositories.uri.list_directories", true));
+        blobStore = new URLBlobStore(settings, url);
         basePath = BlobPath.cleanPath();
     }
 
@@ -102,4 +101,16 @@ public class URLRepository extends BlobStoreRepository {
             }
         }
     }
+
+    @Override
+    public String startVerification() {
+        //TODO: #7831 Add check that URL exists and accessible
+        return null;
+    }
+
+    @Override
+    public void endVerification(String seed) {
+        throw new UnsupportedOperationException("shouldn't be called");
+    }
+
 }

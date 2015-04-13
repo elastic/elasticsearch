@@ -21,6 +21,7 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.codecs.blocktree.FieldReader;
 import org.apache.lucene.codecs.blocktree.Stats;
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.PackedInts;
@@ -58,11 +59,11 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public AtomicOrdinalsFieldData loadDirect(AtomicReaderContext context) throws Exception {
-        AtomicReader reader = context.reader();
+    public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
+        LeafReader reader = context.reader();
         AtomicOrdinalsFieldData data = null;
 
-        PagedBytesEstimator estimator = new PagedBytesEstimator(context, breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA), getFieldNames().fullName());
+        PagedBytesEstimator estimator = new PagedBytesEstimator(context, breakerService.getBreaker(CircuitBreaker.FIELDDATA), getFieldNames().fullName());
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
             data = AbstractAtomicOrdinalsFieldData.empty();
@@ -90,13 +91,13 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         boolean success = false;
 
         try (OrdinalsBuilder builder = new OrdinalsBuilder(numTerms, reader.maxDoc(), acceptableTransientOverheadRatio)) {
-            DocsEnum docsEnum = null;
+            PostingsEnum docsEnum = null;
             for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                 final long termOrd = builder.nextOrdinal();
                 assert termOrd == termOrdToBytesOffset.size();
                 termOrdToBytesOffset.add(bytes.copyUsingLengthPrefix(term));
-                docsEnum = termsEnum.docs(null, docsEnum, DocsEnum.FLAG_NONE);
-                for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
+                docsEnum = termsEnum.postings(null, docsEnum, PostingsEnum.NONE);
+                for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
                     builder.addDoc(docId);
                 }
             }
@@ -125,12 +126,12 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
      */
     public class PagedBytesEstimator implements PerValueEstimator {
 
-        private final AtomicReaderContext context;
+        private final LeafReaderContext context;
         private final CircuitBreaker breaker;
         private final String fieldName;
         private long estimatedBytes;
 
-        PagedBytesEstimator(AtomicReaderContext context, CircuitBreaker breaker, String fieldName) {
+        PagedBytesEstimator(LeafReaderContext context, CircuitBreaker breaker, String fieldName) {
             this.breaker = breaker;
             this.context = context;
             this.fieldName = fieldName;
@@ -139,6 +140,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         /**
          * @return the number of bytes for the term based on the length and ordinal overhead
          */
+        @Override
         public long bytesPerValue(BytesRef term) {
             if (term == null) {
                 return 0;
@@ -156,14 +158,14 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
          */
         public long estimateStringFieldData() {
             try {
-                AtomicReader reader = context.reader();
+                LeafReader reader = context.reader();
                 Terms terms = reader.terms(getFieldNames().indexName());
 
                 Fields fields = reader.fields();
                 final Terms fieldTerms = fields.terms(getFieldNames().indexName());
 
                 if (fieldTerms instanceof FieldReader) {
-                    final Stats stats = ((FieldReader) fieldTerms).computeStats();
+                    final Stats stats = ((FieldReader) fieldTerms).getStats();
                     long totalTermBytes = stats.totalTermBytes;
                     if (logger.isTraceEnabled()) {
                         logger.trace("totalTermBytes: {}, terms.size(): {}, terms.getSumDocFreq(): {}",
@@ -188,12 +190,13 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
          * @return A possibly wrapped TermsEnum for the terms
          * @throws IOException
          */
+        @Override
         public TermsEnum beforeLoad(Terms terms) throws IOException {
             final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat(
                     FilterSettingFields.ACCEPTABLE_TRANSIENT_OVERHEAD_RATIO,
                     OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
 
-            AtomicReader reader = context.reader();
+            LeafReader reader = context.reader();
             // Check if one of the following is present:
             // - The OrdinalsBuilder overhead has been tweaked away from the default
             // - A field data filter is present
@@ -228,6 +231,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
          * @param termsEnum  terms that were loaded
          * @param actualUsed actual field data memory usage
          */
+        @Override
         public void afterLoad(TermsEnum termsEnum, long actualUsed) {
             if (termsEnum instanceof RamAccountingTermsEnum) {
                 estimatedBytes = ((RamAccountingTermsEnum) termsEnum).getTotalBytes();

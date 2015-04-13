@@ -26,7 +26,6 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
@@ -97,24 +96,16 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequestBuilder add(byte[] data, int from, int length, boolean contentUnsafe) throws Exception {
-        request.add(data, from, length, contentUnsafe, null, null);
+    public BulkRequestBuilder add(byte[] data, int from, int length) throws Exception {
+        request.add(data, from, length, null, null);
         return this;
     }
 
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequestBuilder add(byte[] data, int from, int length, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
-        request.add(data, from, length, contentUnsafe, defaultIndex, defaultType);
-        return this;
-    }
-
-    /**
-     * Set the replication type for this operation.
-     */
-    public BulkRequestBuilder setReplicationType(ReplicationType replicationType) {
-        request.replicationType(replicationType);
+    public BulkRequestBuilder add(byte[] data, int from, int length, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
+        request.add(data, from, length, defaultIndex, defaultType);
         return this;
     }
 

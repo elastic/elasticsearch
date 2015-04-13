@@ -19,11 +19,15 @@
 
 package org.elasticsearch.index.deletionpolicy;
 
+import com.google.common.collect.Sets;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
 
 /**
  *
@@ -32,14 +36,15 @@ public class SnapshotIndexCommitExistsMatcher extends TypeSafeMatcher<SnapshotIn
 
     @Override
     public boolean matchesSafely(SnapshotIndexCommit snapshotIndexCommit) {
-        for (String fileName : snapshotIndexCommit.getFiles()) {
-            try {
-                if (!snapshotIndexCommit.getDirectory().fileExists(fileName)) {
+        try {
+            HashSet<String> files = Sets.newHashSet(snapshotIndexCommit.getDirectory().listAll());
+            for (String fileName : snapshotIndexCommit.getFiles()) {
+                if (files.contains(fileName) == false) {
                     return false;
                 }
-            } catch (IOException e) {
-                return false;
             }
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
         }
         return true;
     }

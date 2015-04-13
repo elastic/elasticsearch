@@ -25,10 +25,12 @@ import java.io.Serializable;
  */
 public abstract class AbstractMatcher<T> implements Matcher<T> {
 
+    @Override
     public Matcher<T> and(final Matcher<? super T> other) {
         return new AndMatcher<>(this, other);
     }
 
+    @Override
     public Matcher<T> or(Matcher<? super T> other) {
         return new OrMatcher<>(this, other);
     }
@@ -41,6 +43,7 @@ public abstract class AbstractMatcher<T> implements Matcher<T> {
             this.b = b;
         }
 
+        @Override
         public boolean matches(T t) {
             return a.matches(t) && b.matches(t);
         }
@@ -73,6 +76,7 @@ public abstract class AbstractMatcher<T> implements Matcher<T> {
             this.b = b;
         }
 
+        @Override
         public boolean matches(T t) {
             return a.matches(t) || b.matches(t);
         }

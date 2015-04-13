@@ -26,18 +26,10 @@ import org.elasticsearch.common.inject.AbstractModule;
  */
 public class IndexShardGatewayModule extends AbstractModule {
 
-    private final IndexGateway indexGateway;
-
-    public IndexShardGatewayModule(IndexGateway indexGateway) {
-        this.indexGateway = indexGateway;
-    }
 
     @Override
     protected void configure() {
-        bind(IndexShardGateway.class)
-                .to(indexGateway.shardGatewayClass())
-                .asEagerSingleton();
-
+        bind(IndexShardGateway.class).asEagerSingleton();
         bind(IndexShardGatewayService.class).asEagerSingleton();
     }
 }

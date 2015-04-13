@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.en.PorterStemFilter;
@@ -58,7 +59,9 @@ public class StemmerTokenFilterFactoryTests extends ElasticsearchTokenStreamTest
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
             TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_english");
             assertThat(tokenFilter, instanceOf(StemmerTokenFilterFactory.class));
-            TokenStream create = tokenFilter.create(new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader("foo bar")));
+            Tokenizer tokenizer = new WhitespaceTokenizer();
+            tokenizer.setReader(new StringReader("foo bar"));
+            TokenStream create = tokenFilter.create(tokenizer);
             NamedAnalyzer analyzer = analysisService.analyzer("my_english");
 
             if (v.onOrAfter(Version.V_1_3_0)) {
@@ -89,7 +92,9 @@ public class StemmerTokenFilterFactoryTests extends ElasticsearchTokenStreamTest
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
             TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_porter2");
             assertThat(tokenFilter, instanceOf(StemmerTokenFilterFactory.class));
-            TokenStream create = tokenFilter.create(new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader("foo bar")));
+            Tokenizer tokenizer = new WhitespaceTokenizer();
+            tokenizer.setReader(new StringReader("foo bar"));
+            TokenStream create = tokenFilter.create(tokenizer);
             NamedAnalyzer analyzer = analysisService.analyzer("my_porter2");
             assertThat(create, instanceOf(SnowballFilter.class));
 

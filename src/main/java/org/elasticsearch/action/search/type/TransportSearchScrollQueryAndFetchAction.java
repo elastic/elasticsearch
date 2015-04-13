@@ -64,15 +64,11 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
         new AsyncAction(request, scrollId, listener).start();
     }
 
-    private class AsyncAction {
+    private class AsyncAction extends AbstractAsyncAction {
 
         private final SearchScrollRequest request;
-        private volatile boolean useSlowScroll;
-
         private final ActionListener<SearchResponse> listener;
-
         private final ParsedScrollId scrollId;
-
         private final DiscoveryNodes nodes;
 
         private volatile AtomicArray<ShardSearchFailure> shardFailures;
@@ -80,8 +76,6 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
 
         private final AtomicInteger successfulOps;
         private final AtomicInteger counter;
-
-        private final long startTime = System.currentTimeMillis();
 
         private AsyncAction(SearchScrollRequest request, ParsedScrollId scrollId, ActionListener<SearchResponse> listener) {
             this.request = request;
@@ -126,9 +120,6 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
                 Tuple<String, Long> target = context[i];
                 DiscoveryNode node = nodes.get(target.v1());
                 if (node != null) {
-                    if (node.getVersion().before(ParsedScrollId.SCROLL_SEARCH_AFTER_MINIMUM_VERSION)) {
-                        useSlowScroll = true;
-                    }
                     executePhase(i, node, target.v2());
                 } else {
                     if (logger.isDebugEnabled()) {
@@ -151,7 +142,6 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
                     }
-                } else {
                 }
             }
         }
@@ -198,14 +188,14 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
         }
 
         private void innerFinishHim() throws Exception {
-            ScoreDoc[] sortedShardList = searchPhaseController.sortDocs(!useSlowScroll, queryFetchResults);
+            ScoreDoc[] sortedShardList = searchPhaseController.sortDocs(true, queryFetchResults);
             final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults);
             String scrollId = null;
             if (request.scroll() != null) {
                 scrollId = request.scrollId();
             }
             listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.getContext().length, successfulOps.get(),
-                    System.currentTimeMillis() - startTime, buildShardFailures()));
+                    buildTookInMillis(), buildShardFailures()));
         }
     }
 }

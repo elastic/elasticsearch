@@ -21,9 +21,8 @@ package org.elasticsearch.client.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.GenericAction;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
+import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.AbstractClientHeadersTests;
@@ -58,6 +57,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
     protected Client buildClient(Settings headersSettings, GenericAction[] testedActions) {
         TransportClient client = new TransportClient(ImmutableSettings.builder()
                 .put("client.transport.sniff", false)
+                .put("node.name", "transport_client_" + this.getTestName())
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, InternalTransportService.class.getName())
                 .put(HEADER_SETTINGS)
                 .build());
@@ -71,21 +71,26 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
         TransportClient client = new TransportClient(ImmutableSettings.builder()
                 .put("client.transport.sniff", true)
                 .put("cluster.name", "cluster1")
+                .put("node.name", "transport_client_" + this.getTestName() + "_1")
                 .put("client.transport.nodes_sampler_interval", "1s")
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, InternalTransportService.class.getName())
                 .put(HEADER_SETTINGS)
                 .build());
+        try {
+            client.addTransportAddress(address);
 
-        client.addTransportAddress(address);
+            InternalTransportService service = (InternalTransportService) client.injector.getInstance(TransportService.class);
 
-        InternalTransportService service = (InternalTransportService) client.injector.getInstance(TransportService.class);
+            if (!service.clusterStateLatch.await(5, TimeUnit.SECONDS)) {
+                fail("takes way too long to get the cluster state");
+            }
 
-        if (!service.clusterStateLatch.await(5, TimeUnit.SECONDS)) {
-            fail("takes way too long to get the cluster state");
+            assertThat(client.connectedNodes().size(), is(1));
+            assertThat(client.connectedNodes().get(0).getAddress(), is((TransportAddress) address));
+        } finally {
+            client.close();
         }
 
-        assertThat(client.connectedNodes().size(), is(1));
-        assertThat(client.connectedNodes().get(0).getAddress(), is((TransportAddress) address));
     }
 
     public static class InternalTransportService extends TransportService {
@@ -99,9 +104,9 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
 
         @Override @SuppressWarnings("unchecked")
         public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request, TransportRequestOptions options, TransportResponseHandler<T> handler) {
-            if (NodesInfoAction.NAME.equals(action)) {
+            if (TransportLivenessAction.NAME.equals(action)) {
                 assertHeaders(request);
-                ((TransportResponseHandler<NodesInfoResponse>) handler).handleResponse(new NodesInfoResponse(ClusterName.DEFAULT, new NodeInfo[0]));
+                ((TransportResponseHandler<LivenessResponse>) handler).handleResponse(new LivenessResponse(ClusterName.DEFAULT, node));
                 return;
             }
             if (ClusterStateAction.NAME.equals(action)) {

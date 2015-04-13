@@ -23,31 +23,26 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.SingleObjectCache;
 
 /**
  *
  */
-public class ProcessService extends AbstractComponent {
+public final class ProcessService extends AbstractComponent {
 
     private final ProcessProbe probe;
-
     private final ProcessInfo info;
-
-    private final TimeValue refreshInterval;
-
-    private ProcessStats cachedStats;
+    private final SingleObjectCache<ProcessStats> processStatsCache;
 
     @Inject
     public ProcessService(Settings settings, ProcessProbe probe) {
         super(settings);
         this.probe = probe;
 
-        this.refreshInterval = componentSettings.getAsTime("refresh_interval", TimeValue.timeValueSeconds(1));
-
+        final TimeValue refreshInterval = settings.getAsTime("monitor.process.refresh_interval", TimeValue.timeValueSeconds(1));
+        processStatsCache = new ProcessStatsCache(refreshInterval, probe.processStats());
         this.info = probe.processInfo();
         this.info.refreshInterval = refreshInterval.millis();
-        this.cachedStats = probe.processStats();
-
         logger.debug("Using probe [{}] with refresh_interval [{}]", probe, refreshInterval);
     }
 
@@ -55,10 +50,18 @@ public class ProcessService extends AbstractComponent {
         return this.info;
     }
 
-    public synchronized ProcessStats stats() {
-        if ((System.currentTimeMillis() - cachedStats.timestamp()) > refreshInterval.millis()) {
-            cachedStats = probe.processStats();
+    public ProcessStats stats() {
+        return processStatsCache.getOrRefresh();
+    }
+
+    private class ProcessStatsCache extends SingleObjectCache<ProcessStats> {
+        public ProcessStatsCache(TimeValue interval, ProcessStats initValue) {
+            super(interval, initValue);
         }
-        return cachedStats;
+
+        @Override
+        protected ProcessStats refresh() {
+            return probe.processStats();
+        }
     }
 }

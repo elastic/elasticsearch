@@ -52,7 +52,7 @@ public final class LongHash extends AbstractHash {
     }
 
     /**
-     * Get the id associated with <code>key</code>
+     * Get the id associated with <code>key</code> or -1 if the key is not contained in the hash.
      */
     public long find(long key) {
         final long slot = slot(hash(key), mask);

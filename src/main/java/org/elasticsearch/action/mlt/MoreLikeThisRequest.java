@@ -22,7 +22,6 @@ package org.elasticsearch.action.mlt;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
@@ -66,7 +65,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
 
     private String[] fields;
 
-    private float percentTermsToMatch = -1;
+    private String minimumShouldMatch = "0%";
     private int minTermFreq = -1;
     private int maxQueryTerms = -1;
     private String[] stopWords = null;
@@ -80,13 +79,11 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
     private SearchType searchType = SearchType.DEFAULT;
     private int searchSize = 0;
     private int searchFrom = 0;
-    private String searchQueryHint;
     private String[] searchIndices;
     private String[] searchTypes;
     private Scroll searchScroll;
 
     private BytesReference searchSource;
-    private boolean searchSourceUnsafe;
 
     MoreLikeThisRequest() {
     }
@@ -137,13 +134,19 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
                 return MoreLikeThisRequest.this.indicesOptions();
             }
         });
-        requests.add(new IndicesRequest() {
+        requests.add(new IndicesRequest.Replaceable() {
             @Override
             public String[] indices() {
                 if (searchIndices != null) {
                     return searchIndices;
                 }
                 return new String[]{index};
+            }
+
+            @Override
+            public IndicesRequest indices(String[] indices) {
+                searchIndices = indices;
+                return this;
             }
 
             @Override
@@ -206,18 +209,44 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
     }
 
     /**
-     * The percent of the terms to match for each field. Defaults to <tt>0.3f</tt>.
+     * Number of terms that must match the generated query expressed in the
+     * common syntax for minimum should match. Defaults to <tt>30%</tt>.
+     *
+     * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
      */
-    public MoreLikeThisRequest percentTermsToMatch(float percentTermsToMatch) {
-        this.percentTermsToMatch = percentTermsToMatch;
+    public MoreLikeThisRequest minimumShouldMatch(String minimumShouldMatch) {
+        this.minimumShouldMatch = minimumShouldMatch;
         return this;
+    }
+
+    /**
+     * Number of terms that must match the generated query expressed in the
+     * common syntax for minimum should match.
+     *
+     * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
+     */
+    public String minimumShouldMatch() {
+        return this.minimumShouldMatch;
     }
 
     /**
      * The percent of the terms to match for each field. Defaults to <tt>0.3f</tt>.
      */
+    @Deprecated
+    public MoreLikeThisRequest percentTermsToMatch(float percentTermsToMatch) {
+        return minimumShouldMatch(Math.round(percentTermsToMatch * 100) + "%");
+    }
+
+    /**
+     * The percent of the terms to match for each field. Defaults to <tt>0.3f</tt>.
+     */
+    @Deprecated
     public float percentTermsToMatch() {
-        return this.percentTermsToMatch;
+        if (minimumShouldMatch.endsWith("%")) {
+            return Float.parseFloat(minimumShouldMatch.substring(0, minimumShouldMatch.indexOf("%"))) / 100;
+        } else {
+            return -1;
+        }
     }
 
     /**
@@ -369,20 +398,12 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
         return this.include;
     }
 
-    void beforeLocalFork() {
-        if (searchSourceUnsafe) {
-            searchSource = searchSource.copyBytesArray();
-            searchSourceUnsafe = false;
-        }
-    }
-
     /**
      * An optional search source request allowing to control the search request for the
      * more like this documents.
      */
     public MoreLikeThisRequest searchSource(SearchSourceBuilder sourceBuilder) {
         this.searchSource = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
-        this.searchSourceUnsafe = false;
         return this;
     }
 
@@ -392,7 +413,6 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
      */
     public MoreLikeThisRequest searchSource(String searchSource) {
         this.searchSource = new BytesArray(searchSource);
-        this.searchSourceUnsafe = false;
         return this;
     }
 
@@ -408,7 +428,6 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
 
     public MoreLikeThisRequest searchSource(XContentBuilder builder) {
         this.searchSource = builder.bytes();
-        this.searchSourceUnsafe = false;
         return this;
     }
 
@@ -417,24 +436,23 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
      * more like this documents.
      */
     public MoreLikeThisRequest searchSource(byte[] searchSource) {
-        return searchSource(searchSource, 0, searchSource.length, false);
+        return searchSource(searchSource, 0, searchSource.length);
     }
 
     /**
      * An optional search source request allowing to control the search request for the
      * more like this documents.
      */
-    public MoreLikeThisRequest searchSource(byte[] searchSource, int offset, int length, boolean unsafe) {
-        return searchSource(new BytesArray(searchSource, offset, length), unsafe);
+    public MoreLikeThisRequest searchSource(byte[] searchSource, int offset, int length) {
+        return searchSource(new BytesArray(searchSource, offset, length));
     }
 
     /**
      * An optional search source request allowing to control the search request for the
      * more like this documents.
      */
-    public MoreLikeThisRequest searchSource(BytesReference searchSource, boolean unsafe) {
+    public MoreLikeThisRequest searchSource(BytesReference searchSource) {
         this.searchSource = searchSource;
-        this.searchSourceUnsafe = unsafe;
         return this;
     }
 
@@ -444,10 +462,6 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
      */
     public BytesReference searchSource() {
         return this.searchSource;
-    }
-
-    public boolean searchSourceUnsafe() {
-        return searchSourceUnsafe;
     }
 
     /**
@@ -504,21 +518,6 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
      */
     public String[] searchTypes() {
         return this.searchTypes;
-    }
-
-    /**
-     * Optional search query hint.
-     */
-    public MoreLikeThisRequest searchQueryHint(String searchQueryHint) {
-        this.searchQueryHint = searchQueryHint;
-        return this;
-    }
-
-    /**
-     * Optional search query hint.
-     */
-    public String searchQueryHint() {
-        return this.searchQueryHint;
     }
 
     /**
@@ -594,7 +593,8 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
             }
         }
 
-        percentTermsToMatch = in.readFloat();
+        minimumShouldMatch(in.readString());
+
         minTermFreq = in.readVInt();
         maxQueryTerms = in.readVInt();
         size = in.readVInt();
@@ -609,16 +609,9 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
         minWordLength = in.readVInt();
         maxWordLength = in.readVInt();
         boostTerms = in.readFloat();
-        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-            include = in.readBoolean();
-        } else {
-            include = false; // hard-coded behavior until Elasticsearch 1.2
-        }
+        include = in.readBoolean();
 
         searchType = SearchType.fromId(in.readByte());
-        if (in.readBoolean()) {
-            searchQueryHint = in.readString();
-        }
         size = in.readVInt();
         if (size == 0) {
             searchIndices = null;
@@ -645,7 +638,6 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
             searchScroll = readScroll(in);
         }
 
-        searchSourceUnsafe = false;
         searchSource = in.readBytesReference();
 
         searchSize = in.readVInt();
@@ -668,7 +660,8 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
             }
         }
 
-        out.writeFloat(percentTermsToMatch);
+        out.writeString(minimumShouldMatch);
+
         out.writeVInt(minTermFreq);
         out.writeVInt(maxQueryTerms);
         if (stopWords == null) {
@@ -684,17 +677,9 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
         out.writeVInt(minWordLength);
         out.writeVInt(maxWordLength);
         out.writeFloat(boostTerms);
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeBoolean(include);
-        }
+        out.writeBoolean(include);
 
         out.writeByte(searchType.id());
-        if (searchQueryHint == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(searchQueryHint);
-        }
         if (searchIndices == null) {
             out.writeVInt(0);
         } else {

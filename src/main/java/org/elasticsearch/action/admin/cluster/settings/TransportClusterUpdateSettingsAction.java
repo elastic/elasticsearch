@@ -26,6 +26,8 @@ import org.elasticsearch.action.support.master.TransportMasterNodeOperationActio
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -66,6 +68,17 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
     protected String executor() {
         return ThreadPool.Names.SAME;
     }
+
+    @Override
+    protected ClusterBlockException checkBlock(ClusterUpdateSettingsRequest request, ClusterState state) {
+        // allow for dedicated changes to the metadata blocks, so we don't block those to allow to "re-enable" it
+        if ((request.transientSettings().getAsMap().isEmpty() && request.persistentSettings().getAsMap().size() == 1 && request.persistentSettings().get(MetaData.SETTING_READ_ONLY) != null) ||
+                request.persistentSettings().getAsMap().isEmpty() && request.transientSettings().getAsMap().size() == 1 && request.transientSettings().get(MetaData.SETTING_READ_ONLY) != null) {
+            return null;
+        }
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+    }
+
 
     @Override
     protected ClusterUpdateSettingsRequest newRequest() {
@@ -173,7 +186,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                 ImmutableSettings.Builder transientSettings = ImmutableSettings.settingsBuilder();
                 transientSettings.put(currentState.metaData().transientSettings());
                 for (Map.Entry<String, String> entry : request.transientSettings().getAsMap().entrySet()) {
-                    if (dynamicSettings.hasDynamicSetting(entry.getKey()) || entry.getKey().startsWith("logger.")) {
+                    if (dynamicSettings.isDynamicOrLoggingSetting(entry.getKey())) {
                         String error = dynamicSettings.validateDynamicSetting(entry.getKey(), entry.getValue());
                         if (error == null) {
                             transientSettings.put(entry.getKey(), entry.getValue());
@@ -190,7 +203,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                 ImmutableSettings.Builder persistentSettings = ImmutableSettings.settingsBuilder();
                 persistentSettings.put(currentState.metaData().persistentSettings());
                 for (Map.Entry<String, String> entry : request.persistentSettings().getAsMap().entrySet()) {
-                    if (dynamicSettings.hasDynamicSetting(entry.getKey()) || entry.getKey().startsWith("logger.")) {
+                    if (dynamicSettings.isDynamicOrLoggingSetting(entry.getKey())) {
                         String error = dynamicSettings.validateDynamicSetting(entry.getKey(), entry.getValue());
                         if (error == null) {
                             persistentSettings.put(entry.getKey(), entry.getValue());

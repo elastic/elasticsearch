@@ -48,14 +48,19 @@ public class Headers {
 
     public <M extends TransportMessage<?>> M applyTo(M message) {
         for (String key : headers.names()) {
-            message.putHeader(key, headers.get(key));
+            if (!message.hasHeader(key)) {
+                message.putHeader(key, headers.get(key));
+            }
         }
         return message;
+    }
+
+    public Settings headers() {
+        return headers;
     }
 
     static Settings resolveHeaders(Settings settings) {
         Settings headers = settings.getAsSettings(PREFIX);
         return headers != null ? headers : ImmutableSettings.EMPTY;
     }
-
 }

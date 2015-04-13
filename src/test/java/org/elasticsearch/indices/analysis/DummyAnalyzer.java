@@ -26,12 +26,11 @@ import java.io.Reader;
 
 public class DummyAnalyzer extends StopwordAnalyzerBase {
 
-    protected DummyAnalyzer(Version version) {
-        super(version);
+    protected DummyAnalyzer() {
     }
 
     @Override
-    protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
+    protected TokenStreamComponents createComponents(String fieldName) {
         return null;
     }
 }

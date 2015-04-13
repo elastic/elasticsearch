@@ -31,10 +31,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
@@ -44,8 +41,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestPluginsAction extends AbstractCatAction {
 
     @Inject
-    public RestPluginsAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestPluginsAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_cat/plugins", this);
     }
 
@@ -80,6 +77,7 @@ public class RestPluginsAction extends AbstractCatAction {
     Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders();
+        table.addCell("id", "default:false;desc:unique node id");
         table.addCell("name", "alias:n;desc:node name");
         table.addCell("component", "alias:c;desc:component");
         table.addCell("version", "alias:v;desc:component version");
@@ -99,6 +97,7 @@ public class RestPluginsAction extends AbstractCatAction {
 
             for (PluginInfo pluginInfo : info.getPlugins().getInfos()) {
                 table.startRow();
+                table.addCell(node.id());
                 table.addCell(node.name());
                 table.addCell(pluginInfo.getName());
                 table.addCell(pluginInfo.getVersion());

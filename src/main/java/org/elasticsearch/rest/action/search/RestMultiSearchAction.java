@@ -40,8 +40,8 @@ public class RestMultiSearchAction extends BaseRestHandler {
     private final boolean allowExplicitIndex;
 
     @Inject
-    public RestMultiSearchAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestMultiSearchAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
 
         controller.registerHandler(GET, "/_msearch", this);
         controller.registerHandler(POST, "/_msearch", this);
@@ -61,7 +61,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] types = Strings.splitStringByCommaToArray(request.param("type"));
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, multiSearchRequest.indicesOptions());
-        multiSearchRequest.add(RestActions.getRestContent(request), request.contentUnsafe(), indices, types, request.param("search_type"), request.param("routing"), indicesOptions, allowExplicitIndex);
+        multiSearchRequest.add(RestActions.getRestContent(request), indices, types, request.param("search_type"), request.param("routing"), indicesOptions, allowExplicitIndex);
 
         client.multiSearch(multiSearchRequest, new RestToXContentListener<MultiSearchResponse>(channel));
     }

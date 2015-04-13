@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.object;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -93,8 +94,8 @@ public class SimpleObjectMappingTests extends ElasticsearchSingleNodeTest {
                                 .field("type", "string")
                                 .field("index", "analyzed")
                                 .startArray("fields")
-                                    .field("test", "string")
-                                    .field("test2", "string")
+                                    .startObject().field("test", "string").endObject()
+                                    .startObject().field("test2", "string").endObject()
                                 .endArray()
                             .endObject()
                         .endObject()
@@ -126,8 +127,8 @@ public class SimpleObjectMappingTests extends ElasticsearchSingleNodeTest {
                     .startObject("tweet")
                         .startObject("properties")
                             .startArray("fields")
-                                .field("test", "string")
-                                .field("test2", "string")
+                                .startObject().field("test", "string").endObject()
+                                .startObject().field("test2", "string").endObject()
                             .endArray()
                         .endObject()
                     .endObject()

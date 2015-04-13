@@ -33,15 +33,21 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 import java.util.Map;
 
 import static org.elasticsearch.client.Requests.updateSettingsRequest;
+import com.google.common.collect.ImmutableSet;
 
 /**
  *
  */
 public class RestUpdateSettingsAction extends BaseRestHandler {
 
+    private static final ImmutableSet<String> VALUES_TO_EXCLUDE = ImmutableSet.<String>builder()
+            .add("pretty").add("timeout").add("master_timeout").add("index")
+            .add("expand_wildcards").add("ignore_unavailable").add("allow_no_indices")
+            .build();
+
     @Inject
-    public RestUpdateSettingsAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestUpdateSettingsAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(RestRequest.Method.PUT, "/{index}/_settings", this);
         controller.registerHandler(RestRequest.Method.PUT, "/_settings", this);
     }
@@ -69,7 +75,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
             }
         }
         for (Map.Entry<String, String> entry : request.params().entrySet()) {
-            if (entry.getKey().equals("pretty") || entry.getKey().equals("timeout") || entry.getKey().equals("master_timeout")) {
+            if (VALUES_TO_EXCLUDE.contains(entry.getKey())) {
                 continue;
             }
             updateSettings.put(entry.getKey(), entry.getValue());

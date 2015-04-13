@@ -33,12 +33,13 @@ import java.io.IOException;
 
 /**
  */
-public class GetSettingsRequest extends MasterNodeReadOperationRequest<GetSettingsRequest> implements IndicesRequest {
+public class GetSettingsRequest extends MasterNodeReadOperationRequest<GetSettingsRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
     private String[] names = Strings.EMPTY_ARRAY;
 
+    @Override
     public GetSettingsRequest indices(String... indices) {
         this.indices = indices;
         return this;
@@ -83,7 +84,6 @@ public class GetSettingsRequest extends MasterNodeReadOperationRequest<GetSettin
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         names = in.readStringArray();
-        readLocal(in, Version.V_1_0_0_RC2);
     }
 
     @Override
@@ -92,6 +92,5 @@ public class GetSettingsRequest extends MasterNodeReadOperationRequest<GetSettin
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeStringArray(names);
-        writeLocal(out, Version.V_1_0_0_RC2);
     }
 }

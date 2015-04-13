@@ -19,3 +19,9 @@ should be:
 
 The mapping is automatically stored and indexed (meaning it can be
 searched on using the `_parent` field notation).
+
+==== Field data loading
+
+Contrary to other fields the fielddata loading is not `lazy`, but `eager`. The reason for this is that when this
+field has been enabled it is going to be used in parent/child queries, which heavily relies on field data to perform
+efficiently. This can already be observed during indexing after refresh either automatically or manually has been executed.

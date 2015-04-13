@@ -123,7 +123,6 @@ public class TransportSearchFailuresTests extends ElasticsearchIntegrationTest {
                 .field("name", nameValue + id)
                 .field("age", age)
                 .field("multi", multi.toString())
-                .field("_boost", age * 10)
                 .endObject();
     }
 }

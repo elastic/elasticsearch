@@ -34,7 +34,7 @@ public class PreBuiltTokenizerFactoryFactory implements TokenizerFactoryFactory 
 
     @Override
     public TokenizerFactory create(String name, Settings settings) {
-        Version indexVersion = settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        Version indexVersion = Version.indexCreated(settings);
         if (!Version.CURRENT.equals(indexVersion)) {
             PreBuiltTokenizers preBuiltTokenizers = PreBuiltTokenizers.getOrDefault(name, null);
             if (preBuiltTokenizers != null) {

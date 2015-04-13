@@ -40,14 +40,14 @@ public class GaussDecayFunctionParser extends DecayFunctionParser {
         public double evaluate(double value, double scale) {
             // note that we already computed scale^2 in processScale() so we do
             // not need to square it here.
-            return (float) Math.exp(0.5 * Math.pow(value, 2.0) / scale);
+            return Math.exp(0.5 * Math.pow(value, 2.0) / scale);
         }
 
         @Override
         public Explanation explainFunction(String valueExpl, double value, double scale) {
             ComplexExplanation ce = new ComplexExplanation();
             ce.setValue((float) evaluate(value, scale));
-            ce.setDescription("-exp(-0.5*pow(" + valueExpl + ",2.0)/" + -1 * scale + ")");
+            ce.setDescription("exp(-0.5*pow(" + valueExpl + ",2.0)/" + -1 * scale + ")");
             return ce;
         }
 

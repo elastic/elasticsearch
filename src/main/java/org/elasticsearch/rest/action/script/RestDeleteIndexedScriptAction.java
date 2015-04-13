@@ -36,13 +36,15 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestDeleteIndexedScriptAction extends BaseRestHandler {
 
     @Inject
-    public RestDeleteIndexedScriptAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
-        controller.registerHandler(DELETE, "/_scripts/{lang}/{id}", this);
+    public RestDeleteIndexedScriptAction(Settings settings, RestController controller, Client client) {
+        this(settings, controller, true, client);
     }
 
-    protected RestDeleteIndexedScriptAction(Settings settings, Client client) {
-        super(settings, client);
+    protected RestDeleteIndexedScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers, Client client) {
+        super(settings, controller, client);
+        if (registerDefaultHandlers) {
+            controller.registerHandler(DELETE, "/_scripts/{lang}/{id}", this);
+        }
     }
 
     protected String getScriptLang(RestRequest request) {

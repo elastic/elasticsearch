@@ -20,6 +20,7 @@
 package org.elasticsearch.action.mlt;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -46,7 +47,7 @@ import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.MoreLikeThisFieldQueryBuilder;
+import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -131,7 +132,6 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
                 .listenerThreaded(true)
                 .operationThreaded(true);
 
-        request.beforeLocalFork();
         getAction.execute(getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getResponse) {
@@ -220,7 +220,7 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
                 searchRequest.extraSource(extraSource);
 
                 if (request.searchSource() != null) {
-                    searchRequest.source(request.searchSource(), request.searchSourceUnsafe());
+                    searchRequest.source(request.searchSource());
                 }
 
                 searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
@@ -284,7 +284,7 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
         docMapper.parse(SourceToParse.source(getResponse.getSourceAsBytesRef()).type(request.type()).id(request.id()), new DocumentMapper.ParseListenerAdapter() {
             @Override
             public boolean beforeFieldAdded(FieldMapper fieldMapper, Field field, Object parseContext) {
-                if (!field.fieldType().indexed()) {
+                if (field.fieldType().indexOptions() == IndexOptions.NONE) {
                     return false;
                 }
                 if (fieldMapper instanceof InternalMapper) {
@@ -321,14 +321,14 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
     }
 
     private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, String fieldName, String likeText, boolean failOnUnsupportedField) {
-        MoreLikeThisFieldQueryBuilder mlt = moreLikeThisFieldQuery(fieldName)
+        MoreLikeThisQueryBuilder mlt = moreLikeThisQuery(fieldName)
                 .likeText(likeText)
-                .percentTermsToMatch(request.percentTermsToMatch())
+                .minimumShouldMatch(request.minimumShouldMatch())
                 .boostTerms(request.boostTerms())
                 .minDocFreq(request.minDocFreq())
                 .maxDocFreq(request.maxDocFreq())
                 .minWordLength(request.minWordLength())
-                .maxWordLen(request.maxWordLength())
+                .maxWordLength(request.maxWordLength())
                 .minTermFreq(request.minTermFreq())
                 .maxQueryTerms(request.maxQueryTerms())
                 .stopWords(request.stopWords())

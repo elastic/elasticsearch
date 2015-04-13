@@ -66,6 +66,7 @@ public final class ProviderMethodsModule implements Module {
         return new ProviderMethodsModule(object);
     }
 
+    @Override
     public synchronized void configure(Binder binder) {
         for (ProviderMethod<?> providerMethod : getProviderMethods(binder)) {
             providerMethod.configure(binder);

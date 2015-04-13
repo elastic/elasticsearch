@@ -49,20 +49,6 @@ public abstract class AbstractIndexAnalyzerProvider<T extends Analyzer> extends 
     }
 
     /**
-     * Constructs a new analyzer component, with the index name and its settings and the analyzer name.
-     *
-     * @param index          The index name
-     * @param indexSettings  The index settings
-     * @param prefixSettings A settings prefix (like "com.mycompany") to simplify extracting the component settings
-     * @param name           The analyzer name
-     */
-    public AbstractIndexAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, String prefixSettings, String name, Settings settings) {
-        super(index, indexSettings, prefixSettings);
-        this.name = name;
-        this.version = Analysis.parseAnalysisVersion(indexSettings, settings, logger);
-    }
-
-    /**
      * Returns the injected name of the analyzer.
      */
     @Override

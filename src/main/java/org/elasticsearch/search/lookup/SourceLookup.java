@@ -19,8 +19,8 @@
 package org.elasticsearch.search.lookup;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -39,7 +39,7 @@ import java.util.Set;
  */
 public class SourceLookup implements Map {
 
-    private AtomicReader reader;
+    private LeafReader reader;
 
     private int docId = -1;
 
@@ -99,30 +99,26 @@ public class SourceLookup implements Map {
         return sourceAsMapAndType(bytes, offset, length).v2();
     }
 
-    public void setNextReader(AtomicReaderContext context) {
-        if (this.reader == context.reader()) { // if we are called with the same reader, don't invalidate source
+    public void setSegmentAndDocument(LeafReaderContext context, int docId) {
+        if (this.reader == context.reader() && this.docId == docId) {
+            // if we are called with the same document, don't invalidate source
             return;
         }
         this.reader = context.reader();
         this.source = null;
         this.sourceAsBytes = null;
-        this.docId = -1;
-    }
-
-    public void setNextDocId(int docId) {
-        if (this.docId == docId) { // if we are called with the same docId, don't invalidate source
-            return;
-        }
         this.docId = docId;
-        this.sourceAsBytes = null;
-        this.source = null;
     }
 
-    public void setNextSource(BytesReference source) {
+    public void setSource(BytesReference source) {
         this.sourceAsBytes = source;
     }
 
-    public void setNextSource(Map<String, Object> source) {
+    public void setSourceContentType(XContentType sourceContentType) {
+        this.sourceContentType = sourceContentType;
+    }
+
+    public void setSource(Map<String, Object> source) {
         this.source = source;
     }
 

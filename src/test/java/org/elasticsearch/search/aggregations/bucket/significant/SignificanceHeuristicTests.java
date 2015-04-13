@@ -45,7 +45,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  *
@@ -68,8 +72,10 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
     public void streamResponse() throws Exception {
         SignificanceHeuristicStreams.registerStream(MutualInformation.STREAM, MutualInformation.STREAM.getName());
         SignificanceHeuristicStreams.registerStream(JLHScore.STREAM, JLHScore.STREAM.getName());
+        SignificanceHeuristicStreams.registerStream(PercentageScore.STREAM, PercentageScore.STREAM.getName());
         SignificanceHeuristicStreams.registerStream(GND.STREAM, GND.STREAM.getName());
         SignificanceHeuristicStreams.registerStream(ChiSquare.STREAM, ChiSquare.STREAM.getName());
+        SignificanceHeuristicStreams.registerStream(ScriptHeuristic.STREAM, ScriptHeuristic.STREAM.getName());
         Version version = ElasticsearchIntegrationTest.randomVersion();
         InternalSignificantTerms[] sigTerms = getRandomSignificantTerms(getRandomSignificanceheuristic());
 
@@ -87,11 +93,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
 
         sigTerms[1].readFrom(in);
 
-        if (version.onOrAfter(Version.V_1_3_0)) {
-            assertTrue(sigTerms[1].significanceHeuristic.equals(sigTerms[0].significanceHeuristic));
-        } else {
-            assertTrue(sigTerms[1].significanceHeuristic instanceof JLHScore);
-        }
+        assertTrue(sigTerms[1].significanceHeuristic.equals(sigTerms[0].significanceHeuristic));
     }
 
     InternalSignificantTerms[] getRandomSignificantTerms(SignificanceHeuristic heuristic) {
@@ -99,14 +101,14 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         ArrayList<InternalSignificantTerms.Bucket> buckets = new ArrayList<>();
         if (randomBoolean()) {
             BytesRef term = new BytesRef("123.0");
-            buckets.add(new SignificantLongTerms.Bucket(1, 2, 3, 4, 123, InternalAggregations.EMPTY));
-            sTerms[0] = new SignificantLongTerms(10, 20, "some_name", null, 1, 1, heuristic, buckets);
+            buckets.add(new SignificantLongTerms.Bucket(1, 2, 3, 4, 123, InternalAggregations.EMPTY, null));
+            sTerms[0] = new SignificantLongTerms(10, 20, "some_name", null, 1, 1, heuristic, buckets, null);
             sTerms[1] = new SignificantLongTerms();
         } else {
 
             BytesRef term = new BytesRef("someterm");
             buckets.add(new SignificantStringTerms.Bucket(term, 1, 2, 3, 4, InternalAggregations.EMPTY));
-            sTerms[0] = new SignificantStringTerms(10, 20, "some_name", 1, 1, heuristic, buckets);
+            sTerms[0] = new SignificantStringTerms(10, 20, "some_name", 1, 1, heuristic, buckets, null);
             sTerms[1] = new SignificantStringTerms();
         }
         return sTerms;
@@ -308,6 +310,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         testBackgroundAssertions(new MutualInformation(true, true), new MutualInformation(true, false));
         testBackgroundAssertions(new ChiSquare(true, true), new ChiSquare(true, false));
         testBackgroundAssertions(new GND(true), new GND(false));
+        testAssertions(PercentageScore.INSTANCE);
         testAssertions(JLHScore.INSTANCE);
     }
 
@@ -315,6 +318,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
     public void basicScoreProperties() {
         basicScoreProperties(JLHScore.INSTANCE, true);
         basicScoreProperties(new GND(true), true);
+        basicScoreProperties(PercentageScore.INSTANCE, true);
         basicScoreProperties(new MutualInformation(true, true), false);
         basicScoreProperties(new ChiSquare(true, true), false);
     }

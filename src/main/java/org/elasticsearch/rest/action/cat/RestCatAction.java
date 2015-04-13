@@ -35,8 +35,8 @@ public class RestCatAction extends BaseRestHandler {
     private final String HELP;
 
     @Inject
-    public RestCatAction(Settings settings, Client client, RestController controller, Set<AbstractCatAction> catActions) {
-        super(settings, client);
+    public RestCatAction(Settings settings, RestController controller, Set<AbstractCatAction> catActions, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_cat", this);
         StringBuilder sb = new StringBuilder();
         sb.append(CAT_NL);

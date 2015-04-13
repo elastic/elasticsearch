@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownAction;
@@ -38,7 +39,6 @@ import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.bench.*;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetAction;
@@ -77,7 +77,7 @@ public abstract class AbstractClientHeadersTests extends ElasticsearchTestCase {
     private static final GenericAction[] ACTIONS = new GenericAction[] {
                 // client actions
                 GetAction.INSTANCE, SearchAction.INSTANCE, DeleteAction.INSTANCE, DeleteIndexedScriptAction.INSTANCE,
-                IndexAction.INSTANCE, AbortBenchmarkAction.INSTANCE, BenchmarkAction.INSTANCE, BenchmarkStatusAction.INSTANCE,
+                IndexAction.INSTANCE,
 
                 // cluster admin actions
                 ClusterStatsAction.INSTANCE, CreateSnapshotAction.INSTANCE, NodesShutdownAction.INSTANCE, ClusterRerouteAction.INSTANCE,
@@ -115,9 +115,6 @@ public abstract class AbstractClientHeadersTests extends ElasticsearchTestCase {
         client.prepareDelete("idx", "type", "id").execute().addListener(new AssertingActionListener<DeleteResponse>(DeleteAction.NAME));
         client.prepareDeleteIndexedScript("lang", "id").execute().addListener(new AssertingActionListener<DeleteIndexedScriptResponse>(DeleteIndexedScriptAction.NAME));
         client.prepareIndex("idx", "type", "id").setSource("source").execute().addListener(new AssertingActionListener<IndexResponse>(IndexAction.NAME));
-        client.prepareAbortBench("bname").execute().addListener(new AssertingActionListener<AbortBenchmarkResponse>(AbortBenchmarkAction.NAME));
-        client.prepareBench("idx").setBenchmarkId("id").addCompetitor(new BenchmarkCompetitorBuilder().setName("name")).execute().addListener(new AssertingActionListener<BenchmarkResponse>(BenchmarkAction.NAME));
-        client.prepareBenchStatus().execute().addListener(new AssertingActionListener<BenchmarkStatusResponse>(BenchmarkStatusAction.NAME));
 
         // choosing arbitrary cluster admin actions to test
         client.admin().cluster().prepareClusterStats().execute().addListener(new AssertingActionListener<ClusterStatsResponse>(ClusterStatsAction.NAME));
@@ -132,22 +129,45 @@ public abstract class AbstractClientHeadersTests extends ElasticsearchTestCase {
         client.admin().indices().prepareFlush().execute().addListener(new AssertingActionListener<FlushResponse>(FlushAction.NAME));
     }
 
-    protected static void assertHeaders(Map<String, Object> headers) {
+    @Test
+    public void testOverideHeader() throws Exception {
+        String key1Val = randomAsciiOfLength(5);
+        Map<String, Object> expected = ImmutableMap.<String, Object>builder()
+                .put("key1", key1Val)
+                .put("key2", "val 2")
+                .build();
+
+        client.prepareGet("idx", "type", "id")
+                .putHeader("key1", key1Val)
+                .execute().addListener(new AssertingActionListener<GetResponse>(GetAction.NAME, expected));
+
+        client.admin().cluster().prepareClusterStats()
+                .putHeader("key1", key1Val)
+                .execute().addListener(new AssertingActionListener<ClusterStatsResponse>(ClusterStatsAction.NAME, expected));
+
+        client.admin().indices().prepareCreate("idx")
+                .putHeader("key1", key1Val)
+                .execute().addListener(new AssertingActionListener<CreateIndexResponse>(CreateIndexAction.NAME, expected));
+    }
+
+    protected static void assertHeaders(Map<String, Object> headers, Map<String, Object> expected) {
         assertThat(headers, notNullValue());
-        assertThat(headers.size(), is(2));
-        assertThat(headers.get("key1"), notNullValue());
-        assertThat(headers.get("key1").toString(), equalTo("val1"));
-        assertThat(headers.get("key2"), notNullValue());
-        assertThat(headers.get("key2").toString(), equalTo("val 2"));
+        assertThat(headers.size(), is(expected.size()));
+        for (Map.Entry<String, Object> expectedEntry : expected.entrySet()) {
+            assertThat(headers.get(expectedEntry.getKey()), equalTo(expectedEntry.getValue()));
+        }
     }
 
     protected static void assertHeaders(TransportMessage<?> message) {
+        assertHeaders(message, HEADER_SETTINGS.getAsSettings(Headers.PREFIX).getAsStructuredMap());
+    }
+
+    protected static void assertHeaders(TransportMessage<?> message, Map<String, Object> expected) {
         assertThat(message.getHeaders(), notNullValue());
-        assertThat(message.getHeaders().size(), is(2));
-        assertThat(message.getHeader("key1"), notNullValue());
-        assertThat(message.getHeader("key1").toString(), equalTo("val1"));
-        assertThat(message.getHeader("key2"), notNullValue());
-        assertThat(message.getHeader("key2").toString(), equalTo("val 2"));
+        assertThat(message.getHeaders().size(), is(expected.size()));
+        for (Map.Entry<String, Object> expectedEntry : expected.entrySet()) {
+            assertThat(message.getHeader(expectedEntry.getKey()), equalTo(expectedEntry.getValue()));
+        }
     }
 
     protected static class InternalException extends Exception {
@@ -167,9 +187,15 @@ public abstract class AbstractClientHeadersTests extends ElasticsearchTestCase {
     protected static class AssertingActionListener<T> implements ActionListener<T> {
 
         private final String action;
+        private final Map<String, Object> expectedHeaders;
 
         public AssertingActionListener(String action) {
+            this(action, HEADER_SETTINGS.getAsSettings(Headers.PREFIX).getAsStructuredMap());
+        }
+
+       public AssertingActionListener(String action, Map<String, Object> expectedHeaders) {
             this.action = action;
+            this.expectedHeaders = expectedHeaders;
         }
 
         @Override
@@ -183,7 +209,7 @@ public abstract class AbstractClientHeadersTests extends ElasticsearchTestCase {
             assertThat("expected action [" + action + "] to throw an internal exception", e, notNullValue());
             assertThat(action, equalTo(((InternalException) e).action));
             Map<String, Object> headers = ((InternalException) e).headers;
-            assertHeaders(headers);
+            assertHeaders(headers, expectedHeaders);
         }
 
         public Throwable unwrap(Throwable t, Class<? extends Throwable> exceptionType) {

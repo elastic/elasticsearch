@@ -13,6 +13,7 @@
         body:
           query:
             match_all: {}
+          tag: tag1
 
   - do:
       index:
@@ -84,3 +85,28 @@
         version: 1
         percolate_index: percolator_index
         percolate_type: test_type
+
+  - do:
+      percolate:
+        index: percolator_index
+        type:  test_type
+        id: 1
+        body:
+          filter:
+            term:
+              tag: non_existing_tag
+
+  - match: {'matches': []}
+
+  - do:
+      percolate:
+        index: percolator_index
+        type:  test_type
+        id: 1
+        body:
+          filter:
+            term:
+              tag: tag1
+
+  - match: {'matches': [{_index: percolator_index, _id: test_percolator}]}
+

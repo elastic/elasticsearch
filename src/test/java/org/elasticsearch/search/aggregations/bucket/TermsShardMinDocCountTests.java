@@ -69,7 +69,7 @@ public class TermsShardMinDocCountTests extends ElasticsearchIntegrationTest {
         addTermsDocs("5", 3, 1, indexBuilders);//low score but high doc freq
         addTermsDocs("6", 3, 1, indexBuilders);
         addTermsDocs("7", 0, 3, indexBuilders);// make sure the terms all get score > 0 except for this one
-        indexRandom(true, indexBuilders);
+        indexRandom(true, false, indexBuilders);
 
         // first, check that indeed when not setting the shardMinDocCount parameter 0 terms are returned
         SearchResponse response = client().prepareSearch(index)
@@ -126,7 +126,7 @@ public class TermsShardMinDocCountTests extends ElasticsearchIntegrationTest {
         addTermsDocs("4", 1, indexBuilders);
         addTermsDocs("5", 3, indexBuilders);//low score but high doc freq
         addTermsDocs("6", 3, indexBuilders);
-        indexRandom(true, indexBuilders);
+        indexRandom(true, false, indexBuilders);
 
         // first, check that indeed when not setting the shardMinDocCount parameter 0 terms are returned
         SearchResponse response = client().prepareSearch(index)

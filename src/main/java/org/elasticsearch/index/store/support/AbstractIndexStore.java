@@ -21,11 +21,14 @@ package org.elasticsearch.index.store.support;
 
 import org.apache.lucene.store.StoreRateLimiting;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
@@ -33,6 +36,7 @@ import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.store.IndicesStore;
 
 import java.io.IOException;
+import java.nio.file.Path;
 
 /**
  *
@@ -41,6 +45,9 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
 
     public static final String INDEX_STORE_THROTTLE_TYPE = "index.store.throttle.type";
     public static final String INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC = "index.store.throttle.max_bytes_per_sec";
+
+    public static final String INDEX_FOLDER_NAME = "index";
+    public static final String TRANSLOG_FOLDER_NAME = "translog";
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
@@ -67,7 +74,9 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
             }
         }
     }
+    private final NodeEnvironment nodeEnv;
 
+    private final Path[] locations;
 
     protected final IndexService indexService;
 
@@ -81,12 +90,12 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
 
     private final ApplySettings applySettings = new ApplySettings();
 
-    protected AbstractIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, IndicesStore indicesStore) {
+    protected AbstractIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, IndicesStore indicesStore, NodeEnvironment nodeEnv) {
         super(index, indexSettings);
         this.indexService = indexService;
         this.indicesStore = indicesStore;
 
-        this.rateLimitingType = indexSettings.get(INDEX_STORE_THROTTLE_TYPE, "node");
+        this.rateLimitingType = indexSettings.get(INDEX_STORE_THROTTLE_TYPE, "none");
         if (rateLimitingType.equalsIgnoreCase("node")) {
             nodeRateLimiting = true;
         } else {
@@ -99,6 +108,12 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
         logger.debug("using index.store.throttle.type [{}], with index.store.throttle.max_bytes_per_sec [{}]", rateLimitingType, rateLimitingThrottle);
 
         indexService.settingsService().addListener(applySettings);
+        this.nodeEnv = nodeEnv;
+        if (nodeEnv.hasNodeFile()) {
+            this.locations = nodeEnv.indexPaths(index);
+        } else {
+            this.locations = null;
+        }
     }
 
     @Override
@@ -107,22 +122,39 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
     }
 
     @Override
-    public boolean canDeleteUnallocated(ShardId shardId) {
-        return false;
-    }
-
-    @Override
-    public void deleteUnallocated(ShardId shardId) throws IOException {
-        // do nothing here...
-    }
-
-    @Override
-    public IndicesStore indicesStore() {
-        return indicesStore;
-    }
-
-    @Override
     public StoreRateLimiting rateLimiting() {
         return nodeRateLimiting ? indicesStore.rateLimiting() : this.rateLimiting;
+    }
+
+    /**
+     * Return an array of all index folder locations for a given shard. Uses
+     * the index settings to determine if a custom data path is set for the
+     * index and uses that if applicable.
+     */
+    @Override
+    public Path[] shardIndexLocations(ShardId shardId) {
+        Path[] shardLocations = nodeEnv.shardDataPaths(shardId, indexSettings);
+        Path[] locations = new Path[shardLocations.length];
+        for (int i = 0; i < shardLocations.length; i++) {
+            locations[i] = shardLocations[i].resolve(INDEX_FOLDER_NAME);
+        }
+        logger.debug("using [{}] as shard's index location", locations);
+        return locations;
+    }
+
+    /**
+     * Return an array of all translog folder locations for a given shard. Uses
+     * the index settings to determine if a custom data path is set for the
+     * index and uses that if applicable.
+     */
+    @Override
+    public Path[] shardTranslogLocations(ShardId shardId) {
+        Path[] shardLocations = nodeEnv.shardDataPaths(shardId, indexSettings);
+        Path[] locations = new Path[shardLocations.length];
+        for (int i = 0; i < shardLocations.length; i++) {
+            locations[i] = shardLocations[i].resolve(TRANSLOG_FOLDER_NAME);
+        }
+        logger.debug("using [{}] as shard's translog location", locations);
+        return locations;
     }
 }

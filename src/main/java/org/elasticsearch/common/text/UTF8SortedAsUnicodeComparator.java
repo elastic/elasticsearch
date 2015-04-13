@@ -32,6 +32,7 @@ public class UTF8SortedAsUnicodeComparator implements Comparator<BytesReference>
     private UTF8SortedAsUnicodeComparator() {
     }
 
+    @Override
     public int compare(BytesReference a, BytesReference b) {
         if (a.hasArray() && b.hasArray()) {
             final byte[] aBytes = a.array();

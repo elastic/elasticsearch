@@ -18,36 +18,40 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 
 /**
  *
  */
 public class DoubleTermsAggregator extends LongTermsAggregator {
 
-    public DoubleTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format, long estimatedBucketCount,
-                               InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError) {
-        super(name, factories, valuesSource, format, estimatedBucketCount, order, bucketCountThresholds, aggregationContext, parent, collectionMode, showTermDocCountError);
+    public DoubleTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format,
+            Terms.Order order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError, IncludeExclude.LongFilter longFilter, Map<String, Object> metaData) throws IOException {
+        super(name, factories, valuesSource, format, order, bucketCountThresholds, aggregationContext, parent, collectionMode, showTermDocCountError, longFilter, metaData);
     }
 
     @Override
-    protected SortedNumericDocValues getValues(Numeric valuesSource) {
-        return FieldData.toSortableLongBits(valuesSource.doubleValues());
+    protected SortedNumericDocValues getValues(Numeric valuesSource, LeafReaderContext ctx) throws IOException {
+        return FieldData.toSortableLongBits(valuesSource.doubleValues(ctx));
     }
 
     @Override
-    public DoubleTerms buildAggregation(long owningBucketOrdinal) {
+    public DoubleTerms buildAggregation(long owningBucketOrdinal) throws IOException {
         final LongTerms terms = (LongTerms) super.buildAggregation(owningBucketOrdinal);
         return convertToDouble(terms);
     }
@@ -59,9 +63,9 @@ public class DoubleTermsAggregator extends LongTermsAggregator {
     }
 
     private static DoubleTerms.Bucket convertToDouble(InternalTerms.Bucket bucket) {
-        final long term = bucket.getKeyAsNumber().longValue();
+        final long term = ((Number) bucket.getKey()).longValue();
         final double value = NumericUtils.sortableLongToDouble(term);
-        return new DoubleTerms.Bucket(value, bucket.docCount, bucket.aggregations, bucket.showDocCountError, bucket.docCountError);
+        return new DoubleTerms.Bucket(value, bucket.docCount, bucket.aggregations, bucket.showDocCountError, bucket.docCountError, bucket.formatter);
     }
 
     private static DoubleTerms convertToDouble(LongTerms terms) {
@@ -69,7 +73,7 @@ public class DoubleTermsAggregator extends LongTermsAggregator {
         for (int i = 0; i < buckets.length; ++i) {
             buckets[i] = convertToDouble(buckets[i]);
         }
-        return new DoubleTerms(terms.getName(), terms.order, terms.formatter, terms.requiredSize, terms.shardSize, terms.minDocCount, Arrays.asList(buckets), terms.showTermDocCountError, terms.docCountError);
+        return new DoubleTerms(terms.getName(), terms.order, terms.formatter, terms.requiredSize, terms.shardSize, terms.minDocCount, Arrays.asList(buckets), terms.showTermDocCountError, terms.docCountError, terms.otherDocCount, terms.getMetaData());
     }
 
 }

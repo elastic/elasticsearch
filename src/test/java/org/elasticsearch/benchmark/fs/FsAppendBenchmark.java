@@ -18,13 +18,15 @@
  */
 package org.elasticsearch.benchmark.fs;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
-import java.io.File;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.Random;
 
 /**
@@ -33,11 +35,9 @@ import java.util.Random;
 public class FsAppendBenchmark {
 
     public static void main(String[] args) throws Exception {
-        new File("work/test.log").delete();
-        RandomAccessFile raf = new RandomAccessFile("work/test.log", "rw");
-        raf.setLength(0);
+        Path path = Paths.get("work/test.log");
+        IOUtils.deleteFilesIgnoringExceptions(path);
 
-        boolean CHANNEL = true;
         int CHUNK = (int) ByteSizeValue.parseBytesSizeValue("1k").bytes();
         long DATA = ByteSizeValue.parseBytesSizeValue("10gb").bytes();
 
@@ -45,8 +45,7 @@ public class FsAppendBenchmark {
         new Random().nextBytes(data);
 
         StopWatch watch = new StopWatch().start("write");
-        if (CHANNEL) {
-            FileChannel channel = raf.getChannel();
+        try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW)) {
             long position = 0;
             while (position < DATA) {
                 channel.write(ByteBuffer.wrap(data), position);
@@ -54,16 +53,7 @@ public class FsAppendBenchmark {
             }
             watch.stop().start("flush");
             channel.force(true);
-        } else {
-            long position = 0;
-            while (position < DATA) {
-                raf.write(data);
-                position += data.length;
-            }
-            watch.stop().start("flush");
-            raf.getFD().sync();
         }
-        raf.close();
         watch.stop();
         System.out.println("Wrote [" + (new ByteSizeValue(DATA)) + "], chunk [" + (new ByteSizeValue(CHUNK)) + "], in " + watch);
     }

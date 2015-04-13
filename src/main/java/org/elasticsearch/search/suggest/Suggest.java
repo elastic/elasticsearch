@@ -588,10 +588,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     text = in.readText();
                     score = in.readFloat();
                     highlighted = in.readOptionalText();
-
-                    if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
-                        collateMatch = in.readOptionalBoolean();
-                    }
+                    collateMatch = in.readOptionalBoolean();
                 }
 
                 @Override
@@ -599,10 +596,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     out.writeText(text);
                     out.writeFloat(score);
                     out.writeOptionalText(highlighted);
-
-                    if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
-                        out.writeOptionalBoolean(collateMatch);
-                    }
+                    out.writeOptionalBoolean(collateMatch);
                 }
 
                 @Override

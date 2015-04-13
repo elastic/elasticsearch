@@ -14,10 +14,8 @@
                 _parent: { type: "foo" }
                 _timestamp:
                   enabled:  1
-                  store:    yes
                 _ttl:
                   enabled:  1
-                  store:    yes
                   default:  10s
 
   - do:

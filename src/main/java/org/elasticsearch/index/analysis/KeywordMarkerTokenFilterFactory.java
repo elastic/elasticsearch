@@ -42,11 +42,11 @@ public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory 
         super(index, indexSettings, name, settings);
 
         boolean ignoreCase = settings.getAsBoolean("ignore_case", false);
-        Set<?> rules = Analysis.getWordSet(env, settings, "keywords", version);
+        Set<?> rules = Analysis.getWordSet(env, settings, "keywords");
         if (rules == null) {
             throw new ElasticsearchIllegalArgumentException("keyword filter requires either `keywords` or `keywords_path` to be configured");
         }
-        keywordLookup = new CharArraySet(version, rules, ignoreCase);
+        keywordLookup = new CharArraySet(rules, ignoreCase);
     }
 
     @Override

@@ -61,6 +61,6 @@ public class NestedParser implements Aggregator.Parser {
             throw new SearchParseException(context, "Missing [path] field for nested aggregation [" + aggregationName + "]");
         }
 
-        return new NestedAggregator.Factory(aggregationName, path);
+        return new NestedAggregator.Factory(aggregationName, path, context.queryParserService().autoFilterCachePolicy());
     }
 }

@@ -126,6 +126,7 @@ public final class GeoPoint {
         return result;
     }
 
+    @Override
     public String toString() {
         return "[" + lat + ", " + lon + "]";
     }

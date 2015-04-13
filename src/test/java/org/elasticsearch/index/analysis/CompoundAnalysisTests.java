@@ -22,6 +22,8 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.lucene.all.AllEntries;
@@ -108,10 +110,10 @@ public class CompoundAnalysisTests extends ElasticsearchTestCase {
     }
 
     private Settings getJsonSettings() {
-        return settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/test1.json").build();
+        return settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/test1.json").put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
     }
 
     private Settings getYamlSettings() {
-        return settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/test1.yml").build();
+        return settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/test1.yml").put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
     }
 }

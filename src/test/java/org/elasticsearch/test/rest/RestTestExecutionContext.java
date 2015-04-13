@@ -21,6 +21,7 @@ package org.elasticsearch.test.rest;
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.rest.client.RestClient;
 import org.elasticsearch.test.rest.client.RestException;
@@ -52,7 +53,7 @@ public class RestTestExecutionContext implements Closeable {
 
     private RestResponse response;
 
-    public RestTestExecutionContext(RestSpec restSpec) throws RestException, IOException {
+    public RestTestExecutionContext(RestSpec restSpec) {
         this.restSpec = restSpec;
     }
 
@@ -111,18 +112,21 @@ public class RestTestExecutionContext implements Closeable {
      * Extracts a specific value from the last saved response
      */
     public Object response(String path) throws IOException {
-        return response.evaluate(path);
+        return response.evaluate(path, stash);
     }
 
     /**
-     * Recreates the embedded REST client which will point to the given addresses
+     * Creates the embedded REST client when needed. Needs to be called before each test.
      */
-    public void resetClient(InetSocketAddress[] addresses) throws IOException, RestException {
+    public void initClient(InetSocketAddress[] addresses, Settings settings) throws IOException, RestException {
         if (restClient == null) {
-            restClient = new RestClient(addresses, restSpec);
-        } else {
-            restClient.updateAddresses(addresses);
+            restClient = new RestClient(restSpec, settings, addresses);
         }
+    }
+
+    public void resetClient() {
+        restClient.close();
+        restClient = null;
     }
 
     /**
@@ -148,7 +152,10 @@ public class RestTestExecutionContext implements Closeable {
     /**
      * Closes the execution context and releases the underlying resources
      */
+    @Override
     public void close() {
-        this.restClient.close();
+        if (restClient != null) {
+            restClient.close();
+        }
     }
 }

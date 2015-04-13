@@ -27,6 +27,10 @@ The bool query also supports `disable_coord` parameter (defaults to
 on the fraction of all query terms that a document contains. See Lucene
 `BooleanQuery` for more details.
 
+The `bool` query takes a _more-matches-is-better_ approach, so the score from
+each matching `must` or `should` clause will be added together to provide the 
+final `_score` for each document.
+
 [source,js]
 --------------------------------------------------
 {

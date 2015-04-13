@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -28,6 +29,8 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 
 final class GeoPointBinaryDVAtomicFieldData extends AbstractAtomicGeoPointFieldData {
 
@@ -43,7 +46,12 @@ final class GeoPointBinaryDVAtomicFieldData extends AbstractAtomicGeoPointFieldD
 
     @Override
     public long ramBytesUsed() {
-        return -1; // not exposed by Lucene
+        return 0; // not exposed by Lucene
+    }
+    
+    @Override
+    public Collection<Accountable> getChildResources() {
+        return Collections.emptyList();
     }
 
     @Override

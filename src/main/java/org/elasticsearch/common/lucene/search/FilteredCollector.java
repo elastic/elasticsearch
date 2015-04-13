@@ -18,10 +18,8 @@
  */
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 
@@ -30,13 +28,10 @@ import java.io.IOException;
 /**
  *
  */
-public class FilteredCollector extends XCollector {
+public class FilteredCollector implements Collector {
 
     private final Collector collector;
-
     private final Filter filter;
-
-    private Bits docSet;
 
     public FilteredCollector(Collector collector, Filter filter) {
         this.collector = collector;
@@ -44,32 +39,23 @@ public class FilteredCollector extends XCollector {
     }
 
     @Override
-    public void postCollection() throws IOException {
-        if (collector instanceof XCollector) {
-            ((XCollector) collector).postCollection();
-        }
+    public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+        final DocIdSet set = filter.getDocIdSet(context, null);
+        final LeafCollector in = collector.getLeafCollector(context);
+        final Bits bits = DocIdSets.asSequentialAccessBits(context.reader().maxDoc(), set);
+
+        return new FilterLeafCollector(in) {
+            @Override
+            public void collect(int doc) throws IOException {
+                if (bits.get(doc)) {
+                    in.collect(doc);
+                }
+            }
+        };
     }
 
     @Override
-    public void setScorer(Scorer scorer) throws IOException {
-        collector.setScorer(scorer);
-    }
-
-    @Override
-    public void collect(int doc) throws IOException {
-        if (docSet.get(doc)) {
-            collector.collect(doc);
-        }
-    }
-
-    @Override
-    public void setNextReader(AtomicReaderContext context) throws IOException {
-        collector.setNextReader(context);
-        docSet = DocIdSets.toSafeBits(context.reader(), filter.getDocIdSet(context, null));
-    }
-
-    @Override
-    public boolean acceptsDocsOutOfOrder() {
-        return collector.acceptsDocsOutOfOrder();
+    public boolean needsScores() {
+        return collector.needsScores();
     }
 }

@@ -30,19 +30,23 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -67,6 +71,8 @@ public class InternalSearchHit implements SearchHit {
     private Text id;
     private Text type;
 
+    private InternalNestedIdentity nestedIdentity;
+
     private long version = -1;
 
     private BytesReference source;
@@ -87,6 +93,8 @@ public class InternalSearchHit implements SearchHit {
     private Map<String, Object> sourceAsMap;
     private byte[] sourceAsBytes;
 
+    private Map<String, InternalSearchHits> innerHits;
+
     private InternalSearchHit() {
 
     }
@@ -98,12 +106,25 @@ public class InternalSearchHit implements SearchHit {
         this.fields = fields;
     }
 
+    public InternalSearchHit(int nestedTopDocId, String id, Text type, InternalNestedIdentity nestedIdentity, Map<String, SearchHitField> fields) {
+        this.docId = nestedTopDocId;
+        this.id = new StringAndBytesText(id);
+        this.type = type;
+        this.nestedIdentity = nestedIdentity;
+        this.fields = fields;
+    }
+
     public int docId() {
         return this.docId;
     }
 
     public void shardTarget(SearchShardTarget shardTarget) {
         this.shard = shardTarget;
+        if (innerHits != null) {
+            for (InternalSearchHits searchHits : innerHits.values()) {
+                searchHits.shardTarget(shardTarget);
+            }
+        }
     }
 
     public void score(float score) {
@@ -164,10 +185,15 @@ public class InternalSearchHit implements SearchHit {
         return type();
     }
 
+    @Override
+    public NestedIdentity getNestedIdentity() {
+        return nestedIdentity;
+    }
 
     /**
      * Returns bytes reference, also un compress the source if needed.
      */
+    @Override
     public BytesReference sourceRef() {
         try {
             this.source = CompressorFactory.uncompressIfNeeded(this.source);
@@ -375,6 +401,16 @@ public class InternalSearchHit implements SearchHit {
         return this.matchedQueries;
     }
 
+    @Override
+    @SuppressWarnings("unchecked")
+    public Map<String, SearchHits> getInnerHits() {
+        return (Map) innerHits;
+    }
+
+    public void setInnerHits(Map<String, InternalSearchHits> innerHits) {
+        this.innerHits = innerHits;
+    }
+
     public static class Fields {
         static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
@@ -389,18 +425,26 @@ public class InternalSearchHit implements SearchHit {
         static final XContentBuilderString VALUE = new XContentBuilderString("value");
         static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
         static final XContentBuilderString DETAILS = new XContentBuilderString("details");
+        static final XContentBuilderString INNER_HITS = new XContentBuilderString("inner_hits");
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (explanation() != null) {
+        // For inner_hit hits shard is null and that is ok, because the parent search hit has all this information.
+        // Even if this was included in the inner_hit hits this would be the same, so better leave it out.
+        if (explanation() != null && shard != null) {
             builder.field("_shard", shard.shardId());
             builder.field("_node", shard.nodeIdText());
         }
-        builder.field(Fields._INDEX, shard.indexText());
+        if (shard != null) {
+            builder.field(Fields._INDEX, shard.indexText());
+        }
         builder.field(Fields._TYPE, type);
         builder.field(Fields._ID, id);
+        if (nestedIdentity != null) {
+            nestedIdentity.toXContent(builder, params);
+        }
         if (version != -1) {
             builder.field(Fields._VERSION, version);
         }
@@ -471,6 +515,15 @@ public class InternalSearchHit implements SearchHit {
             builder.field(Fields._EXPLANATION);
             buildExplanation(builder, explanation());
         }
+        if (innerHits != null) {
+            builder.startObject(Fields.INNER_HITS);
+            for (Map.Entry<String, InternalSearchHits> entry : innerHits.entrySet()) {
+                builder.startObject(entry.getKey());
+                entry.getValue().toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.endObject();
+        }
         builder.endObject();
         return builder;
     }
@@ -504,7 +557,8 @@ public class InternalSearchHit implements SearchHit {
     public void readFrom(StreamInput in, InternalSearchHits.StreamContext context) throws IOException {
         score = in.readFloat();
         id = in.readText();
-        type = in.readSharedText();
+        type = in.readText();
+        nestedIdentity = in.readOptionalStreamable(new InternalNestedIdentity());
         version = in.readLong();
         source = in.readBytesReference();
         if (source.length() == 0) {
@@ -629,6 +683,16 @@ public class InternalSearchHit implements SearchHit {
                 shard = context.handleShardLookup().get(lookupId);
             }
         }
+
+        size = in.readVInt();
+        if (size > 0) {
+            innerHits = new HashMap<>(size);
+            for (int i = 0; i < size; i++) {
+                String key = in.readString();
+                InternalSearchHits value = InternalSearchHits.readSearchHits(in, InternalSearchHits.streamContext().streamShardTarget(InternalSearchHits.StreamContext.ShardTargetType.NO_STREAM));
+                innerHits.put(key, value);
+            }
+        }
     }
 
     @Override
@@ -639,7 +703,8 @@ public class InternalSearchHit implements SearchHit {
     public void writeTo(StreamOutput out, InternalSearchHits.StreamContext context) throws IOException {
         out.writeFloat(score);
         out.writeText(id);
-        out.writeSharedText(type);
+        out.writeText(type);
+        out.writeOptionalStreamable(nestedIdentity);
         out.writeLong(version);
         out.writeBytesReference(source);
         if (explanation == null) {
@@ -731,5 +796,85 @@ public class InternalSearchHit implements SearchHit {
                 out.writeVInt(context.shardHandleLookup().get(shard));
             }
         }
+
+        if (innerHits == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(innerHits.size());
+            for (Map.Entry<String, InternalSearchHits> entry : innerHits.entrySet()) {
+                out.writeString(entry.getKey());
+                entry.getValue().writeTo(out, InternalSearchHits.streamContext().streamShardTarget(InternalSearchHits.StreamContext.ShardTargetType.NO_STREAM));
+            }
+        }
     }
+
+    public final static class InternalNestedIdentity implements NestedIdentity, Streamable, ToXContent {
+
+        private Text field;
+        private int offset;
+        private InternalNestedIdentity child;
+
+        public InternalNestedIdentity(String field, int offset, InternalNestedIdentity child) {
+            this.field = new StringAndBytesText(field);
+            this.offset = offset;
+            this.child = child;
+        }
+
+        InternalNestedIdentity() {
+        }
+
+        @Override
+        public Text getField() {
+            return field;
+        }
+
+        @Override
+        public int getOffset() {
+            return offset;
+        }
+
+        @Override
+        public NestedIdentity getChild() {
+            return child;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            field = in.readOptionalText();
+            offset = in.readInt();
+            child = in.readOptionalStreamable(new InternalNestedIdentity());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalText(field);
+            out.writeInt(offset);
+            out.writeOptionalStreamable(child);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(Fields._NESTED);
+            if (field != null) {
+                builder.field(Fields._NESTED_FIELD, field);
+            }
+            if (offset != -1) {
+                builder.field(Fields._NESTED_OFFSET, offset);
+            }
+            if (child != null) {
+                builder = child.toXContent(builder, params);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        public static class Fields {
+
+            static final XContentBuilderString _NESTED = new XContentBuilderString("_nested");
+            static final XContentBuilderString _NESTED_FIELD = new XContentBuilderString("field");
+            static final XContentBuilderString _NESTED_OFFSET = new XContentBuilderString("offset");
+
+        }
+    }
+
 }

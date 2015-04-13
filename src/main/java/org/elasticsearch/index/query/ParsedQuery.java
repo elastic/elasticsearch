@@ -32,7 +32,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 public class ParsedQuery {
 
     private final Query query;
-
     private final ImmutableMap<String, Filter> namedFilters;
 
     public ParsedQuery(Query query, ImmutableMap<String, Filter> namedFilters) {
@@ -45,6 +44,11 @@ public class ParsedQuery {
         this.namedFilters = parsedQuery.namedFilters;
     }
 
+    public ParsedQuery(Query query) {
+        this.query = query;
+        this.namedFilters = ImmutableMap.of();
+    }
+
     /**
      * The query parsed.
      */
@@ -55,7 +59,7 @@ public class ParsedQuery {
     public ImmutableMap<String, Filter> namedFilters() {
         return this.namedFilters;
     }
-    
+
     public static ParsedQuery parsedMatchAllQuery() {
         return new ParsedQuery(Queries.newMatchAllQuery(), ImmutableMap.<String, Filter>of());
     }

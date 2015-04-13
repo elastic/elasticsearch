@@ -159,15 +159,13 @@ public class GeoHashUtils {
             final int nx = ((level % 2) == 1) ? (x + dx) : (x + dy);
             final int ny = ((level % 2) == 1) ? (y + dy) : (y + dx);
 
-            // define grid limits for current level
-            final int xLimit = ((level % 2) == 0) ? 7 : 3;
-            final int yLimit = ((level % 2) == 0) ? 3 : 7;
-
             // if the defined neighbor has the same parent a the current cell
             // encode the cell directly. Otherwise find the cell next to this
             // cell recursively. Since encoding wraps around within a cell
             // it can be encoded here.
-            if (nx >= 0 && nx <= xLimit && ny >= 0 && ny <= yLimit) {
+            // xLimit and YLimit must always be respectively 7 and 3
+            // since x and y semantics are swapping on each level.
+            if (nx >= 0 && nx <= 7 && ny >= 0 && ny <= 3) {
                 return geohash.substring(0, level - 1) + encode(nx, ny);
             } else {
                 String neighbor = neighbor(geohash, level - 1, dx, dy);

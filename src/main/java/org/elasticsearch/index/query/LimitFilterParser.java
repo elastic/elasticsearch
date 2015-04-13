@@ -21,7 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.LimitFilter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -62,6 +62,7 @@ public class LimitFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "No value specified for limit filter");
         }
 
-        return new LimitFilter(limit);
+        // this filter is deprecated and parses to a filter that matches everything
+        return Queries.MATCH_ALL_FILTER;
     }
 }

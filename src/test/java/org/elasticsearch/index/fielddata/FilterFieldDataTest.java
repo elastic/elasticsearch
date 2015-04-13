@@ -21,7 +21,7 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.junit.Test;
@@ -59,7 +59,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
             writer.addDocument(d);
         }
         writer.forceMerge(1, true);
-        AtomicReaderContext context = refreshReader();
+        LeafReaderContext context = refreshReader();
         String[] formats = new String[] { "fst", "paged_bytes"};
         
         for (String format : formats) {
@@ -114,7 +114,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("format", format)
                         .put("filter.regex.pattern", "\\d{2,3}") // allows 10 & 100
                         .put("filter.frequency.min_segment_size", 0)
-                        .put("filter.frequency.min", random.nextBoolean() ? 1 : 1d/200.0d) // 100, 10, 5
+                        .put("filter.frequency.min", random.nextBoolean() ? 2 : 1d/200.0d) // 100, 10, 5
                         .put("filter.frequency.max", random.nextBoolean() ? 99 : 99d/200.0d)); // 100
                 IndexOrdinalsFieldData fieldData = getForField(fieldDataType, "high_freq");
                 AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
@@ -152,7 +152,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
         }
         logger.debug(hundred + " " + ten + " " + five);
         writer.forceMerge(1, true);
-        AtomicReaderContext context = refreshReader();
+        LeafReaderContext context = refreshReader();
         String[] formats = new String[] { "fst", "paged_bytes"};
         for (String format : formats) {
             {

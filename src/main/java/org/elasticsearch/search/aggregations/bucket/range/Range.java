@@ -20,7 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
-import java.util.Collection;
+import java.util.List;
 
 /**
  * A {@code range} aggregation. Defines multiple buckets, each associated with a pre-defined value range of a field,
@@ -36,20 +36,28 @@ public interface Range extends MultiBucketsAggregation {
         /**
          * @return  The lower bound of the range
          */
-        Number getFrom();
+        Object getFrom();
 
         /**
-         * @return  The upper bound of the range (excluding)
+         * @return The string value for the lower bound of the range
          */
-        Number getTo();
+        String getFromAsString();
+
+        /**
+         * @return The upper bound of the range (excluding)
+         */
+        Object getTo();
+
+        /**
+         * @return The string value for the upper bound of the range (excluding)
+         */
+        String getToAsString();
     }
 
     /**
      * Return the buckets of this range aggregation.
      */
-    Collection<? extends Bucket> getBuckets();
-
     @Override
-    Bucket getBucketByKey(String key);
+    List<? extends Bucket> getBuckets();
 
 }

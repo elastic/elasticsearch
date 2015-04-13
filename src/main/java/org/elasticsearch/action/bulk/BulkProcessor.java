@@ -31,6 +31,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 
 import java.io.Closeable;
 import java.util.concurrent.*;
@@ -221,7 +222,7 @@ public class BulkProcessor implements Closeable {
         }
         closed = true;
         if (this.scheduledFuture != null) {
-            this.scheduledFuture.cancel(false);
+            FutureUtils.cancel(this.scheduledFuture);
             this.scheduler.shutdown();
         }
         if (bulkRequest.numberOfActions() > 0) {
@@ -280,12 +281,12 @@ public class BulkProcessor implements Closeable {
         executeIfNeeded();
     }
 
-    public BulkProcessor add(BytesReference data, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
-        return add(data, contentUnsafe, defaultIndex, defaultType, null);
+    public BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
+        return add(data, defaultIndex, defaultType, null);
     }
 
-    public synchronized BulkProcessor add(BytesReference data, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable Object payload) throws Exception {
-        bulkRequest.add(data, contentUnsafe, defaultIndex, defaultType, null, payload, true);
+    public synchronized BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable Object payload) throws Exception {
+        bulkRequest.add(data, defaultIndex, defaultType, null, payload, true);
         executeIfNeeded();
         return this;
     }

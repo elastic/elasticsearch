@@ -61,5 +61,6 @@ public interface Compressor {
     /**
      * @deprecated Used for backward comp. since we now use Lucene compressed codec.
      */
+    @Deprecated
     CompressedIndexInput indexInput(IndexInput in) throws IOException;
 }

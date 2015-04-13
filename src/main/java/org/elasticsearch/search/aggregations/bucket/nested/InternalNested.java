@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
@@ -48,8 +49,8 @@ public class InternalNested extends InternalSingleBucketAggregation implements N
     public InternalNested() {
     }
 
-    public InternalNested(String name, long docCount, InternalAggregations aggregations) {
-        super(name, docCount, aggregations);
+    public InternalNested(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metaData) {
+        super(name, docCount, aggregations, metaData);
     }
 
     @Override
@@ -59,6 +60,6 @@ public class InternalNested extends InternalSingleBucketAggregation implements N
 
     @Override
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
-        return new InternalNested(name, docCount, subAggregations);
+        return new InternalNested(name, docCount, subAggregations, getMetaData());
     }
 }

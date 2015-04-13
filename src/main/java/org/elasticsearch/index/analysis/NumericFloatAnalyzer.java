@@ -22,7 +22,6 @@ package org.elasticsearch.index.analysis;
 import com.carrotsearch.hppc.IntObjectOpenHashMap;
 
 import java.io.IOException;
-import java.io.Reader;
 
 /**
  *
@@ -54,7 +53,7 @@ public class NumericFloatAnalyzer extends NumericAnalyzer<NumericFloatTokenizer>
     }
 
     @Override
-    protected NumericFloatTokenizer createNumericTokenizer(Reader reader, char[] buffer) throws IOException {
-        return new NumericFloatTokenizer(reader, precisionStep, buffer);
+    protected NumericFloatTokenizer createNumericTokenizer(char[] buffer) throws IOException {
+        return new NumericFloatTokenizer(precisionStep, buffer);
     }
 }

@@ -33,6 +33,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -194,9 +195,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
         public void onResponse(final Response response) {
             if (notified.compareAndSet(false, true)) {
                 mdLock.release();
-                if (future != null) {
-                    future.cancel(false);
-                }
+                FutureUtils.cancel(future);
                 listener.onResponse(response);
             }
         }
@@ -205,9 +204,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
         public void onFailure(Throwable t) {
             if (notified.compareAndSet(false, true)) {
                 mdLock.release();
-                if (future != null) {
-                    future.cancel(false);
-                }
+                FutureUtils.cancel(future);
                 listener.onFailure(t);
             }
         }

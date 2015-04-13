@@ -39,6 +39,6 @@ public class ReverseTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new ReverseStringFilter(version, tokenStream);
+        return new ReverseStringFilter(tokenStream);
     }
 }

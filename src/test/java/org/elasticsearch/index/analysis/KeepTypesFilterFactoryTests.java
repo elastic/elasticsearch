@@ -44,7 +44,8 @@ public class KeepTypesFilterFactoryTests extends ElasticsearchTokenStreamTestCas
         assertThat(tokenFilter, instanceOf(KeepTypesFilterFactory.class));
         String source = "Hello 123 world";
         String[] expected = new String[]{"123"};
-        Tokenizer tokenizer = new StandardTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+        Tokenizer tokenizer = new StandardTokenizer();
+        tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected, new int[]{2});
     }
 }

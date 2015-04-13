@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
@@ -37,14 +37,13 @@ public final class MatchNoDocsQuery extends Query {
      */
     private class MatchNoDocsWeight extends Weight {
 
-        @Override
-        public String toString() {
-            return "weight(" + MatchNoDocsQuery.this + ")";
+        MatchNoDocsWeight(Query parent) {
+            super(parent);
         }
 
         @Override
-        public Query getQuery() {
-            return MatchNoDocsQuery.this;
+        public String toString() {
+            return "weight(" + MatchNoDocsQuery.this + ")";
         }
 
         @Override
@@ -57,20 +56,20 @@ public final class MatchNoDocsQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
             return null;
         }
 
         @Override
-        public Explanation explain(final AtomicReaderContext context,
+        public Explanation explain(final LeafReaderContext context,
                                    final int doc) {
             return new ComplexExplanation(false, 0, "MatchNoDocs matches nothing");
         }
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher) throws IOException {
-        return new MatchNoDocsWeight();
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+        return new MatchNoDocsWeight(this);
     }
 
     @Override

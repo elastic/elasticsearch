@@ -19,6 +19,11 @@
 
 package org.elasticsearch.index.mapper.routing;
 
+import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -55,26 +60,26 @@ public class RoutingTypeMapperTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
-    public void testSetValues() throws Exception {
+    public void testFieldTypeSettingsBackcompat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_routing")
                 .field("store", "no")
                 .field("index", "no")
-                .field("path", "route")
                 .endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(mapping);
         assertThat(docMapper.routingFieldMapper().fieldType().stored(), equalTo(false));
-        assertThat(docMapper.routingFieldMapper().fieldType().indexed(), equalTo(false));
-        assertThat(docMapper.routingFieldMapper().path(), equalTo("route"));
+        assertEquals(IndexOptions.NONE, docMapper.routingFieldMapper().fieldType().indexOptions());
     }
 
     @Test
-    public void testThatSerializationWorksCorrectlyForIndexField() throws Exception {
+    public void testFieldTypeSettingsSerializationBackcompat() throws Exception {
         String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_routing").field("store", "no").field("index", "no").endObject()
                 .endObject().endObject().string();
-        DocumentMapper enabledMapper = createIndex("test").mapperService().documentMapperParser().parse(enabledMapping);
+        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        DocumentMapper enabledMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(enabledMapping);
 
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         enabledMapper.routingFieldMapper().toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();

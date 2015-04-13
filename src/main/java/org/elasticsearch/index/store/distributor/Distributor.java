@@ -21,6 +21,8 @@ package org.elasticsearch.index.store.distributor;
 
 import org.apache.lucene.store.Directory;
 
+import java.io.IOException;
+
 /**
  * Keeps track of available directories and selects a directory
  * based on some distribution strategy
@@ -40,5 +42,5 @@ public interface Distributor {
     /**
      * Selects one of the directories based on distribution strategy
      */
-    Directory any();
+    Directory any() throws IOException;
 }

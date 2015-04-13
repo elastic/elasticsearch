@@ -45,6 +45,7 @@ public final class ScopeBinding implements Element {
         this.scope = checkNotNull(scope, "scope");
     }
 
+    @Override
     public Object getSource() {
         return source;
     }
@@ -57,10 +58,12 @@ public final class ScopeBinding implements Element {
         return scope;
     }
 
+    @Override
     public <T> T acceptVisitor(ElementVisitor<T> visitor) {
         return visitor.visit(this);
     }
 
+    @Override
     public void applyTo(Binder binder) {
         binder.withSource(getSource()).bindScope(annotationType, scope);
     }

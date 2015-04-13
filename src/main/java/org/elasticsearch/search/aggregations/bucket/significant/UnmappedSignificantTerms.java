@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +37,7 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms {
 
     public static final Type TYPE = new Type("significant_terms", "umsigterms");
 
-    private static final Collection<Bucket> BUCKETS = Collections.emptyList();
+    private static final List<Bucket> BUCKETS = Collections.emptyList();
     private static final Map<String, Bucket> BUCKETS_MAP = Collections.emptyMap();
 
     public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
@@ -56,10 +55,10 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms {
 
     UnmappedSignificantTerms() {} // for serialization
 
-    public UnmappedSignificantTerms(String name, int requiredSize, long minDocCount) {
+    public UnmappedSignificantTerms(String name, int requiredSize, long minDocCount, Map<String, Object> metaData) {
         //We pass zero for index/subset sizes because for the purpose of significant term analysis 
         // we assume an unmapped index's size is irrelevant to the proceedings. 
-        super(0, 0, name, requiredSize, minDocCount, JLHScore.INSTANCE, BUCKETS);
+        super(0, 0, name, requiredSize, minDocCount, JLHScore.INSTANCE, BUCKETS, metaData);
     }
 
     @Override
@@ -68,10 +67,10 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms {
     }
 
     @Override
-    public InternalAggregation reduce(ReduceContext reduceContext) {
-        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        for (InternalAggregation aggregation : aggregations) {
             if (!(aggregation instanceof UnmappedSignificantTerms)) {
-                return aggregation.reduce(reduceContext);
+                return aggregation.reduce(aggregations, reduceContext);
             }
         }
         return this;
@@ -83,8 +82,7 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        this.name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         this.requiredSize = readSize(in);
         this.minDocCount = in.readVLong();
         this.buckets = BUCKETS;
@@ -92,8 +90,7 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         writeSize(requiredSize, out);
         out.writeVLong(minDocCount);
     }

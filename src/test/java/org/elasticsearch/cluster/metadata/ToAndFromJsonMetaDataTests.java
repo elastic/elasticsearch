@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -39,39 +40,43 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
     public void testSimpleJsonFromAndTo() throws IOException {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test1")
+                        .settings(settings(Version.CURRENT))
                         .numberOfShards(1)
                         .numberOfReplicas(2))
                 .put(IndexMetaData.builder("test2")
-                        .settings(settingsBuilder().put("setting1", "value1").put("setting2", "value2"))
+                        .settings(settings(Version.CURRENT).put("setting1", "value1").put("setting2", "value2"))
                         .numberOfShards(2)
                         .numberOfReplicas(3))
                 .put(IndexMetaData.builder("test3")
+                        .settings(settings(Version.CURRENT))
                         .numberOfShards(1)
                         .numberOfReplicas(2)
                         .putMapping("mapping1", MAPPING_SOURCE1))
                 .put(IndexMetaData.builder("test4")
+                        .settings(settings(Version.CURRENT))
                         .numberOfShards(1)
                         .numberOfReplicas(2)
                         .creationDate(2l))
                 .put(IndexMetaData.builder("test5")
-                        .settings(settingsBuilder().put("setting1", "value1").put("setting2", "value2"))
+                        .settings(settings(Version.CURRENT).put("setting1", "value1").put("setting2", "value2"))
                         .numberOfShards(1)
                         .numberOfReplicas(2)
                         .putMapping("mapping1", MAPPING_SOURCE1)
                         .putMapping("mapping2", MAPPING_SOURCE2))
                 .put(IndexMetaData.builder("test6")
-                        .settings(settingsBuilder().put("setting1", "value1").put("setting2", "value2"))
+                        .settings(settings(Version.CURRENT).put("setting1", "value1").put("setting2", "value2"))
                         .numberOfShards(1)
                         .numberOfReplicas(2)
                         .creationDate(2l))
                 .put(IndexMetaData.builder("test7")
+                        .settings(settings(Version.CURRENT))
                         .numberOfShards(1)
                         .numberOfReplicas(2)
                         .creationDate(2l)
                         .putMapping("mapping1", MAPPING_SOURCE1)
                         .putMapping("mapping2", MAPPING_SOURCE2))
                 .put(IndexMetaData.builder("test8")
-                        .settings(settingsBuilder().put("setting1", "value1").put("setting2", "value2"))
+                        .settings(settings(Version.CURRENT).put("setting1", "value1").put("setting2", "value2"))
                         .numberOfShards(1)
                         .numberOfReplicas(2)
                         .putMapping("mapping1", MAPPING_SOURCE1)
@@ -79,7 +84,7 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
                         .putAlias(newAliasMetaDataBuilder("alias1"))
                         .putAlias(newAliasMetaDataBuilder("alias2")))
                 .put(IndexMetaData.builder("test9")
-                        .settings(settingsBuilder().put("setting1", "value1").put("setting2", "value2"))
+                        .settings(settings(Version.CURRENT).put("setting1", "value1").put("setting2", "value2"))
                         .creationDate(2l)
                         .numberOfShards(1)
                         .numberOfReplicas(2)
@@ -88,7 +93,7 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
                         .putAlias(newAliasMetaDataBuilder("alias1"))
                         .putAlias(newAliasMetaDataBuilder("alias2")))
                 .put(IndexMetaData.builder("test10")
-                        .settings(settingsBuilder()
+                        .settings(settings(Version.CURRENT)
                                 .put("setting1", "value1")
                                 .put("setting2", "value2"))
                         .numberOfShards(1)
@@ -98,7 +103,7 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
                         .putAlias(newAliasMetaDataBuilder("alias1"))
                         .putAlias(newAliasMetaDataBuilder("alias2")))
                 .put(IndexMetaData.builder("test11")
-                        .settings(settingsBuilder()
+                        .settings(settings(Version.CURRENT)
                                 .put("setting1", "value1")
                                 .put("setting2", "value2"))
                         .numberOfShards(1)
@@ -118,10 +123,10 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
                                 .putAlias(newAliasMetaDataBuilder("alias-bar2").filter("{\"term\":{\"user\":\"kimchy\"}}"))
                                 .putAlias(newAliasMetaDataBuilder("alias-bar3").routing("routing-bar")))
                 .put(IndexMetaData.builder("test12")
-                        .settings(settingsBuilder()
+                        .settings(settings(Version.CURRENT)
                                 .put("setting1", "value1")
                                 .put("setting2", "value2"))
-                                .creationDate(2l)
+                        .creationDate(2l)
                         .numberOfShards(1)
                         .numberOfReplicas(2)
                         .putMapping("mapping1", MAPPING_SOURCE1)
@@ -149,14 +154,14 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
         assertThat(indexMetaData.numberOfShards(), equalTo(1));
         assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
         assertThat(indexMetaData.creationDate(), equalTo(-1l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(2));
+        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(3));
         assertThat(indexMetaData.mappings().size(), equalTo(0));
 
         indexMetaData = parsedMetaData.index("test2");
         assertThat(indexMetaData.numberOfShards(), equalTo(2));
         assertThat(indexMetaData.numberOfReplicas(), equalTo(3));
         assertThat(indexMetaData.creationDate(), equalTo(-1l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(4));
+        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(5));
         assertThat(indexMetaData.settings().get("setting1"), equalTo("value1"));
         assertThat(indexMetaData.settings().get("setting2"), equalTo("value2"));
         assertThat(indexMetaData.mappings().size(), equalTo(0));
@@ -165,7 +170,7 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
         assertThat(indexMetaData.numberOfShards(), equalTo(1));
         assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
         assertThat(indexMetaData.creationDate(), equalTo(-1l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(2));
+        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(3));
         assertThat(indexMetaData.mappings().size(), equalTo(1));
         assertThat(indexMetaData.mappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
 
@@ -173,14 +178,14 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
         assertThat(indexMetaData.creationDate(), equalTo(2l));
         assertThat(indexMetaData.numberOfShards(), equalTo(1));
         assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(3));
+        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(4));
         assertThat(indexMetaData.mappings().size(), equalTo(0));
 
         indexMetaData = parsedMetaData.index("test5");
         assertThat(indexMetaData.numberOfShards(), equalTo(1));
         assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
         assertThat(indexMetaData.creationDate(), equalTo(-1l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(4));
+        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(5));
         assertThat(indexMetaData.settings().get("setting1"), equalTo("value1"));
         assertThat(indexMetaData.settings().get("setting2"), equalTo("value2"));
         assertThat(indexMetaData.mappings().size(), equalTo(2));
@@ -191,7 +196,7 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
         assertThat(indexMetaData.numberOfShards(), equalTo(1));
         assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
         assertThat(indexMetaData.creationDate(), equalTo(2l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(5));
+        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(6));
         assertThat(indexMetaData.settings().get("setting1"), equalTo("value1"));
         assertThat(indexMetaData.settings().get("setting2"), equalTo("value2"));
         assertThat(indexMetaData.mappings().size(), equalTo(0));
@@ -200,7 +205,7 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
         assertThat(indexMetaData.numberOfShards(), equalTo(1));
         assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
         assertThat(indexMetaData.creationDate(), equalTo(2l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(3));
+        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(4));
         assertThat(indexMetaData.mappings().size(), equalTo(2));
         assertThat(indexMetaData.mappings().get("mapping1").source().string(), equalTo(MAPPING_SOURCE1));
         assertThat(indexMetaData.mappings().get("mapping2").source().string(), equalTo(MAPPING_SOURCE2));
@@ -209,7 +214,7 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
         assertThat(indexMetaData.numberOfShards(), equalTo(1));
         assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
         assertThat(indexMetaData.creationDate(), equalTo(-1l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(4));
+        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(5));
         assertThat(indexMetaData.settings().get("setting1"), equalTo("value1"));
         assertThat(indexMetaData.settings().get("setting2"), equalTo("value2"));
         assertThat(indexMetaData.mappings().size(), equalTo(2));
@@ -223,7 +228,7 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
         assertThat(indexMetaData.numberOfShards(), equalTo(1));
         assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
         assertThat(indexMetaData.creationDate(), equalTo(2l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(5));
+        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(6));
         assertThat(indexMetaData.settings().get("setting1"), equalTo("value1"));
         assertThat(indexMetaData.settings().get("setting2"), equalTo("value2"));
         assertThat(indexMetaData.mappings().size(), equalTo(2));
@@ -237,7 +242,7 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
         assertThat(indexMetaData.numberOfShards(), equalTo(1));
         assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
         assertThat(indexMetaData.creationDate(), equalTo(-1l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(4));
+        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(5));
         assertThat(indexMetaData.settings().get("setting1"), equalTo("value1"));
         assertThat(indexMetaData.settings().get("setting2"), equalTo("value2"));
         assertThat(indexMetaData.mappings().size(), equalTo(2));
@@ -251,7 +256,7 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
         assertThat(indexMetaData.numberOfShards(), equalTo(1));
         assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
         assertThat(indexMetaData.creationDate(), equalTo(-1l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(4));
+        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(5));
         assertThat(indexMetaData.settings().get("setting1"), equalTo("value1"));
         assertThat(indexMetaData.settings().get("setting2"), equalTo("value2"));
         assertThat(indexMetaData.mappings().size(), equalTo(2));
@@ -269,7 +274,7 @@ public class ToAndFromJsonMetaDataTests extends ElasticsearchTestCase {
         assertThat(indexMetaData.numberOfShards(), equalTo(1));
         assertThat(indexMetaData.numberOfReplicas(), equalTo(2));
         assertThat(indexMetaData.creationDate(), equalTo(2l));
-        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(5));
+        assertThat(indexMetaData.settings().getAsMap().size(), equalTo(6));
         assertThat(indexMetaData.settings().get("setting1"), equalTo("value1"));
         assertThat(indexMetaData.settings().get("setting2"), equalTo("value2"));
         assertThat(indexMetaData.mappings().size(), equalTo(2));

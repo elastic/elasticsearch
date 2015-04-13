@@ -18,16 +18,21 @@
  */
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 
 /**
  * An aggregation that computes approximate percentiles.
  */
-public interface Percentiles extends Aggregation, Iterable<Percentile> {
+public interface Percentiles extends NumericMetricsAggregation.MultiValue, Iterable<Percentile> {
 
     /**
      * Return the value associated with the provided percentile.
      */
     double percentile(double percent);
+
+    /**
+     * Return the value associated with the provided percentile as a String.
+     */
+    String percentileAsString(double percent);
 
 }

@@ -137,6 +137,7 @@ public class ConsoleAppender extends WriterAppender {
     /**
      * Prepares the appender for use.
      */
+    @Override
     public void activateOptions() {
         if (follow) {
             if (target.equals(SYSTEM_ERR)) {
@@ -158,6 +159,7 @@ public class ConsoleAppender extends WriterAppender {
     /**
      * {@inheritDoc}
      */
+    @Override
     protected
     final void closeWriter() {
         if (follow) {
@@ -174,13 +176,16 @@ public class ConsoleAppender extends WriterAppender {
         public SystemErrStream() {
         }
 
+        @Override
         public void close() {
         }
 
+        @Override
         public void flush() {
             System.err.flush();
         }
 
+        @Override
         public void write(final byte[] b) throws IOException {
             if (!Loggers.consoleLoggingEnabled()) {
                 return;
@@ -188,6 +193,7 @@ public class ConsoleAppender extends WriterAppender {
             System.err.write(b);
         }
 
+        @Override
         public void write(final byte[] b, final int off, final int len)
                 throws IOException {
             if (!Loggers.consoleLoggingEnabled()) {
@@ -196,6 +202,7 @@ public class ConsoleAppender extends WriterAppender {
             System.err.write(b, off, len);
         }
 
+        @Override
         public void write(final int b) throws IOException {
             if (!Loggers.consoleLoggingEnabled()) {
                 return;
@@ -212,13 +219,16 @@ public class ConsoleAppender extends WriterAppender {
         public SystemOutStream() {
         }
 
+        @Override
         public void close() {
         }
 
+        @Override
         public void flush() {
             System.out.flush();
         }
 
+        @Override
         public void write(final byte[] b) throws IOException {
             if (!Loggers.consoleLoggingEnabled()) {
                 return;
@@ -226,6 +236,7 @@ public class ConsoleAppender extends WriterAppender {
             System.out.write(b);
         }
 
+        @Override
         public void write(final byte[] b, final int off, final int len)
                 throws IOException {
             if (!Loggers.consoleLoggingEnabled()) {
@@ -234,6 +245,7 @@ public class ConsoleAppender extends WriterAppender {
             System.out.write(b, off, len);
         }
 
+        @Override
         public void write(final int b) throws IOException {
             if (!Loggers.consoleLoggingEnabled()) {
                 return;

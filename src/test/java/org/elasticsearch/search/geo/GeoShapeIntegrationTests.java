@@ -19,9 +19,18 @@
 
 package org.elasticsearch.search.geo;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -256,7 +265,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testShapeFetching_path() throws Exception {
+    public void testShapeFetchingPath() throws Exception {
         createIndex("shapes");
         assertAcked(prepareCreate("test").addMapping("type", "location", "type=geo_shape"));
 
@@ -378,8 +387,33 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(locationMap.size(), equalTo(2));
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9904")
     @Test
-    public void testShapeFilter_geometryCollection() throws Exception {
+    public void testShapeFilterWithRandomGeoCollection() throws Exception {
+        // Create a random geometry collection.
+        GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(getRandom());
+
+        logger.info("Created Random GeometryCollection containing " + gcb.numShapes() + " shapes");
+
+        createIndex("randshapes");
+        assertAcked(prepareCreate("test").addMapping("type", "location", "type=geo_shape"));
+
+        XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("location"), null).endObject();
+        indexRandom(true, client().prepareIndex("test", "type", "1").setSource(docSource));
+
+        ensureSearchable("test");
+
+        ShapeBuilder filterShape = (gcb.getShapeAt(randomIntBetween(0, gcb.numShapes() - 1)));
+
+        GeoShapeFilterBuilder filter = FilterBuilders.geoShapeFilter("location", filterShape, ShapeRelation.INTERSECTS);
+        SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
+                .setPostFilter(filter).get();
+        assertSearchResponse(result);
+        assertHitCount(result, 1);
+    }
+
+    @Test
+    public void testShapeFilterWithDefinedGeoCollection() throws Exception {
         createIndex("shapes");
         assertAcked(prepareCreate("test").addMapping("type", "location", "type=geo_shape"));
 
@@ -427,5 +461,66 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 1);
+    }
+
+    /**
+     * Test that orientation parameter correctly persists across cluster restart
+     * @throws IOException
+     */
+    public void testOrientationPersistence() throws Exception {
+        String idxName = "orientation";
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("shape")
+                .startObject("properties").startObject("location")
+                .field("type", "geo_shape")
+                .field("orientation", "left")
+                .endObject().endObject()
+                .endObject().endObject().string();
+
+        // create index
+        assertAcked(prepareCreate(idxName).addMapping("shape", mapping));
+
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("shape")
+                .startObject("properties").startObject("location")
+                .field("type", "geo_shape")
+                .field("orientation", "right")
+                .endObject().endObject()
+                .endObject().endObject().string();
+
+        assertAcked(prepareCreate(idxName+"2").addMapping("shape", mapping));
+        ensureGreen(idxName, idxName+"2");
+
+        internalCluster().fullRestart();
+        ensureGreen(idxName, idxName+"2");
+
+        // left orientation test
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName));
+        IndexService indexService = indicesService.indexService(idxName);
+        FieldMapper fieldMapper = indexService.mapperService().smartNameFieldMapper("location");
+        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+
+        GeoShapeFieldMapper gsfm = (GeoShapeFieldMapper)fieldMapper;
+        ShapeBuilder.Orientation orientation = gsfm.orientation();
+        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CLOCKWISE));
+        assertThat(orientation, equalTo(ShapeBuilder.Orientation.LEFT));
+        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CW));
+
+        // right orientation test
+        indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName+"2"));
+        indexService = indicesService.indexService(idxName+"2");
+        fieldMapper = indexService.mapperService().smartNameFieldMapper("location");
+        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+
+        gsfm = (GeoShapeFieldMapper)fieldMapper;
+        orientation = gsfm.orientation();
+        assertThat(orientation, equalTo(ShapeBuilder.Orientation.COUNTER_CLOCKWISE));
+        assertThat(orientation, equalTo(ShapeBuilder.Orientation.RIGHT));
+        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));
+    }
+
+    private String findNodeName(String index) {
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        IndexShardRoutingTable shard = state.getRoutingTable().index(index).shard(0);
+        String nodeId = shard.assignedShards().get(0).currentNodeId();
+        return state.getNodes().get(nodeId).name();
     }
 }

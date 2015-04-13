@@ -30,5 +30,5 @@ public interface TokenizerFactory {
 
     String name();
 
-    Tokenizer create(Reader reader);
+    Tokenizer create();
 }

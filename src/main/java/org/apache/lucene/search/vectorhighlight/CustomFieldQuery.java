@@ -24,11 +24,18 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.MultiTermQueryWrapperFilter;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
@@ -70,20 +77,12 @@ public class CustomFieldQuery extends FieldQuery {
         if (sourceQuery instanceof SpanTermQuery) {
             super.flatten(new TermQuery(((SpanTermQuery) sourceQuery).getTerm()), reader, flatQueries);
         } else if (sourceQuery instanceof ConstantScoreQuery) {
-            ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) sourceQuery;
-            if (constantScoreQuery.getFilter() != null) {
-                flatten(constantScoreQuery.getFilter(), reader, flatQueries);
-            } else {
-                flatten(constantScoreQuery.getQuery(), reader, flatQueries);
-            }
+            flatten(((ConstantScoreQuery) sourceQuery).getQuery(), reader, flatQueries);
         } else if (sourceQuery instanceof FunctionScoreQuery) {
             flatten(((FunctionScoreQuery) sourceQuery).getSubQuery(), reader, flatQueries);
         } else if (sourceQuery instanceof FilteredQuery) {
             flatten(((FilteredQuery) sourceQuery).getQuery(), reader, flatQueries);
             flatten(((FilteredQuery) sourceQuery).getFilter(), reader, flatQueries);
-        } else if (sourceQuery instanceof XFilteredQuery) {
-            flatten(((XFilteredQuery) sourceQuery).getQuery(), reader, flatQueries);
-            flatten(((XFilteredQuery) sourceQuery).getFilter(), reader, flatQueries);
         } else if (sourceQuery instanceof MultiPhrasePrefixQuery) {
             flatten(sourceQuery.rewrite(reader), reader, flatQueries);
         } else if (sourceQuery instanceof FiltersFunctionScoreQuery) {
@@ -142,7 +141,9 @@ public class CustomFieldQuery extends FieldQuery {
             return;
         }
         if (sourceFilter instanceof TermFilter) {
-            flatten(new TermQuery(((TermFilter) sourceFilter).getTerm()), reader, flatQueries);
+            // TermFilter is just a deprecated wrapper over QWF
+            TermQuery actualQuery = (TermQuery) ((TermFilter) sourceFilter).getQuery();
+            flatten(new TermQuery(actualQuery.getTerm()), reader, flatQueries);
         } else if (sourceFilter instanceof MultiTermQueryWrapperFilter) {
             if (multiTermQueryWrapperFilterQueryField != null) {
                 try {

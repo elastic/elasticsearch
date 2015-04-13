@@ -42,6 +42,7 @@ public final class StaticInjectionRequest implements Element {
         this.type = checkNotNull(type, "type");
     }
 
+    @Override
     public Object getSource() {
         return source;
     }
@@ -66,10 +67,12 @@ public final class StaticInjectionRequest implements Element {
         return InjectionPoint.forStaticMethodsAndFields(type);
     }
 
+    @Override
     public void applyTo(Binder binder) {
         binder.withSource(getSource()).requestStaticInjection(type);
     }
 
+    @Override
     public <T> T acceptVisitor(ElementVisitor<T> visitor) {
         return visitor.visit(this);
     }

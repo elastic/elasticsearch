@@ -19,9 +19,6 @@
 
 package org.elasticsearch.action.suggest;
 
-import java.io.IOException;
-import java.util.Arrays;
-
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.client.Requests;
@@ -34,12 +31,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 
+import java.io.IOException;
+import java.util.Arrays;
+
 /**
  * A request to get suggestions for corrections of phrases. Best created with
  * {@link org.elasticsearch.client.Requests#suggestRequest(String...)}.
  * <p/>
  * <p>The request requires the suggest query source to be set either using
- * {@link #suggest(org.elasticsearch.common.bytes.BytesReference)} / {@link #suggest(org.elasticsearch.common.bytes.BytesReference, boolean)}
+ * {@link #suggest(org.elasticsearch.common.bytes.BytesReference)} / {@link #suggest(org.elasticsearch.common.bytes.BytesReference)}
  * or by using {@link #suggest(org.elasticsearch.search.suggest.SuggestBuilder)}
  * (Best created using the {link @org.elasticsearch.search.suggest.SuggestBuilders)}).
  *
@@ -57,7 +57,6 @@ public final class SuggestRequest extends BroadcastOperationRequest<SuggestReque
     private String preference;
 
     private BytesReference suggestSource;
-    private boolean suggestSourceUnsafe;
 
     SuggestRequest() {
     }
@@ -76,17 +75,10 @@ public final class SuggestRequest extends BroadcastOperationRequest<SuggestReque
         return validationException;
     }
 
-    @Override
-    protected void beforeStart() {
-        if (suggestSourceUnsafe) {
-            suggest(suggestSource.copyBytesArray(), false);
-        }
-    }
-
     /**
      * The Phrase to get correction suggestions for 
      */
-    BytesReference suggest() {
+    public BytesReference suggest() {
         return suggestSource;
     }
     
@@ -94,7 +86,8 @@ public final class SuggestRequest extends BroadcastOperationRequest<SuggestReque
      * set a new source for the suggest query  
      */
     public SuggestRequest suggest(BytesReference suggestSource) {
-        return suggest(suggestSource, false);
+        this.suggestSource = suggestSource;
+        return this;
     }
 
     /**
@@ -112,7 +105,11 @@ public final class SuggestRequest extends BroadcastOperationRequest<SuggestReque
     public SuggestRequest suggest(SuggestBuilder.SuggestionBuilder suggestionBuilder) {
         return suggest(suggestionBuilder.buildAsBytes(Requests.CONTENT_TYPE));
     }
-    
+
+    public SuggestRequest suggest(String source) {
+        return suggest(new BytesArray(source));
+    }
+
     /**
      * A comma separated list of routing values to control the shards the search will be executed on.
      */
@@ -171,15 +168,4 @@ public final class SuggestRequest extends BroadcastOperationRequest<SuggestReque
         }
         return "[" + Arrays.toString(indices) + "]" + ", suggestSource[" + sSource + "]";
     }
-
-    public SuggestRequest suggest(BytesReference suggestSource, boolean contentUnsafe) {
-        this.suggestSource = suggestSource;
-        this.suggestSourceUnsafe = contentUnsafe;
-        return this;
-    }
-
-    public SuggestRequest suggest(String source) {
-        return suggest(new BytesArray(source));
-    }
-    
 }

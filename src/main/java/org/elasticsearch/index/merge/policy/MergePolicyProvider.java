@@ -20,13 +20,14 @@
 package org.elasticsearch.index.merge.policy;
 
 import org.apache.lucene.index.MergePolicy;
-import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.shard.IndexShardComponent;
+
+import java.io.Closeable;
 
 /**
  *
  */
-public interface MergePolicyProvider<T extends MergePolicy> extends IndexShardComponent, CloseableIndexComponent {
+public interface MergePolicyProvider<T extends MergePolicy> extends IndexShardComponent, Closeable {
 
     T getMergePolicy();
 }

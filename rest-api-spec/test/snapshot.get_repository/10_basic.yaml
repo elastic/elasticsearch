@@ -48,3 +48,11 @@ setup:
 
   - is_true: test_repo1
   - is_true: test_repo2
+
+---
+"Verify created repository":
+  - do:
+      snapshot.verify_repository:
+        repository: test_repo2
+
+  - is_true: nodes

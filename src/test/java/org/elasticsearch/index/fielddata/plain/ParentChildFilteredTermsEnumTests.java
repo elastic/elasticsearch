@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
@@ -64,12 +65,12 @@ public class ParentChildFilteredTermsEnumTests extends ElasticsearchLuceneTestCa
             for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                 ++expected;
                 assertThat(term.utf8ToString(), equalTo(format(expected)));
-                DocsEnum docsEnum = termsEnum.docs(null, null);
+                PostingsEnum docsEnum = termsEnum.postings(null, null);
                 assertThat(docsEnum, notNullValue());
                 int docId = docsEnum.nextDoc();
                 assertThat(docId, not(equalTo(-1)));
-                assertThat(docId, not(equalTo(DocsEnum.NO_MORE_DOCS)));
-                assertThat(docsEnum.nextDoc(), equalTo(DocsEnum.NO_MORE_DOCS));
+                assertThat(docId, not(equalTo(DocIdSetIterator.NO_MORE_DOCS)));
+                assertThat(docsEnum.nextDoc(), equalTo(DocIdSetIterator.NO_MORE_DOCS));
             }
         }
 
@@ -103,10 +104,10 @@ public class ParentChildFilteredTermsEnumTests extends ElasticsearchLuceneTestCa
             for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                 ++expected;
                 assertThat(term.utf8ToString(), equalTo(format(expected)));
-                DocsEnum docsEnum = termsEnum.docs(null, null);
+                PostingsEnum docsEnum = termsEnum.postings(null, null);
                 assertThat(docsEnum, notNullValue());
                 int numDocs = 0;
-                for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
+                for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
                     numDocs++;
                 }
                 assertThat(numDocs, equalTo(11));

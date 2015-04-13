@@ -19,8 +19,11 @@
 
 package org.elasticsearch.index.search.geo;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import java.io.IOException;
+
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocValuesDocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -29,13 +32,10 @@ import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.docset.AndDocIdSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-
-import java.io.IOException;
 
 /**
  */
@@ -103,10 +103,10 @@ public class GeoDistanceFilter extends Filter {
     }
 
     @Override
-    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
+    public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptedDocs) throws IOException {
         DocIdSet boundingBoxDocSet = null;
         if (boundingBoxFilter != null) {
-            boundingBoxDocSet = boundingBoxFilter.getDocIdSet(context, acceptedDocs);
+            boundingBoxDocSet = boundingBoxFilter.getDocIdSet(context, null);
             if (DocIdSets.isEmpty(boundingBoxDocSet)) {
                 return null;
             }
@@ -138,7 +138,7 @@ public class GeoDistanceFilter extends Filter {
     }
 
     @Override
-    public String toString() {
+    public String toString(String field) {
         return "GeoDistanceFilter(" + indexFieldData.getFieldNames().indexName() + ", " + geoDistance + ", " + distance + ", " + lat + ", " + lon + ")";
     }
 
@@ -157,7 +157,7 @@ public class GeoDistanceFilter extends Filter {
         return result;
     }
 
-    public static class GeoDistanceDocSet extends MatchDocIdSet {
+    public static class GeoDistanceDocSet extends DocValuesDocIdSet {
         private final double distance; // in miles
         private final MultiGeoPointValues values;
         private final GeoDistance.FixedSourceDistance fixedSourceDistance;

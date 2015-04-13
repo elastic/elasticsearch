@@ -21,11 +21,9 @@ package org.elasticsearch.rest.action.template;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.script.RestPutIndexedScriptAction;
+import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -36,20 +34,20 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutSearchTemplateAction extends RestPutIndexedScriptAction {
 
     @Inject
-    public RestPutSearchTemplateAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestPutSearchTemplateAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, false, client);
 
         //controller.registerHandler(GET, "/template", this);
         controller.registerHandler(POST, "/_search/template/{id}", this);
         controller.registerHandler(PUT, "/_search/template/{id}", this);
 
-        controller.registerHandler(PUT, "/_search/template/{id}/_create", new CreateHandler(settings, client));
-        controller.registerHandler(POST, "/_search/template/{id}/_create", new CreateHandler(settings, client));
+        controller.registerHandler(PUT, "/_search/template/{id}/_create", new CreateHandler(settings, controller, client));
+        controller.registerHandler(POST, "/_search/template/{id}/_create", new CreateHandler(settings, controller, client));
     }
 
     final class CreateHandler extends BaseRestHandler {
-        protected CreateHandler(Settings settings, final Client client) {
-            super(settings, client);
+        protected CreateHandler(Settings settings, RestController controller, Client client) {
+            super(settings, controller, client);
         }
 
         @Override
@@ -61,6 +59,6 @@ public class RestPutSearchTemplateAction extends RestPutIndexedScriptAction {
 
     @Override
     protected String getScriptLang(RestRequest request) {
-        return "mustache";
+        return MustacheScriptEngineService.NAME;
     }
 }

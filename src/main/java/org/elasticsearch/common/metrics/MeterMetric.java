@@ -20,6 +20,7 @@
 package org.elasticsearch.common.metrics;
 
 import jsr166e.LongAdder;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -117,7 +118,5 @@ public class MeterMetric implements Metric {
         return ratePerNs * (double) rateUnit.toNanos(1);
     }
 
-    public void stop() {
-        future.cancel(false);
-    }
+    public void stop() { FutureUtils.cancel(future);}
 }

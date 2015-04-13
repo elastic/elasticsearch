@@ -20,8 +20,9 @@
 package org.elasticsearch.river;
 
 /**
- *
+ * @deprecated See blog post https://www.elastic.co/blog/deprecating_rivers
  */
+@Deprecated
 public interface RiverComponent {
 
     RiverName riverName();

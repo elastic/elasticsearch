@@ -22,6 +22,8 @@ package org.elasticsearch.index.analysis.synonyms;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.logging.ESLogger;
@@ -58,7 +60,9 @@ public class SynonymsAnalysisTest extends ElasticsearchTestCase {
     @Test
     public void testSynonymsAnalysis() throws IOException {
 
-        Settings settings = settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/synonyms/synonyms.json").build();
+        Settings settings = settingsBuilder().
+                loadFromClasspath("org/elasticsearch/index/analysis/synonyms/synonyms.json")
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
         Index index = new Index("test");
 

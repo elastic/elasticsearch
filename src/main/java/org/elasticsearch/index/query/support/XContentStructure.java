@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.query.support;
 
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -113,7 +113,7 @@ public abstract class XContentStructure {
         parseContext.parser(innerParser);
         try {
             Filter innerFilter = parseContext.parseInnerFilter();
-            return new XConstantScoreQuery(innerFilter);
+            return new ConstantScoreQuery(innerFilter);
         } finally {
             parseContext.parser(old);
             QueryParseContext.setTypes(origTypes);
@@ -174,7 +174,7 @@ public abstract class XContentStructure {
                 String[] origTypes = QueryParseContext.setTypesWithPrevious(types);
                 try {
                     Filter innerFilter = parseContext1.parseInnerFilter();
-                    query = new XConstantScoreQuery(innerFilter);
+                    query = new ConstantScoreQuery(innerFilter);
                     queryParsed = true;
                 } finally {
                     QueryParseContext.setTypes(origTypes);

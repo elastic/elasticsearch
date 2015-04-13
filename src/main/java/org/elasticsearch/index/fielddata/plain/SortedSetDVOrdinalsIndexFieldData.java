@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
@@ -45,17 +45,18 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
         this.breakerService = breakerService;
     }
 
+    @Override
     public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
         return new BytesRefFieldComparatorSource((IndexFieldData<?>) this, missingValue, sortMode, nested);
     }
 
     @Override
-    public AtomicOrdinalsFieldData load(AtomicReaderContext context) {
+    public AtomicOrdinalsFieldData load(LeafReaderContext context) {
         return new SortedSetDVBytesAtomicFieldData(context.reader(), fieldNames.indexName());
     }
 
     @Override
-    public AtomicOrdinalsFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
         return load(context);
     }
 

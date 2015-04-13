@@ -20,12 +20,16 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
-public abstract class MetricsAggregator extends Aggregator {
+import java.io.IOException;
+import java.util.Map;
 
-    protected MetricsAggregator(String name, long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
-        super(name, BucketAggregationMode.MULTI_BUCKETS, AggregatorFactories.EMPTY, estimatedBucketsCount, context, parent);
+public abstract class MetricsAggregator extends AggregatorBase {
+    
+    protected MetricsAggregator(String name, AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
+        super(name, AggregatorFactories.EMPTY, context, parent, metaData);
     }
 }

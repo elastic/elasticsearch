@@ -39,6 +39,7 @@ public class RestTestParserTests extends ElasticsearchTestCase {
 
     private XContentParser parser;
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();

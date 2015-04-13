@@ -23,9 +23,13 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.test.rest.spec.RestApi;
@@ -36,6 +40,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * REST client used to test the elasticsearch REST layer
@@ -47,14 +52,14 @@ public class RestClient implements Closeable {
 
     private final RestSpec restSpec;
     private final CloseableHttpClient httpClient;
-
-    private InetSocketAddress[] addresses;
-
+    private final Headers headers;
+    private final InetSocketAddress[] addresses;
     private final String esVersion;
 
-    public RestClient(InetSocketAddress[] addresses, RestSpec restSpec) throws IOException, RestException {
+    public RestClient(RestSpec restSpec, Settings settings, InetSocketAddress[] addresses) throws IOException, RestException {
         assert addresses.length > 0;
         this.restSpec = restSpec;
+        this.headers = new Headers(settings);
         this.httpClient = createHttpClient();
         this.addresses = addresses;
         this.esVersion = readAndCheckVersion();
@@ -70,7 +75,7 @@ public class RestClient implements Closeable {
 
         String version = null;
         for (InetSocketAddress address : addresses) {
-            RestResponse restResponse = new RestResponse(new HttpRequestBuilder(httpClient)
+            RestResponse restResponse = new RestResponse(new HttpRequestBuilder(httpClient).addHeaders(headers)
                     .host(address.getHostName()).port(address.getPort())
                     .path(restApi.getPaths().get(0))
                     .method(restApi.getMethods().get(0)).execute());
@@ -93,13 +98,6 @@ public class RestClient implements Closeable {
 
     public String getEsVersion() {
         return esVersion;
-    }
-
-    /**
-     * Allows to update the addresses the client needs to connect to
-     */
-    public void updateAddresses(InetSocketAddress[] addresses) {
-        this.addresses = addresses;
     }
 
     /**
@@ -219,21 +217,18 @@ public class RestClient implements Closeable {
     protected HttpRequestBuilder httpRequestBuilder() {
         //the address used is randomized between the available ones
         InetSocketAddress address = RandomizedTest.randomFrom(addresses);
-        return new HttpRequestBuilder(httpClient).host(address.getHostName()).port(address.getPort());
+        return new HttpRequestBuilder(httpClient).addHeaders(headers).host(address.getHostName()).port(address.getPort());
     }
 
     protected CloseableHttpClient createHttpClient() {
-        return HttpClients.createDefault();
+        return HttpClients.createMinimal(new PoolingHttpClientConnectionManager(15, TimeUnit.SECONDS));
     }
 
     /**
      * Closes the REST client and the underlying http client
      */
+    @Override
     public void close() {
-        try {
-            httpClient.close();
-        } catch(IOException e) {
-            logger.error(e.getMessage(), e);
-        }
+        IOUtils.closeWhileHandlingException(httpClient);
     }
 }

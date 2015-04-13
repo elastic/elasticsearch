@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -35,6 +36,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -59,7 +61,7 @@ public class RandomAllocationDeciderTests extends ElasticsearchAllocationTestCas
         RandomAllocationDecider randomAllocationDecider = new RandomAllocationDecider(getRandom());
         AllocationService strategy = new AllocationService(settingsBuilder().build(), new AllocationDeciders(ImmutableSettings.EMPTY,
                 new HashSet<>(Arrays.asList(new SameShardAllocationDecider(ImmutableSettings.EMPTY),
-                        randomAllocationDecider))), new ShardsAllocators(), ClusterInfoService.EMPTY);
+                        randomAllocationDecider))), new ShardsAllocators(NoopGatewayAllocator.INSTANCE), ClusterInfoService.EMPTY);
         int indices = scaledRandomIntBetween(1, 20);
         Builder metaBuilder = MetaData.builder();
         int maxNumReplicas = 1;
@@ -69,7 +71,7 @@ public class RandomAllocationDeciderTests extends ElasticsearchAllocationTestCas
             maxNumReplicas = Math.max(maxNumReplicas, replicas + 1);
             int numShards = scaledRandomIntBetween(1, 20);
             totalNumShards += numShards * (replicas + 1);
-            metaBuilder.put(IndexMetaData.builder("INDEX_" + i).numberOfShards(numShards).numberOfReplicas(replicas));
+            metaBuilder.put(IndexMetaData.builder("INDEX_" + i).settings(settings(Version.CURRENT)).numberOfShards(numShards).numberOfReplicas(replicas));
 
         }
         MetaData metaData = metaBuilder.build();
@@ -127,7 +129,7 @@ public class RandomAllocationDeciderTests extends ElasticsearchAllocationTestCas
         }
 
 
-        randomAllocationDecider.allwaysSayYes = true;
+        randomAllocationDecider.alwaysSayYes = true;
         logger.info("now say YES to everything");
         int iterations = 0;
         do {
@@ -171,7 +173,7 @@ public class RandomAllocationDeciderTests extends ElasticsearchAllocationTestCas
             this.random = random;
         }
 
-        public boolean allwaysSayYes = false;
+        public boolean alwaysSayYes = false;
 
         @Override
         public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
@@ -179,7 +181,7 @@ public class RandomAllocationDeciderTests extends ElasticsearchAllocationTestCas
         }
 
         private Decision getRandomDecision() {
-            if (allwaysSayYes) {
+            if (alwaysSayYes) {
                 return Decision.YES;
             }
             switch (random.nextInt(10)) {

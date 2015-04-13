@@ -52,5 +52,6 @@ public interface Text extends Comparable<Text>, Serializable {
     /**
      * Returns the string representation of the text, might be converted to a string on the fly.
      */
+    @Override
     String toString();
 }

@@ -22,7 +22,6 @@ package org.elasticsearch.action.get;
 import com.google.common.collect.Iterators;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
@@ -174,8 +173,8 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            index = in.readSharedString();
-            type = in.readOptionalSharedString();
+            index = in.readString();
+            type = in.readOptionalString();
             id = in.readString();
             routing = in.readOptionalString();
             int size = in.readVInt();
@@ -185,7 +184,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
                     fields[i] = in.readString();
                 }
             }
-            version = Versions.readVersionWithVLongForBW(in);
+            version = in.readLong();
             versionType = VersionType.fromValue(in.readByte());
 
             fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
@@ -193,8 +192,8 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeSharedString(index);
-            out.writeOptionalSharedString(type);
+            out.writeString(index);
+            out.writeOptionalString(type);
             out.writeString(id);
             out.writeOptionalString(routing);
             if (fields == null) {
@@ -206,7 +205,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
                 }
             }
 
-            Versions.writeVersionWithVLongForBW(version, out);
+            out.writeLong(version);
             out.writeByte(versionType.getValue());
 
             FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
@@ -513,9 +512,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         } else if (realtime == 1) {
             this.realtime = true;
         }
-        if(in.getVersion().onOrAfter(Version.V_1_4_0)) {
-            ignoreErrorsOnGeneratedFields = in.readBoolean();
-        }
+        ignoreErrorsOnGeneratedFields = in.readBoolean();
 
         int size = in.readVInt();
         items = new ArrayList<>(size);
@@ -536,9 +533,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         } else {
             out.writeByte((byte) 1);
         }
-        if(out.getVersion().onOrAfter(Version.V_1_4_0)) {
-            out.writeBoolean(ignoreErrorsOnGeneratedFields);
-        }
+        out.writeBoolean(ignoreErrorsOnGeneratedFields);
 
         out.writeVInt(items.size());
         for (Item item : items) {

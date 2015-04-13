@@ -150,13 +150,16 @@ public class SimpleMgetTests extends ElasticsearchIntegrationTest {
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS))));
         ensureYellow();
 
-        client().prepareIndex("test", "test", "1").setRefresh(true).setRouting("2")
+        final String id = routingKeyForShard("test", "test", 0);
+        final String routingOtherShard = routingKeyForShard("test", "test", 1);
+
+        client().prepareIndex("test", "test", id).setRefresh(true).setRouting(routingOtherShard)
                 .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
                 .execute().actionGet();
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
-                .add(new MultiGetRequest.Item(indexOrAlias(), "test", "1").routing("2"))
-                .add(new MultiGetRequest.Item(indexOrAlias(), "test", "1"))
+                .add(new MultiGetRequest.Item(indexOrAlias(), "test", id).routing(routingOtherShard))
+                .add(new MultiGetRequest.Item(indexOrAlias(), "test", id))
                 .execute().actionGet();
 
         assertThat(mgetResponse.getResponses().length, is(2));

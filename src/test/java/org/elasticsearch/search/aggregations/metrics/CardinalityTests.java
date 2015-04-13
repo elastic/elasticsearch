@@ -24,18 +24,21 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.cardinality.Cardinality;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinality;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.core.IsNull.notNullValue;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ElasticsearchIntegrationTest.SuiteScopeTest
 public class CardinalityTests extends ElasticsearchIntegrationTest {
@@ -218,6 +221,34 @@ public class CardinalityTests extends ElasticsearchIntegrationTest {
         assertThat(count, notNullValue());
         assertThat(count.getName(), equalTo("cardinality"));
         assertCount(count, numDocs);
+    }
+
+    @Test
+    public void singleValuedNumeric_getProperty() throws Exception {
+
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(
+                        global("global").subAggregation(
+                                cardinality("cardinality").precisionThreshold(precisionThreshold).field(singleNumericField(false))))
+                .execute().actionGet();
+
+        assertSearchResponse(searchResponse);
+
+        Global global = searchResponse.getAggregations().get("global");
+        assertThat(global, notNullValue());
+        assertThat(global.getName(), equalTo("global"));
+        // assertThat(global.getDocCount(), equalTo(numDocs));
+        assertThat(global.getAggregations(), notNullValue());
+        assertThat(global.getAggregations().asMap().size(), equalTo(1));
+
+        Cardinality cardinality = global.getAggregations().get("cardinality");
+        assertThat(cardinality, notNullValue());
+        assertThat(cardinality.getName(), equalTo("cardinality"));
+        long expectedValue = numDocs;
+        assertCount(cardinality, expectedValue);
+        assertThat((Cardinality) global.getProperty("cardinality"), equalTo(cardinality));
+        assertThat((double) global.getProperty("cardinality.value"), equalTo((double) cardinality.getValue()));
+        assertThat((double) cardinality.getProperty("value"), equalTo((double) cardinality.getValue()));
     }
 
     @Test

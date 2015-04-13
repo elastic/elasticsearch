@@ -36,3 +36,8 @@
         body: {  "id" : "1", "params" : { "my_value" : "value1_foo", "my_size" : 1 } }
   - match: { hits.total: 1 }
 
+  - do:
+      catch: /ElasticsearchIllegalArgumentException.Unable.to.find.on.disk.script.simple1/
+      search_template:
+        body: { "template" : "simple1" }
+

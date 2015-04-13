@@ -1,0 +1,42 @@
+{
+  "indices.get":{
+    "documentation":"http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-index.html",
+    "methods":[ "GET" ],
+    "url":{
+      "path":"/{index}",
+      "paths":[ "/{index}", "/{index}/{feature}" ],
+      "parts":{
+        "index":{
+          "type":"list",
+          "required" : true,
+          "description":"A comma-separated list of index names"
+        },
+        "feature":{
+          "type":"list",
+          "description":"A comma-separated list of features"
+        }
+      },
+      "params":{
+        "local":{
+          "type":"boolean",
+          "description":"Return local information, do not retrieve the state from master node (default: false)"
+        },
+        "ignore_unavailable":{
+          "type":"boolean",
+          "description":"Ignore unavailable indexes (default: false)"
+        },
+        "allow_no_indices":{
+          "type":"boolean",
+          "description":"Ignore if a wildcard expression resolves to no concrete indices (default: false)"
+        },
+        "expand_wildcards":{
+          "type" : "enum",
+          "options" : ["open","closed","none","all"],
+          "default" : "open",
+          "description":"Whether wildcard expressions should get expanded to open or closed indices (default: open)"
+        }
+      }
+    },
+    "body": null
+  }
+}

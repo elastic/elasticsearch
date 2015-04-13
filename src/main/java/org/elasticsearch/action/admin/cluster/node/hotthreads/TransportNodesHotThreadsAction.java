@@ -92,7 +92,8 @@ public class TransportNodesHotThreadsAction extends TransportNodesOperationActio
                 .busiestThreads(request.request.threads)
                 .type(request.request.type)
                 .interval(request.request.interval)
-                .threadElementsSnapshotCount(request.request.snapshots);
+                .threadElementsSnapshotCount(request.request.snapshots)
+                .ignoreIdleThreads(request.request.ignoreIdleThreads);
         try {
             return new NodeHotThreads(clusterService.localNode(), hotThreads.detect());
         } catch (Exception e) {

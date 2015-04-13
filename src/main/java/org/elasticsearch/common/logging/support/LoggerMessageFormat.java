@@ -68,7 +68,7 @@ public class LoggerMessageFormat {
                     return sbuf.toString();
                 }
             } else {
-                if (isEscapedDelimeter(messagePattern, j)) {
+                if (isEscapedDelimiter(messagePattern, j)) {
                     if (!isDoubleEscaped(messagePattern, j)) {
                         L--; // DELIM_START was escaped, thus should not be incremented
                         sbuf.append(messagePattern.substring(i, j - 1));
@@ -95,13 +95,13 @@ public class LoggerMessageFormat {
         return sbuf.toString();
     }
 
-    static boolean isEscapedDelimeter(String messagePattern,
-                                      int delimeterStartIndex) {
+    static boolean isEscapedDelimiter(String messagePattern,
+                                      int delimiterStartIndex) {
 
-        if (delimeterStartIndex == 0) {
+        if (delimiterStartIndex == 0) {
             return false;
         }
-        char potentialEscape = messagePattern.charAt(delimeterStartIndex - 1);
+        char potentialEscape = messagePattern.charAt(delimiterStartIndex - 1);
         if (potentialEscape == ESCAPE_CHAR) {
             return true;
         } else {
@@ -109,8 +109,8 @@ public class LoggerMessageFormat {
         }
     }
 
-    static boolean isDoubleEscaped(String messagePattern, int delimeterStartIndex) {
-        if (delimeterStartIndex >= 2 && messagePattern.charAt(delimeterStartIndex - 2) == ESCAPE_CHAR) {
+    static boolean isDoubleEscaped(String messagePattern, int delimiterStartIndex) {
+        if (delimiterStartIndex >= 2 && messagePattern.charAt(delimiterStartIndex - 2) == ESCAPE_CHAR) {
             return true;
         } else {
             return false;

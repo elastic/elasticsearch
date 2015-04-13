@@ -41,8 +41,8 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestRefreshAction extends BaseRestHandler {
 
     @Inject
-    public RestRefreshAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestRefreshAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(POST, "/_refresh", this);
         controller.registerHandler(POST, "/{index}/_refresh", this);
 
@@ -54,7 +54,6 @@ public class RestRefreshAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         RefreshRequest refreshRequest = new RefreshRequest(Strings.splitStringByCommaToArray(request.param("index")));
         refreshRequest.listenerThreaded(false);
-        refreshRequest.force(request.paramAsBoolean("force", refreshRequest.force()));
         refreshRequest.indicesOptions(IndicesOptions.fromRequest(request, refreshRequest.indicesOptions()));
         client.admin().indices().refresh(refreshRequest, new RestBuilderListener<RefreshResponse>(channel) {
             @Override

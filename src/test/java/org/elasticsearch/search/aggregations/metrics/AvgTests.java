@@ -19,21 +19,25 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
  */
 public class AvgTests extends AbstractNumericTests {
 
+    @Override
     @Test
     public void testEmptyAggregation() throws Exception {
 
@@ -45,7 +49,7 @@ public class AvgTests extends AbstractNumericTests {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
-        Histogram.Bucket bucket = histo.getBucketByKey(1l);
+        Histogram.Bucket bucket = histo.getBuckets().get(1);
         assertThat(bucket, notNullValue());
 
         Avg avg = bucket.getAggregations().get("avg");
@@ -54,6 +58,7 @@ public class AvgTests extends AbstractNumericTests {
         assertThat(Double.isNaN(avg.getValue()), is(true));
     }
 
+    @Override
     @Test
     public void testUnmapped() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
@@ -69,6 +74,7 @@ public class AvgTests extends AbstractNumericTests {
         assertThat(avg.getValue(), equalTo(Double.NaN));
     }
 
+    @Override
     @Test
     public void testSingleValuedField() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -82,6 +88,32 @@ public class AvgTests extends AbstractNumericTests {
         assertThat(avg, notNullValue());
         assertThat(avg.getName(), equalTo("avg"));
         assertThat(avg.getValue(), equalTo((double) (1+2+3+4+5+6+7+8+9+10) / 10));
+    }
+
+    @Override
+    @Test
+    public void testSingleValuedField_getProperty() throws Exception {
+
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(global("global").subAggregation(avg("avg").field("value"))).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Global global = searchResponse.getAggregations().get("global");
+        assertThat(global, notNullValue());
+        assertThat(global.getName(), equalTo("global"));
+        assertThat(global.getDocCount(), equalTo(10l));
+        assertThat(global.getAggregations(), notNullValue());
+        assertThat(global.getAggregations().asMap().size(), equalTo(1));
+
+        Avg avg = global.getAggregations().get("avg");
+        assertThat(avg, notNullValue());
+        assertThat(avg.getName(), equalTo("avg"));
+        double expectedAvgValue = (double) (1+2+3+4+5+6+7+8+9+10) / 10;
+        assertThat(avg.getValue(), equalTo(expectedAvgValue));
+        assertThat((Avg) global.getProperty("avg"), equalTo(avg));
+        assertThat((double) global.getProperty("avg.value"), equalTo(expectedAvgValue));
+        assertThat((double) avg.getProperty("value"), equalTo(expectedAvgValue));
     }
 
     @Override
@@ -99,6 +131,7 @@ public class AvgTests extends AbstractNumericTests {
         assertThat(avg.getValue(), equalTo((double) (1+2+3+4+5+6+7+8+9+10) / 10));
     }
 
+    @Override
     @Test
     public void testSingleValuedField_WithValueScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -114,6 +147,7 @@ public class AvgTests extends AbstractNumericTests {
         assertThat(avg.getValue(), equalTo((double) (2+3+4+5+6+7+8+9+10+11) / 10));
     }
 
+    @Override
     @Test
     public void testSingleValuedField_WithValueScript_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -129,7 +163,20 @@ public class AvgTests extends AbstractNumericTests {
         assertThat(avg.getValue(), equalTo((double) (2+3+4+5+6+7+8+9+10+11) / 10));
     }
 
+    public void testSingleValuedField_WithFormatter() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(avg("avg").format("#").field("value")).execute().actionGet();
 
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Avg avg = searchResponse.getAggregations().get("avg");
+        assertThat(avg, notNullValue());
+        assertThat(avg.getName(), equalTo("avg"));
+        assertThat(avg.getValue(), equalTo((double) (1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10) / 10));
+        assertThat(avg.getValueAsString(), equalTo("6"));
+    }
+
+    @Override
     @Test
     public void testMultiValuedField() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -145,6 +192,7 @@ public class AvgTests extends AbstractNumericTests {
         assertThat(avg.getValue(), equalTo((double) (2+3+3+4+4+5+5+6+6+7+7+8+8+9+9+10+10+11+11+12) / 20));
     }
 
+    @Override
     @Test
     public void testMultiValuedField_WithValueScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -160,6 +208,7 @@ public class AvgTests extends AbstractNumericTests {
         assertThat(avg.getValue(), equalTo((double) (3+4+4+5+5+6+6+7+7+8+8+9+9+10+10+11+11+12+12+13) / 20));
     }
 
+    @Override
     @Test
     public void testMultiValuedField_WithValueScript_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -175,6 +224,7 @@ public class AvgTests extends AbstractNumericTests {
         assertThat(avg.getValue(), equalTo((double) (3+4+4+5+5+6+6+7+7+8+8+9+9+10+10+11+11+12+12+13) / 20));
     }
 
+    @Override
     @Test
     public void testScript_SingleValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -190,6 +240,7 @@ public class AvgTests extends AbstractNumericTests {
         assertThat(avg.getValue(), equalTo((double) (1+2+3+4+5+6+7+8+9+10) / 10));
     }
 
+    @Override
     @Test
     public void testScript_SingleValued_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -205,6 +256,7 @@ public class AvgTests extends AbstractNumericTests {
         assertThat(avg.getValue(), equalTo((double) (2+3+4+5+6+7+8+9+10+11) / 10));
     }
 
+    @Override
     @Test
     public void testScript_ExplicitSingleValued_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -220,6 +272,7 @@ public class AvgTests extends AbstractNumericTests {
         assertThat(avg.getValue(), equalTo((double) (2+3+4+5+6+7+8+9+10+11) / 10));
     }
 
+    @Override
     @Test
     public void testScript_MultiValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -235,6 +288,7 @@ public class AvgTests extends AbstractNumericTests {
         assertThat(avg.getValue(), equalTo((double) (1+2+2+3+3+4+4+5+5+6+6+7+7+8+8+9+9+10+10+11) / 20));
     }
 
+    @Override
     @Test
     public void testScript_ExplicitMultiValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -250,8 +304,8 @@ public class AvgTests extends AbstractNumericTests {
         assertThat(avg.getValue(), equalTo((double) (1+2+2+3+3+4+4+5+5+6+6+7+7+8+8+9+9+10+10+11) / 20));
     }
 
+    @Override
     @Test
-    @TestLogging("search:TRACE")
     public void testScript_MultiValued_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())

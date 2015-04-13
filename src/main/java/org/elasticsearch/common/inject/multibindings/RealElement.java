@@ -33,14 +33,17 @@ class RealElement implements Element {
         this.setName = setName;
     }
 
+    @Override
     public String setName() {
         return setName;
     }
 
+    @Override
     public int uniqueId() {
         return uniqueId;
     }
 
+    @Override
     public Class<? extends Annotation> annotationType() {
         return Element.class;
     }

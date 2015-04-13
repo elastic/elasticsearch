@@ -1,7 +1,6 @@
 ---
 "Info":
     - do:         {info: {}}
-    - match:      {status: 200}
     - is_true:    name
     - is_true:    cluster_name
     - is_true:    tagline

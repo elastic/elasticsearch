@@ -35,17 +35,8 @@ public class GetIndexedScriptRequestTests extends ElasticsearchTestCase {
     public void testGetIndexedScriptRequestSerialization() throws IOException {
         GetIndexedScriptRequest request = new GetIndexedScriptRequest("lang", "id");
         if (randomBoolean()) {
-            request.realtime(false);
-        }
-        if (randomBoolean()) {
-            request.refresh(true);
-        }
-        if (randomBoolean()) {
             request.version(randomIntBetween(1, Integer.MAX_VALUE));
             request.versionType(randomFrom(VersionType.values()));
-        }
-        if (randomBoolean()) {
-            request.routing(randomAsciiOfLength(randomIntBetween(1, 10)));
         }
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -59,8 +50,6 @@ public class GetIndexedScriptRequestTests extends ElasticsearchTestCase {
 
         assertThat(request2.id(), equalTo(request.id()));
         assertThat(request2.scriptLang(), equalTo(request.scriptLang()));
-        assertThat(request2.realtime(), equalTo(request.realtime()));
-        assertThat(request2.refresh(), equalTo(request.refresh()));
         assertThat(request2.version(), equalTo(request.version()));
         assertThat(request2.versionType(), equalTo(request.versionType()));
     }

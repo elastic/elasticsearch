@@ -28,18 +28,18 @@ import java.util.List;
 public abstract class FieldMapperListener {
 
     public static class Aggregator extends FieldMapperListener {
-        public final List<FieldMapper> mappers = new ArrayList<>();
+        public final List<FieldMapper<?>> mappers = new ArrayList<>();
 
         @Override
-        public void fieldMapper(FieldMapper fieldMapper) {
+        public void fieldMapper(FieldMapper<?> fieldMapper) {
             mappers.add(fieldMapper);
         }
     }
 
-    public abstract void fieldMapper(FieldMapper fieldMapper);
+    public abstract void fieldMapper(FieldMapper<?> fieldMapper);
 
-    public void fieldMappers(List<FieldMapper>  fieldMappers) {
-        for (FieldMapper mapper : fieldMappers) {
+    public void fieldMappers(List<FieldMapper<?>>  fieldMappers) {
+        for (FieldMapper<?> mapper : fieldMappers) {
             fieldMapper(mapper);
         }
     }

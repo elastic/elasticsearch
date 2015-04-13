@@ -71,6 +71,7 @@ public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
         String typeMapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("_ttl").field("enabled", true).endObject()
                 .startObject("_timestamp").field("enabled", true).endObject()
+                .startObject("properties").startObject("field1").field("type", "string").endObject().endObject()
                 .endObject().endObject().string();
 
         client.admin().indices().prepareCreate("test")

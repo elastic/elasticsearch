@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.CollectionStatistics;
 import org.elasticsearch.common.util.MinimalMap;
 
@@ -46,7 +46,7 @@ public class IndexField extends MinimalMap<String, IndexFieldTerm> {
      * The holds the current reader. We need it to populate the field
      * statistics. We just delegate all requests there
      */
-    private IndexLookup indexLookup;
+    private final LeafIndexLookup indexLookup;
 
     /*
      * General field statistics such as number of documents containing the
@@ -55,20 +55,11 @@ public class IndexField extends MinimalMap<String, IndexFieldTerm> {
     private final CollectionStatistics fieldStats;
 
     /*
-     * Uodate posting lists in all TermInfo objects
-     */
-    void setReader(AtomicReader reader) {
-        for (IndexFieldTerm ti : terms.values()) {
-            ti.setNextReader(reader);
-        }
-    }
-
-    /*
      * Represents a field in a document. Can be used to return information on
      * statistics of this field. Information on specific terms in this field can
      * be accessed by calling get(String term).
      */
-    public IndexField(String fieldName, IndexLookup indexLookup) throws IOException {
+    public IndexField(String fieldName, LeafIndexLookup indexLookup) throws IOException {
 
         assert fieldName != null;
         this.fieldName = fieldName;
@@ -123,6 +114,7 @@ public class IndexField extends MinimalMap<String, IndexFieldTerm> {
      * Returns a TermInfo object that can be used to access information on
      * specific terms. flags can be set as described in TermInfo.
      */
+    @Override
     public IndexFieldTerm get(Object key) {
         // per default, do not initialize any positions info
         return get(key, IndexLookup.FLAG_FREQUENCIES);
@@ -130,7 +122,7 @@ public class IndexField extends MinimalMap<String, IndexFieldTerm> {
 
     public void setDocIdInTerms(int docId) {
         for (IndexFieldTerm ti : terms.values()) {
-            ti.setNextDoc(docId);
+            ti.setDocument(docId);
         }
     }
 

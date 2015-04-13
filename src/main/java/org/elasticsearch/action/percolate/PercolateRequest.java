@@ -54,7 +54,6 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     private boolean onlyCount;
 
     private BytesReference source;
-    private boolean unsafe;
 
     private BytesReference docSource;
 
@@ -69,7 +68,8 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     }
 
     PercolateRequest(PercolateRequest request, BytesReference docSource) {
-        super(request.indices());
+        super(request);
+        this.indices = request.indices();
         this.documentType = request.documentType();
         this.routing = request.routing();
         this.preference = request.preference();
@@ -156,17 +156,6 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     }
 
     /**
-     * Before we fork on a local thread, make sure we copy over the bytes if they are unsafe
-     */
-    @Override
-    public void beforeLocalFork() {
-        if (unsafe) {
-            source = source.copyBytesArray();
-            unsafe = false;
-        }
-    }
-
-    /**
      * @return The request body in its raw form.
      */
     public BytesReference source() {
@@ -199,7 +188,6 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
      */
     public PercolateRequest source(String document) {
         this.source = new BytesArray(document);
-        this.unsafe = false;
         return this;
     }
 
@@ -208,7 +196,6 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
      */
     public PercolateRequest source(XContentBuilder documentBuilder) {
         source = documentBuilder.bytes();
-        unsafe = false;
         return this;
     }
 
@@ -223,22 +210,14 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
      * Raw version of {@link #source(PercolateSourceBuilder)}
      */
     public PercolateRequest source(byte[] source, int offset, int length) {
-        return source(source, offset, length, false);
+        return source(new BytesArray(source, offset, length));
     }
 
     /**
      * Raw version of {@link #source(PercolateSourceBuilder)}
      */
-    public PercolateRequest source(byte[] source, int offset, int length, boolean unsafe) {
-        return source(new BytesArray(source, offset, length), unsafe);
-    }
-
-    /**
-     * Raw version of {@link #source(PercolateSourceBuilder)}
-     */
-    public PercolateRequest source(BytesReference source, boolean unsafe) {
+    public PercolateRequest source(BytesReference source) {
         this.source = source;
-        this.unsafe = unsafe;
         return this;
     }
 
@@ -255,7 +234,6 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
         } catch (Exception e) {
             throw new SearchSourceBuilderException("Failed to build search source", e);
         }
-        this.unsafe = false;
         return this;
     }
 
@@ -301,7 +279,6 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
         documentType = in.readString();
         routing = in.readOptionalString();
         preference = in.readOptionalString();
-        unsafe = false;
         source = in.readBytesReference();
         docSource = in.readBytesReference();
         if (in.readBoolean()) {

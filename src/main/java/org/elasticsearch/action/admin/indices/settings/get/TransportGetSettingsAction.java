@@ -21,10 +21,13 @@ package org.elasticsearch.action.admin.indices.settings.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
@@ -58,6 +61,12 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadOperation
     }
 
     @Override
+    protected ClusterBlockException checkBlock(GetSettingsRequest request, ClusterState state) {
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
+    }
+
+
+    @Override
     protected GetSettingsRequest newRequest() {
         return new GetSettingsRequest();
     }
@@ -77,7 +86,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadOperation
                 continue;
             }
 
-            Settings settings = settingsFilter.filterSettings(indexMetaData.settings());
+            Settings settings = SettingsFilter.filterSettings(settingsFilter.getPatterns(), indexMetaData.settings());
             if (!CollectionUtils.isEmpty(request.names())) {
                 ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder();
                 for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {

@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
@@ -49,8 +50,8 @@ public class InternalMissing extends InternalSingleBucketAggregation implements 
     InternalMissing() {
     }
 
-    InternalMissing(String name, long docCount, InternalAggregations aggregations) {
-        super(name, docCount, aggregations);
+    InternalMissing(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metaData) {
+        super(name, docCount, aggregations, metaData);
     }
 
     @Override
@@ -60,6 +61,6 @@ public class InternalMissing extends InternalSingleBucketAggregation implements 
 
     @Override
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
-        return new InternalMissing(name, docCount, subAggregations);
+        return new InternalMissing(name, docCount, subAggregations, getMetaData());
     }
 }

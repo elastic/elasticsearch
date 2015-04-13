@@ -63,9 +63,11 @@ ipod, i-pod, i pod
 foozball , foosball
 universe , cosmos
 
-# If expand==true, "ipod, i-pod, i pod" is equivalent to the explicit mapping:
+# If expand==true, "ipod, i-pod, i pod" is equivalent
+# to the explicit mapping:
 ipod, i-pod, i pod => ipod, i-pod, i pod
-# If expand==false, "ipod, i-pod, i pod" is equivalent to the explicit mapping:
+# If expand==false, "ipod, i-pod, i pod" is equivalent
+# to the explicit mapping:
 ipod, i-pod, i pod => ipod
 
 #multiple synonym mapping entries are merged.

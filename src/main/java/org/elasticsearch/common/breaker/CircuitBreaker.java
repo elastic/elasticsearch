@@ -20,10 +20,8 @@
 package org.elasticsearch.common.breaker;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 
-import java.io.IOException;
+import java.util.Locale;
 
 /**
  * Interface for an object that can be incremented, breaking after some
@@ -31,40 +29,29 @@ import java.io.IOException;
  */
 public interface CircuitBreaker {
 
-    /**
-     * Enum used for specifying different types of circuit breakers
-     */
-    public static enum Name {
-        PARENT(0),
-        FIELDDATA(1),
-        REQUEST(2);
+    public static final String PARENT = "parent";
+    public static final String FIELDDATA = "fielddata";
+    public static final String REQUEST = "request";
 
-        private int ordinal;
+    public static enum Type {
+        // A regular or child MemoryCircuitBreaker
+        MEMORY,
+        // A special parent-type for the hierarchy breaker service
+        PARENT,
+        // A breaker where every action is a noop, it never breaks
+        NOOP;
 
-        Name(int ordinal) {
-            this.ordinal = ordinal;
-        }
-
-        public int getSerializableValue() {
-            return this.ordinal;
-        }
-
-        public static Name readFrom(StreamInput in) throws IOException {
-            int value = in.readVInt();
-            switch (value) {
-                case 0:
-                    return Name.PARENT;
-                case 1:
-                    return Name.FIELDDATA;
-                case 2:
-                    return Name.REQUEST;
+        public static Type parseValue(String value) {
+            switch(value.toLowerCase(Locale.ROOT)) {
+                case "noop":
+                    return Type.NOOP;
+                case "parent":
+                    return Type.PARENT;
+                case "memory":
+                    return Type.MEMORY;
                 default:
-                    throw new ElasticsearchIllegalArgumentException("No CircuitBreaker with ordinal: " + value);
+                    throw new ElasticsearchIllegalArgumentException("No CircuitBreaker with type: " + value);
             }
-        }
-
-        public static void writeTo(Name name, StreamOutput out) throws IOException {
-            out.writeVInt(name.getSerializableValue());
         }
     }
 
@@ -112,5 +99,5 @@ public interface CircuitBreaker {
     /**
      * @return the name of the breaker
      */
-    public Name getName();
+    public String getName();
 }

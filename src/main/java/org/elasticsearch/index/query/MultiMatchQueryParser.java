@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * Same ad {@link MatchQueryParser} but has support for multiple fields.
+ * Same as {@link MatchQueryParser} but has support for multiple fields.
  */
 public class MultiMatchQueryParser implements QueryParser {
 
@@ -142,11 +142,11 @@ public class MultiMatchQueryParser implements QueryParser {
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext.index(), "No text specified for match_all query");
+            throw new QueryParsingException(parseContext.index(), "No text specified for multi_match query");
         }
 
         if (fieldNameWithBoosts.isEmpty()) {
-            throw new QueryParsingException(parseContext.index(), "No fields specified for match_all query");
+            throw new QueryParsingException(parseContext.index(), "No fields specified for multi_match query");
         }
         if (type == null) {
             type = MultiMatchQueryBuilder.Type.BEST_FIELDS;

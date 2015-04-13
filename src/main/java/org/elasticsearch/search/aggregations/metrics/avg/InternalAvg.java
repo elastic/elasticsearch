@@ -18,15 +18,19 @@
  */
 package org.elasticsearch.search.aggregations.metrics.avg;
 
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 /**
 *
@@ -53,10 +57,11 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
 
     InternalAvg() {} // for serialization
 
-    public InternalAvg(String name, double sum, long count) {
-        super(name);
+    public InternalAvg(String name, double sum, long count, @Nullable ValueFormatter formatter, Map<String, Object> metaData) {
+        super(name, metaData);
         this.sum = sum;
         this.count = count;
+        this.valueFormatter = formatter;
     }
 
     @Override
@@ -64,6 +69,7 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
         return getValue();
     }
 
+    @Override
     public double getValue() {
         return sum / count;
     }
@@ -74,27 +80,25 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalAvg reduce(ReduceContext reduceContext) {
+    public InternalAvg reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long count = 0;
         double sum = 0;
-        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+        for (InternalAggregation aggregation : aggregations) {
             count += ((InternalAvg) aggregation).count;
             sum += ((InternalAvg) aggregation).sum;
         }
-        return new InternalAvg(getName(), sum, count);
+        return new InternalAvg(getName(), sum, count, valueFormatter, getMetaData());
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         valueFormatter = ValueFormatterStreams.readOptional(in);
         sum = in.readDouble();
         count = in.readVLong();
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         ValueFormatterStreams.writeOptional(valueFormatter, out);
         out.writeDouble(sum);
         out.writeVLong(count);

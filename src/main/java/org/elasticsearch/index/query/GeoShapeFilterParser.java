@@ -20,22 +20,25 @@
 package org.elasticsearch.index.query;
 
 import com.spatial4j.core.shape.Shape;
+
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilterCachingPolicy;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
+import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.lucene.HashedBytesRef;
+import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.search.shape.ShapeFetchService;
 
 import java.io.IOException;
-
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
 
 /**
  * {@link FilterParser} for filtering Documents based on {@link Shape}s.
@@ -81,8 +84,8 @@ public class GeoShapeFilterParser implements FilterParser {
         ShapeRelation shapeRelation = ShapeRelation.INTERSECTS;
         String strategyName = null;
         ShapeBuilder shape = null;
-        boolean cache = false;
-        CacheKeyFilter.Key cacheKey = null;
+        FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
+        HashedBytesRef cacheKey = null;
         String filterName = null;
 
         String id = null;
@@ -144,9 +147,9 @@ public class GeoShapeFilterParser implements FilterParser {
                 if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
-                    cache = parser.booleanValue();
+                    cache = parseContext.parseFilterCachePolicy();
                 } else if ("_cache_key".equals(currentFieldName)) {
-                    cacheKey = new CacheKeyFilter.Key(parser.text());
+                    cacheKey = new HashedBytesRef(parser.text());
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[geo_shape] filter does not support [" + currentFieldName + "]");
                 }
@@ -175,13 +178,24 @@ public class GeoShapeFilterParser implements FilterParser {
         if (strategyName != null) {
             strategy = shapeFieldMapper.resolveStrategy(strategyName);
         }
-        Filter filter = strategy.makeFilter(GeoShapeQueryParser.getArgs(shape, shapeRelation));
-
-        if (cache) {
-            filter = parseContext.cacheFilter(filter, cacheKey);
+        
+        Filter filter;
+        if (strategy instanceof RecursivePrefixTreeStrategy && shapeRelation == ShapeRelation.DISJOINT) {
+            // this strategy doesn't support disjoint anymore: but it did before, including creating lucene fieldcache (!)
+            // in this case, execute disjoint as exists && !intersects
+            XBooleanFilter bool = new XBooleanFilter();
+            Filter exists = ExistsFilterParser.newFilter(parseContext, fieldName, null);
+            Filter intersects = strategy.makeFilter(GeoShapeQueryParser.getArgs(shape, ShapeRelation.INTERSECTS));
+            bool.add(exists, BooleanClause.Occur.MUST);
+            bool.add(intersects, BooleanClause.Occur.MUST_NOT);
+            filter = bool;
+        } else {
+            filter = strategy.makeFilter(GeoShapeQueryParser.getArgs(shape, shapeRelation));
         }
 
-        filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
+        if (cache != null) {
+            filter = parseContext.cacheFilter(filter, cacheKey, cache);
+        }
 
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);

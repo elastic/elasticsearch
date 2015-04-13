@@ -37,7 +37,12 @@ public class YamlSettingsLoader extends XContentSettingsLoader {
 
     @Override
     public Map<String, String> load(String source) throws IOException {
-        // replace tabs with whitespace (yaml does not accept tabs, but many users might use it still...)
-        return super.load(source.replace("\t", "  "));
+        /*
+         * #8259: Better handling of tabs vs spaces in elasticsearch.yml
+         */
+        if (source.indexOf('\t') > -1) {
+            throw new IOException("Tabs are illegal in YAML.  Did you mean to use whitespace character instead?");
+        }
+        return super.load(source);
     }
 }

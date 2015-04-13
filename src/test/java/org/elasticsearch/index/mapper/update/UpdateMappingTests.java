@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
@@ -64,7 +64,7 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
     public void test_all_enabled_after_enabled() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", true).endObject().endObject();
         XContentBuilder mappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("_all").field("enabled", true).endObject().startObject("properties").startObject("text").field("type", "string").endObject().endObject().endObject();
-        XContentBuilder expectedMapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties").startObject("text").field("type", "string").endObject().endObject().endObject().endObject();
+        XContentBuilder expectedMapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("_all").field("enabled", true).endObject().startObject("properties").startObject("text").field("type", "string").endObject().endObject().endObject().endObject();
         testNoConflictWhileMergingAndMappingChanged(mapping, mappingUpdate, expectedMapping);
     }
 
@@ -120,22 +120,14 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("type")
                 .startObject("_index")
                 .field("enabled", enabled)
-                .field("store", true)
-                .startObject("fielddata")
-                .field("format", "fst")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject();
         DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedString(indexMapping.string()), true);
         assertThat(documentMapper.indexMapper().enabled(), equalTo(enabled));
-        assertTrue(documentMapper.indexMapper().fieldType().stored());
-        assertThat(documentMapper.indexMapper().fieldDataType().getFormat(null), equalTo("fst"));
         documentMapper.refreshSource();
         documentMapper = indexService.mapperService().parse("type", new CompressedString(documentMapper.mappingSource().string()), true);
         assertThat(documentMapper.indexMapper().enabled(), equalTo(enabled));
-        assertTrue(documentMapper.indexMapper().fieldType().stored());
-        assertThat(documentMapper.indexMapper().fieldDataType().getFormat(null), equalTo("fst"));
     }
 
     @Test
@@ -174,7 +166,6 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("type")
                 .startObject("_size")
                 .field("enabled", enabled)
-                .field("store", true)
                 .endObject()
                 .endObject()
                 .endObject();

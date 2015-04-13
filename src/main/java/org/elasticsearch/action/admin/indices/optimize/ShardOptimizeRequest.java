@@ -31,67 +31,31 @@ import java.io.IOException;
 /**
  *
  */
-class ShardOptimizeRequest extends BroadcastShardOperationRequest {
+final class ShardOptimizeRequest extends BroadcastShardOperationRequest {
 
-    private boolean waitForMerge = OptimizeRequest.Defaults.WAIT_FOR_MERGE;
-    private int maxNumSegments = OptimizeRequest.Defaults.MAX_NUM_SEGMENTS;
-    private boolean onlyExpungeDeletes = OptimizeRequest.Defaults.ONLY_EXPUNGE_DELETES;
-    private boolean flush = OptimizeRequest.Defaults.FLUSH;
-    private boolean force = OptimizeRequest.Defaults.FORCE;
+    private OptimizeRequest request = new OptimizeRequest();
 
     ShardOptimizeRequest() {
     }
 
     ShardOptimizeRequest(ShardId shardId, OptimizeRequest request) {
         super(shardId, request);
-        waitForMerge = request.waitForMerge();
-        maxNumSegments = request.maxNumSegments();
-        onlyExpungeDeletes = request.onlyExpungeDeletes();
-        flush = request.flush();
-        force = request.force();
-    }
-
-    boolean waitForMerge() {
-        return waitForMerge;
-    }
-
-    int maxNumSegments() {
-        return maxNumSegments;
-    }
-
-    public boolean onlyExpungeDeletes() {
-        return onlyExpungeDeletes;
-    }
-
-    public boolean flush() {
-        return flush;
-    }
-
-    public boolean force() {
-        return force;
+        this.request = request;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        waitForMerge = in.readBoolean();
-        maxNumSegments = in.readInt();
-        onlyExpungeDeletes = in.readBoolean();
-        flush = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-            force = in.readBoolean();
-        }
+        request.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(waitForMerge);
-        out.writeInt(maxNumSegments);
-        out.writeBoolean(onlyExpungeDeletes);
-        out.writeBoolean(flush);
-        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            out.writeBoolean(force);
-        }
+        request.writeTo(out);
+    }
+
+    public OptimizeRequest optimizeRequest() {
+        return this.request;
     }
 }

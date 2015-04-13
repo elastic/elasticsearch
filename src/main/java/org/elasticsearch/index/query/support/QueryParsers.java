@@ -21,12 +21,12 @@ package org.elasticsearch.index.query.support;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.AndFilter;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -55,7 +55,7 @@ public final class QueryParsers {
     }
 
     public static MultiTermQuery.RewriteMethod parseRewriteMethod(@Nullable String rewriteMethod) {
-        return parseRewriteMethod(rewriteMethod, MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT);
+        return parseRewriteMethod(rewriteMethod, MultiTermQuery.CONSTANT_SCORE_FILTER_REWRITE);
     }
 
     public static MultiTermQuery.RewriteMethod parseRewriteMethod(@Nullable String rewriteMethod, @Nullable MultiTermQuery.RewriteMethod defaultRewriteMethod) {
@@ -63,7 +63,7 @@ public final class QueryParsers {
             return defaultRewriteMethod;
         }
         if ("constant_score_auto".equals(rewriteMethod) || "constant_score_auto".equals(rewriteMethod)) {
-            return MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT;
+            return MultiTermQuery.CONSTANT_SCORE_FILTER_REWRITE;
         }
         if ("scoring_boolean".equals(rewriteMethod) || "scoringBoolean".equals(rewriteMethod)) {
             return MultiTermQuery.SCORING_BOOLEAN_QUERY_REWRITE;
@@ -92,31 +92,5 @@ public final class QueryParsers {
         }
         throw new ElasticsearchIllegalArgumentException("Failed to parse rewrite_method [" + rewriteMethod + "]");
     }
-
-    public static Query wrapSmartNameQuery(Query query, @Nullable MapperService.SmartNameFieldMappers smartFieldMappers,
-                                           QueryParseContext parseContext) {
-        if (query == null) {
-            return null;
-        }
-        if (smartFieldMappers == null) {
-            return query;
-        }
-        if (!smartFieldMappers.explicitTypeInNameWithDocMapper()) {
-            return query;
-        }
-        DocumentMapper docMapper = smartFieldMappers.docMapper();
-        return new XFilteredQuery(query, parseContext.cacheFilter(docMapper.typeFilter(), null));
-    }
-
-    public static Filter wrapSmartNameFilter(Filter filter, @Nullable MapperService.SmartNameFieldMappers smartFieldMappers,
-                                             QueryParseContext parseContext) {
-        if (smartFieldMappers == null) {
-            return filter;
-        }
-        if (!smartFieldMappers.explicitTypeInNameWithDocMapper()) {
-            return filter;
-        }
-        DocumentMapper docMapper = smartFieldMappers.docMapper();
-        return new AndFilter(ImmutableList.of(parseContext.cacheFilter(docMapper.typeFilter(), null), filter));
-    }
+    
 }

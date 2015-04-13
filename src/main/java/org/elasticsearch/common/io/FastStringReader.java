@@ -194,6 +194,7 @@ public class FastStringReader extends CharSequenceReader {
      * ready(), mark(), or reset() invocations will throw an IOException.
      * Closing a previously closed stream has no effect.
      */
+    @Override
     public void close() {
         length = -1;
     }

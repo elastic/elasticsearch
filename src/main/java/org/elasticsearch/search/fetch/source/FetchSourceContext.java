@@ -177,9 +177,7 @@ public class FetchSourceContext implements Streamable {
         fetchSource = in.readBoolean();
         includes = in.readStringArray();
         excludes = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
-            transformSource = in.readBoolean();
-        }
+        transformSource = in.readBoolean();
     }
 
     @Override
@@ -187,9 +185,7 @@ public class FetchSourceContext implements Streamable {
         out.writeBoolean(fetchSource);
         out.writeStringArray(includes);
         out.writeStringArray(excludes);
-        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
-            out.writeBoolean(transformSource);
-        }
+        out.writeBoolean(transformSource);
     }
 
     @Override

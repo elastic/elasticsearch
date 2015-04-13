@@ -84,7 +84,7 @@ conform with http://geojson.org/[GeoJSON].
         "filter" : {
             "geo_distance" : {
                 "distance" : "12km",
-                "pin.location" : [40, -70]
+                "pin.location" : [-70, 40]
             }
         }
     }

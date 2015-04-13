@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -54,6 +54,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
         return this.fieldNames;
     }
 
+    @Override
     public FieldDataType getFieldDataType() {
         return fieldDataType;
     }
@@ -69,7 +70,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
     }
 
     @Override
-    public FD load(AtomicReaderContext context) {
+    public FD load(LeafReaderContext context) {
         try {
             FD fd = cache.load(context, this);
             return fd;

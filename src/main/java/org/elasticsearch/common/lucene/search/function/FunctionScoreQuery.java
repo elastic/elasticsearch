@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
@@ -27,6 +27,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -38,7 +39,15 @@ public class FunctionScoreQuery extends Query {
     final ScoreFunction function;
     float maxBoost = Float.MAX_VALUE;
     CombineFunction combineFunction;
-    
+    private Float minScore = null;
+
+    public FunctionScoreQuery(Query subQuery, ScoreFunction function, Float minScore) {
+        this.subQuery = subQuery;
+        this.function = function;
+        this.combineFunction = function == null? combineFunction.MULT : function.getDefaultScoreCombiner();
+        this.minScore = minScore;
+    }
+
     public FunctionScoreQuery(Query subQuery, ScoreFunction function) {
         this.subQuery = subQuery;
         this.function = function;
@@ -82,21 +91,20 @@ public class FunctionScoreQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher) throws IOException {
-        Weight subQueryWeight = subQuery.createWeight(searcher);
-        return new CustomBoostFactorWeight(subQueryWeight);
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+        // TODO: needsScores
+        // if we don't need scores, just return the underlying weight?
+        Weight subQueryWeight = subQuery.createWeight(searcher, needsScores);
+        return new CustomBoostFactorWeight(this, subQueryWeight);
     }
 
     class CustomBoostFactorWeight extends Weight {
 
         final Weight subQueryWeight;
 
-        public CustomBoostFactorWeight(Weight subQueryWeight) throws IOException {
+        public CustomBoostFactorWeight(Query parent, Weight subQueryWeight) throws IOException {
+            super(parent);
             this.subQueryWeight = subQueryWeight;
-        }
-
-        public Query getQuery() {
-            return FunctionScoreQuery.this;
         }
 
         @Override
@@ -112,81 +120,56 @@ public class FunctionScoreQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
-            // we ignore scoreDocsInOrder parameter, because we need to score in
-            // order if documents are scored with a script. The
-            // ShardLookup depends on in order scoring.
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
             Scorer subQueryScorer = subQueryWeight.scorer(context, acceptDocs);
             if (subQueryScorer == null) {
                 return null;
             }
-            function.setNextReader(context);
-            return new CustomBoostFactorScorer(this, subQueryScorer, function, maxBoost, combineFunction);
+            LeafScoreFunction leafFunction = null;
+            if (function != null) {
+                leafFunction = function.getLeafScoreFunction(context);
+            }
+            return new FunctionFactorScorer(this, subQueryScorer, leafFunction, maxBoost, combineFunction, minScore);
         }
 
         @Override
-        public Explanation explain(AtomicReaderContext context, int doc) throws IOException {
+        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             Explanation subQueryExpl = subQueryWeight.explain(context, doc);
             if (!subQueryExpl.isMatch()) {
                 return subQueryExpl;
             }
-            function.setNextReader(context);
-            Explanation functionExplanation = function.explainScore(doc, subQueryExpl.getValue());
-            return combineFunction.explain(getBoost(), subQueryExpl, functionExplanation, maxBoost);
+            if (function != null) {
+                Explanation functionExplanation = function.getLeafScoreFunction(context).explainScore(doc, subQueryExpl);
+                return combineFunction.explain(getBoost(), subQueryExpl, functionExplanation, maxBoost);
+            } else {
+                return subQueryExpl;
+            }
         }
     }
 
-    static class CustomBoostFactorScorer extends Scorer {
+    static class FunctionFactorScorer extends CustomBoostFactorScorer {
 
-        private final float subQueryBoost;
-        private final Scorer scorer;
-        private final ScoreFunction function;
-        private final float maxBoost;
-        private final CombineFunction scoreCombiner;
+        private final LeafScoreFunction function;
 
-        private CustomBoostFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreFunction function, float maxBoost, CombineFunction scoreCombiner)
+        private FunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, LeafScoreFunction function, float maxBoost, CombineFunction scoreCombiner, Float minScore)
                 throws IOException {
-            super(w);
-            this.subQueryBoost = w.getQuery().getBoost();
-            this.scorer = scorer;
+            super(w, scorer, maxBoost, scoreCombiner, minScore);
             this.function = function;
-            this.maxBoost = maxBoost;
-            this.scoreCombiner = scoreCombiner;
         }
 
         @Override
-        public int docID() {
-            return scorer.docID();
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            return scorer.advance(target);
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            return scorer.nextDoc();
-        }
-
-        @Override
-        public float score() throws IOException {
+        public float innerScore() throws IOException {
             float score = scorer.score();
-            return scoreCombiner.combine(subQueryBoost, score,
-                    function.score(scorer.docID(), score), maxBoost);
-        }
-
-        @Override
-        public int freq() throws IOException {
-            return scorer.freq();
-        }
-
-        @Override
-        public long cost() {
-            return scorer.cost();
+            if (function == null) {
+                return subQueryBoost * score;
+            } else {
+                return scoreCombiner.combine(subQueryBoost, score,
+                        function.score(scorer.docID(), score), maxBoost);
+            }
         }
     }
 
+    @Override
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
         sb.append("function score (").append(subQuery.toString(field)).append(",function=").append(function).append(')');
@@ -194,15 +177,17 @@ public class FunctionScoreQuery extends Query {
         return sb.toString();
     }
 
+    @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass())
             return false;
         FunctionScoreQuery other = (FunctionScoreQuery) o;
-        return this.getBoost() == other.getBoost() && this.subQuery.equals(other.subQuery) && this.function.equals(other.function)
+        return this.getBoost() == other.getBoost() && this.subQuery.equals(other.subQuery) && (this.function != null ? this.function.equals(other.function) : other.function == null)
                 && this.maxBoost == other.maxBoost;
     }
 
+    @Override
     public int hashCode() {
-        return subQuery.hashCode() + 31 * function.hashCode() ^ Float.floatToIntBits(getBoost());
+        return subQuery.hashCode() + 31 * Objects.hashCode(function) ^ Float.floatToIntBits(getBoost());
     }
 }

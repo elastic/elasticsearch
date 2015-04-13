@@ -31,6 +31,7 @@ import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.test.AfterTestRule;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
@@ -43,9 +44,12 @@ import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 
 import java.io.Closeable;
-import java.io.File;
+import java.io.IOException;
 import java.lang.annotation.*;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
@@ -98,6 +102,21 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
      * via the commandline -D{@value #TESTS_BACKWARDS_COMPATIBILITY_PATH}
      */
     public static final String TESTS_BACKWARDS_COMPATIBILITY_PATH = "tests.bwc.path";
+
+    /**
+     * Annotation for REST tests
+     */
+    @Inherited
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @TestGroup(enabled = true, sysProperty = TESTS_REST)
+    public @interface Rest {
+    }
+
+    /**
+     * Property that allows to control whether the REST tests are run (default) or not
+     */
+    public static final String TESTS_REST = "tests.rest";
 
     /**
      * Annotation for integration tests
@@ -163,7 +182,7 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     /**
      * Create indexes in this directory, optimally use a subdir, named after the test
      */
-    public static final File TEMP_DIR;
+    public static final Path TEMP_DIR;
 
     public static final int TESTS_PROCESSORS;
 
@@ -171,8 +190,12 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
         String s = System.getProperty("tempDir", System.getProperty("java.io.tmpdir"));
         if (s == null)
             throw new RuntimeException("To run tests, you need to define system property 'tempDir' or 'java.io.tmpdir'.");
-        TEMP_DIR = new File(s);
-        TEMP_DIR.mkdirs();
+        TEMP_DIR = Paths.get(s);
+        try {
+            Files.createDirectories(TEMP_DIR);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
 
         String processors = System.getProperty(SYSPROP_PROCESSORS, ""); // mvn sets "" as default
         if (processors == null || processors.isEmpty()) {
@@ -230,6 +253,8 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
      */
     private static final AtomicReference<TestRuleIgnoreAfterMaxFailures> ignoreAfterMaxFailuresDelegate;
     private static final TestRule ignoreAfterMaxFailures;
+
+    private static final AfterTestRule.Task noOpAfterRuleTask = new AfterTestRule.Task();
 
     static {
         int maxFailures = systemPropertyAsInt(SYSPROP_MAXFAILURES, Integer.MAX_VALUE);
@@ -335,6 +360,8 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
      */
     private TestRuleMarkFailure testFailureMarker = new TestRuleMarkFailure(suiteFailureMarker);
 
+    protected AfterTestRule afterTestRule = new AfterTestRule(afterTestTask());
+
     /**
      * This controls how individual test rules are nested. It is important that
      * _all_ rules declared in {@link LuceneTestCase} are executed in proper order
@@ -347,12 +374,15 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
             .around(threadAndTestNameRule)
             .around(new SystemPropertiesInvariantRule(IGNORED_INVARIANT_PROPERTIES))
             .around(new TestRuleSetupAndRestoreInstanceEnv())
-            .around(new TestRuleFieldCacheSanity())
-            .around(parentChainCallRule);
+            .around(parentChainCallRule)
+            .around(afterTestRule);
 
     // -----------------------------------------------------------------
     // Suite and test case setup/ cleanup.
     // -----------------------------------------------------------------
+
+    /** MockFSDirectoryService sets this: */
+    public static boolean checkIndexFailed;
 
     /**
      * For subclasses to override. Overrides must call {@code super.setUp()}.
@@ -360,6 +390,7 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     @Before
     public void setUp() throws Exception {
         parentChainCallRule.setupCalled = true;
+        checkIndexFailed = false;
     }
 
     /**
@@ -368,6 +399,7 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     @After
     public void tearDown() throws Exception {
         parentChainCallRule.teardownCalled = true;
+        assertFalse("at least one shard failed CheckIndex", checkIndexFailed);
     }
 
 
@@ -381,6 +413,7 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
      *
      * @return <code>resource</code> (for call chaining).
      */
+    @Override
     public <T extends Closeable> T closeAfterTest(T resource) {
         return RandomizedContext.current().closeAtEnd(resource, LifecycleScope.TEST);
     }
@@ -407,5 +440,9 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
      */
     public String getTestName() {
         return threadAndTestNameRule.testMethodName;
+    }
+
+    protected AfterTestRule.Task afterTestTask() {
+        return noOpAfterRuleTask;
     }
 }

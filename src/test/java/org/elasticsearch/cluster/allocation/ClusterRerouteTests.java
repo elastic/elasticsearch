@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.allocation;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
@@ -42,12 +43,12 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
-import java.io.File;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -70,7 +71,6 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
     public void rerouteWithCommands_enableAllocationSettings() throws Exception {
         Settings commonSettings = settingsBuilder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE.name())
-                .put("gateway.type", "local")
                 .build();
         rerouteWithCommands(commonSettings);
     }
@@ -141,7 +141,6 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         Settings commonSettings = settingsBuilder()
                 .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION, true)
                 .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)
-                .put("gateway.type", "local")
                 .build();
         rerouteWithAllocateLocalGateway(commonSettings);
     }
@@ -150,7 +149,6 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
     public void rerouteWithAllocateLocalGateway_enableAllocationSettings() throws Exception {
         Settings commonSettings = settingsBuilder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE.name())
-                .put("gateway.type", "local")
                 .build();
         rerouteWithAllocateLocalGateway(commonSettings);
     }
@@ -190,13 +188,13 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).execute().actionGet();
 
         logger.info("--> closing all nodes");
-        File[] shardLocation = internalCluster().getInstance(NodeEnvironment.class, node_1).shardLocations(new ShardId("test", 0));
+        Path[] shardLocation = internalCluster().getInstance(NodeEnvironment.class, node_1).shardPaths(new ShardId("test", 0));
         assertThat(FileSystemUtils.exists(shardLocation), equalTo(true)); // make sure the data is there!
         internalCluster().closeNonSharedNodes(false); // don't wipe data directories the index needs to be there!
 
         logger.info("--> deleting the shard data [{}] ", Arrays.toString(shardLocation));
         assertThat(FileSystemUtils.exists(shardLocation), equalTo(true)); // verify again after cluster was shut down
-        assertThat(FileSystemUtils.deleteRecursively(shardLocation), equalTo(true));
+        IOUtils.rm(shardLocation);
 
         logger.info("--> starting nodes back, will not allocate the shard since it has no data, but the index will be there");
         node_1 = internalCluster().startNode(commonSettings);

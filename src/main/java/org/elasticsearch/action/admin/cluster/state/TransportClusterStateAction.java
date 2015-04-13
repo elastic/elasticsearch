@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -26,13 +28,21 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationA
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.List;
+
+import static com.google.common.collect.Lists.newArrayList;
+import static org.elasticsearch.cluster.metadata.MetaData.lookupFactorySafe;
 
 /**
  *
@@ -52,6 +62,15 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
     protected String executor() {
         // very lightweight operation in memory, no need to fork to a thread
         return ThreadPool.Names.SAME;
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(ClusterStateRequest request, ClusterState state) {
+        // cluster state calls are done also on a fully blocked cluster to figure out what is going
+        // on in the cluster. For example, which nodes have joined yet the recovery has not yet kicked
+        // in, we need to make sure we allow those calls
+        // return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        return null;
     }
 
     @Override
@@ -107,8 +126,18 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
                 }
             }
 
+            // Filter our metadata that shouldn't be returned by API
+            for(ObjectCursor<String> type :  currentState.metaData().customs().keys()) {
+                Custom.Factory factory = lookupFactorySafe(type.value);
+                if(!factory.context().contains(MetaData.XContentContext.API)) {
+                    mdBuilder.removeCustom(type.value);
+                }
+            }
+
             builder.metaData(mdBuilder);
         }
         listener.onResponse(new ClusterStateResponse(clusterName, builder.build()));
     }
+
+
 }

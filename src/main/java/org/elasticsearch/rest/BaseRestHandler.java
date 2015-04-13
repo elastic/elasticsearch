@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.action.*;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
@@ -28,7 +27,6 @@ import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.Collections;
 import java.util.Set;
 
 /**
@@ -36,37 +34,23 @@ import java.util.Set;
  *
  * This handler makes sure that the headers & context of the handled {@link RestRequest requests} are copied over to
  * the transport requests executed by the associated client. While the context is fully copied over, not all the headers
- * are copied, but a selected few. It is possible to control what header are copied over by registering them using
- * {@link #addUsefulHeaders(String...)}
+ * are copied, but a selected few. It is possible to control what headers are copied over by registering them using
+ * {@link org.elasticsearch.rest.RestController#registerRelevantHeaders(String...)}
  */
 public abstract class BaseRestHandler extends AbstractComponent implements RestHandler {
 
-    private static Set<String> usefulHeaders = Sets.newCopyOnWriteArraySet();
-
-    /**
-     * Controls which REST headers get copied over from a {@link org.elasticsearch.rest.RestRequest} to
-     * its corresponding {@link org.elasticsearch.transport.TransportRequest}(s).
-     *
-     * By default no headers get copied but it is possible to extend this behaviour via plugins by calling this method.
-     */
-    public static void addUsefulHeaders(String... headers) {
-        Collections.addAll(usefulHeaders, headers);
-    }
-
-    static Set<String> usefulHeaders() {
-        return usefulHeaders;
-    }
-
+    private final RestController controller;
     private final Client client;
 
-    protected BaseRestHandler(Settings settings, Client client) {
+    protected BaseRestHandler(Settings settings, RestController controller, Client client) {
         super(settings);
+        this.controller = controller;
         this.client = client;
     }
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel) throws Exception {
-        handleRequest(request, channel, usefulHeaders.size() == 0 ? client : new HeadersAndContextCopyClient(client, request, usefulHeaders));
+        handleRequest(request, channel, new HeadersAndContextCopyClient(client, request, controller.relevantHeaders()));
     }
 
     protected abstract void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception;

@@ -22,7 +22,9 @@ that accept a filter.
 [float]
 ==== Caching
 
-The result of the filter is not cached by default. The `_cache` can be
+The result of the filter is only cached by default if there is evidence of reuse.
+
+The `_cache` can be
 set to `true` to cache the *result* of the filter. This is handy when
 the same query is used on several (many) other queries. Note, the
 process of caching the first execution is higher when not caching (since

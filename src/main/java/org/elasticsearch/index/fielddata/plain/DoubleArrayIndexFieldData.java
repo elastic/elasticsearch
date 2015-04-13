@@ -19,16 +19,36 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.*;
-import org.apache.lucene.util.*;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
+import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
+import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
@@ -37,6 +57,11 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 /**
  */
@@ -65,13 +90,13 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
     }
 
     @Override
-    public AtomicNumericFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
 
-        final AtomicReader reader = context.reader();
+        final LeafReader reader = context.reader();
         Terms terms = reader.terms(getFieldNames().indexName());
         AtomicNumericFieldData data = null;
         // TODO: Use an actual estimator to estimate before loading.
-        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA));
+        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker(CircuitBreaker.FIELDDATA));
         if (terms == null) {
             data = AtomicDoubleFieldData.empty(reader.maxDoc());
             estimator.afterLoad(null, data.ramBytesUsed());
@@ -102,13 +127,21 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                     public SortedNumericDoubleValues getDoubleValues() {
                         return withOrdinals(build, finalValues, reader.maxDoc());
                     }
+                    
+                    @Override
+                    public Collection<Accountable> getChildResources() {
+                        List<Accountable> resources = new ArrayList<>();
+                        resources.add(Accountables.namedAccountable("ordinals", build));
+                        resources.add(Accountables.namedAccountable("values", finalValues));
+                        return Collections.unmodifiableList(resources);
+                    }
 
                 };
             } else {
-                final FixedBitSet set = builder.buildDocsWithValuesSet();
+                final BitSet set = builder.buildDocsWithValuesSet();
 
                 // there's sweet spot where due to low unique value count, using ordinals will consume less memory
-                long singleValuesArraySize = reader.maxDoc() * RamUsageEstimator.NUM_BYTES_DOUBLE + (set == null ? 0 : RamUsageEstimator.sizeOf(set.getBits()) + RamUsageEstimator.NUM_BYTES_INT);
+                long singleValuesArraySize = reader.maxDoc() * RamUsageEstimator.NUM_BYTES_DOUBLE + (set == null ? 0 : set.ramBytesUsed());
                 long uniqueValuesArraySize = values.ramBytesUsed();
                 long ordinalsSize = build.ramBytesUsed();
                 if (uniqueValuesArraySize + ordinalsSize < singleValuesArraySize) {
@@ -119,6 +152,14 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                         @Override
                         public SortedNumericDoubleValues getDoubleValues() {
                             return withOrdinals(build, finalValues, reader.maxDoc());
+                        }
+                        
+                        @Override
+                        public Collection<Accountable> getChildResources() {
+                            List<Accountable> resources = new ArrayList<>();
+                            resources.add(Accountables.namedAccountable("ordinals", build));
+                            resources.add(Accountables.namedAccountable("values", finalValues));
+                            return Collections.unmodifiableList(resources);
                         }
 
                     };
@@ -140,6 +181,14 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                     @Override
                     public SortedNumericDoubleValues getDoubleValues() {
                         return singles(sValues, set);
+                    }
+                    
+                    @Override
+                    public Collection<Accountable> getChildResources() {
+                        List<Accountable> resources = new ArrayList<>();
+                        resources.add(Accountables.namedAccountable("values", sValues));
+                        resources.add(Accountables.namedAccountable("missing bitset", set));
+                        return Collections.unmodifiableList(resources);
                     }
 
                 };
@@ -197,7 +246,7 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         }
     }
 
-    private static SortedNumericDoubleValues singles(final DoubleArray values, FixedBitSet set) {
+    private static SortedNumericDoubleValues singles(final DoubleArray values, Bits set) {
         final NumericDoubleValues numValues = new NumericDoubleValues() {
             @Override
             public double get(int docID) {

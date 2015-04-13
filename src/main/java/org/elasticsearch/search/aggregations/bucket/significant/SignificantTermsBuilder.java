@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.significant;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -45,6 +46,8 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
     private int includeFlags;
     private String excludePattern;
     private int excludeFlags;
+    private String[] includeTerms = null;
+    private String[] excludeTerms = null;
     private FilterBuilder filterBuilder;
     private SignificanceHeuristicBuilder significanceHeuristicBuilder;
 
@@ -129,10 +132,44 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
      * @see java.util.regex.Pattern#compile(String, int)
      */
     public SignificantTermsBuilder include(String regex, int flags) {
+        if (includeTerms != null) {
+            throw new ElasticsearchIllegalArgumentException("exclude clause must be an array of strings or a regex, not both");
+        }
         this.includePattern = regex;
         this.includeFlags = flags;
         return this;
     }
+    
+    /**
+     * Define a set of terms that should be aggregated.
+     */
+    public SignificantTermsBuilder include(String [] terms) {
+        if (includePattern != null) {
+            throw new ElasticsearchIllegalArgumentException("include clause must be an array of exact values or a regex, not both");
+        }
+        this.includeTerms = terms;
+        return this;
+    }    
+    
+    /**
+     * Define a set of terms that should be aggregated.
+     */
+    public SignificantTermsBuilder include(long [] terms) {
+        if (includePattern != null) {
+            throw new ElasticsearchIllegalArgumentException("include clause must be an array of exact values or a regex, not both");
+        }
+        this.includeTerms = longsArrToStringArr(terms);
+        return this;
+    }     
+    
+    private String[] longsArrToStringArr(long[] terms) {
+        String[] termsAsString = new String[terms.length];
+        for (int i = 0; i < terms.length; i++) {
+            termsAsString[i] = Long.toString(terms[i]);
+        }
+        return termsAsString;
+    }      
+    
 
     /**
      * Define a regular expression that will filter out terms that should be excluded from the aggregation. The regular
@@ -151,8 +188,34 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
      * @see java.util.regex.Pattern#compile(String, int)
      */
     public SignificantTermsBuilder exclude(String regex, int flags) {
+        if (excludeTerms != null) {
+            throw new ElasticsearchIllegalArgumentException("exclude clause must be an array of strings or a regex, not both");
+        }
         this.excludePattern = regex;
         this.excludeFlags = flags;
+        return this;
+    }
+    
+    /**
+     * Define a set of terms that should not be aggregated.
+     */
+    public SignificantTermsBuilder exclude(String [] terms) {
+        if (excludePattern != null) {
+            throw new ElasticsearchIllegalArgumentException("exclude clause must be an array of strings or a regex, not both");
+        }
+        this.excludeTerms = terms;
+        return this;
+    }    
+    
+    
+    /**
+     * Define a set of terms that should not be aggregated.
+     */
+    public SignificantTermsBuilder exclude(long [] terms) {
+        if (excludePattern != null) {
+            throw new ElasticsearchIllegalArgumentException("exclude clause must be an array of longs or a regex, not both");
+        }
+        this.excludeTerms = longsArrToStringArr(terms);
         return this;
     }
 
@@ -176,6 +239,10 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
                         .endObject();
             }
         }
+        if (includeTerms != null) {
+            builder.array("include", includeTerms);
+        }
+        
         if (excludePattern != null) {
             if (excludeFlags == 0) {
                 builder.field("exclude", excludePattern);
@@ -185,6 +252,9 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
                         .field("flags", excludeFlags)
                         .endObject();
             }
+        }
+        if (excludeTerms != null) {
+            builder.array("exclude", excludeTerms);
         }
         
         if (filterBuilder != null) {

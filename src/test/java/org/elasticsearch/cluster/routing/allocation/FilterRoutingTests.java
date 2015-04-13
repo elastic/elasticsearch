@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -55,7 +56,7 @@ public class FilterRoutingTests extends ElasticsearchAllocationTestCase {
         logger.info("Building initial routing table");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(2).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -99,7 +100,7 @@ public class FilterRoutingTests extends ElasticsearchAllocationTestCase {
         logger.info("Building initial routing table");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settingsBuilder()
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
                         .put("index.number_of_shards", 2)
                         .put("index.number_of_replicas", 1)
                         .put("index.routing.allocation.include.tag1", "value1,value2")
@@ -142,7 +143,7 @@ public class FilterRoutingTests extends ElasticsearchAllocationTestCase {
         logger.info("--> switch between value2 and value4, shards should be relocating");
 
         metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settingsBuilder()
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
                         .put("index.number_of_shards", 2)
                         .put("index.number_of_replicas", 1)
                         .put("index.routing.allocation.include.tag1", "value1,value4")

@@ -24,8 +24,8 @@ package org.apache.lucene.index.memory;
  */
 public final class ExtendedMemoryIndex extends MemoryIndex {
 
-    public ExtendedMemoryIndex(boolean storeOffsets, long maxReusedBytes) {
-        super(storeOffsets, maxReusedBytes);
+    public ExtendedMemoryIndex(boolean storeOffsets, boolean storePayloads, long maxReusedBytes) {
+        super(storeOffsets, storePayloads, maxReusedBytes);
     }
 
 }

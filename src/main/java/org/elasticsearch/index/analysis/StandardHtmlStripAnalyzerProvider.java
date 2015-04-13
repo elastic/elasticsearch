@@ -41,15 +41,16 @@ public class StandardHtmlStripAnalyzerProvider extends AbstractIndexAnalyzerProv
     @Inject
     public StandardHtmlStripAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env,  @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        this.esVersion = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT);
+        this.esVersion = Version.indexCreated(indexSettings);
         final CharArraySet defaultStopwords;
         if (esVersion.onOrAfter(Version.V_1_0_0_RC1)) {
             defaultStopwords = CharArraySet.EMPTY_SET;
         } else {
             defaultStopwords = StopAnalyzer.ENGLISH_STOP_WORDS_SET;
         }
-        CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords, version);
-        analyzer = new StandardHtmlStripAnalyzer(version, stopWords);
+        CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords);
+        analyzer = new StandardHtmlStripAnalyzer(stopWords);
+        analyzer.setVersion(version);
     }
 
     @Override

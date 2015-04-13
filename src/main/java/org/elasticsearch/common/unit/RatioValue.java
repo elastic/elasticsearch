@@ -39,6 +39,7 @@ public class RatioValue {
         return this.percent;
     }
 
+    @Override
     public String toString() {
         return this.percent + "%";
     }

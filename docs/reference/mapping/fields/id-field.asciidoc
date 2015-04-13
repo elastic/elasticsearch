@@ -11,42 +11,17 @@ using `term`, `terms` or `prefix` queries/filters (including the
 specific `ids` query/filter).
 
 The `_id` field can be enabled to be indexed, and possibly stored,
-using:
-
-[source,js]
---------------------------------------------------
-{
-    "tweet" : {
-        "_id" : {"index": "not_analyzed", "store" : false }
-    }
-}
---------------------------------------------------
-
-The `_id` mapping can also be associated with a `path` that will be used
-to extract the id from a different location in the source document. For
-example, having the following mapping:
+using the appropriate mapping attributes:
 
 [source,js]
 --------------------------------------------------
 {
     "tweet" : {
         "_id" : {
-            "path" : "post_id"
+            "index" : "not_analyzed",
+            "store" : true
         }
     }
 }
 --------------------------------------------------
 
-Will cause `1` to be used as the id for:
-
-[source,js]
---------------------------------------------------
-{
-    "message" : "You know, for Search",
-    "post_id" : "1"
-}
---------------------------------------------------
-
-This does require an additional lightweight parsing step while indexing,
-in order to extract the id to decide which shard the index operation
-will be executed on.

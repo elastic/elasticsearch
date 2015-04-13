@@ -31,7 +31,8 @@ public enum Iterators2 {
 
     /** Remove duplicated elements from an iterator over sorted content. */
     public static <T> Iterator<T> deduplicateSorted(Iterator<? extends T> iterator, final Comparator<? super T> comparator) {
-        final PeekingIterator<T> it = Iterators.peekingIterator(iterator);
+        // TODO: infer type once JI-9019884 is fixed
+        final PeekingIterator<T> it = Iterators.<T>peekingIterator(iterator);
         return new UnmodifiableIterator<T>() {
 
             @Override

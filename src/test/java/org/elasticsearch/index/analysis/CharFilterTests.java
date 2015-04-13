@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.index.analysis;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -42,6 +44,7 @@ public class CharFilterTests extends ElasticsearchTokenStreamTestCase {
     public void testMappingCharFilter() throws Exception {
         Index index = new Index("test");
         Settings settings = settingsBuilder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.analysis.char_filter.my_mapping.type", "mapping")
                 .putArray("index.analysis.char_filter.my_mapping.mappings", "ph=>f", "qu=>q")
                 .put("index.analysis.analyzer.custom_with_char_filter.tokenizer", "standard")
@@ -68,6 +71,7 @@ public class CharFilterTests extends ElasticsearchTokenStreamTestCase {
     public void testHtmlStripCharFilter() throws Exception {
         Index index = new Index("test");
         Settings settings = settingsBuilder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.analysis.analyzer.custom_with_char_filter.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.custom_with_char_filter.char_filter", "html_strip")
                 .build();

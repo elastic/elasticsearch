@@ -38,7 +38,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -55,7 +54,6 @@ import static org.hamcrest.Matchers.*;
 public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
 
     @Test
-    @TestLogging("action:TRACE,cluster.service:TRACE")
     public void testNoMasterActions() throws Exception {
         // note, sometimes, we want to check with the fact that an index gets created, sometimes not...
         boolean autoCreateIndex = randomBoolean();
@@ -237,6 +235,7 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
 
         internalCluster().stopRandomDataNode();
         assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object o) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
                 return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);

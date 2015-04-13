@@ -34,6 +34,7 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -92,9 +93,10 @@ public class ThreadPoolSerializationTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testThatNegativeSettingAllowsToStart() {
+    public void testThatNegativeSettingAllowsToStart() throws InterruptedException {
         Settings settings = settingsBuilder().put("name", "index").put("threadpool.index.queue_size", "-1").build();
         ThreadPool threadPool = new ThreadPool(settings, null);
         assertThat(threadPool.info("index").getQueueSize(), is(nullValue()));
+        terminate(threadPool);
     }
 }

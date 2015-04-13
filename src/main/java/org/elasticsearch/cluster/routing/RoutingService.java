@@ -29,6 +29,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.Future;
@@ -69,7 +70,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
-        this.schedule = componentSettings.getAsTime("schedule", timeValueSeconds(10));
+        this.schedule = settings.getAsTime("cluster.routing.schedule", timeValueSeconds(10));
         clusterService.addFirst(this);
     }
 
@@ -83,11 +84,14 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
 
     @Override
     protected void doClose() throws ElasticsearchException {
-        if (scheduledRoutingTableFuture != null) {
-            scheduledRoutingTableFuture.cancel(true);
-            scheduledRoutingTableFuture = null;
-        }
+        FutureUtils.cancel(scheduledRoutingTableFuture);
+        scheduledRoutingTableFuture = null;
         clusterService.remove(this);
+    }
+
+    /** make sure that a reroute will be done by the next scheduled check */
+    public void scheduleReroute() {
+        routingTableDirty = true;
     }
 
     @Override
@@ -123,10 +127,8 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                 }
             }
         } else {
-            if (scheduledRoutingTableFuture != null) {
-                scheduledRoutingTableFuture.cancel(true);
-                scheduledRoutingTableFuture = null;
-            }
+            FutureUtils.cancel(scheduledRoutingTableFuture);
+            scheduledRoutingTableFuture = null;
         }
     }
 
@@ -156,8 +158,12 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
 
                 @Override
                 public void onFailure(String source, Throwable t) {
-                        ClusterState state = clusterService.state();
+                    ClusterState state = clusterService.state();
+                    if (logger.isTraceEnabled()) {
                         logger.error("unexpected failure during [{}], current state:\n{}", t, source, state.prettyPrint());
+                    } else {
+                        logger.error("unexpected failure during [{}], current state version [{}]", t, source, state.version());
+                    }
                 }
             });
             routingTableDirty = false;

@@ -122,7 +122,7 @@ public class DoSection implements ExecutableSection {
 
     private String formatStatusCodeMessage(RestResponse restResponse, String expected) {
         return "expected [" + expected + "] status code but api [" + apiCallSection.getApi() + "] returned ["
-                + restResponse.getStatusCode() + " " + restResponse.getReasonPhrase() + "] [" + restResponse.getBody() + "]";
+                + restResponse.getStatusCode() + " " + restResponse.getReasonPhrase() + "] [" + restResponse.getBodyAsString() + "]";
     }
 
     private static Map<String, Tuple<String, org.hamcrest.Matcher<Integer>>> catches = Maps.newHashMap();

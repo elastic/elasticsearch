@@ -20,7 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -36,6 +36,11 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class BinaryDVFieldDataTests extends AbstractFieldDataTests {
+
+    @Override
+    protected boolean hasDocValues() {
+        return true;
+    }
 
     @Test
     public void testDocValue() throws Exception {
@@ -75,7 +80,7 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTests {
         d = mapper.parse("test", "4", doc.bytes());
         writer.addDocument(d.rootDoc());
 
-        AtomicReaderContext reader = refreshReader();
+        LeafReaderContext reader = refreshReader();
         IndexFieldData<?> indexFieldData = getForField("field");
         AtomicFieldData fieldData = indexFieldData.load(reader);
 

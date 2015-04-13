@@ -27,16 +27,15 @@ explicitly set analyzers on their own. Here is an example:
 --------------------------------------------------
 {
     "tweet" : {
-        "index_analyzer" : "standard",
-        "search_analyzer" : "standard"
+        "analyzer" : "standard",
+        "search_analyzer" : "standard_with_synonyms"
     }
 }
 --------------------------------------------------
 
-The above simply explicitly defines both the `index_analyzer` and
-`search_analyzer` that will be used. There is also an option to use the
-`analyzer` attribute to set both the `search_analyzer` and
-`index_analyzer`.
+The above simply explicitly defines both the `analyzer` and
+`search_analyzer` that will be used. If `search_analyzer` is not specified,
+it defaults to the value of `analyzer`.
 
 [float]
 ==== dynamic_date_formats
@@ -113,6 +112,11 @@ can be set to `true`. For example:
 
 Dynamic templates allow to define mapping templates that will be applied
 when dynamic introduction of fields / objects happens.
+
+IMPORTANT: Dynamic field mappings are only added when a field contains
+a concrete value -- not `null` or an empty array. This means that if the `null_value` option 
+is used in a `dynamic_template`, it will only be applied after the first document 
+with a concrete value for the field has been indexed.
 
 For example, we might want to have all fields to be stored by default,
 or all `string` fields to be stored, or have `string` fields to always

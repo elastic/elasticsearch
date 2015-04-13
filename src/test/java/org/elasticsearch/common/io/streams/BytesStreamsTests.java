@@ -281,7 +281,7 @@ public class BytesStreamsTests extends ElasticsearchTestCase {
         out.writeGenericValue(doubleArray);
         out.writeString("hello");
         out.writeString("goodbye");
-        BytesStreamInput in = new BytesStreamInput(out.bytes().toBytes(), false);
+        BytesStreamInput in = new BytesStreamInput(out.bytes().toBytes());
         assertThat(in.readBoolean(), equalTo(false));
         assertThat(in.readByte(), equalTo((byte)1));
         assertThat(in.readShort(), equalTo((short)-1));

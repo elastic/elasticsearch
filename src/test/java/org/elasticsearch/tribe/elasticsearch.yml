@@ -1,0 +1,3 @@
+cluster.name: tribe_node_cluster
+tribe.t1.cluster.name: tribe1
+tribe.t2.cluster.name: tribe2

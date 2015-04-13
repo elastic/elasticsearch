@@ -50,7 +50,6 @@ import static org.hamcrest.Matchers.equalTo;
  * Test failure when index replication actions fail mid-flight
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
-@TestLogging("discovery.zen:TRACE,action.index:TRACE,indices.recovery:TRACE")
 public class TransportIndexFailuresTest extends ElasticsearchIntegrationTest {
 
     private static final Settings nodeSettings = ImmutableSettings.settingsBuilder()

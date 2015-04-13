@@ -110,9 +110,7 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
                     source = in.readBytesReference();
                 }
                 Boolean queryCache = null;
-                if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
-                    queryCache = in.readOptionalBoolean();
-                }
+                queryCache = in.readOptionalBoolean();
                 entries[i] = new Entry(name, types, queryCache, source);
             }
             return new IndexWarmersMetaData(entries);
@@ -130,9 +128,7 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
                     out.writeBoolean(true);
                     out.writeBytesReference(entry.source());
                 }
-                if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
-                    out.writeOptionalBoolean(entry.queryCache());
-                }
+                out.writeOptionalBoolean(entry.queryCache());
             }
         }
 

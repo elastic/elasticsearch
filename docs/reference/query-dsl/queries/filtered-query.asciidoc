@@ -71,7 +71,7 @@ curl -XGET localhost:9200/_search -d '
 }
 '
 --------------------------------------------------
-<1> No `query` has been specfied, so this request applies just the filter,
+<1> No `query` has been specified, so this request applies just the filter,
    returning all documents created since yesterday.
 
 ==== Multiple filters
@@ -111,7 +111,7 @@ parameter:
 {
     "filtered" : {
         "query" :   { ... },
-        "filter" :  { ... ],
+        "filter" :  { ... },
         "strategy": "leap_frog"
     }
 }
@@ -144,8 +144,9 @@ The `strategy` parameter accepts the following options:
 
 `random_access_${threshold}`::
 
-    If the filter supports random access and if there is at least one matching
-    document among the first `threshold` ones, then apply the filter first.
+    If the filter supports random access and if the number of documents in the
+    index divided by the cardinality of the filter is greater than ${threshold},
+    then apply the filter first.
     Otherwise fall back to `leap_frog_query_first`. `${threshold}` must be
     greater than or equal to `1`.
 

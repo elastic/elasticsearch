@@ -34,6 +34,7 @@ import com.vividsolutions.jts.geom.Coordinate;
 public abstract class PointCollection<E extends PointCollection<E>> extends ShapeBuilder {
 
     protected final ArrayList<Coordinate> points;
+    protected boolean translated = false;
 
     protected PointCollection() {
         this(new ArrayList<Coordinate>());

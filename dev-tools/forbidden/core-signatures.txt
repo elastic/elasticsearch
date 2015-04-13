@@ -1,0 +1,132 @@
+# Licensed to Elasticsearch under one or more contributor
+# license agreements. See the NOTICE file distributed with
+# this work for additional information regarding copyright
+# ownership. Elasticsearch licenses this file to you under
+# the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance  with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on
+# an 'AS IS' BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+# either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+@defaultMessage spawns threads with vague names; use a custom thread factory and name threads so that you can tell (by its name) which executor it is associated with
+
+java.util.concurrent.Executors#newFixedThreadPool(int)
+java.util.concurrent.Executors#newSingleThreadExecutor()
+java.util.concurrent.Executors#newCachedThreadPool()
+java.util.concurrent.Executors#newSingleThreadScheduledExecutor()
+java.util.concurrent.Executors#newScheduledThreadPool(int)
+java.util.concurrent.Executors#defaultThreadFactory()
+java.util.concurrent.Executors#privilegedThreadFactory()
+
+java.lang.Character#codePointBefore(char[],int) @ Implicit start offset is error-prone when the char[] is a buffer and the first chars are random chars
+java.lang.Character#codePointAt(char[],int) @ Implicit end offset is error-prone when the char[] is a buffer and the last chars are random chars
+
+@defaultMessage Collections.sort dumps data into an array, sorts the array and reinserts data into the list, one should rather use Lucene's CollectionUtil sort methods which sort in place
+
+java.util.Collections#sort(java.util.List)
+java.util.Collections#sort(java.util.List,java.util.Comparator)
+
+java.io.StringReader#<init>(java.lang.String) @ Use FastStringReader instead
+
+@defaultMessage Reference management is tricky, leave it to SearcherManager
+org.apache.lucene.index.IndexReader#decRef()
+org.apache.lucene.index.IndexReader#incRef()
+org.apache.lucene.index.IndexReader#tryIncRef()
+
+@defaultMessage QueryWrapperFilter is cacheable by default - use Queries#wrap instead
+org.apache.lucene.search.QueryWrapperFilter#<init>(org.apache.lucene.search.Query)
+
+@defaultMessage Pass the precision step from the mappings explicitly instead
+org.apache.lucene.search.NumericRangeQuery#newDoubleRange(java.lang.String,java.lang.Double,java.lang.Double,boolean,boolean)
+org.apache.lucene.search.NumericRangeQuery#newFloatRange(java.lang.String,java.lang.Float,java.lang.Float,boolean,boolean)
+org.apache.lucene.search.NumericRangeQuery#newIntRange(java.lang.String,java.lang.Integer,java.lang.Integer,boolean,boolean)
+org.apache.lucene.search.NumericRangeQuery#newLongRange(java.lang.String,java.lang.Long,java.lang.Long,boolean,boolean)
+org.apache.lucene.search.NumericRangeFilter#newDoubleRange(java.lang.String,java.lang.Double,java.lang.Double,boolean,boolean)
+org.apache.lucene.search.NumericRangeFilter#newFloatRange(java.lang.String,java.lang.Float,java.lang.Float,boolean,boolean)
+org.apache.lucene.search.NumericRangeFilter#newIntRange(java.lang.String,java.lang.Integer,java.lang.Integer,boolean,boolean)
+org.apache.lucene.search.NumericRangeFilter#newLongRange(java.lang.String,java.lang.Long,java.lang.Long,boolean,boolean)
+
+@defaultMessage Only use wait / notify when really needed try to use concurrency primitives, latches or callbacks instead. 
+java.lang.Object#wait()
+java.lang.Object#wait(long)
+java.lang.Object#wait(long,int)
+java.lang.Object#notify()
+java.lang.Object#notifyAll()
+
+@defaultMessage Beware of the behavior of this method on MIN_VALUE
+java.lang.Math#abs(int)
+java.lang.Math#abs(long)
+
+@defaultMessage Please do not try to stop the world
+java.lang.System#gc()
+
+@defaultMessage Use Long.compare instead we are on Java7
+com.google.common.primitives.Longs#compare(long,long)
+
+@defaultMessage Use Channels.* methods to write to channels. Do not write directly.
+java.nio.channels.WritableByteChannel#write(java.nio.ByteBuffer)
+java.nio.channels.FileChannel#write(java.nio.ByteBuffer, long)
+java.nio.channels.GatheringByteChannel#write(java.nio.ByteBuffer[], int, int)
+java.nio.channels.GatheringByteChannel#write(java.nio.ByteBuffer[])
+java.nio.channels.ReadableByteChannel#read(java.nio.ByteBuffer)
+java.nio.channels.ScatteringByteChannel#read(java.nio.ByteBuffer[])
+java.nio.channels.ScatteringByteChannel#read(java.nio.ByteBuffer[], int, int)
+java.nio.channels.FileChannel#read(java.nio.ByteBuffer, long)
+
+@defaultMessage Use Lucene.parseLenient instead it strips off minor version
+org.apache.lucene.util.Version#parseLeniently(java.lang.String)
+
+@defaultMessage unsafe encoders/decoders have problems in the lzf compress library.  Use variants of encode/decode functions which take Encoder/Decoder.
+com.ning.compress.lzf.impl.UnsafeChunkEncoders#createEncoder(int)
+com.ning.compress.lzf.impl.UnsafeChunkEncoders#createNonAllocatingEncoder(int)
+com.ning.compress.lzf.impl.UnsafeChunkEncoders#createEncoder(int, com.ning.compress.BufferRecycler)
+com.ning.compress.lzf.impl.UnsafeChunkEncoders#createNonAllocatingEncoder(int, com.ning.compress.BufferRecycler)
+com.ning.compress.lzf.impl.UnsafeChunkDecoder#<init>()
+com.ning.compress.lzf.parallel.CompressTask
+com.ning.compress.lzf.util.ChunkEncoderFactory#optimalInstance()
+com.ning.compress.lzf.util.ChunkEncoderFactory#optimalInstance(int)
+com.ning.compress.lzf.util.ChunkEncoderFactory#optimalNonAllocatingInstance(int)
+com.ning.compress.lzf.util.ChunkEncoderFactory#optimalInstance(com.ning.compress.BufferRecycler)
+com.ning.compress.lzf.util.ChunkEncoderFactory#optimalInstance(int, com.ning.compress.BufferRecycler)
+com.ning.compress.lzf.util.ChunkEncoderFactory#optimalNonAllocatingInstance(int, com.ning.compress.BufferRecycler)
+com.ning.compress.lzf.util.ChunkDecoderFactory#optimalInstance()
+com.ning.compress.lzf.util.LZFFileInputStream#<init>(java.io.File)
+com.ning.compress.lzf.util.LZFFileInputStream#<init>(java.io.FileDescriptor)
+com.ning.compress.lzf.util.LZFFileInputStream#<init>(java.lang.String)
+com.ning.compress.lzf.util.LZFFileOutputStream#<init>(java.io.File)
+com.ning.compress.lzf.util.LZFFileOutputStream#<init>(java.io.File, boolean)
+com.ning.compress.lzf.util.LZFFileOutputStream#<init>(java.io.FileDescriptor)
+com.ning.compress.lzf.util.LZFFileOutputStream#<init>(java.lang.String)
+com.ning.compress.lzf.util.LZFFileOutputStream#<init>(java.lang.String, boolean)
+com.ning.compress.lzf.LZFEncoder#encode(byte[])
+com.ning.compress.lzf.LZFEncoder#encode(byte[], int, int)
+com.ning.compress.lzf.LZFEncoder#encode(byte[], int, int, com.ning.compress.BufferRecycler)
+com.ning.compress.lzf.LZFEncoder#appendEncoded(byte[], int, int, byte[], int)
+com.ning.compress.lzf.LZFEncoder#appendEncoded(byte[], int, int, byte[], int, com.ning.compress.BufferRecycler)
+com.ning.compress.lzf.LZFCompressingInputStream#<init>(java.io.InputStream)
+com.ning.compress.lzf.LZFDecoder#fastDecoder()
+com.ning.compress.lzf.LZFDecoder#decode(byte[])
+com.ning.compress.lzf.LZFDecoder#decode(byte[], int, int)
+com.ning.compress.lzf.LZFDecoder#decode(byte[], byte[])
+com.ning.compress.lzf.LZFDecoder#decode(byte[], int, int, byte[])
+com.ning.compress.lzf.LZFInputStream#<init>(java.io.InputStream)
+com.ning.compress.lzf.LZFInputStream#<init>(java.io.InputStream, boolean)
+com.ning.compress.lzf.LZFInputStream#<init>(java.io.InputStream, com.ning.compress.BufferRecycler)
+com.ning.compress.lzf.LZFInputStream#<init>(java.io.InputStream, com.ning.compress.BufferRecycler, boolean)
+com.ning.compress.lzf.LZFOutputStream#<init>(java.io.OutputStream)
+com.ning.compress.lzf.LZFOutputStream#<init>(java.io.OutputStream, com.ning.compress.BufferRecycler)
+com.ning.compress.lzf.LZFUncompressor#<init>(com.ning.compress.DataHandler)
+com.ning.compress.lzf.LZFUncompressor#<init>(com.ning.compress.DataHandler, com.ning.compress.BufferRecycler)
+
+@defaultMessage Spawns a new thread which is solely under lucenes control use ThreadPool#estimatedTimeInMillisCounter instead
+org.apache.lucene.search.TimeLimitingCollector#getGlobalTimerThread()
+org.apache.lucene.search.TimeLimitingCollector#getGlobalCounter()
+
+@defaultMessage Don't interrupt threads use FutureUtils#cancel(Future<T>) instead
+java.util.concurrent.Future#cancel(boolean)

@@ -26,9 +26,12 @@ import com.spatial4j.core.shape.impl.RectangleImpl;
 import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.spatial4j.core.shape.jts.JtsPoint;
 import com.vividsolutions.jts.geom.*;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.hamcrest.Matcher;
 import org.junit.Assert;
 
@@ -246,4 +249,13 @@ public class ElasticsearchGeoAssertions {
         return GeoDistance.ARC.calculate(lat1, lon1, lat2, lon2, DistanceUnit.DEFAULT);
     }
 
+    public static void assertValidException(XContentParser parser, Class expectedException) {
+        try {
+            ShapeBuilder.parse(parser).build();
+            Assert.fail("process completed successfully when " + expectedException.getName() + " expected");
+        } catch (Exception e) {
+            assert(e.getClass().equals(expectedException)):
+                    "expected " + expectedException.getName() + " but found " + e.getClass().getName();
+        }
+    }
 }

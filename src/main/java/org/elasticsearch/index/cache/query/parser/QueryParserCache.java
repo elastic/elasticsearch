@@ -21,14 +21,15 @@ package org.elasticsearch.index.cache.query.parser;
 
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.index.IndexComponent;
+
+import java.io.Closeable;
 
 /**
  * The main benefit of the query parser cache is to not parse the same query string on different shards.
  * Less about long running query strings.
  */
-public interface QueryParserCache extends IndexComponent, CloseableComponent {
+public interface QueryParserCache extends IndexComponent, Closeable {
 
     Query get(QueryParserSettings queryString);
 

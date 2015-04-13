@@ -20,12 +20,12 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilterCachingPolicy;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
-import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 
 import java.io.IOException;
 
@@ -52,8 +52,8 @@ public class FQueryFilterParser implements FilterParser {
 
         Query query = null;
         boolean queryFound = false;
-        boolean cache = false;
-        CacheKeyFilter.Key cacheKey = null;
+        FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
+        HashedBytesRef cacheKey = null;
 
         String filterName = null;
         String currentFieldName = null;
@@ -72,9 +72,9 @@ public class FQueryFilterParser implements FilterParser {
                 if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
-                    cache = parser.booleanValue();
+                    cache = parseContext.autoFilterCachePolicy();
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new CacheKeyFilter.Key(parser.text());
+                    cacheKey = new HashedBytesRef(parser.text());
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[fquery] filter does not support [" + currentFieldName + "]");
                 }
@@ -86,9 +86,9 @@ public class FQueryFilterParser implements FilterParser {
         if (query == null) {
             return null;
         }
-        Filter filter = Queries.wrap(query);
-        if (cache) {
-            filter = parseContext.cacheFilter(filter, cacheKey);
+        Filter filter = Queries.wrap(query, parseContext);
+        if (cache != null) {
+            filter = parseContext.cacheFilter(filter, cacheKey, cache);
         }
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);

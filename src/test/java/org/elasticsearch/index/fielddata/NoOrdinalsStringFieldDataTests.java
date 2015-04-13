@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -51,12 +51,12 @@ public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTes
             }
 
             @Override
-            public AtomicFieldData load(AtomicReaderContext context) {
+            public AtomicFieldData load(LeafReaderContext context) {
                 return in.load(context);
             }
 
             @Override
-            public AtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
+            public AtomicFieldData loadDirect(LeafReaderContext context) throws Exception {
                 return in.loadDirect(context);
             }
 

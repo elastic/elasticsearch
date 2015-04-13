@@ -21,9 +21,11 @@ package org.elasticsearch.rest.action.template;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.script.RestGetIndexedScriptAction;
+import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -33,18 +35,20 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetSearchTemplateAction extends RestGetIndexedScriptAction {
 
     @Inject
-    public RestGetSearchTemplateAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestGetSearchTemplateAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, false, client);
         controller.registerHandler(GET, "/_search/template/{id}", this);
     }
 
     @Override
     protected String getScriptLang(RestRequest request) {
-        return "mustache";
+        return MustacheScriptEngineService.NAME;
     }
 
     @Override
-    protected String getScriptFieldName() {
-        return "template";
+    protected XContentBuilderString getScriptFieldName() {
+        return TEMPLATE;
     }
+
+    private static final XContentBuilderString TEMPLATE = new XContentBuilderString("template");
 }

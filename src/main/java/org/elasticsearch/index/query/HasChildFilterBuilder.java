@@ -19,6 +19,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
 
 import java.io.IOException;
 
@@ -34,7 +35,7 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
     private Integer shortCircuitCutoff;
     private Integer minChildren;
     private Integer maxChildren;
-
+    private QueryInnerHitBuilder innerHit = null;
 
     public HasChildFilterBuilder(String type, QueryBuilder queryBuilder) {
         this.childType = type;
@@ -96,6 +97,14 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    /**
+     * Sets inner hit definition in the scope of this filter and reusing the defined type and query.
+     */
+    public HasChildFilterBuilder innerHit(QueryInnerHitBuilder innerHit) {
+        this.innerHit = innerHit;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(HasChildFilterParser.NAME);
@@ -118,6 +127,11 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
         }
         if (shortCircuitCutoff != null) {
             builder.field("short_circuit_cutoff", shortCircuitCutoff);
+        }
+        if (innerHit != null) {
+            builder.startObject("inner_hits");
+            builder.value(innerHit);
+            builder.endObject();
         }
         builder.endObject();
     }

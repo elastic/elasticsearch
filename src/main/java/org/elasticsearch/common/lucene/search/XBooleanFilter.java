@@ -17,21 +17,27 @@ package org.elasticsearch.common.lucene.search;
  * limitations under the License.
  */
 
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.FilterClause;
+import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.lucene.docset.AllDocIdSet;
+import org.elasticsearch.common.lucene.docset.AndDocIdSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.docset.NotDocIdSet;
+import org.elasticsearch.common.lucene.docset.OrDocIdSet.OrBits;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
 
 /**
  * Similar to {@link org.apache.lucene.queries.BooleanFilter}.
@@ -42,6 +48,19 @@ import java.util.*;
  */
 public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
 
+    private static final Comparator<DocIdSetIterator> COST_DESCENDING = new Comparator<DocIdSetIterator>() {
+        @Override
+        public int compare(DocIdSetIterator o1, DocIdSetIterator o2) {
+            return Long.compare(o2.cost(), o1.cost());
+        }
+    };
+    private static final Comparator<DocIdSetIterator> COST_ASCENDING = new Comparator<DocIdSetIterator>() {
+        @Override
+        public int compare(DocIdSetIterator o1, DocIdSetIterator o2) {
+            return Long.compare(o1.cost(), o2.cost());
+        }
+    };
+
     final List<FilterClause> clauses = new ArrayList<>();
 
     /**
@@ -49,9 +68,14 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
      * of the filters that have been added.
      */
     @Override
-    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
-        FixedBitSet res = null;
-        final AtomicReader reader = context.reader();
+    public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
+        final int maxDoc = context.reader().maxDoc();
+
+        // the 0-clauses case is ambiguous because an empty OR filter should return nothing
+        // while an empty AND filter should return all docs, so we handle this case explicitely
+        if (clauses.isEmpty()) {
+            return null;
+        }
 
         // optimize single case...
         if (clauses.size() == 1) {
@@ -59,9 +83,9 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
             DocIdSet set = clause.getFilter().getDocIdSet(context, acceptDocs);
             if (clause.getOccur() == Occur.MUST_NOT) {
                 if (DocIdSets.isEmpty(set)) {
-                    return new AllDocIdSet(reader.maxDoc());
+                    return new AllDocIdSet(maxDoc);
                 } else {
-                    return new NotDocIdSet(set, reader.maxDoc());
+                    return new NotDocIdSet(set, maxDoc);
                 }
             }
             // SHOULD or MUST, just return the set...
@@ -71,241 +95,177 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
             return set;
         }
 
-        // first, go over and see if we can shortcut the execution
-        // and gather Bits if we need to
-        List<ResultClause> results = new ArrayList<>(clauses.size());
+        // We have several clauses, try to organize things to make it easier to process
+        List<DocIdSetIterator> shouldIterators = new ArrayList<>();
+        List<Bits> shouldBits = new ArrayList<>();
         boolean hasShouldClauses = false;
-        boolean hasNonEmptyShouldClause = false;
-        boolean hasMustClauses = false;
-        boolean hasMustNotClauses = false;
-        for (int i = 0; i < clauses.size(); i++) {
-            FilterClause clause = clauses.get(i);
-            DocIdSet set = clause.getFilter().getDocIdSet(context, acceptDocs);
-            if (clause.getOccur() == Occur.MUST) {
-                hasMustClauses = true;
-                if (DocIdSets.isEmpty(set)) {
-                    return null;
-                }
-            } else if (clause.getOccur() == Occur.SHOULD) {
-                hasShouldClauses = true;
-                if (DocIdSets.isEmpty(set)) {
-                    continue;
-                }
-                hasNonEmptyShouldClause = true;
-            } else if (clause.getOccur() == Occur.MUST_NOT) {
-                hasMustNotClauses = true;
-                if (DocIdSets.isEmpty(set)) {
-                    // we mark empty ones as null for must_not, handle it in the next run...
-                    results.add(new ResultClause(null, null, clause));
-                    continue;
-                }
-            }
+
+        List<DocIdSetIterator> requiredIterators = new ArrayList<>();
+        List<DocIdSetIterator> excludedIterators = new ArrayList<>();
+
+        List<Bits> requiredBits = new ArrayList<>();
+        List<Bits> excludedBits = new ArrayList<>();
+
+        for (FilterClause clause : clauses) {
+            DocIdSet set = clause.getFilter().getDocIdSet(context, null);
+            DocIdSetIterator it = null;
             Bits bits = null;
-            if (!DocIdSets.isFastIterator(set)) {
-                bits = set.bits();
-            }
-            results.add(new ResultClause(set, bits, clause));
-        }
-
-        if (hasShouldClauses && !hasNonEmptyShouldClause) {
-            return null;
-        }
-
-        // now, go over the clauses and apply the "fast" ones first...
-        hasNonEmptyShouldClause = false;
-        boolean hasBits = false;
-        // But first we need to handle the "fast" should clauses, otherwise a should clause can unset docs
-        // that don't match with a must or must_not clause.
-        List<ResultClause> fastOrClauses = new ArrayList<>();
-        for (int i = 0; i < results.size(); i++) {
-            ResultClause clause = results.get(i);
-            // we apply bits in based ones (slow) in the second run
-            if (clause.bits != null) {
-                hasBits = true;
-                continue;
-            }
-            if (clause.clause.getOccur() == Occur.SHOULD) {
-                if (hasMustClauses || hasMustNotClauses) {
-                    fastOrClauses.add(clause);
-                } else if (res == null) {
-                    DocIdSetIterator it = clause.docIdSet.iterator();
-                    if (it != null) {
-                        hasNonEmptyShouldClause = true;
-                        res = new FixedBitSet(reader.maxDoc());
-                        res.or(it);
-                    }
-                } else {
-                    DocIdSetIterator it = clause.docIdSet.iterator();
-                    if (it != null) {
-                        hasNonEmptyShouldClause = true;
-                        res.or(it);
-                    }
+            if (DocIdSets.isEmpty(set) == false) {
+                it = set.iterator();
+                if (it != null) {
+                    bits = set.bits();
                 }
             }
-        }
 
-        // Now we safely handle the "fast" must and must_not clauses.
-        for (int i = 0; i < results.size(); i++) {
-            ResultClause clause = results.get(i);
-            // we apply bits in based ones (slow) in the second run
-            if (clause.bits != null) {
-                hasBits = true;
-                continue;
-            }
-            if (clause.clause.getOccur() == Occur.MUST) {
-                DocIdSetIterator it = clause.docIdSet.iterator();
+            switch (clause.getOccur()) {
+            case SHOULD:
+                hasShouldClauses = true;
                 if (it == null) {
+                    // continue, but we recorded that there is at least one should clause
+                    // so that if all iterators are null we know that nothing matches this
+                    // filter since at least one SHOULD clause needs to match
+                } else if (bits != null && DocIdSets.isBroken(it)) {
+                    shouldBits.add(bits);
+                } else {
+                    shouldIterators.add(it);
+                }
+                break;
+            case MUST:
+                if (it == null) {
+                    // no documents matched a clause that is compulsory, then nothing matches at all
                     return null;
-                }
-                if (res == null) {
-                    res = new FixedBitSet(reader.maxDoc());
-                    res.or(it);
+                } else if (bits != null && DocIdSets.isBroken(it)) {
+                    requiredBits.add(bits);
                 } else {
-                    res.and(it);
+                    requiredIterators.add(it);
                 }
-            } else if (clause.clause.getOccur() == Occur.MUST_NOT) {
-                if (res == null) {
-                    res = new FixedBitSet(reader.maxDoc());
-                    res.set(0, reader.maxDoc()); // NOTE: may set bits on deleted docs
+                break;
+            case MUST_NOT:
+                if (it == null) {
+                    // ignore
+                } else if (bits != null && DocIdSets.isBroken(it)) {
+                    excludedBits.add(bits);
+                } else {
+                    excludedIterators.add(it);
                 }
-                if (clause.docIdSet != null) {
-                    DocIdSetIterator it = clause.docIdSet.iterator();
-                    if (it != null) {
-                        res.andNot(it);
-                    }
-                }
+                break;
+            default:
+                throw new AssertionError();
             }
         }
 
-        if (!hasBits) {
-            if (!fastOrClauses.isEmpty()) {
-                DocIdSetIterator it = res.iterator();
-                at_least_one_should_clause_iter:
-                for (int setDoc = it.nextDoc(); setDoc != DocIdSetIterator.NO_MORE_DOCS; setDoc = it.nextDoc()) {
-                    for (ResultClause fastOrClause : fastOrClauses) {
-                        DocIdSetIterator clauseIterator = fastOrClause.iterator();
-                        if (clauseIterator == null) {
-                            continue;
-                        }
-                        if (iteratorMatch(clauseIterator, setDoc)) {
-                            hasNonEmptyShouldClause = true;
-                            continue at_least_one_should_clause_iter;
-                        }
-                    }
-                    res.clear(setDoc);
-                }
-            }
+        // Since BooleanFilter requires that at least one SHOULD clause matches,
+        // transform the SHOULD clauses into a MUST clause
 
-            if (hasShouldClauses && !hasNonEmptyShouldClause) {
+        if (hasShouldClauses) {
+            if (shouldIterators.isEmpty() && shouldBits.isEmpty()) {
+                // we had should clauses, but they all produced empty sets
+                // yet BooleanFilter requires that at least one clause matches
+                // so it means we do not match anything
                 return null;
+            } else if (shouldIterators.size() == 1 && shouldBits.isEmpty()) {
+                requiredIterators.add(shouldIterators.get(0));
             } else {
-                return res;
-            }
-        }
+                // apply high-cardinality should clauses first
+                CollectionUtil.timSort(shouldIterators, COST_DESCENDING);
 
-        // we have some clauses with bits, apply them...
-        // we let the "res" drive the computation, and check Bits for that
-        List<ResultClause> slowOrClauses = new ArrayList<>();
-        for (int i = 0; i < results.size(); i++) {
-            ResultClause clause = results.get(i);
-            if (clause.bits == null) {
-                continue;
-            }
-            if (clause.clause.getOccur() == Occur.SHOULD) {
-                if (hasMustClauses || hasMustNotClauses) {
-                    slowOrClauses.add(clause);
-                } else {
-                    if (res == null) {
-                        DocIdSetIterator it = clause.docIdSet.iterator();
-                        if (it == null) {
-                            continue;
-                        }
-                        hasNonEmptyShouldClause = true;
-                        res = new FixedBitSet(reader.maxDoc());
-                        res.or(it);
+                BitDocIdSet.Builder shouldBuilder = null;
+                for (DocIdSetIterator it : shouldIterators) {
+                    if (shouldBuilder == null) {
+                        shouldBuilder = new BitDocIdSet.Builder(maxDoc);
+                    }
+                    shouldBuilder.or(it);
+                }
+
+                if (shouldBuilder != null && shouldBits.isEmpty() == false) {
+                    // we have both iterators and bits, there is no way to compute
+                    // the union efficiently, so we just transform the iterators into
+                    // bits
+                    // add first since these are fast bits
+                    shouldBits.add(0, shouldBuilder.build().bits());
+                    shouldBuilder = null;
+                }
+
+                if (shouldBuilder == null) {
+                    // only bits
+                    assert shouldBits.size() >= 1;
+                    if (shouldBits.size() == 1) {
+                        requiredBits.add(shouldBits.get(0));
                     } else {
-                        for (int doc = 0; doc < reader.maxDoc(); doc++) {
-                            if (!res.get(doc) && clause.bits.get(doc)) {
-                                hasNonEmptyShouldClause = true;
-                                res.set(doc);
-                            }
-                        }
-                    }
-                }
-            } else if (clause.clause.getOccur() == Occur.MUST) {
-                if (res == null) {
-                    // nothing we can do, just or it...
-                    res = new FixedBitSet(reader.maxDoc());
-                    DocIdSetIterator it = clause.docIdSet.iterator();
-                    if (it == null) {
-                        return null;
-                    }
-                    res.or(it);
-                } else {
-                    Bits bits = clause.bits;
-                    // use the "res" to drive the iteration
-                    DocIdSetIterator it = res.iterator();
-                    for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
-                        if (!bits.get(doc)) {
-                            res.clear(doc);
-                        }
-                    }
-                }
-            } else if (clause.clause.getOccur() == Occur.MUST_NOT) {
-                if (res == null) {
-                    res = new FixedBitSet(reader.maxDoc());
-                    res.set(0, reader.maxDoc()); // NOTE: may set bits on deleted docs
-                    DocIdSetIterator it = clause.docIdSet.iterator();
-                    if (it != null) {
-                        res.andNot(it);
+                        requiredBits.add(new OrBits(shouldBits.toArray(new Bits[shouldBits.size()])));
                     }
                 } else {
-                    Bits bits = clause.bits;
-                    // let res drive the iteration
-                    DocIdSetIterator it = res.iterator();
-                    for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
-                        if (bits.get(doc)) {
-                            res.clear(doc);
-                        }
-                    }
+                    assert shouldBits.isEmpty();
+                    // only iterators, we can add the merged iterator to the list of required iterators
+                    requiredIterators.add(shouldBuilder.build().iterator());
                 }
             }
-        }
-
-        // From a boolean_logic behavior point of view a should clause doesn't have impact on a bool filter if there
-        // is already a must or must_not clause. However in the current ES bool filter behaviour at least one should
-        // clause must match in order for a doc to be a match. What we do here is checking if matched docs match with
-        // any should filter. TODO: Add an option to have disable minimum_should_match=1 behaviour
-        if (!slowOrClauses.isEmpty() || !fastOrClauses.isEmpty()) {
-            DocIdSetIterator it = res.iterator();
-            at_least_one_should_clause_iter:
-            for (int setDoc = it.nextDoc(); setDoc != DocIdSetIterator.NO_MORE_DOCS; setDoc = it.nextDoc()) {
-                for (ResultClause fastOrClause : fastOrClauses) {
-                    DocIdSetIterator clauseIterator = fastOrClause.iterator();
-                    if (clauseIterator == null) {
-                        continue;
-                    }
-                    if (iteratorMatch(clauseIterator, setDoc)) {
-                        hasNonEmptyShouldClause = true;
-                        continue at_least_one_should_clause_iter;
-                    }
-                }
-                for (ResultClause slowOrClause : slowOrClauses) {
-                    if (slowOrClause.bits.get(setDoc)) {
-                        hasNonEmptyShouldClause = true;
-                        continue at_least_one_should_clause_iter;
-                    }
-                }
-                res.clear(setDoc);
-            }
-        }
-
-        if (hasShouldClauses && !hasNonEmptyShouldClause) {
-            return null;
         } else {
-            return res;
+            assert shouldIterators.isEmpty();
+            assert shouldBits.isEmpty();
         }
 
+        // From now on, we don't have to care about SHOULD clauses anymore since we upgraded
+        // them to required clauses (if necessary)
+
+        // cheap iterators first to make intersection faster
+        CollectionUtil.timSort(requiredIterators, COST_ASCENDING);
+        CollectionUtil.timSort(excludedIterators, COST_ASCENDING);
+
+        // Intersect iterators
+        BitDocIdSet.Builder res = null;
+        for (DocIdSetIterator iterator : requiredIterators) {
+            if (res == null) {
+                res = new BitDocIdSet.Builder(maxDoc);
+                res.or(iterator);
+            } else {
+                res.and(iterator);
+            }
+        }
+        for (DocIdSetIterator iterator : excludedIterators) {
+            if (res == null) {
+                res = new BitDocIdSet.Builder(maxDoc, true);
+            }
+            res.andNot(iterator);
+        }
+
+        // Transform the excluded bits into required bits
+        if (excludedBits.isEmpty() == false) {
+            Bits excluded;
+            if (excludedBits.size() == 1) {
+                excluded = excludedBits.get(0);
+            } else {
+                excluded = new OrBits(excludedBits.toArray(new Bits[excludedBits.size()]));
+            }
+            requiredBits.add(new NotDocIdSet.NotBits(excluded));
+        }
+
+        // The only thing left to do is to intersect 'res' with 'requiredBits'
+
+        // the main doc id set that will drive iteration
+        DocIdSet main;
+        if (res == null) {
+            main = new AllDocIdSet(maxDoc);
+        } else {
+            main = res.build();
+        }
+
+        // apply accepted docs and compute the bits to filter with
+        // accepted docs are added first since they are fast and will help not computing anything on deleted docs
+        if (acceptDocs != null) {
+            requiredBits.add(0, acceptDocs);
+        }
+        // the random-access filter that we will apply to 'main'
+        Bits filter;
+        if (requiredBits.isEmpty()) {
+            filter = null;
+        } else if (requiredBits.size() == 1) {
+            filter = requiredBits.get(0);
+        } else {
+            filter = new AndDocIdSet.AndBits(requiredBits.toArray(new Bits[requiredBits.size()]));
+        }
+
+        return BitsFilteredDocIdSet.wrap(main, filter);
     }
 
     /**
@@ -333,6 +293,7 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
      * make it possible to do:
      * <pre class="prettyprint">for (FilterClause clause : booleanFilter) {}</pre>
      */
+    @Override
     public final Iterator<FilterClause> iterator() {
         return clauses().iterator();
     }
@@ -360,7 +321,7 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
      * Prints a user-readable version of this Filter.
      */
     @Override
-    public String toString() {
+    public String toString(String field) {
         final StringBuilder buffer = new StringBuilder("BooleanFilter(");
         final int minLen = buffer.length();
         for (final FilterClause c : clauses) {

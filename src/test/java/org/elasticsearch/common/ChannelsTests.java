@@ -41,26 +41,28 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
 public class ChannelsTests extends ElasticsearchTestCase {
 
     byte[] randomBytes;
     FileChannel fileChannel;
-    RandomAccessFile randomAccessFile;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        File tmpFile = newTempFile();
-        randomAccessFile = new RandomAccessFile(tmpFile, "rw");
-        fileChannel = new MockFileChannel(randomAccessFile.getChannel());
+        Path tmpFile = newTempFilePath();
+        FileChannel randomAccessFile = FileChannel.open(tmpFile, StandardOpenOption.READ, StandardOpenOption.WRITE);
+        fileChannel = new MockFileChannel(randomAccessFile);
         randomBytes = randomUnicodeOfLength(scaledRandomIntBetween(10, 100000)).getBytes("UTF-8");
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         fileChannel.close();
-        randomAccessFile.close();
         super.tearDown();
     }
 

@@ -126,11 +126,7 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
         super.readFrom(in);
         commands = AllocationCommands.readFrom(in);
         dryRun = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-            explain = in.readBoolean();
-        } else {
-            explain = false;
-        }
+        explain = in.readBoolean();
         readTimeout(in);
     }
 
@@ -139,9 +135,7 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
         super.writeTo(out);
         AllocationCommands.writeTo(commands, out);
         out.writeBoolean(dryRun);
-        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            out.writeBoolean(explain);
-        }
+        out.writeBoolean(explain);
         writeTimeout(out);
     }
 }

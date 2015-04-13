@@ -19,38 +19,69 @@
 package org.elasticsearch.validate;
 
 import com.google.common.base.Charsets;
+
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.cache.filter.AutoFilterCachingPolicy;
+import org.elasticsearch.index.cache.filter.FilterCacheModule;
+import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
+import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.QueryBuilders.queryString;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
  */
-@ClusterScope(randomDynamicTemplates = false)
+@ClusterScope(randomDynamicTemplates = false, scope = Scope.SUITE)
 public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
+
+    static Boolean hasFilterCache;
+
+    @BeforeClass
+    public static void enableFilterCache() {
+        assert hasFilterCache == null;
+        hasFilterCache = randomBoolean();
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal));
+        if (hasFilterCache) {
+            // cache everything
+            builder.put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, WeightedFilterCache.class)
+                   .put(AutoFilterCachingPolicy.AGGRESSIVE_CACHING_SETTINGS);
+        } else {
+            builder.put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, NoneFilterCache.class);
+        }
+        return builder.build();
+    }
 
     @Test
     public void simpleValidateQuery() throws Exception {
@@ -66,20 +97,20 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
         refresh();
 
         assertThat(client().admin().indices().prepareValidateQuery("test").setSource("foo".getBytes(Charsets.UTF_8)).execute().actionGet().isValid(), equalTo(false));
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("_id:1")).execute().actionGet().isValid(), equalTo(true));
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("_i:d:1")).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("_id:1")).execute().actionGet().isValid(), equalTo(true));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("_i:d:1")).execute().actionGet().isValid(), equalTo(false));
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("foo:1")).execute().actionGet().isValid(), equalTo(true));
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("bar:hey")).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("foo:1")).execute().actionGet().isValid(), equalTo(true));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("bar:hey")).execute().actionGet().isValid(), equalTo(false));
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("nonexistent:hello")).execute().actionGet().isValid(), equalTo(true));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("nonexistent:hello")).execute().actionGet().isValid(), equalTo(true));
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("foo:1 AND")).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("foo:1 AND")).execute().actionGet().isValid(), equalTo(false));
     }
 
     private static String filter(String uncachedFilter) {
         String filter = uncachedFilter;
-        if (cluster().hasFilterCache()) {
+        if (hasFilterCache) {
             filter = "cache(" + filter + ")";
         }
         return filter;
@@ -119,12 +150,12 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
         assertThat(response.getQueryExplanation().get(0).getExplanation(), nullValue());
 
         final String typeFilter = filter("_type:type1");
-        assertExplanation(QueryBuilders.queryString("_id:1"), equalTo("filtered(ConstantScore(_uid:type1#1))->" + typeFilter));
+        assertExplanation(QueryBuilders.queryStringQuery("_id:1"), equalTo("filtered(ConstantScore(_uid:type1#1))->" + typeFilter));
 
         assertExplanation(QueryBuilders.idsQuery("type1").addIds("1").addIds("2"),
                 equalTo("filtered(ConstantScore(_uid:type1#1 _uid:type1#2))->" + typeFilter));
 
-        assertExplanation(QueryBuilders.queryString("foo"), equalTo("filtered(_all:foo)->" + typeFilter));
+        assertExplanation(QueryBuilders.queryStringQuery("foo"), equalTo("filtered(_all:foo)->" + typeFilter));
 
         assertExplanation(QueryBuilders.filteredQuery(
                 QueryBuilders.termQuery("foo", "1"),
@@ -132,14 +163,14 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
                         FilterBuilders.termFilter("bar", "2"),
                         FilterBuilders.termFilter("baz", "3")
                 )
-        ), equalTo("filtered(filtered(foo:1)->" + filter("bar:[2 TO 2]") + " " + filter("baz:3") + ")->" + typeFilter));
+        ), equalTo("filtered(filtered(foo:1)->" + filter(filter("bar:[2 TO 2]") + " " + filter("baz:3")) + ")->" + typeFilter));
 
         assertExplanation(QueryBuilders.filteredQuery(
                 QueryBuilders.termQuery("foo", "1"),
                 FilterBuilders.orFilter(
                         FilterBuilders.termFilter("bar", "2")
                 )
-        ), equalTo("filtered(filtered(foo:1)->" + filter("bar:[2 TO 2]") + ")->" + typeFilter));
+        ), equalTo("filtered(filtered(foo:1)->" + filter(filter("bar:[2 TO 2]")) + ")->" + typeFilter));
 
         assertExplanation(QueryBuilders.filteredQuery(
                 QueryBuilders.matchAllQuery(),
@@ -148,28 +179,28 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
                         .addPoint(30, -80)
                         .addPoint(20, -90)
                         .addPoint(40, -70)    // closing polygon
-        ), equalTo("filtered(ConstantScore(GeoPolygonFilter(pin.location, [[40.0, -70.0], [30.0, -80.0], [20.0, -90.0], [40.0, -70.0]])))->" + typeFilter));
+        ), equalTo("filtered(ConstantScore(" + filter("GeoPolygonFilter(pin.location, [[40.0, -70.0], [30.0, -80.0], [20.0, -90.0], [40.0, -70.0]]))") + ")->" + typeFilter));
 
         assertExplanation(QueryBuilders.constantScoreQuery(FilterBuilders.geoBoundingBoxFilter("pin.location")
                 .topLeft(40, -80)
                 .bottomRight(20, -70)
-        ), equalTo("filtered(ConstantScore(GeoBoundingBoxFilter(pin.location, [40.0, -80.0], [20.0, -70.0])))->" + typeFilter));
+        ), equalTo("filtered(ConstantScore(" + filter("GeoBoundingBoxFilter(pin.location, [40.0, -80.0], [20.0, -70.0]))") + ")->" + typeFilter));
 
         assertExplanation(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter("pin.location")
                 .lat(10).lon(20).distance(15, DistanceUnit.DEFAULT).geoDistance(GeoDistance.PLANE)
-        ), equalTo("filtered(ConstantScore(GeoDistanceFilter(pin.location, PLANE, 15.0, 10.0, 20.0)))->" + typeFilter));
+        ), equalTo("filtered(ConstantScore(" + filter("GeoDistanceFilter(pin.location, PLANE, 15.0, 10.0, 20.0))") + ")->" + typeFilter));
 
         assertExplanation(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter("pin.location")
                 .lat(10).lon(20).distance(15, DistanceUnit.DEFAULT).geoDistance(GeoDistance.PLANE)
-        ), equalTo("filtered(ConstantScore(GeoDistanceFilter(pin.location, PLANE, 15.0, 10.0, 20.0)))->" + typeFilter));
+        ), equalTo("filtered(ConstantScore(" + filter("GeoDistanceFilter(pin.location, PLANE, 15.0, 10.0, 20.0))") + ")->" + typeFilter));
 
         assertExplanation(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceRangeFilter("pin.location")
                 .lat(10).lon(20).from("15m").to("25m").geoDistance(GeoDistance.PLANE)
-        ), equalTo("filtered(ConstantScore(GeoDistanceRangeFilter(pin.location, PLANE, [15.0 - 25.0], 10.0, 20.0)))->" + typeFilter));
+        ), equalTo("filtered(ConstantScore(" + filter("GeoDistanceRangeFilter(pin.location, PLANE, [15.0 - 25.0], 10.0, 20.0))") + ")->" + typeFilter));
 
         assertExplanation(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceRangeFilter("pin.location")
                 .lat(10).lon(20).from("15miles").to("25miles").geoDistance(GeoDistance.PLANE)
-        ), equalTo("filtered(ConstantScore(GeoDistanceRangeFilter(pin.location, PLANE, [" + DistanceUnit.DEFAULT.convert(15.0, DistanceUnit.MILES) + " - " + DistanceUnit.DEFAULT.convert(25.0, DistanceUnit.MILES) + "], 10.0, 20.0)))->" + typeFilter));
+        ), equalTo("filtered(ConstantScore(" + filter("GeoDistanceRangeFilter(pin.location, PLANE, [" + DistanceUnit.DEFAULT.convert(15.0, DistanceUnit.MILES) + " - " + DistanceUnit.DEFAULT.convert(25.0, DistanceUnit.MILES) + "], 10.0, 20.0))") + ")->" + typeFilter));
 
         assertExplanation(QueryBuilders.filteredQuery(
                 QueryBuilders.termQuery("foo", "1"),
@@ -177,13 +208,13 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
                         FilterBuilders.termFilter("bar", "2"),
                         FilterBuilders.termFilter("baz", "3")
                 )
-        ), equalTo("filtered(filtered(foo:1)->+" + filter("bar:[2 TO 2]") + " +" + filter("baz:3") + ")->" + typeFilter));
+        ), equalTo("filtered(filtered(foo:1)->" + filter("+" + filter("bar:[2 TO 2]") + " +" + filter("baz:3")) + ")->" + typeFilter));
 
         assertExplanation(QueryBuilders.constantScoreQuery(FilterBuilders.termsFilter("foo", "1", "2", "3")),
                 equalTo("filtered(ConstantScore(" + filter("foo:1 foo:2 foo:3") + "))->" + typeFilter));
 
         assertExplanation(QueryBuilders.constantScoreQuery(FilterBuilders.notFilter(FilterBuilders.termFilter("foo", "bar"))),
-                equalTo("filtered(ConstantScore(NotFilter(" + filter("foo:bar") + ")))->" + typeFilter));
+                equalTo("filtered(ConstantScore(" + filter("NotFilter(" + filter("foo:bar") + ")") + "))->" + typeFilter));
 
         assertExplanation(QueryBuilders.filteredQuery(
                 QueryBuilders.termQuery("foo", "1"),
@@ -196,7 +227,7 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
         assertExplanation(QueryBuilders.filteredQuery(
                 QueryBuilders.termQuery("foo", "1"),
                 FilterBuilders.scriptFilter("true")
-        ), equalTo("filtered(filtered(foo:1)->ScriptFilter(true))->" + typeFilter));
+        ), equalTo("filtered(filtered(foo:1)->" + filter("ScriptFilter(true)") + ")->" + typeFilter));
 
     }
 
@@ -229,7 +260,7 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
 
         for (Client client : internalCluster()) {
                 ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
-                    .setQuery(QueryBuilders.queryString("foo"))
+                    .setQuery(QueryBuilders.queryStringQuery("foo"))
                     .setExplain(true)
                     .execute().actionGet();
             assertThat(response.isValid(), equalTo(true));
@@ -253,13 +284,13 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
         refresh();
 
         ValidateQueryResponse response = client().admin().indices().prepareValidateQuery()
-                .setQuery(queryString("past:[now-2M/d TO now/d]")).setExplain(true).get();
+                .setQuery(queryStringQuery("past:[now-2M/d TO now/d]")).setExplain(true).get();
 
         assertNoFailures(response);
         assertThat(response.getQueryExplanation().size(), equalTo(1));
         assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
         DateTime twoMonthsAgo = new DateTime(DateTimeZone.UTC).minusMonths(2).withTimeAtStartOfDay();
-        DateTime now = new DateTime(DateTimeZone.UTC).plusDays(1).withTimeAtStartOfDay();
+        DateTime now = new DateTime(DateTimeZone.UTC).plusDays(1).withTimeAtStartOfDay().minusMillis(1);
         assertThat(response.getQueryExplanation().get(0).getExplanation(),
                 equalTo("past:[" + twoMonthsAgo.getMillis() + " TO " + now.getMillis() + "]"));
         assertThat(response.isValid(), equalTo(true));

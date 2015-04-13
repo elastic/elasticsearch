@@ -40,7 +40,7 @@ public class IsTrueAssertion extends Assertion {
 
     @Override
     protected void doAssert(Object actualValue, Object expectedValue) {
-        logger.trace("assert that [{}] has a true value", actualValue);
+        logger.trace("assert that [{}] has a true value (field [{}])", actualValue, getField());
         String errorMessage = errorMessage();
         assertThat(errorMessage, actualValue, notNullValue());
         String actualString = actualValue.toString();

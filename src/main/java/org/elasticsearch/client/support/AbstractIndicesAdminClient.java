@@ -63,10 +63,10 @@ import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequestBuilder;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
+import org.elasticsearch.action.admin.indices.get.GetIndexAction;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.*;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -80,14 +80,14 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeAction;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequestBuilder;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
@@ -226,6 +226,21 @@ public abstract class AbstractIndicesAdminClient implements IndicesAdminClient {
     }
 
     @Override
+    public ActionFuture<GetIndexResponse> getIndex(GetIndexRequest request) {
+        return execute(GetIndexAction.INSTANCE, request);
+    }
+
+    @Override
+    public void getIndex(GetIndexRequest request, ActionListener<GetIndexResponse> listener) {
+        execute(GetIndexAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public GetIndexRequestBuilder prepareGetIndex() {
+        return new GetIndexRequestBuilder(this);
+    }
+
+    @Override
     public void clearCache(final ClearIndicesCacheRequest request, final ActionListener<ClearIndicesCacheResponse> listener) {
         execute(ClearIndicesCacheAction.INSTANCE, request, listener);
     }
@@ -353,21 +368,6 @@ public abstract class AbstractIndicesAdminClient implements IndicesAdminClient {
     @Override
     public PutMappingRequestBuilder preparePutMapping(String... indices) {
         return new PutMappingRequestBuilder(this).setIndices(indices);
-    }
-
-    @Override
-    public ActionFuture<DeleteMappingResponse> deleteMapping(final DeleteMappingRequest request) {
-        return execute(DeleteMappingAction.INSTANCE, request);
-    }
-
-    @Override
-    public void deleteMapping(final DeleteMappingRequest request, final ActionListener<DeleteMappingResponse> listener) {
-        execute(DeleteMappingAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public DeleteMappingRequestBuilder prepareDeleteMapping(String... indices) {
-        return new DeleteMappingRequestBuilder(this).setIndices(indices);
     }
 
     @Override

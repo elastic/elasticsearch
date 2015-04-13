@@ -38,9 +38,9 @@ public class IrishAnalyzerProvider extends AbstractIndexAnalyzerProvider<IrishAn
     @Inject
     public IrishAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        analyzer = new IrishAnalyzer(version,
-                Analysis.parseStopWords(env, settings, IrishAnalyzer.getDefaultStopSet(), version),
-                Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET, version));
+        analyzer = new IrishAnalyzer(Analysis.parseStopWords(env, settings, IrishAnalyzer.getDefaultStopSet()),
+                                     Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+        analyzer.setVersion(version);
     }
 
     @Override

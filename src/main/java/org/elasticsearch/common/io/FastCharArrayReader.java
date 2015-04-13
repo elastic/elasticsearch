@@ -98,6 +98,7 @@ public class FastCharArrayReader extends Reader {
      *
      * @throws IOException If an I/O error occurs
      */
+    @Override
     public int read() throws IOException {
         ensureOpen();
         if (pos >= count)
@@ -116,6 +117,7 @@ public class FastCharArrayReader extends Reader {
      *         the end of the stream has been reached
      * @throws IOException If an I/O error occurs
      */
+    @Override
     public int read(char b[], int off, int len) throws IOException {
         ensureOpen();
         if ((off < 0) || (off > b.length) || (len < 0) ||
@@ -151,6 +153,7 @@ public class FastCharArrayReader extends Reader {
      * @return The number of characters actually skipped
      * @throws IOException If the stream is closed, or an I/O error occurs
      */
+    @Override
     public long skip(long n) throws IOException {
         ensureOpen();
         if (pos + n > count) {
@@ -169,6 +172,7 @@ public class FastCharArrayReader extends Reader {
      *
      * @throws IOException If an I/O error occurs
      */
+    @Override
     public boolean ready() throws IOException {
         ensureOpen();
         return (count - pos) > 0;
@@ -177,6 +181,7 @@ public class FastCharArrayReader extends Reader {
     /**
      * Tells whether this stream supports the mark() operation, which it does.
      */
+    @Override
     public boolean markSupported() {
         return true;
     }
@@ -192,6 +197,7 @@ public class FastCharArrayReader extends Reader {
      *                       ignored.
      * @throws IOException If an I/O error occurs
      */
+    @Override
     public void mark(int readAheadLimit) throws IOException {
         ensureOpen();
         markedPos = pos;
@@ -203,6 +209,7 @@ public class FastCharArrayReader extends Reader {
      *
      * @throws IOException If an I/O error occurs
      */
+    @Override
     public void reset() throws IOException {
         ensureOpen();
         pos = markedPos;
@@ -214,6 +221,7 @@ public class FastCharArrayReader extends Reader {
      * mark(), reset(), or skip() invocations will throw an IOException.
      * Closing a previously closed stream has no effect.
      */
+    @Override
     public void close() {
         buf = null;
     }

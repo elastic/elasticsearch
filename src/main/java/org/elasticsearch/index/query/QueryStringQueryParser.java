@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
 import com.google.common.collect.Lists;
+
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.BooleanQuery;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -156,6 +158,8 @@ public class QueryStringQueryParser implements QueryParser {
                     qpSettings.allowLeadingWildcard(parser.booleanValue());
                 } else if ("auto_generate_phrase_queries".equals(currentFieldName) || "autoGeneratePhraseQueries".equals(currentFieldName)) {
                     qpSettings.autoGeneratePhraseQueries(parser.booleanValue());
+                } else if ("max_determinized_states".equals(currentFieldName) || "maxDeterminizedStates".equals(currentFieldName)) {
+                    qpSettings.maxDeterminizedStates(parser.intValue());
                 } else if ("lowercase_expanded_terms".equals(currentFieldName) || "lowercaseExpandedTerms".equals(currentFieldName)) {
                     qpSettings.lowercaseExpandedTerms(parser.booleanValue());
                 } else if ("enable_position_increments".equals(currentFieldName) || "enablePositionIncrements".equals(currentFieldName)) {
@@ -191,6 +195,12 @@ public class QueryStringQueryParser implements QueryParser {
                 } else if ("locale".equals(currentFieldName)) {
                     String localeStr = parser.text();
                     qpSettings.locale(LocaleUtils.parse(localeStr));
+                } else if ("time_zone".equals(currentFieldName)) {
+                    try {
+                        qpSettings.timeZone(DateTimeZone.forID(parser.text()));
+                    } catch (IllegalArgumentException e) {
+                        throw new QueryParsingException(parseContext.index(), "[query_string] time_zone [" + parser.text() + "] is unknown");
+                    }
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {

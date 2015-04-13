@@ -31,23 +31,42 @@
     </parent>
 
     <properties>
-        <lucene.version>4.10.0</lucene.version>
+        <lucene.version>5.1.0</lucene.version>
+        <lucene.maven.version>5.1.0-snapshot-1671894</lucene.maven.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
         <tests.bwc.path>${project.basedir}/backwards</tests.bwc.path>
+        <tests.locale>random</tests.locale>
+        <tests.timezone>random</tests.timezone>
         <es.logger.level>INFO</es.logger.level>
         <tests.heap.size>512m</tests.heap.size>
-        <tests.heapdump.path>${basedir}/logs</tests.heapdump.path>
+        <tests.heapdump.path>${basedir}/logs/</tests.heapdump.path>
         <tests.topn>5</tests.topn>
         <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
+
+        <!-- Properties used for building RPM & DEB packages (see common/packaging.properties) -->
+        <packaging.elasticsearch.home.dir>/usr/share/elasticsearch</packaging.elasticsearch.home.dir>
+        <packaging.elasticsearch.conf.dir>/etc/elasticsearch</packaging.elasticsearch.conf.dir>
+        <packaging.elasticsearch.data.dir>/var/lib/elasticsearch</packaging.elasticsearch.data.dir>
+        <packaging.elasticsearch.user>elasticsearch</packaging.elasticsearch.user>
+        <packaging.elasticsearch.group>elasticsearch</packaging.elasticsearch.group>
+        <packaging.elasticsearch.work.dir>/var/run/elasticsearch</packaging.elasticsearch.work.dir>
+        <packaging.elasticsearch.log.dir>/var/log/elasticsearch</packaging.elasticsearch.log.dir>
+
     </properties>
 
     <repositories>
         <repository>
-            <id>Codehaus Snapshots</id>
+            <id>codehaus-snapshots</id>
+            <name>Codehaus Snapshots</name>
             <url>http://repository.codehaus.org/</url>
+        </repository>
+        <repository>
+            <id>lucene-snapshots</id>
+            <name>Lucene Snapshots</name>
+            <url>https://download.elastic.co/lucenesnapshots/1671894</url>
         </repository>
     </repositories>
 
@@ -61,13 +80,13 @@
         <dependency>
             <groupId>com.carrotsearch.randomizedtesting</groupId>
             <artifactId>randomizedtesting-runner</artifactId>
-            <version>2.1.6</version>
+            <version>2.1.11</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-test-framework</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -76,29 +95,35 @@
             <version>4.3.5</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.google.jimfs</groupId>
+            <artifactId>jimfs</artifactId>
+            <version>1.0</version>
+            <scope>test</scope>
+        </dependency>
 
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-core</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-backward-codecs</artifactId>
+            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-analyzers-common</artifactId>
-            <version>${lucene.version}</version>
-            <scope>compile</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-codecs</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-queries</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
             <exclusions>
                 <exclusion>
@@ -110,19 +135,19 @@
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-memory</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-highlighter</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-queryparser</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
             <exclusions>
                 <exclusion>
@@ -134,26 +159,26 @@
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-suggest</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-join</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <!-- Lucene spatial, make sure when upgrading to work with latest version of jts/spatial4j dependencies -->
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-spatial</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-expressions</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
             <optional>true</optional>
         </dependency>
@@ -206,7 +231,7 @@
             <artifactId>joda-time</artifactId>
             <!-- joda 2.0 moved to using volatile fields for datetime -->
             <!-- When updating to a new version, make sure to update our copy of BaseDateTime -->
-            <version>2.3</version>
+            <version>2.7</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
@@ -219,35 +244,35 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
-            <version>2.4.1.1</version>
+            <version>2.5.1</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-smile</artifactId>
-            <version>2.4.1.1</version>
+            <version>2.5.1</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
-            <version>2.4.1</version>
+            <version>2.5.1</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-cbor</artifactId>
-            <version>2.4.1</version>
+            <version>2.5.1</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty</artifactId>
-            <version>3.9.3.Final</version>
+            <version>3.10.0.Final</version>
             <scope>compile</scope>
         </dependency>
 
@@ -266,6 +291,12 @@
         </dependency>
 
         <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>3.3.2</version>
+        </dependency>
+
+        <dependency>
             <groupId>commons-cli</groupId>
             <artifactId>commons-cli</artifactId>
             <version>1.2</version>
@@ -276,7 +307,8 @@
         <dependency>
             <groupId>org.codehaus.groovy</groupId>
             <artifactId>groovy-all</artifactId>
-            <version>2.3.2</version>
+            <version>2.4.0</version>
+            <classifier>indy</classifier>
             <scope>compile</scope>
             <optional>true</optional>
         </dependency>
@@ -284,6 +316,14 @@
         <dependency>
             <groupId>log4j</groupId>
             <artifactId>log4j</artifactId>
+            <version>1.2.17</version>
+            <scope>compile</scope>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>log4j</groupId>
+            <artifactId>apache-log4j-extras</artifactId>
             <version>1.2.17</version>
             <scope>compile</scope>
             <optional>true</optional>
@@ -327,6 +367,12 @@
     </dependencies>
 
     <build>
+
+        <!-- This file contains all the common properties used to build
+            the different packages (tar.gz, deb, rpm) using Maven resources plugin -->
+        <filters>
+            <filter>src/packaging/common/packaging.properties</filter>
+        </filters>
 
         <resources>
             <resource>
@@ -379,7 +425,39 @@
         </testResources>
 
         <plugins>
-            <plugin>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <version>1.4.0</version>
+            <executions>
+              <execution>
+                <phase>exec</phase>
+                <goals>
+                  <goal>exec</goal>
+                </goals>
+              </execution>
+            </executions>
+            <configuration>
+              <executable>java</executable>
+              <arguments>
+                <argument>-classpath</argument>
+                <classpath/>
+                <argument>org.elasticsearch.bootstrap.Bootstrap</argument>
+                <argument>-Xms256m</argument>
+                <argument>-Xmx1g</argument>
+                <argument>-Djava.awt.headless=true</argument>
+                <argument>-XX:+UseParNewGC</argument>
+                <argument>-XX:+UseConcMarkSweepGC</argument>
+                <argument>-XX:CMSInitiatingOccupancyFraction=75</argument>
+                <argument>-XX:+UseCMSInitiatingOccupancyOnly</argument>
+                <argument>-XX:+HeapDumpOnOutOfMemoryError</argument>
+                <argument>-XX:+DisableExplicitGC</argument>
+                <argument>-Dfile.encoding=UTF-8</argument>
+                <argument>-Delasticsearch</argument>
+              </arguments>
+            </configuration>
+          </plugin>
+          <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-enforcer-plugin</artifactId>
                 <version>1.3.1</version>
@@ -472,8 +550,8 @@
                             <jvmArgs>
                                 <param>-Xmx${tests.heap.size}</param>
                                 <param>-Xms${tests.heap.size}</param>
-                                <param>-Xss256k</param>
-                                <param>-XX:MaxPermSize=128m</param>
+                                <param>${java.permGenSpace}</param>
+                                <param>-Djava.library.path=${project.basedir}/lib/sigar</param>
                                 <param>-XX:MaxDirectMemorySize=512m</param>
                                 <param>-Des.logger.prefix=</param>
                                 <param>-XX:+HeapDumpOnOutOfMemoryError</param>
@@ -505,7 +583,6 @@
                                 <tests.weekly>${tests.weekly}</tests.weekly>
                                 <tests.slow>${tests.slow}</tests.slow>
                                 <tests.awaitsfix>${tests.awaitsfix}</tests.awaitsfix>
-                                <tests.slow>${tests.slow}</tests.slow>
                                 <tests.timeoutSuite>${tests.timeoutSuite}</tests.timeoutSuite>
                                 <tests.showSuccess>${tests.showSuccess}</tests.showSuccess>
                                 <tests.integration>${tests.integration}</tests.integration>
@@ -520,6 +597,9 @@
                                 <tests.cluster>${tests.cluster}</tests.cluster>
                                 <tests.heap.size>${tests.heap.size}</tests.heap.size>
                                 <tests.filter>${tests.filter}</tests.filter>
+                                <tests.version>${project.version}</tests.version>
+                                <tests.locale>${tests.locale}</tests.locale>
+                                <tests.timezone>${tests.timezone}</tests.timezone>
                                 <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
                                 <es.node.mode>${es.node.mode}</es.node.mode>
                                 <es.logger.level>${es.logger.level}</es.logger.level>
@@ -548,6 +628,22 @@
                             <target>
                                 <echo>Using ${java.runtime.name} ${java.runtime.version} ${java.vendor}</echo>
                             </target>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>set-permGen</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <!-- if we are on java 1.7.* we set perm gen space since some tests need it otherwise we just inject a dummy value -->
+                                <condition property="java.permGenSpace" value="-XX:MaxPermSize=128m" else="-Dsome.dummy.value=" >
+                                    <matches pattern="1\.7\..+$" string="${java.runtime.version}" />
+                                </condition>
+                            </target>
+                            <exportAntProperties>true</exportAntProperties>
                         </configuration>
                     </execution>
                     <execution>
@@ -581,6 +677,19 @@
                                 </fail>
                             </target>
                         </configuration>
+                    </execution>
+                    <execution>
+                        <phase>generate-test-resources</phase>
+                        <id>create-heapdump-directory</id>
+                        <configuration>
+                            <target>
+                                <echo message="Creating heapdump directory"/>
+                                <mkdir dir="${tests.heapdump.path}"/>
+                            </target>
+                        </configuration>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
                     </execution>
                     <execution>
                         <id>tests</id>
@@ -644,6 +753,8 @@
                             <excludes>
                                 <!-- unit tests for yaml suite parser & rest spec parser need to be excluded -->
                                 <exclude>org/elasticsearch/test/rest/test/**/*</exclude>
+                                <!-- unit tests for test framework classes-->
+                                <exclude>org/elasticsearch/test/test/**/*</exclude>
                             </excludes>
                             <!-- Resources are large and not really helpful as "test sources". -->
                             <excludeResources>true</excludeResources>
@@ -681,6 +792,7 @@
                             <include>com.ning:compress-lzf</include>
                             <include>com.github.spullara.mustache.java:compiler</include>
                             <include>com.tdunning:t-digest</include>
+                            <include>org.apache.commons:commons-lang3</include>
                             <include>commons-cli:commons-cli</include>
                         </includes>
                     </artifactSet>
@@ -702,8 +814,8 @@
                             <shadedPattern>org.elasticsearch.common.jackson</shadedPattern>
                         </relocation>
                         <relocation>
-                            <pattern>org.joda</pattern>
-                            <shadedPattern>org.elasticsearch.common.joda</shadedPattern>
+                            <pattern>org.joda.time</pattern>
+                            <shadedPattern>org.elasticsearch.common.joda.time</shadedPattern>
                         </relocation>
                         <relocation>
                             <pattern>org.jboss.netty</pattern>
@@ -720,6 +832,10 @@
                         <relocation>
                             <pattern>com.tdunning.math.stats</pattern>
                             <shadedPattern>org.elasticsearch.common.stats</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.apache.commons.lang</pattern>
+                            <shadedPattern>org.elasticsearch.common.lang</shadedPattern>
                         </relocation>
                         <relocation>
                             <pattern>org.apache.commons.cli</pattern>
@@ -773,6 +889,98 @@
                                     <filtering>false</filtering>
                                     <includes>
                                         <include>*.exe</include>
+                                    </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                    <!-- Filters some files and uses packaging.properties when building the .deb package -->
+                    <execution>
+                        <id>copy-resources-deb</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/generated-packaging/deb/</outputDirectory>
+                            <filters>
+                                <filter>src/packaging/common/packaging.properties</filter>
+                                <filter>src/packaging/deb/packaging.properties</filter>
+                            </filters>
+                            <resources>
+                                <resource>
+                                    <directory>src/packaging/common/</directory>
+                                    <filtering>true</filtering>
+                                    <includes>
+                                        <include>**/*</include>
+                                    </includes>
+                                    <excludes>
+                                        <exclude>packaging.properties</exclude>
+                                    </excludes>
+                                </resource>
+                                <resource>
+                                    <directory>src/packaging/deb/</directory>
+                                    <filtering>true</filtering>
+                                    <includes>
+                                        <include>**/*</include>
+                                    </includes>
+                                    <excludes>
+                                        <exclude>packaging.properties</exclude>
+                                    </excludes>
+                                </resource>
+                                <resource>
+                                    <directory>${project.basedir}</directory>
+                                    <filtering>true</filtering>
+                                    <includes>
+                                        <include>bin/elasticsearch</include>
+                                        <include>bin/elasticsearch.in.sh</include>
+                                        <include>bin/plugin</include>
+                                    </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                    <!-- Filters some files and uses packaging.properties when building the .rpm package -->
+                    <execution>
+                        <id>copy-resources-rpm</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/generated-packaging/rpm/</outputDirectory>
+                            <filters>
+                                <filter>src/packaging/common/packaging.properties</filter>
+                                <filter>src/packaging/rpm/packaging.properties</filter>
+                            </filters>
+                            <resources>
+                                <resource>
+                                    <directory>src/packaging/common/</directory>
+                                    <filtering>true</filtering>
+                                    <includes>
+                                        <include>**/*</include>
+                                    </includes>
+                                    <excludes>
+                                        <exclude>packaging.properties</exclude>
+                                    </excludes>
+                                </resource>
+                                <resource>
+                                    <directory>src/packaging/rpm/</directory>
+                                    <filtering>true</filtering>
+                                    <includes>
+                                        <include>**/*</include>
+                                    </includes>
+                                    <excludes>
+                                        <exclude>packaging.properties</exclude>
+                                    </excludes>
+                                </resource>
+                                <resource>
+                                    <directory>${project.basedir}</directory>
+                                    <filtering>true</filtering>
+                                    <includes>
+                                        <include>bin/elasticsearch</include>
+                                        <include>bin/elasticsearch.in.sh</include>
+                                        <include>bin/plugin</include>
                                     </includes>
                                 </resource>
                             </resources>
@@ -833,14 +1041,16 @@
                     </execution>
                 </executions>
             </plugin>
+
+            <!-- Deb Packaging -->
             <plugin>
-                <!-- some infos https://github.com/tcurdt/jdeb/blob/master/docs/maven.md
-                -->
+                <!-- some infos https://github.com/tcurdt/jdeb/blob/master/docs/maven.md -->
                 <artifactId>jdeb</artifactId>
                 <groupId>org.vafer</groupId>
-                <version>1.0.1</version>
+                <version>1.4</version>
                 <configuration>
                     <deb>${project.build.directory}/releases/${project.artifactId}-${project.version}.deb</deb>
+                    <controlDir>${project.build.directory}/generated-packaging/deb/control</controlDir>
                 </configuration>
                 <executions>
                     <execution>
@@ -857,19 +1067,19 @@
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
-                                        <prefix>/usr/share/elasticsearch</prefix>
+                                        <prefix>${packaging.elasticsearch.home.dir}</prefix>
                                         <user>root</user>
                                         <group>root</group>
                                     </mapper>
                                 </data>
                                 <data>
                                     <!-- use the filtered one from the resources plugin -->
-                                    <src>${project.build.directory}/bin</src>
+                                    <src>${project.build.directory}/generated-packaging/deb/bin</src>
                                     <type>directory</type>
                                     <excludes>*.bat, .DS_Store, *.exe</excludes>
                                     <mapper>
                                         <type>perm</type>
-                                        <prefix>/usr/share/elasticsearch/bin</prefix>
+                                        <prefix>${packaging.elasticsearch.home.dir}/bin</prefix>
                                         <filemode>755</filemode>
                                         <user>root</user>
                                         <group>root</group>
@@ -881,7 +1091,7 @@
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
-                                        <prefix>/usr/share/elasticsearch/lib</prefix>
+                                        <prefix>${packaging.elasticsearch.home.dir}/lib</prefix>
                                         <user>root</user>
                                         <group>root</group>
                                     </mapper>
@@ -892,24 +1102,24 @@
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
-                                        <prefix>/usr/share/elasticsearch/lib/sigar</prefix>
+                                        <prefix>${packaging.elasticsearch.home.dir}/lib/sigar</prefix>
                                         <user>root</user>
                                         <group>root</group>
                                     </mapper>
                                 </data>
                                 <data>
                                     <src>${project.build.directory}/lib</src>
-                                    <includes>lucene*, log4j*, jna*, spatial4j*, jts*, groovy*</includes>
+                                    <includes>lucene*, *log4j*, jna*, spatial4j*, jts*, groovy*, antlr-runtime*, asm*</includes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
-                                        <prefix>/usr/share/elasticsearch/lib</prefix>
+                                        <prefix>${packaging.elasticsearch.home.dir}/lib</prefix>
                                         <user>root</user>
                                         <group>root</group>
                                     </mapper>
                                 </data>
                                 <data>
-                                    <src>${project.basedir}/src/deb/default/</src>
+                                    <src>${project.build.directory}/generated-packaging/deb/default/</src>
                                     <type>directory</type>
                                     <excludes>.DS_Store</excludes>
                                     <mapper>
@@ -920,7 +1130,7 @@
                                     </mapper>
                                 </data>
                                 <data>
-                                    <src>${project.basedir}/src/deb/init.d/</src>
+                                    <src>${project.build.directory}/generated-packaging/deb/init.d/</src>
                                     <type>directory</type>
                                     <excludes>.DS_Store</excludes>
                                     <mapper>
@@ -932,18 +1142,23 @@
                                     </mapper>
                                 </data>
                                 <data>
+                                    <src>${project.build.directory}/generated-packaging/deb/systemd/elasticsearch.service</src>
+                                    <dst>/usr/lib/systemd/system/elasticsearch.service</dst>
+                                    <type>file</type>
+                                </data>
+                                <data>
                                     <src>${project.basedir}/config</src>
                                     <type>directory</type>
                                     <excludes>.DS_Store</excludes>
                                     <mapper>
                                         <type>perm</type>
-                                        <prefix>/etc/elasticsearch</prefix>
+                                        <prefix>${packaging.elasticsearch.conf.dir}</prefix>
                                         <user>root</user>
                                         <group>root</group>
                                     </mapper>
                                 </data>
                                 <data>
-                                    <src>${project.basedir}/src/deb/lintian</src>
+                                    <src>${project.build.directory}/generated-packaging/deb/lintian</src>
                                     <type>directory</type>
                                     <excludes>.DS_Store</excludes>
                                     <mapper>
@@ -954,9 +1169,24 @@
                                     </mapper>
                                 </data>
                                 <data>
-                                    <src>${project.basedir}/src/deb/copyright</src>
+                                    <src>${project.build.directory}/generated-packaging/deb/copyright</src>
                                     <dst>/usr/share/doc/elasticsearch/copyright</dst>
                                     <type>file</type>
+                                </data>
+                                <!-- Adds and sets permission on default directories -->
+                                <data>
+                                    <type>template</type>
+                                    <paths>
+                                        <path>${packaging.elasticsearch.data.dir}</path>
+                                        <path>${packaging.elasticsearch.log.dir}</path>
+                                        <path>${packaging.elasticsearch.work.dir}</path>
+                                    </paths>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <dirmode>755</dirmode>
+                                        <user>${packaging.elasticsearch.user}</user>
+                                        <group>${packaging.elasticsearch.group}</group>
+                                    </mapper>
                                 </data>
                             </dataSet>
 
@@ -964,12 +1194,13 @@
                     </execution>
                 </executions>
             </plugin>
+
+            <!-- Rpm Packaging -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>rpm-maven-plugin</artifactId>
-                <version>2.1-alpha-3</version>
+                <version>2.1.2</version>
                 <configuration>
-                    <copyright>2013, Elasticsearch</copyright>
                     <distribution>Elasticsearch</distribution>
                     <group>Application/Internet</group>
                     <packager>Elasticsearch</packager>
@@ -985,7 +1216,7 @@
                     <defaultGroupname>root</defaultGroupname>
                     <mappings>
                         <mapping>
-                            <directory>/etc/elasticsearch/</directory>
+                            <directory>${packaging.elasticsearch.conf.dir}/</directory>
                             <configuration>noreplace</configuration>
                             <sources>
                                 <source>
@@ -1001,7 +1232,7 @@
                             <configuration>noreplace</configuration>
                             <sources>
                                 <source>
-                                    <location>src/rpm/sysconfig</location>
+                                    <location>${project.build.directory}/generated-packaging/rpm/sysconfig</location>
                                     <includes>
                                         <include>elasticsearch</include>
                                     </includes>
@@ -1014,7 +1245,7 @@
                             <configuration>true</configuration>
                             <sources>
                                 <source>
-                                    <location>src/rpm/init.d/elasticsearch</location>
+                                    <location>${project.build.directory}/generated-packaging/rpm/init.d/elasticsearch</location>
                                 </source>
                             </sources>
                         </mapping>
@@ -1024,7 +1255,7 @@
                             <configuration>true</configuration>
                             <sources>
                                 <source>
-                                    <location>src/rpm/systemd</location>
+                                    <location>${project.build.directory}/generated-packaging/rpm/systemd</location>
                                     <includes>
                                         <include>elasticsearch.service</include>
                                     </includes>
@@ -1037,7 +1268,7 @@
                             <configuration>true</configuration>
                             <sources>
                                 <source>
-                                    <location>src/rpm/systemd/sysctl.d</location>
+                                    <location>${project.build.directory}/generated-packaging/rpm/systemd/sysctl.d</location>
                                     <includes>
                                         <include>elasticsearch.conf</include>
                                     </includes>
@@ -1049,7 +1280,7 @@
                             <configuration>true</configuration>
                             <sources>
                                 <source>
-                                    <location>src/rpm/systemd/</location>
+                                    <location>${project.build.directory}/generated-packaging/rpm/systemd/</location>
                                     <includes>
                                         <include>elasticsearch.conf</include>
                                     </includes>
@@ -1057,29 +1288,29 @@
                             </sources>
                         </mapping>
                         <mapping>
-                            <directory>/var/run/elasticsearch/</directory>
+                            <directory>${packaging.elasticsearch.work.dir}/</directory>
                             <filemode>755</filemode>
-                            <username>elasticsearch</username>
-                            <groupname>elasticsearch</groupname>
+                            <username>${packaging.elasticsearch.user}</username>
+                            <username>${packaging.elasticsearch.group}</username>
                         </mapping>
                         <mapping>
-                            <directory>/var/lib/elasticsearch/</directory>
+                            <directory>${packaging.elasticsearch.data.dir}/</directory>
                             <filemode>755</filemode>
-                            <username>elasticsearch</username>
-                            <groupname>elasticsearch</groupname>
+                            <username>${packaging.elasticsearch.user}</username>
+                            <username>${packaging.elasticsearch.group}</username>
                         </mapping>
                         <mapping>
-                            <directory>/var/log/elasticsearch/</directory>
+                            <directory>${packaging.elasticsearch.log.dir}/</directory>
                             <filemode>755</filemode>
-                            <username>elasticsearch</username>
-                            <groupname>elasticsearch</groupname>
+                            <username>${packaging.elasticsearch.user}</username>
+                            <username>${packaging.elasticsearch.group}</username>
                         </mapping>
                         <mapping>
-                            <directory>/usr/share/elasticsearch/bin/</directory>
+                            <directory>${packaging.elasticsearch.home.dir}/bin/</directory>
                             <filemode>755</filemode>
                             <sources>
                                 <source>
-                                    <location>target/bin</location>
+                                    <location>${project.build.directory}/generated-packaging/rpm/bin</location>
                                     <includes>
                                         <include>elasticsearch</include>
                                         <include>elasticsearch.in.sh</include>
@@ -1089,17 +1320,19 @@
                             </sources>
                         </mapping>
                         <mapping>
-                            <directory>/usr/share/elasticsearch/lib</directory>
+                            <directory>${packaging.elasticsearch.home.dir}/lib</directory>
                             <sources>
                                 <source>
                                     <location>target/lib/</location>
                                     <includes>
                                         <include>lucene*</include>
-                                        <include>log4j*</include>
+                                        <include>*log4j*</include>
                                         <include>jna*</include>
                                         <include>spatial4j*</include>
                                         <include>jts*</include>
                                         <include>groovy*</include>
+                                        <include>antlr-runtime*</include>
+                                        <include>asm*</include>
                                     </includes>
                                 </source>
                                 <source>
@@ -1111,7 +1344,7 @@
                             </sources>
                         </mapping>
                         <mapping>
-                            <directory>/usr/share/elasticsearch/lib/sigar</directory>
+                            <directory>${packaging.elasticsearch.home.dir}/lib/sigar</directory>
                             <sources>
                                 <source>
                                     <location>lib/sigar</location>
@@ -1123,7 +1356,7 @@
                             </sources>
                         </mapping>
                         <mapping>
-                            <directory>/usr/share/elasticsearch/</directory>
+                            <directory>${packaging.elasticsearch.home.dir}</directory>
                             <sources>
                                 <source>
                                     <location>.</location>
@@ -1135,29 +1368,49 @@
                                 </source>
                             </sources>
                         </mapping>
+                        <!-- Add and sets permission on default directories -->
+                        <mapping>
+                            <directory>${packaging.elasticsearch.data.dir}</directory>
+                            <filemode>755</filemode>
+                            <username>${packaging.elasticsearch.user}</username>
+                            <groupname>${packaging.elasticsearch.group}</groupname>
+                        </mapping>
+                        <mapping>
+                            <directory>${packaging.elasticsearch.log.dir}</directory>
+                            <filemode>755</filemode>
+                            <username>${packaging.elasticsearch.user}</username>
+                            <groupname>${packaging.elasticsearch.group}</groupname>
+                        </mapping>
+                        <mapping>
+                            <directory>${packaging.elasticsearch.work.dir}</directory>
+                            <filemode>755</filemode>
+                            <username>${packaging.elasticsearch.user}</username>
+                            <groupname>${packaging.elasticsearch.group}</groupname>
+                        </mapping>
                     </mappings>
                     <preinstallScriptlet>
-                        <scriptFile>src/rpm/scripts/preinstall</scriptFile>
+                        <scriptFile>${project.build.directory}/generated-packaging/rpm/scripts/preinstall</scriptFile>
                         <fileEncoding>utf-8</fileEncoding>
                     </preinstallScriptlet>
                     <postinstallScriptlet>
-                        <scriptFile>src/rpm/scripts/postinstall</scriptFile>
+                        <scriptFile>${project.build.directory}/generated-packaging/rpm/scripts/postinstall</scriptFile>
                         <fileEncoding>utf-8</fileEncoding>
                     </postinstallScriptlet>
                     <preremoveScriptlet>
-                        <scriptFile>src/rpm/scripts/preremove</scriptFile>
+                        <scriptFile>${project.build.directory}/generated-packaging/rpm/scripts/preremove</scriptFile>
                         <fileEncoding>utf-8</fileEncoding>
                     </preremoveScriptlet>
                     <postremoveScriptlet>
-                        <scriptFile>src/rpm/scripts/postremove</scriptFile>
+                        <scriptFile>${project.build.directory}/generated-packaging/rpm/scripts/postremove</scriptFile>
                         <fileEncoding>utf-8</fileEncoding>
                     </postremoveScriptlet>
                 </configuration>
             </plugin>
+
             <plugin>
                 <groupId>de.thetaphi</groupId>
                 <artifactId>forbiddenapis</artifactId>
-                <version>1.6.1</version>
+                <version>1.7</version>
 
                 <executions>
                     <execution>
@@ -1174,7 +1427,7 @@
                                 <exclude>org/elasticsearch/common/logging/log4j/ConsoleAppender*</exclude>
                                 <exclude>org/elasticsearch/common/http/client/HttpDownloadHelper*</exclude>
                                 <exclude>org/elasticsearch/common/cli/Terminal*</exclude>
-                                <exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
+                                <exclude>org/elasticsearch/plugins/PluginManager$SysOut.class</exclude>
                                 <exclude>org/elasticsearch/common/http/client/HttpDownloadHelper.class</exclude>
                                 <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
                                 <exclude>org/elasticsearch/Version.class</exclude>
@@ -1183,7 +1436,7 @@
                                 <!-- start excludes for Math.abs -->
                                 <exclude>org/elasticsearch/common/util/MathUtils.class</exclude>
                                 <exclude>org/elasticsearch/common/math/UnboxedMathUtils.class</exclude>
-                                <exclude>org/elasticsearch/cluster/routing/operation/plain/PlainOperationRouting.class</exclude>
+                                <exclude>org/elasticsearch/cluster/routing/OperationRouting.class</exclude>
                                 <!-- end excludes for Math.abs -->
                                 <!-- start exclude for FilteredQuery -->
                                 <exclude>org/elasticsearch/common/lucene/search/XFilteredQuery.class</exclude>
@@ -1194,6 +1447,9 @@
                                 <!-- start exclude for Lucene utility class -->
                                 <exclude>org/elasticsearch/common/lucene/Lucene$LenientParser.class</exclude>
                                 <!-- end exclude for Lucene -->
+                                <!-- start exclude for Future utility class -->
+                                <exclude>org/elasticsearch/common/util/concurrent/FutureUtils.class</exclude>
+                                <!-- end exclude for Future utility class -->
                             </excludes>
                             <bundledSignatures>
                                 <!-- This will automatically choose the right signatures based on 'targetVersion': -->
@@ -1202,8 +1458,8 @@
                                 <bundledSignature>jdk-system-out</bundledSignature>
                             </bundledSignatures>
                             <signaturesFiles>
-                                <signaturesFile>core-signatures.txt</signaturesFile>
-                                <signaturesFile>all-signatures.txt</signaturesFile>
+                                <signaturesFile>dev-tools/forbidden/core-signatures.txt</signaturesFile>
+                                <signaturesFile>dev-tools/forbidden/all-signatures.txt</signaturesFile>
                             </signaturesFiles>
                             <signatures>${forbidden.signatures}</signatures>
                         </configuration>
@@ -1229,10 +1485,14 @@
                                 <!-- start exclude for test GC simulation using Thread.suspend -->
                                 <exclude>org/elasticsearch/test/disruption/LongGCDisruption.class</exclude>
                                 <!-- end exclude for GC simulation  -->
+                                <!-- start exclude for java.io.File bridging -->
+                                <exclude>org/elasticsearch/test/ExternalNode.class</exclude>
+                                <exclude>org/elasticsearch/test/ElasticsearchTestCase.class</exclude>
+                                <!-- end exclude for java.io.File bridging -->
                             </excludes>
                             <signaturesFiles>
-                                <signaturesFile>test-signatures.txt</signaturesFile>
-                                <signaturesFile>all-signatures.txt</signaturesFile>
+                                <signaturesFile>dev-tools/forbidden/test-signatures.txt</signaturesFile>
+                                <signaturesFile>dev-tools/forbidden/all-signatures.txt</signaturesFile>
                             </signaturesFiles>
                             <signatures>${forbidden.test.signatures}</signatures>
                         </configuration>
@@ -1265,6 +1525,8 @@
                             <excludes>
                                 <!-- unit tests for yaml suite parser & rest spec parser need to be excluded -->
                                 <exclude>org/elasticsearch/test/rest/test/**/*</exclude>
+                                <!-- unit tests for test framework classes-->
+                                <exclude>org/elasticsearch/test/test/**/*</exclude>
                             </excludes>
                         </configuration>
                     </execution>
@@ -1338,6 +1600,45 @@
                                         <execute/>
                                     </action>
                                 </pluginExecution>
+                                <pluginExecution>
+                                    <pluginExecutionFilter>
+                                        <groupId>org.apache.maven.plugins</groupId>
+                                        <artifactId>maven-antrun-plugin</artifactId>
+                                        <versionRange>[1.0.0,)</versionRange>
+                                        <goals>
+                                            <goal>run</goal>
+                                        </goals>
+                                    </pluginExecutionFilter>
+                                    <action>
+                                        <execute/>
+                                    </action>
+                                </pluginExecution>
+                                <pluginExecution>
+                                    <pluginExecutionFilter>
+                                        <groupId>org.apache.maven.plugins</groupId>
+                                        <artifactId>maven-resources-plugin</artifactId>
+                                        <versionRange>[1.0.0,)</versionRange>
+                                        <goals>
+                                            <goal>copy-resources</goal>
+                                        </goals>
+                                    </pluginExecutionFilter>
+                                    <action>
+                                        <ignore/>
+                                    </action>
+                                </pluginExecution>
+                                <pluginExecution>
+                                    <pluginExecutionFilter>
+                                        <groupId>com.mycila</groupId>
+                                        <artifactId>license-maven-plugin</artifactId>
+                                        <versionRange>[1.0.0,)</versionRange>
+                                        <goals>
+                                            <goal>check</goal>
+                                        </goals>
+                                    </pluginExecutionFilter>
+                                    <action>
+                                        <ignore/>
+                                    </action>
+                                </pluginExecution>
                             </pluginExecutions>
                         </lifecycleMappingMetadata>
                     </configuration>
@@ -1383,17 +1684,18 @@
                                 <include>src/test/java/org/elasticsearch/**/*.java</include>
                             </includes>
                             <excludes>
-                                <exclude>src/main/java/org/elasticsearch/common/inject/**</exclude>
                                 <!-- Guice -->
+                                <exclude>src/main/java/org/elasticsearch/common/inject/**</exclude>
                                 <exclude>src/main/java/org/elasticsearch/common/geo/GeoHashUtils.java</exclude>
                                 <exclude>src/main/java/org/elasticsearch/common/lucene/search/XBooleanFilter.java</exclude>
                                 <exclude>src/main/java/org/elasticsearch/common/lucene/search/XFilteredQuery.java</exclude>
                                 <exclude>src/main/java/org/apache/lucene/queryparser/XSimpleQueryParser.java</exclude>
                                 <exclude>src/main/java/org/apache/lucene/**/X*.java</exclude>
                                 <!-- t-digest -->
-                                <exclude>src/main/java/org/elasticsearch/search/aggregations/metrics/percentiles/tdigest/TDigestState.java
-                                </exclude>
+                                <exclude>src/main/java/org/elasticsearch/search/aggregations/metrics/percentiles/tdigest/TDigestState.java</exclude>
                                 <exclude>src/test/java/org/elasticsearch/search/aggregations/metrics/GroupTree.java</exclude>
+                                <!-- netty pipelining -->
+                                <exclude>src/main/java/org/elasticsearch/http/netty/pipelining/**</exclude>
                             </excludes>
                         </configuration>
                         <executions>

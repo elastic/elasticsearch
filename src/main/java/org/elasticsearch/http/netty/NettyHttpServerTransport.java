@@ -37,6 +37,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.http.*;
+import org.elasticsearch.http.netty.pipelining.HttpPipeliningHandler;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.transport.BindTransportException;
 import org.jboss.netty.bootstrap.ServerBootstrap;
@@ -46,7 +47,6 @@ import org.jboss.netty.channel.socket.oio.OioServerSocketChannelFactory;
 import org.jboss.netty.handler.codec.http.HttpChunkAggregator;
 import org.jboss.netty.handler.codec.http.HttpContentCompressor;
 import org.jboss.netty.handler.codec.http.HttpRequestDecoder;
-import org.jboss.netty.handler.codec.http.HttpResponseEncoder;
 import org.jboss.netty.handler.timeout.ReadTimeoutException;
 
 import java.io.IOException;
@@ -73,51 +73,67 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     public static final String SETTING_CORS_ALLOW_METHODS = "http.cors.allow-methods";
     public static final String SETTING_CORS_ALLOW_HEADERS = "http.cors.allow-headers";
     public static final String SETTING_CORS_ALLOW_CREDENTIALS = "http.cors.allow-credentials";
+    public static final String SETTING_PIPELINING = "http.pipelining";
+    public static final String SETTING_PIPELINING_MAX_EVENTS = "http.pipelining.max_events";
+    public static final String SETTING_HTTP_COMPRESSION = "http.compression";
+    public static final String SETTING_HTTP_COMPRESSION_LEVEL = "http.compression_level";
+    public static final String SETTING_HTTP_DETAILED_ERRORS_ENABLED = "http.detailed_errors.enabled";
 
-    private final NetworkService networkService;
-    final BigArrays bigArrays;
+    public static final boolean DEFAULT_SETTING_PIPELINING = true;
+    public static final int DEFAULT_SETTING_PIPELINING_MAX_EVENTS = 10000;
 
-    final ByteSizeValue maxContentLength;
-    final ByteSizeValue maxInitialLineLength;
-    final ByteSizeValue maxHeaderSize;
-    final ByteSizeValue maxChunkSize;
+    protected final NetworkService networkService;
+    protected final BigArrays bigArrays;
 
-    private final int workerCount;
+    protected final ByteSizeValue maxContentLength;
+    protected final ByteSizeValue maxInitialLineLength;
+    protected final ByteSizeValue maxHeaderSize;
+    protected final ByteSizeValue maxChunkSize;
 
-    private final boolean blockingServer;
+    protected final int workerCount;
 
-    final boolean compression;
+    protected final boolean blockingServer;
 
-    private final int compressionLevel;
+    protected final boolean pipelining;
 
-    final boolean resetCookies;
+    protected final int pipeliningMaxEvents;
 
-    private final String port;
+    protected final boolean compression;
 
-    private final String bindHost;
+    protected final int compressionLevel;
 
-    private final String publishHost;
+    protected final boolean resetCookies;
 
-    private final String tcpNoDelay;
-    private final String tcpKeepAlive;
-    private final Boolean reuseAddress;
+    protected final String port;
 
-    private final ByteSizeValue tcpSendBufferSize;
-    private final ByteSizeValue tcpReceiveBufferSize;
-    private final ReceiveBufferSizePredictorFactory receiveBufferSizePredictorFactory;
+    protected final String bindHost;
 
-    final ByteSizeValue maxCumulationBufferCapacity;
-    final int maxCompositeBufferComponents;
+    protected final String publishHost;
 
-    private volatile ServerBootstrap serverBootstrap;
+    protected final boolean detailedErrorsEnabled;
 
-    private volatile BoundTransportAddress boundAddress;
+    protected int publishPort;
 
-    private volatile Channel serverChannel;
+    protected final String tcpNoDelay;
+    protected final String tcpKeepAlive;
+    protected final Boolean reuseAddress;
 
-    OpenChannelsHandler serverOpenChannels;
+    protected final ByteSizeValue tcpSendBufferSize;
+    protected final ByteSizeValue tcpReceiveBufferSize;
+    protected final ReceiveBufferSizePredictorFactory receiveBufferSizePredictorFactory;
 
-    private volatile HttpServerAdapter httpServerAdapter;
+    protected final ByteSizeValue maxCumulationBufferCapacity;
+    protected final int maxCompositeBufferComponents;
+
+    protected volatile ServerBootstrap serverBootstrap;
+
+    protected volatile BoundTransportAddress boundAddress;
+
+    protected volatile Channel serverChannel;
+
+    protected OpenChannelsHandler serverOpenChannels;
+
+    protected volatile HttpServerAdapter httpServerAdapter;
 
     @Inject
     public NettyHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays) {
@@ -129,25 +145,27 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
             System.setProperty("org.jboss.netty.epollBugWorkaround", "true");
         }
 
-        ByteSizeValue maxContentLength = componentSettings.getAsBytesSize("max_content_length", settings.getAsBytesSize("http.max_content_length", new ByteSizeValue(100, ByteSizeUnit.MB)));
-        this.maxChunkSize = componentSettings.getAsBytesSize("max_chunk_size", settings.getAsBytesSize("http.max_chunk_size", new ByteSizeValue(8, ByteSizeUnit.KB)));
-        this.maxHeaderSize = componentSettings.getAsBytesSize("max_header_size", settings.getAsBytesSize("http.max_header_size", new ByteSizeValue(8, ByteSizeUnit.KB)));
-        this.maxInitialLineLength = componentSettings.getAsBytesSize("max_initial_line_length", settings.getAsBytesSize("http.max_initial_line_length", new ByteSizeValue(4, ByteSizeUnit.KB)));
+        ByteSizeValue maxContentLength = settings.getAsBytesSize("http.netty.max_content_length", settings.getAsBytesSize("http.max_content_length", new ByteSizeValue(100, ByteSizeUnit.MB)));
+        this.maxChunkSize = settings.getAsBytesSize("http.netty.max_chunk_size", settings.getAsBytesSize("http.max_chunk_size", new ByteSizeValue(8, ByteSizeUnit.KB)));
+        this.maxHeaderSize = settings.getAsBytesSize("http.netty.max_header_size", settings.getAsBytesSize("http.max_header_size", new ByteSizeValue(8, ByteSizeUnit.KB)));
+        this.maxInitialLineLength = settings.getAsBytesSize("http.netty.max_initial_line_length", settings.getAsBytesSize("http.max_initial_line_length", new ByteSizeValue(4, ByteSizeUnit.KB)));
         // don't reset cookies by default, since I don't think we really need to
         // note, parsing cookies was fixed in netty 3.5.1 regarding stack allocation, but still, currently, we don't need cookies
-        this.resetCookies = componentSettings.getAsBoolean("reset_cookies", settings.getAsBoolean("http.reset_cookies", false));
-        this.maxCumulationBufferCapacity = componentSettings.getAsBytesSize("max_cumulation_buffer_capacity", null);
-        this.maxCompositeBufferComponents = componentSettings.getAsInt("max_composite_buffer_components", -1);
-        this.workerCount = componentSettings.getAsInt("worker_count", EsExecutors.boundedNumberOfProcessors(settings) * 2);
-        this.blockingServer = settings.getAsBoolean("http.blocking_server", settings.getAsBoolean(TCP_BLOCKING_SERVER, settings.getAsBoolean(TCP_BLOCKING, false)));
-        this.port = componentSettings.get("port", settings.get("http.port", "9200-9300"));
-        this.bindHost = componentSettings.get("bind_host", settings.get("http.bind_host", settings.get("http.host")));
-        this.publishHost = componentSettings.get("publish_host", settings.get("http.publish_host", settings.get("http.host")));
-        this.tcpNoDelay = componentSettings.get("tcp_no_delay", settings.get(TCP_NO_DELAY, "true"));
-        this.tcpKeepAlive = componentSettings.get("tcp_keep_alive", settings.get(TCP_KEEP_ALIVE, "true"));
-        this.reuseAddress = componentSettings.getAsBoolean("reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
-        this.tcpSendBufferSize = componentSettings.getAsBytesSize("tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
-        this.tcpReceiveBufferSize = componentSettings.getAsBytesSize("tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, TCP_DEFAULT_RECEIVE_BUFFER_SIZE));
+        this.resetCookies = settings.getAsBoolean("http.netty.reset_cookies", settings.getAsBoolean("http.reset_cookies", false));
+        this.maxCumulationBufferCapacity = settings.getAsBytesSize("http.netty.max_cumulation_buffer_capacity", null);
+        this.maxCompositeBufferComponents = settings.getAsInt("http.netty.max_composite_buffer_components", -1);
+        this.workerCount = settings.getAsInt("http.netty.worker_count", EsExecutors.boundedNumberOfProcessors(settings) * 2);
+        this.blockingServer = settings.getAsBoolean("http.netty.http.blocking_server", settings.getAsBoolean(TCP_BLOCKING_SERVER, settings.getAsBoolean(TCP_BLOCKING, false)));
+        this.port = settings.get("http.netty.port", settings.get("http.port", "9200-9300"));
+        this.bindHost = settings.get("http.netty.bind_host", settings.get("http.bind_host", settings.get("http.host")));
+        this.publishHost = settings.get("http.netty.publish_host", settings.get("http.publish_host", settings.get("http.host")));
+        this.publishPort = settings.getAsInt("http.netty.publish_port", settings.getAsInt("http.publish_port", 0));
+        this.tcpNoDelay = settings.get("http.netty.tcp_no_delay", settings.get(TCP_NO_DELAY, "true"));
+        this.tcpKeepAlive = settings.get("http.netty.tcp_keep_alive", settings.get(TCP_KEEP_ALIVE, "true"));
+        this.reuseAddress = settings.getAsBoolean("http.netty.reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
+        this.tcpSendBufferSize = settings.getAsBytesSize("http.netty.tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
+        this.tcpReceiveBufferSize = settings.getAsBytesSize("http.netty.tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, TCP_DEFAULT_RECEIVE_BUFFER_SIZE));
+        this.detailedErrorsEnabled = settings.getAsBoolean(SETTING_HTTP_DETAILED_ERRORS_ENABLED, true);
 
         long defaultReceiverPredictor = 512 * 1024;
         if (JvmInfo.jvmInfo().mem().directMemoryMax().bytes() > 0) {
@@ -157,16 +175,18 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         }
 
         // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
-        ByteSizeValue receivePredictorMin = componentSettings.getAsBytesSize("receive_predictor_min", componentSettings.getAsBytesSize("receive_predictor_size", new ByteSizeValue(defaultReceiverPredictor)));
-        ByteSizeValue receivePredictorMax = componentSettings.getAsBytesSize("receive_predictor_max", componentSettings.getAsBytesSize("receive_predictor_size", new ByteSizeValue(defaultReceiverPredictor)));
+        ByteSizeValue receivePredictorMin = settings.getAsBytesSize("http.netty.receive_predictor_min", settings.getAsBytesSize("http.netty.receive_predictor_size", new ByteSizeValue(defaultReceiverPredictor)));
+        ByteSizeValue receivePredictorMax = settings.getAsBytesSize("http.netty.receive_predictor_max", settings.getAsBytesSize("http.netty.receive_predictor_size", new ByteSizeValue(defaultReceiverPredictor)));
         if (receivePredictorMax.bytes() == receivePredictorMin.bytes()) {
             receiveBufferSizePredictorFactory = new FixedReceiveBufferSizePredictorFactory((int) receivePredictorMax.bytes());
         } else {
             receiveBufferSizePredictorFactory = new AdaptiveReceiveBufferSizePredictorFactory((int) receivePredictorMin.bytes(), (int) receivePredictorMin.bytes(), (int) receivePredictorMax.bytes());
         }
 
-        this.compression = settings.getAsBoolean("http.compression", false);
-        this.compressionLevel = settings.getAsInt("http.compression_level", 6);
+        this.compression = settings.getAsBoolean(SETTING_HTTP_COMPRESSION, false);
+        this.compressionLevel = settings.getAsInt(SETTING_HTTP_COMPRESSION_LEVEL, 6);
+        this.pipelining = settings.getAsBoolean(SETTING_PIPELINING, DEFAULT_SETTING_PIPELINING);
+        this.pipeliningMaxEvents = settings.getAsInt(SETTING_PIPELINING_MAX_EVENTS, DEFAULT_SETTING_PIPELINING_MAX_EVENTS);
 
         // validate max content length
         if (maxContentLength.bytes() > Integer.MAX_VALUE) {
@@ -175,14 +195,15 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         }
         this.maxContentLength = maxContentLength;
 
-        logger.debug("using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}], receive_predictor[{}->{}]",
-                maxChunkSize, maxHeaderSize, maxInitialLineLength, this.maxContentLength, receivePredictorMin, receivePredictorMax);
+        logger.debug("using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}], receive_predictor[{}->{}], pipelining[{}], pipelining_max_events[{}]",
+                maxChunkSize, maxHeaderSize, maxInitialLineLength, this.maxContentLength, receivePredictorMin, receivePredictorMax, pipelining, pipeliningMaxEvents);
     }
 
     public Settings settings() {
         return this.settings;
     }
 
+    @Override
     public void httpServerAdapter(HttpServerAdapter httpServerAdapter) {
         this.httpServerAdapter = httpServerAdapter;
     }
@@ -253,8 +274,11 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
         InetSocketAddress boundAddress = (InetSocketAddress) serverChannel.getLocalAddress();
         InetSocketAddress publishAddress;
+        if (0 == publishPort) {
+            publishPort = boundAddress.getPort();
+        }
         try {
-            publishAddress = new InetSocketAddress(networkService.resolvePublishHostAddress(publishHost), boundAddress.getPort());
+            publishAddress = new InetSocketAddress(networkService.resolvePublishHostAddress(publishHost), publishPort);
         } catch (Exception e) {
             throw new BindTransportException("Failed to resolve publish address", e);
         }
@@ -283,6 +307,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     protected void doClose() throws ElasticsearchException {
     }
 
+    @Override
     public BoundTransportAddress boundAddress() {
         return this.boundAddress;
     }
@@ -302,11 +327,11 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         return new HttpStats(channels == null ? 0 : channels.numberOfOpenChannels(), channels == null ? 0 : channels.totalChannels());
     }
 
-    void dispatchRequest(HttpRequest request, HttpChannel channel) {
+    protected void dispatchRequest(HttpRequest request, HttpChannel channel) {
         httpServerAdapter.dispatchRequest(request, channel);
     }
 
-    void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
+    protected void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
         if (e.getCause() instanceof ReadTimeoutException) {
             if (logger.isTraceEnabled()) {
                 logger.trace("Connection timeout [{}]", ctx.getChannel().getRemoteAddress());
@@ -328,7 +353,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     }
 
     public ChannelPipelineFactory configureServerChannelPipelineFactory() {
-        return new HttpChannelPipelineFactory(this);
+        return new HttpChannelPipelineFactory(this, detailedErrorsEnabled);
     }
 
     protected static class HttpChannelPipelineFactory implements ChannelPipelineFactory {
@@ -336,9 +361,9 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         protected final NettyHttpServerTransport transport;
         protected final HttpRequestHandler requestHandler;
 
-        public HttpChannelPipelineFactory(NettyHttpServerTransport transport) {
+        public HttpChannelPipelineFactory(NettyHttpServerTransport transport, boolean detailedErrorsEnabled) {
             this.transport = transport;
-            this.requestHandler = new HttpRequestHandler(transport);
+            this.requestHandler = new HttpRequestHandler(transport, detailedErrorsEnabled);
         }
 
         @Override
@@ -367,9 +392,12 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
                 httpChunkAggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             }
             pipeline.addLast("aggregator", httpChunkAggregator);
-            pipeline.addLast("encoder", new HttpResponseEncoder());
+            pipeline.addLast("encoder", new ESHttpResponseEncoder());
             if (transport.compression) {
                 pipeline.addLast("encoder_compress", new HttpContentCompressor(transport.compressionLevel));
+            }
+            if (transport.pipelining) {
+                pipeline.addLast("pipelining", new HttpPipeliningHandler(transport.pipeliningMaxEvents));
             }
             pipeline.addLast("handler", requestHandler);
             return pipeline;

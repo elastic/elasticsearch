@@ -28,7 +28,6 @@ import org.apache.lucene.util.AttributeSource;
 import org.elasticsearch.common.io.Streams;
 
 import java.io.IOException;
-import java.io.Reader;
 import java.util.Iterator;
 
 /**
@@ -51,8 +50,8 @@ public abstract class NumericTokenizer extends Tokenizer {
     protected final Object extra;
     private boolean started;
 
-    protected NumericTokenizer(Reader reader, NumericTokenStream numericTokenStream, char[] buffer, Object extra) throws IOException {
-        super(delegatingAttributeFactory(numericTokenStream), reader);
+    protected NumericTokenizer(NumericTokenStream numericTokenStream, char[] buffer, Object extra) throws IOException {
+        super(delegatingAttributeFactory(numericTokenStream));
         this.numericTokenStream = numericTokenStream;
         // Add attributes from the numeric token stream, this works fine because the attribute factory delegates to numericTokenStream
         for (Iterator<Class<? extends Attribute>> it = numericTokenStream.getAttributeClassesIterator(); it.hasNext();) {

@@ -113,12 +113,6 @@ public class NettyHttpRequest extends HttpRequest {
     }
 
     @Override
-    public boolean contentUnsafe() {
-        // Netty http decoder always copies over the http content
-        return false;
-    }
-
-    @Override
     public BytesReference content() {
         return content;
     }
@@ -143,6 +137,10 @@ public class NettyHttpRequest extends HttpRequest {
     @Override
     public SocketAddress getLocalAddress() {
         return channel.getLocalAddress();
+    }
+
+    public Channel getChannel() {
+        return channel;
     }
 
     @Override

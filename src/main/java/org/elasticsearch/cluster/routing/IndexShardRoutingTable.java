@@ -53,6 +53,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     final ImmutableList<ShardRouting> shards;
     final ImmutableList<ShardRouting> activeShards;
     final ImmutableList<ShardRouting> assignedShards;
+    final boolean allShardsStarted;
 
     /**
      * The initializing list, including ones that are initializing on a target node because of relocation.
@@ -73,7 +74,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         ImmutableList.Builder<ShardRouting> activeShards = ImmutableList.builder();
         ImmutableList.Builder<ShardRouting> assignedShards = ImmutableList.builder();
         ImmutableList.Builder<ShardRouting> allInitializingShards = ImmutableList.builder();
-
+        boolean allShardsStarted = true;
         for (ShardRouting shard : shards) {
             if (shard.primary()) {
                 primary = shard;
@@ -93,7 +94,11 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             if (shard.assignedToNode()) {
                 assignedShards.add(shard);
             }
+            if (shard.state() != ShardRoutingState.STARTED) {
+                allShardsStarted = false;
+            }
         }
+        this.allShardsStarted = allShardsStarted;
 
         this.primary = primary;
         if (primary != null) {
@@ -240,22 +245,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return this.assignedShards;
     }
 
-    /**
-     * Returns the number of shards in a specific state
-     *
-     * @param state state of the shards to count
-     * @return number of shards in <code>state</code>
-     */
-    public int countWithState(ShardRoutingState state) {
-        int count = 0;
-        for (ShardRouting shard : this) {
-            if (state == shard.state()) {
-                count++;
-            }
-        }
-        return count;
-    }
-
     public ShardIterator shardsRandomIt() {
         return new PlainShardIterator(shardId, shuffler.shuffle(shards));
     }
@@ -266,18 +255,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     public ShardIterator shardsIt(int seed) {
         return new PlainShardIterator(shardId, shuffler.shuffle(shards, seed));
-    }
-
-    public ShardIterator activeShardsRandomIt() {
-        return new PlainShardIterator(shardId, shuffler.shuffle(activeShards));
-    }
-
-    public ShardIterator activeShardsIt() {
-        return new PlainShardIterator(shardId, activeShards);
-    }
-
-    public ShardIterator activeShardsIt(int seed) {
-        return new PlainShardIterator(shardId, shuffler.shuffle(activeShards, seed));
     }
 
     /**
@@ -300,18 +277,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         ordered.addAll(shuffler.shuffle(activeShards, seed));
         ordered.addAll(allInitializingShards);
         return new PlainShardIterator(shardId, ordered);
-    }
-
-    public ShardIterator assignedShardsRandomIt() {
-        return new PlainShardIterator(shardId, shuffler.shuffle(assignedShards));
-    }
-
-    public ShardIterator assignedShardsIt() {
-        return new PlainShardIterator(shardId, assignedShards);
-    }
-
-    public ShardIterator assignedShardsIt(int seed) {
-        return new PlainShardIterator(shardId, shuffler.shuffle(assignedShards, seed));
     }
 
     /**
@@ -380,6 +345,13 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             ordered.addAll(allInitializingShards);
         }
         return new PlainShardIterator(shardId, ordered);
+    }
+
+    /**
+     * Returns <code>true</code> iff all shards in the routing table are started otherwise <code>false</code>
+     */
+    public boolean allShardsStarted() {
+        return allShardsStarted;
     }
 
     static class AttributesKey {
@@ -504,13 +476,14 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return shards;
     }
 
-    public List<ShardRouting> shardsWithState(ShardRoutingState... states) {
+    public List<ShardRouting> shardsWithState(ShardRoutingState state) {
+        if (state == ShardRoutingState.INITIALIZING) {
+            return allInitializingShards;
+        }
         List<ShardRouting> shards = newArrayList();
         for (ShardRouting shardEntry : this) {
-            for (ShardRoutingState state : states) {
-                if (shardEntry.state() == state) {
-                    shards.add(shardEntry);
-                }
+            if (shardEntry.state() == state) {
+                shards.add(shardEntry);
             }
         }
         return shards;

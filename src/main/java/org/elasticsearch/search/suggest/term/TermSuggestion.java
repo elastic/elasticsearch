@@ -90,6 +90,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         this.sort = sort;
     }
 
+    @Override
     public int getType() {
         return TYPE;
     }
@@ -118,6 +119,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         out.writeByte(sort.id());
     }
 
+    @Override
     protected Entry newEntry() {
         return new Entry();
     }

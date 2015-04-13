@@ -91,6 +91,7 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
     }
 
     /** Change the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */
+    @Override
     public void resize(long newSize) {
         final int numPages = numPages(newSize);
         if (numPages > pages.length) {

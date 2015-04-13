@@ -21,7 +21,6 @@ package org.elasticsearch.node;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.internal.InternalNode;
 
 /**
  * A node builder is used to construct a {@link Node} instance.
@@ -156,7 +155,7 @@ public class NodeBuilder {
      * Builds the node without starting it.
      */
     public Node build() {
-        return new InternalNode(settings.build(), loadConfigSettings);
+        return new Node(settings.build(), loadConfigSettings);
     }
 
     /**

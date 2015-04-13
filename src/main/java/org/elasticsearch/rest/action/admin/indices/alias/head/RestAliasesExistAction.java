@@ -39,8 +39,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestAliasesExistAction extends BaseRestHandler {
 
     @Inject
-    public RestAliasesExistAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestAliasesExistAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(HEAD, "/_alias/{name}", this);
         controller.registerHandler(HEAD, "/{index}/_alias/{name}", this);
         controller.registerHandler(HEAD, "/{index}/_alias", this);

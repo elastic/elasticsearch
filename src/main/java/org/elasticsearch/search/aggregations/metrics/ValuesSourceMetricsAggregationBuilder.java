@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -33,6 +34,7 @@ public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSour
     private String field;
     private String script;
     private String lang;
+    private String format;
     private Map<String, Object> params;
 
     protected ValuesSourceMetricsAggregationBuilder(String name, String type) {
@@ -54,6 +56,12 @@ public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSour
     @SuppressWarnings("unchecked")
     public B lang(String lang) {
         this.lang = lang;
+        return (B) this;
+    }
+
+    @SuppressWarnings("unchecked")
+    public B format(String format) {
+        this.format = format;
         return (B) this;
     }
 
@@ -88,6 +96,10 @@ public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSour
 
         if (lang != null) {
             builder.field("lang", lang);
+        }
+
+        if (format != null) {
+            builder.field("format", format);
         }
 
         if (this.params != null && !this.params.isEmpty()) {

@@ -37,9 +37,11 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.EOFException;
-import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.nio.channels.FileChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 
 public class PagedBytesReferenceTest extends ElasticsearchTestCase {
@@ -48,12 +50,14 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
 
     private BigArrays bigarrays;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
         bigarrays = new BigArrays(ImmutableSettings.EMPTY, null, new NoneCircuitBreakerService());
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();
@@ -259,12 +263,12 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
     public void testWriteToChannel() throws IOException {
         int length = randomIntBetween(10, PAGE_SIZE * 4);
         BytesReference pbr = getRandomizedPagedBytesReference(length);
-        File tFile = newTempFile();
-        try (RandomAccessFile file = new RandomAccessFile(tFile, "rw")) {
-            pbr.writeTo(file.getChannel());
-            assertEquals(pbr.length(), file.length());
-            assertArrayEquals(pbr.toBytes(), Streams.copyToByteArray(tFile));
+        Path tFile = newTempFilePath();
+        try (FileChannel channel = FileChannel.open(tFile, StandardOpenOption.WRITE)) {
+            pbr.writeTo(channel);
+            assertEquals(pbr.length(), channel.position());
         }
+        assertArrayEquals(pbr.toBytes(), Files.readAllBytes(tFile));
     }
 
     public void testSliceWriteToOutputStream() throws IOException {
@@ -286,12 +290,12 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         int sliceOffset = randomIntBetween(1, length / 2);
         int sliceLength = length - sliceOffset;
         BytesReference slice = pbr.slice(sliceOffset, sliceLength);
-        File tFile = newTempFile();
-        try (RandomAccessFile file = new RandomAccessFile(tFile, "rw")) {
-            slice.writeTo(file.getChannel());
-            assertEquals(slice.length(), file.length());
-            assertArrayEquals(slice.toBytes(), Streams.copyToByteArray(tFile));
+        Path tFile = newTempFilePath();
+        try (FileChannel channel = FileChannel.open(tFile, StandardOpenOption.WRITE)) {
+            slice.writeTo(channel);
+            assertEquals(slice.length(), channel.position());
         }
+        assertArrayEquals(slice.toBytes(), Files.readAllBytes(tFile));
     }
 
     public void testToBytes() {

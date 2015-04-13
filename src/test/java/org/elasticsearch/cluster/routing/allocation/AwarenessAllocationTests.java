@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -54,7 +55,7 @@ public class AwarenessAllocationTests extends ElasticsearchAllocationTestCase {
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded1'");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -123,7 +124,7 @@ public class AwarenessAllocationTests extends ElasticsearchAllocationTestCase {
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded2'");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -198,7 +199,7 @@ public class AwarenessAllocationTests extends ElasticsearchAllocationTestCase {
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded3'");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(5).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -296,8 +297,8 @@ public class AwarenessAllocationTests extends ElasticsearchAllocationTestCase {
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded4'");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test1").numberOfShards(5).numberOfReplicas(1))
-                .put(IndexMetaData.builder("test2").numberOfShards(5).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -390,7 +391,7 @@ public class AwarenessAllocationTests extends ElasticsearchAllocationTestCase {
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded5'");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(2))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -469,7 +470,7 @@ public class AwarenessAllocationTests extends ElasticsearchAllocationTestCase {
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded6'");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(3))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(3))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -551,7 +552,7 @@ public class AwarenessAllocationTests extends ElasticsearchAllocationTestCase {
         logger.info("Building initial routing table for 'fullAwareness1'");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -619,7 +620,7 @@ public class AwarenessAllocationTests extends ElasticsearchAllocationTestCase {
         logger.info("Building initial routing table for 'fullAwareness2'");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -693,8 +694,8 @@ public class AwarenessAllocationTests extends ElasticsearchAllocationTestCase {
         logger.info("Building initial routing table for 'fullAwareness3'");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test1").numberOfShards(5).numberOfReplicas(1))
-                .put(IndexMetaData.builder("test2").numberOfShards(5).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -775,7 +776,7 @@ public class AwarenessAllocationTests extends ElasticsearchAllocationTestCase {
         logger.info("Building initial routing table for 'testUnbalancedZones'");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(5).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()

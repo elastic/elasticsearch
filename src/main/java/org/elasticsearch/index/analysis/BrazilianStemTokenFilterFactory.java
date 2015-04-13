@@ -38,7 +38,7 @@ public class BrazilianStemTokenFilterFactory extends AbstractTokenFilterFactory 
     @Inject
     public BrazilianStemTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        this.exclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET, version);
+        this.exclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
     }
 
     @Override

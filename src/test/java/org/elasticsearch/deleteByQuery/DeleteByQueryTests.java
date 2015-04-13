@@ -19,7 +19,7 @@
 
 package org.elasticsearch.deleteByQuery;
 
-import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequestBuilder;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
@@ -35,9 +35,7 @@ import org.junit.Test;
 
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
@@ -65,10 +63,9 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
         DeleteByQueryRequestBuilder deleteByQueryRequestBuilder = client().prepareDeleteByQuery();
         deleteByQueryRequestBuilder.setQuery(QueryBuilders.matchAllQuery());
 
-        DeleteByQueryResponse actionGet = deleteByQueryRequestBuilder.execute().actionGet();
-        assertThat(actionGet.status(), equalTo(RestStatus.OK));
-        assertThat(actionGet.getIndex("twitter"), notNullValue());
-        assertThat(actionGet.getIndex("twitter").getFailedShards(), equalTo(0));
+        DeleteByQueryResponse response = deleteByQueryRequestBuilder.execute().actionGet();
+        assertThat(response.status(), equalTo(RestStatus.OK));
+        assertSyncShardInfo(response.getIndex("twitter").getShardInfo(), getNumShards("twitter"));
 
         client().admin().indices().prepareRefresh().execute().actionGet();
         search = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
@@ -96,10 +93,9 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
         }
 
         deleteByQueryRequestBuilder.setIndicesOptions(IndicesOptions.lenientExpandOpen());
-        DeleteByQueryResponse actionGet = deleteByQueryRequestBuilder.execute().actionGet();
-        assertThat(actionGet.status(), equalTo(RestStatus.OK));
-        assertThat(actionGet.getIndex("twitter").getFailedShards(), equalTo(0));
-        assertThat(actionGet.getIndex("twitter"), notNullValue());
+        DeleteByQueryResponse response = deleteByQueryRequestBuilder.execute().actionGet();
+        assertThat(response.status(), equalTo(RestStatus.OK));
+        assertSyncShardInfo(response.getIndex("twitter").getShardInfo(), getNumShards("twitter"));
 
         client().admin().indices().prepareRefresh().execute().actionGet();
         search = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
@@ -117,13 +113,12 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
         NumShards twitter = getNumShards("test");
 
         assertThat(response.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(response.getIndex("test").getSuccessfulShards(), equalTo(0));
-        assertThat(response.getIndex("test").getFailedShards(), equalTo(twitter.numPrimaries));
+        assertThat(response.getIndex("test").getShardInfo().getSuccessful(), equalTo(0));
+        assertThat(response.getIndex("test").getShardInfo().getFailures().length, equalTo(twitter.numPrimaries));
         assertThat(response.getIndices().size(), equalTo(1));
-        assertThat(response.getIndices().get("test").getFailedShards(), equalTo(twitter.numPrimaries));
-        assertThat(response.getIndices().get("test").getFailures().length, equalTo(twitter.numPrimaries));
-        for (ShardOperationFailedException failure : response.getIndices().get("test").getFailures()) {
-            assertThat(failure.reason(), containsString("[test] [has_child] unsupported in delete_by_query api"));
+        assertThat(response.getIndices().get("test").getShardInfo().getFailures().length, equalTo(twitter.numPrimaries));
+        for (ActionWriteResponse.ShardInfo.Failure failure : response.getIndices().get("test").getShardInfo().getFailures()) {
+            assertThat(failure.reason(), containsString("[test] [has_child] query and filter unsupported in delete_by_query api"));
             assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
             assertThat(failure.shardId(), greaterThan(-1));
         }
@@ -182,7 +177,7 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
         assertThat(deleteByQueryResponse.getIndices().size(), equalTo(1));
         for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : deleteByQueryResponse) {
             assertThat(indexDeleteByQueryResponse.getIndex(), equalTo("test"));
-            assertThat(indexDeleteByQueryResponse.getFailures().length, equalTo(0));
+            assertThat(indexDeleteByQueryResponse.getShardInfo().getFailures().length, equalTo(0));
         }
 
         refresh();
@@ -193,5 +188,15 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
 
     private static String indexOrAlias() {
         return randomBoolean() ? "test" : "alias";
+    }
+
+    private void assertSyncShardInfo(ActionWriteResponse.ShardInfo shardInfo, NumShards numShards) {
+        assertThat(shardInfo.getTotal(), greaterThanOrEqualTo(numShards.totalNumShards));
+        // we do not ensure green so just make sure request succeeded at least on all primaries
+        assertThat(shardInfo.getSuccessful(), greaterThanOrEqualTo(numShards.numPrimaries));
+        assertThat(shardInfo.getFailed(), equalTo(0));
+        for (ActionWriteResponse.ShardInfo.Failure failure : shardInfo.getFailures()) {
+            assertThat(failure.status(), equalTo(RestStatus.OK));
+        }
     }
 }

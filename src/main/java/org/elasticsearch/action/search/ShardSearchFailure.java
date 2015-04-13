@@ -85,6 +85,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         return this.shardTarget;
     }
 
+    @Override
     public RestStatus status() {
         return this.status;
     }
@@ -114,6 +115,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     /**
      * The reason of the failure.
      */
+    @Override
     public String reason() {
         return this.reason;
     }

@@ -1,7 +1,5 @@
 [[mapping-transform]]
 == Transform
-added[1.3.0]
-
 The document can be transformed before it is indexed by registering a
 script in the `transform` element of the mapping.  The result of the
 transform is indexed but the original source is stored in the `_source`

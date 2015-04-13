@@ -25,9 +25,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.internal.InternalEngine;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -45,28 +44,28 @@ public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest 
 
         ensureGreen();
 
-        final InternalIndexShard shard1 = (InternalIndexShard) internalCluster().getInstance(IndicesService.class).indexService("test1").shard(0);
+        final IndexShard shard1 = internalCluster().getInstance(IndicesService.class).indexService("test1").shard(0);
 
         prepareCreate("test2").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).get();
 
         ensureGreen();
 
-        final InternalIndexShard shard2 = (InternalIndexShard) internalCluster().getInstance(IndicesService.class).indexService("test2").shard(0);
+        final IndexShard shard2 = internalCluster().getInstance(IndicesService.class).indexService("test2").shard(0);
         final long expected1ShardSize = internalCluster().getInstance(IndexingMemoryController.class).indexingBufferSize().bytes();
         final long expected2ShardsSize = expected1ShardSize / 2;
 
         boolean success = awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object input) {
-                return ((InternalEngine) shard1.engine()).indexingBufferSize().bytes() <= expected2ShardsSize &&
-                        ((InternalEngine) shard2.engine()).indexingBufferSize().bytes() <= expected2ShardsSize;
+                return shard1.engine().config().getIndexingBufferSize().bytes() <= expected2ShardsSize &&
+                        shard2.engine().config().getIndexingBufferSize().bytes() <= expected2ShardsSize;
             }
         });
 
         if (!success) {
             fail("failed to update shard indexing buffer size. expected [" + expected2ShardsSize + "] shard1 [" +
-                            ((InternalEngine) shard1.engine()).indexingBufferSize().bytes() + "] shard2  [" +
-                            ((InternalEngine) shard2.engine()).indexingBufferSize().bytes() + "]"
+                            shard1.engine().config().getIndexingBufferSize().bytes() + "] shard2  [" +
+                            shard2.engine().config().getIndexingBufferSize().bytes() + "]"
             );
         }
 
@@ -74,13 +73,13 @@ public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest 
         success = awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object input) {
-                return ((InternalEngine) shard1.engine()).indexingBufferSize().bytes() >= expected1ShardSize;
+                return  shard1.engine().config().getIndexingBufferSize().bytes() >= expected1ShardSize;
             }
         });
 
         if (!success) {
             fail("failed to update shard indexing buffer size after deleting shards. expected [" + expected1ShardSize + "] got [" +
-                            ((InternalEngine) shard1.engine()).indexingBufferSize().bytes() + "]"
+                            shard1.engine().config().getIndexingBufferSize().bytes() + "]"
             );
         }
 
@@ -95,16 +94,16 @@ public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest 
 
         ensureGreen();
 
-        final InternalIndexShard shard1 = (InternalIndexShard) internalCluster().getInstance(IndicesService.class).indexService("test1").shard(0);
+        final IndexShard shard1 = internalCluster().getInstance(IndicesService.class).indexService("test1").shard(0);
         boolean success = awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object input) {
-                return ((InternalEngine) shard1.engine()).indexingBufferSize().bytes() == Engine.INACTIVE_SHARD_INDEXING_BUFFER.bytes();
+                return shard1.engine().config().getIndexingBufferSize().bytes() == EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER.bytes();
             }
         });
         if (!success) {
-            fail("failed to update shard indexing buffer size due to inactive state. expected [" + Engine.INACTIVE_SHARD_INDEXING_BUFFER + "] got [" +
-                            ((InternalEngine) shard1.engine()).indexingBufferSize().bytes() + "]"
+            fail("failed to update shard indexing buffer size due to inactive state. expected [" + EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER + "] got [" +
+                            shard1.engine().config().getIndexingBufferSize().bytes() + "]"
             );
         }
 
@@ -113,12 +112,12 @@ public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest 
         success = awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object input) {
-                return ((InternalEngine) shard1.engine()).indexingBufferSize().bytes() > Engine.INACTIVE_SHARD_INDEXING_BUFFER.bytes();
+                return shard1.engine().config().getIndexingBufferSize().bytes() > EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER.bytes();
             }
         });
         if (!success) {
-            fail("failed to update shard indexing buffer size due to inactive state. expected something larger then [" + Engine.INACTIVE_SHARD_INDEXING_BUFFER + "] got [" +
-                            ((InternalEngine) shard1.engine()).indexingBufferSize().bytes() + "]"
+            fail("failed to update shard indexing buffer size due to inactive state. expected something larger then [" + EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER + "] got [" +
+                            shard1.engine().config().getIndexingBufferSize().bytes() + "]"
             );
         }
 
@@ -127,12 +126,12 @@ public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest 
         success = awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object input) {
-                return ((InternalEngine) shard1.engine()).indexingBufferSize().bytes() == Engine.INACTIVE_SHARD_INDEXING_BUFFER.bytes();
+                return shard1.engine().config().getIndexingBufferSize().bytes() == EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER.bytes();
             }
         });
         if (!success) {
-            fail("failed to update shard indexing buffer size due to inactive state. expected [" + Engine.INACTIVE_SHARD_INDEXING_BUFFER + "] got [" +
-                            ((InternalEngine) shard1.engine()).indexingBufferSize().bytes() + "]"
+            fail("failed to update shard indexing buffer size due to inactive state. expected [" + EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER + "] got [" +
+                            shard1.engine().config().getIndexingBufferSize().bytes() + "]"
             );
         }
     }
@@ -145,9 +144,7 @@ public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest 
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
                         .put("http.enabled", false)
-                        .put("index.store.type", "ram")
                         .put("config.ignore_system_properties", true) // make sure we get what we set :)
-                        .put("gateway.type", "none")
                         .put("indices.memory.interval", "100ms")
                         .put(settings)
         );

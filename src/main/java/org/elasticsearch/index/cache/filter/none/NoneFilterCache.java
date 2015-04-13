@@ -20,12 +20,15 @@
 package org.elasticsearch.index.cache.filter.none;
 
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilterCachingPolicy;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.filter.FilterCache;
-import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 
 /**
@@ -55,7 +58,7 @@ public class NoneFilterCache extends AbstractIndexComponent implements FilterCac
     }
 
     @Override
-    public Filter cache(Filter filterToCache) {
+    public Filter cache(Filter filterToCache, @Nullable HashedBytesRef cacheKey, FilterCachingPolicy policy) {
         return filterToCache;
     }
 

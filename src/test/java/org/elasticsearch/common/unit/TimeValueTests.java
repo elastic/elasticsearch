@@ -19,9 +19,12 @@
 
 package org.elasticsearch.common.unit;
 
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.joda.time.PeriodType;
 import org.junit.Test;
@@ -76,5 +79,21 @@ public class TimeValueTests extends ElasticsearchTestCase {
     @Test(expected = ElasticsearchParseException.class)
     public void testFailOnMissingUnits() {
         TimeValue.parseTimeValue("42", null);
+
+    private void assertEqualityAfterSerialize(TimeValue value) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        value.writeTo(out);
+
+        BytesStreamInput in = new BytesStreamInput(out.bytes());
+        TimeValue inValue = TimeValue.readTimeValue(in);
+
+        assertThat(inValue, equalTo(value));
+    }
+
+    @Test
+    public void testSerialize() throws Exception {
+        assertEqualityAfterSerialize(new TimeValue(100, TimeUnit.DAYS));
+        assertEqualityAfterSerialize(new TimeValue(-1));
+        assertEqualityAfterSerialize(new TimeValue(1, TimeUnit.NANOSECONDS));
     }
 }

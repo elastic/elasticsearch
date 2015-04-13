@@ -19,9 +19,12 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.script.ExplainableSearchScript;
+import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
@@ -72,43 +75,56 @@ public class ScriptScoreFunction extends ScoreFunction {
 
     private final Map<String, Object> params;
 
-    private final CannedScorer scorer;
-
     private final SearchScript script;
-    
+
 
     public ScriptScoreFunction(String sScript, Map<String, Object> params, SearchScript script) {
         super(CombineFunction.REPLACE);
         this.sScript = sScript;
         this.params = params;
         this.script = script;
-        this.scorer = new CannedScorer();
-        script.setScorer(scorer);
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext ctx) {
-        script.setNextReader(ctx);
-    }
+    public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
+        final LeafSearchScript leafScript = script.getLeafSearchScript(ctx);
+        final CannedScorer scorer = new CannedScorer();
+        leafScript.setScorer(scorer);
+        return new LeafScoreFunction() {
+            @Override
+            public double score(int docId, float subQueryScore) {
+                leafScript.setDocument(docId);
+                scorer.docid = docId;
+                scorer.score = subQueryScore;
+                double result = leafScript.runAsDouble();
+                if (Double.isNaN(result)) {
+                    throw new ScriptException("script_score returned NaN");
+                }
+                return result;
+            }
 
-    @Override
-    public double score(int docId, float subQueryScore) {
-        script.setNextDocId(docId);
-        scorer.docid = docId;
-        scorer.score = subQueryScore;
-        return script.runAsDouble();
-    }
-
-    @Override
-    public Explanation explainScore(int docId, float subQueryScore) {
-        Explanation exp;
-        double score = score(docId, subQueryScore);
-        String explanation = "script score function, computed with script:\"" + sScript;
-        if (params != null) {
-            explanation += "\" and parameters: \n" + params.toString();
-        }
-        exp = new Explanation(CombineFunction.toFloat(score), explanation);
-        return exp;
+            @Override
+            public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
+                Explanation exp;
+                if (leafScript instanceof ExplainableSearchScript) {
+                    leafScript.setDocument(docId);
+                    scorer.docid = docId;
+                    scorer.score = subQueryScore.getValue();
+                    exp = ((ExplainableSearchScript) leafScript).explain(subQueryScore);
+                } else {
+                    double score = score(docId, subQueryScore.getValue());
+                    String explanation = "script score function, computed with script:\"" + sScript;
+                    if (params != null) {
+                        explanation += "\" and parameters: \n" + params.toString();
+                    }
+                    exp = new Explanation(CombineFunction.toFloat(score), explanation);
+                    Explanation scoreExp = new Explanation(subQueryScore.getValue(), "_score: ");
+                    scoreExp.addDetail(subQueryScore);
+                    exp.addDetail(scoreExp);
+                }
+                return exp;
+            }
+        };
     }
 
     @Override

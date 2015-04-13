@@ -33,11 +33,6 @@ public class MinParser extends NumericValuesSourceMetricsAggregatorParser<Intern
     }
 
     @Override
-    protected boolean requiresSortedValues() {
-        return true;
-    }
-
-    @Override
     protected AggregatorFactory createFactory(String aggregationName, ValuesSourceConfig<ValuesSource.Numeric> config) {
         return new MinAggregator.Factory(aggregationName, config);
     }

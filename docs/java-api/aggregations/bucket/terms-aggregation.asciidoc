@@ -1,0 +1,75 @@
+[[java-aggs-bucket-terms]]
+==== Terms Aggregation
+
+Here is how you can use
+{ref}/search-aggregations-bucket-terms-aggregation.html[Terms Aggregation]
+with Java API.
+
+
+===== Prepare aggregation request
+
+Here is an example on how to create the aggregation request:
+
+[source,java]
+--------------------------------------------------
+AggregationBuilders
+    .terms("genders")
+    .field("gender");
+--------------------------------------------------
+
+
+===== Use aggregation response
+
+Import Aggregation definition classes:
+
+[source,java]
+--------------------------------------------------
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+--------------------------------------------------
+
+[source,java]
+--------------------------------------------------
+// sr is here your SearchResponse object
+Terms genders = sr.getAggregations().get("genders");
+
+// For each entry
+for (Terms.Bucket entry : genders.getBuckets()) {
+    entry.getKey();      // Term
+    entry.getDocCount(); // Doc count
+}
+--------------------------------------------------
+
+==== Order
+
+Ordering the buckets by their `doc_count` in an ascending manner:
+
+[source,java]
+--------------------------------------------------
+AggregationBuilders
+    .terms("genders")
+    .field("gender")
+    .order(Terms.Order.count(true))
+--------------------------------------------------
+
+Ordering the buckets alphabetically by their terms in an ascending manner:
+
+[source,java]
+--------------------------------------------------
+AggregationBuilders
+    .terms("genders")
+    .field("gender")
+    .order(Terms.Order.term(true))
+--------------------------------------------------
+
+Ordering the buckets by single value metrics sub-aggregation (identified by the aggregation name):
+
+[source,java]
+--------------------------------------------------
+AggregationBuilders
+    .terms("genders")
+    .field("gender")
+    .order(Terms.Order.aggregation("avg_height", false))
+    .subAggregation(
+        AggregationBuilders.avg("avg_height").field("height")
+    )
+--------------------------------------------------

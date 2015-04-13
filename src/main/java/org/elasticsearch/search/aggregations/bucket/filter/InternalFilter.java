@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
 *
@@ -47,8 +48,8 @@ public class InternalFilter extends InternalSingleBucketAggregation implements F
 
     InternalFilter() {} // for serialization
 
-    InternalFilter(String name, long docCount, InternalAggregations subAggregations) {
-        super(name, docCount, subAggregations);
+    InternalFilter(String name, long docCount, InternalAggregations subAggregations, Map<String, Object> metaData) {
+        super(name, docCount, subAggregations, metaData);
     }
 
     @Override
@@ -58,6 +59,6 @@ public class InternalFilter extends InternalSingleBucketAggregation implements F
 
     @Override
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
-        return new InternalFilter(name, docCount, subAggregations);
+        return new InternalFilter(name, docCount, subAggregations, getMetaData());
     }
 }

@@ -22,8 +22,6 @@ package org.elasticsearch.indices.analysis;
 import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 
-import java.io.Reader;
-
 public class DummyTokenizerFactory implements TokenizerFactory {
     @Override
     public String name() {
@@ -31,7 +29,7 @@ public class DummyTokenizerFactory implements TokenizerFactory {
     }
 
     @Override
-    public Tokenizer create(Reader reader) {
+    public Tokenizer create() {
         return null;
     }
 }

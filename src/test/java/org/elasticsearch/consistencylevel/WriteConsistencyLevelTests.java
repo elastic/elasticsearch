@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -55,7 +56,9 @@ public class WriteConsistencyLevelTests extends ElasticsearchIntegrationTest {
                     .setTimeout(timeValueMillis(100)).execute().actionGet();
             fail("can't index, does not match consistency");
         } catch (UnavailableShardsException e) {
-            // all is well
+            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            assertThat(e.getMessage(), equalTo("[test][0] Not enough active copies to meet write consistency of [QUORUM] (have 1, needed 2). Timeout: [100ms], request: index {[test][type1][1], source[{ type1 : { \"id\" : \"1\", \"name\" : \"test\" } }]}"));
+            // but really, all is well
         }
 
         allowNodes("test", 2);
@@ -76,7 +79,9 @@ public class WriteConsistencyLevelTests extends ElasticsearchIntegrationTest {
                     .setTimeout(timeValueMillis(100)).execute().actionGet();
             fail("can't index, does not match consistency");
         } catch (UnavailableShardsException e) {
-            // all is well
+            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            assertThat(e.getMessage(), equalTo("[test][0] Not enough active copies to meet write consistency of [ALL] (have 2, needed 3). Timeout: [100ms], request: index {[test][type1][1], source[{ type1 : { \"id\" : \"1\", \"name\" : \"test\" } }]}"));
+            // but really, all is well
         }
 
         allowNodes("test", 3);

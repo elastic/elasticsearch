@@ -33,22 +33,27 @@ public class FloatFieldDataTests extends AbstractNumericFieldDataTests {
         return new FieldDataType("float", getFieldDataSettings());
     }
 
+    @Override
     protected String one() {
         return "1.0";
     }
 
+    @Override
     protected String two() {
         return "2.0";
     }
 
+    @Override
     protected String three() {
         return "3.0";
     }
 
+    @Override
     protected String four() {
         return "4.0";
     }
 
+    @Override
     protected void add2SingleValuedDocumentsAndDeleteOneOfThem() throws Exception {
         Document d = new Document();
         d.add(new StringField("_id", "1", Field.Store.NO));
@@ -139,6 +144,7 @@ public class FloatFieldDataTests extends AbstractNumericFieldDataTests {
         writer.addDocument(d);
     }
 
+    @Override
     protected void fillExtendedMvSet() throws Exception {
         Document d = new Document();
         d.add(new StringField("_id", "1", Field.Store.NO));

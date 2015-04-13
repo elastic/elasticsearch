@@ -18,13 +18,15 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -32,6 +34,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 
 /**
  * Aggregates data expressed as GeoHash longs (for efficiency's sake) but formats results as Geohash strings.
@@ -40,49 +43,52 @@ import java.util.Collections;
 
 public class GeoHashGridAggregator extends BucketsAggregator {
 
-    private static final int INITIAL_CAPACITY = 50; // TODO sizing
-
     private final int requiredSize;
     private final int shardSize;
     private final ValuesSource.Numeric valuesSource;
     private final LongHash bucketOrds;
-    private SortedNumericDocValues values;
 
     public GeoHashGridAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource,
-                              int requiredSize, int shardSize, AggregationContext aggregationContext, Aggregator parent) {
-        super(name, BucketAggregationMode.PER_BUCKET, factories, INITIAL_CAPACITY, aggregationContext, parent);
+                              int requiredSize, int shardSize, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
+        super(name, factories, aggregationContext, parent, metaData);
         this.valuesSource = valuesSource;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
-        bucketOrds = new LongHash(INITIAL_CAPACITY, aggregationContext.bigArrays());
+        bucketOrds = new LongHash(1, aggregationContext.bigArrays());
     }
 
     @Override
-    public boolean shouldCollect() {
-        return true;
+    public boolean needsScores() {
+        return (valuesSource != null && valuesSource.needsScores()) || super.needsScores();
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
-        values = valuesSource.longValues();
-    }
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        final SortedNumericDocValues values = valuesSource.longValues(ctx);
+        return new LeafBucketCollectorBase(sub, null) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                assert bucket == 0;
+                values.setDocument(doc);
+                final int valuesCount = values.count();
 
-    @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
-        values.setDocument(doc);
-        final int valuesCount = values.count();
-
-        for (int i = 0; i < valuesCount; ++i) {
-            final long val = values.valueAt(i);
-            long bucketOrdinal = bucketOrds.add(val);
-            if (bucketOrdinal < 0) { // already seen
-                bucketOrdinal = - 1 - bucketOrdinal;
-                collectExistingBucket(doc, bucketOrdinal);
-            } else {
-                collectBucket(doc, bucketOrdinal);
+                long previous = Long.MAX_VALUE;
+                for (int i = 0; i < valuesCount; ++i) {
+                    final long val = values.valueAt(i);
+                    if (previous != val || i == 0) {
+                        long bucketOrdinal = bucketOrds.add(val);
+                        if (bucketOrdinal < 0) { // already seen
+                            bucketOrdinal = - 1 - bucketOrdinal;
+                            collectExistingBucket(sub, doc, bucketOrdinal);
+                        } else {
+                            collectBucket(sub, doc, bucketOrdinal);
+                        }
+                        previous = val;
+                    }
+                }
             }
-        }
+        };
     }
 
     // private impl that stores a bucket ord. This allows for computing the aggregations lazily.
@@ -97,7 +103,7 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalGeoHashGrid buildAggregation(long owningBucketOrdinal) {
+    public InternalGeoHashGrid buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
         final int size = (int) Math.min(bucketOrds.size(), shardSize);
 
@@ -120,12 +126,12 @@ public class GeoHashGridAggregator extends BucketsAggregator {
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
-        return new InternalGeoHashGrid(name, requiredSize, Arrays.asList(list));
+        return new InternalGeoHashGrid(name, requiredSize, Arrays.asList(list), metaData());
     }
 
     @Override
     public InternalGeoHashGrid buildEmptyAggregation() {
-        return new InternalGeoHashGrid(name, requiredSize, Collections.<InternalGeoHashGrid.Bucket>emptyList());
+        return new InternalGeoHashGrid(name, requiredSize, Collections.<InternalGeoHashGrid.Bucket>emptyList(), metaData());
     }
 
 

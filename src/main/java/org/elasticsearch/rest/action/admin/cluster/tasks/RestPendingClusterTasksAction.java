@@ -24,10 +24,7 @@ import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 /**
@@ -35,8 +32,8 @@ import org.elasticsearch.rest.action.support.RestToXContentListener;
 public class RestPendingClusterTasksAction extends BaseRestHandler {
 
     @Inject
-    public RestPendingClusterTasksAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestPendingClusterTasksAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/pending_tasks", this);
     }
 

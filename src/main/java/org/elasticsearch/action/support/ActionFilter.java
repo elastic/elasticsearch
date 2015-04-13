@@ -21,6 +21,9 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Settings;
 
 /**
  * A filter allowing to filter transport actions
@@ -28,13 +31,57 @@ import org.elasticsearch.action.ActionRequest;
 public interface ActionFilter {
 
     /**
-     * Filters the actual execution of the request by either sending a response through the {@link ActionListener}
-     * or continuing the filters execution through the {@link ActionFilterChain}
-     */
-    void process(final String action, final ActionRequest actionRequest, final ActionListener actionListener, final ActionFilterChain actionFilterChain);
-
-    /**
      * The position of the filter in the chain. Execution is done from lowest order to highest.
      */
     int order();
+
+    /**
+     * Enables filtering the execution of an action on the request side, either by sending a response through the
+     * {@link ActionListener} or by continuing the execution through the given {@link ActionFilterChain chain}
+     */
+    void apply(String action, ActionRequest request, ActionListener listener, ActionFilterChain chain);
+
+    /**
+     * Enables filtering the execution of an action on the response side, either by sending a response through the
+     * {@link ActionListener} or by continuing the execution through the given {@link ActionFilterChain chain}
+     */
+    void apply(String action, ActionResponse response, ActionListener listener, ActionFilterChain chain);
+
+    /**
+     * A simple base class for injectable action filters that spares the implementation from handling the
+     * filter chain. This base class should serve any action filter implementations that doesn't require
+     * to apply async filtering logic.
+     */
+    public static abstract class Simple extends AbstractComponent implements ActionFilter {
+
+        protected Simple(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        public final void apply(String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
+            if (apply(action, request, listener)) {
+                chain.proceed(action, request, listener);
+            }
+        }
+
+        /**
+         * Applies this filter and returns {@code true} if the execution chain should proceed, or {@code false}
+         * if it should be aborted since the filter already handled the request and called the given listener.
+         */
+        protected abstract boolean apply(String action, ActionRequest request, ActionListener listener);
+
+        @Override
+        public final void apply(String action, ActionResponse response, ActionListener listener, ActionFilterChain chain) {
+            if (apply(action, response, listener)) {
+                chain.proceed(action, response, listener);
+            }
+        }
+
+        /**
+         * Applies this filter and returns {@code true} if the execution chain should proceed, or {@code false}
+         * if it should be aborted since the filter already handled the response by calling the given listener.
+         */
+        protected abstract boolean apply(String action, ActionResponse response, ActionListener listener);
+    }
 }

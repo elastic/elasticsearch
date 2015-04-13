@@ -40,15 +40,17 @@ public class KeepLastNDeletionPolicy extends AbstractESDeletionPolicy {
     @Inject
     public KeepLastNDeletionPolicy(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
-        this.numToKeep = componentSettings.getAsInt("num_to_keep", 5);
+        this.numToKeep = indexSettings.getAsInt("index.deletionpolicy.num_to_keep", 5);
         logger.debug("Using [keep_last_n] deletion policy with num_to_keep[{}]", numToKeep);
     }
 
+    @Override
     public void onInit(List<? extends IndexCommit> commits) throws IOException {
         // do no deletions on init
         doDeletes(commits);
     }
 
+    @Override
     public void onCommit(List<? extends IndexCommit> commits) throws IOException {
         doDeletes(commits);
     }

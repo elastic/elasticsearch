@@ -1,6 +1,6 @@
 {
   "indices.optimize": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-optimize.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-optimize.html",
     "methods": ["POST", "GET"],
     "url": {
       "path": "/_optimize",
@@ -26,7 +26,7 @@
         },
         "expand_wildcards": {
             "type" : "enum",
-            "options" : ["open","closed"],
+            "options" : ["open","closed","none","all"],
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
         },
@@ -44,10 +44,6 @@
         "wait_for_merge": {
           "type" : "boolean",
           "description" : "Specify whether the request should block until the merge process is finished (default: true)"
-        },
-        "force": {
-          "type": "boolean",
-          "description": "Force a merge operation to run, even if there is a single segment in the index (default: false)"
         }
       }
     },

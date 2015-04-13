@@ -21,6 +21,9 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 
+import java.io.IOException;
+import java.util.Map;
+
 /**
  *
  */
@@ -46,12 +49,12 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     }
 
     @Override
-    public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
+    public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
         if (config.unmapped()) {
-            return createUnmapped(context, parent);
+            return createUnmapped(context, parent, metaData);
         }
-        VS vs = context.valuesSource(config, parent == null ? 0 : 1 + parent.depth());
-        return create(vs, expectedBucketsCount, context, parent);
+        VS vs = context.valuesSource(config);
+        return doCreateInternal(vs, context, parent, collectsFromSingleBucket, metaData);
     }
 
     @Override
@@ -61,9 +64,9 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
         }
     }
 
-    protected abstract Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent);
+    protected abstract Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException;
 
-    protected abstract Aggregator create(VS valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent);
+    protected abstract Aggregator doCreateInternal(VS valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException;
 
     private void resolveValuesSourceConfigFromAncestors(String aggName, AggregatorFactory parent, Class<VS> requiredValuesSourceType) {
         ValuesSourceConfig config;

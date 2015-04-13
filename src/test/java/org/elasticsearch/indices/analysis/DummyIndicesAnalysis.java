@@ -21,7 +21,6 @@ package org.elasticsearch.indices.analysis;
 
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.*;
 
@@ -32,7 +31,7 @@ public class DummyIndicesAnalysis extends AbstractComponent {
         super(settings);
         indicesAnalysisService.analyzerProviderFactories().put("dummy",
                 new PreBuiltAnalyzerProviderFactory("dummy", AnalyzerScope.INDICES,
-                        new DummyAnalyzer(Lucene.ANALYZER_VERSION)));
+                        new DummyAnalyzer()));
         indicesAnalysisService.tokenFilterFactories().put("dummy_token_filter",
                 new PreBuiltTokenFilterFactoryFactory(new DummyTokenFilterFactory()));
         indicesAnalysisService.charFilterFactories().put("dummy_char_filter",

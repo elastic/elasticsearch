@@ -20,12 +20,13 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilterCachingPolicy;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -34,8 +35,6 @@ import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxFilter;
 import org.elasticsearch.index.search.geo.IndexedGeoBoundingBoxFilter;
 
 import java.io.IOException;
-
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
 
 /**
  *
@@ -73,8 +72,8 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        boolean cache = false;
-        CacheKeyFilter.Key cacheKey = null;
+        FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
+        HashedBytesRef cacheKey = null;
         String fieldName = null;
 
         double top = Double.NaN;
@@ -140,9 +139,9 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
                 if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
-                    cache = parser.booleanValue();
+                    cache = parseContext.parseFilterCachePolicy();
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new CacheKeyFilter.Key(parser.text());
+                    cacheKey = new HashedBytesRef(parser.text());
                 } else if ("normalize".equals(currentFieldName)) {
                     normalize = parser.booleanValue();
                 } else if ("type".equals(currentFieldName)) {
@@ -155,10 +154,17 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
 
         final GeoPoint topLeft = sparse.reset(top, left);  //just keep the object
         final GeoPoint bottomRight = new GeoPoint(bottom, right);
-        
+
         if (normalize) {
-            GeoUtils.normalizePoint(topLeft);
-            GeoUtils.normalizePoint(bottomRight);
+            // Special case: if the difference bettween the left and right is 360 and the right is greater than the left, we are asking for 
+            // the complete longitude range so need to set longitude to the complete longditude range
+            boolean completeLonRange = ((right - left) % 360 == 0 && right > left);
+            GeoUtils.normalizePoint(topLeft, true, !completeLonRange);
+            GeoUtils.normalizePoint(bottomRight, true, !completeLonRange);
+            if (completeLonRange) {
+                topLeft.resetLon(-180);
+                bottomRight.resetLon(180);
+            }
         }
 
         MapperService.SmartNameFieldMappers smartMappers = parseContext.smartFieldMappers(fieldName);
@@ -181,10 +187,9 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "geo bounding box type [" + type + "] not supported, either 'indexed' or 'memory' are allowed");
         }
 
-        if (cache) {
-            filter = parseContext.cacheFilter(filter, cacheKey);
+        if (cache != null) {
+            filter = parseContext.cacheFilter(filter, cacheKey, cache);
         }
-        filter = wrapSmartNameFilter(filter, smartMappers, parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

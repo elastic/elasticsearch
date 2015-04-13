@@ -135,8 +135,9 @@ public class GeoLocationContextMappingTest extends ElasticsearchTestCase {
             pointAsMap.put("lon", 0d);
             config.put("default", pointAsMap);
         }
+        HashMap<String, Object> config2 = new HashMap<>(config);
         GeolocationContextMapping mapping = GeolocationContextMapping.load("foo", config);
-        GeolocationContextMapping mapping2 = GeolocationContextMapping.load("foo", config);
+        GeolocationContextMapping mapping2 = GeolocationContextMapping.load("foo", config2);
 
         assertEquals(mapping, mapping2);
         assertEquals(mapping.hashCode(), mapping2.hashCode());

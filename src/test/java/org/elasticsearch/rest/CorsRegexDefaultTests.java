@@ -18,11 +18,13 @@
  */
 package org.elasticsearch.rest;
 
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Test;
 
-import static org.elasticsearch.rest.CorsRegexTests.httpClient;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -30,14 +32,20 @@ import static org.hamcrest.Matchers.*;
  */
 public class CorsRegexDefaultTests extends ElasticsearchIntegrationTest {
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.builder()
+            .put(Node.HTTP_ENABLED, true)
+            .put(super.nodeSettings(nodeOrdinal)).build();
+    }
+
     @Test
-    public void testCorsSettingDefaultBehaviour() throws Exception {
+    public void testCorsSettingDefaultBehaviourDoesNotReturnAnything() throws Exception {
         String corsValue = "http://localhost:9200";
         HttpResponse response = httpClient().method("GET").path("/").addHeader("User-Agent", "Mozilla Bar").addHeader("Origin", corsValue).execute();
 
         assertThat(response.getStatusCode(), is(200));
-        assertThat(response.getHeaders(), hasKey("Access-Control-Allow-Origin"));
-        assertThat(response.getHeaders().get("Access-Control-Allow-Origin"), is("*"));
+        assertThat(response.getHeaders(), not(hasKey("Access-Control-Allow-Origin")));
         assertThat(response.getHeaders(), not(hasKey("Access-Control-Allow-Credentials")));
     }
 

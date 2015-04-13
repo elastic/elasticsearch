@@ -21,6 +21,7 @@ package org.elasticsearch.common.logging.slf4j;
 
 import org.elasticsearch.common.logging.support.AbstractESLogger;
 import org.slf4j.Logger;
+import org.slf4j.spi.LocationAwareLogger;
 
 /**
  *
@@ -28,10 +29,17 @@ import org.slf4j.Logger;
 public class Slf4jESLogger extends AbstractESLogger {
 
     private final Logger logger;
+    private final LocationAwareLogger lALogger;
+    private final String FQCN = AbstractESLogger.class.getName();
 
     public Slf4jESLogger(String prefix, Logger logger) {
         super(prefix);
         this.logger = logger;
+        if (logger instanceof LocationAwareLogger) {
+            lALogger = (LocationAwareLogger) logger;
+        } else {
+            lALogger = null;
+        }
     }
 
     @Override
@@ -77,51 +85,95 @@ public class Slf4jESLogger extends AbstractESLogger {
 
     @Override
     protected void internalTrace(String msg) {
-        logger.trace(msg);
+        if (lALogger != null) {
+            lALogger.log(null, FQCN, LocationAwareLogger.TRACE_INT, msg, null, null);
+        } else {
+            logger.trace(msg);
+        }
     }
 
     @Override
     protected void internalTrace(String msg, Throwable cause) {
-        logger.trace(msg, cause);
+        if (lALogger != null) {
+            lALogger.log(null, FQCN, LocationAwareLogger.TRACE_INT, msg, null, cause);
+        } else {
+            logger.trace(msg);
+        }
     }
 
     @Override
     protected void internalDebug(String msg) {
-        logger.debug(msg);
+        if (lALogger != null) {
+            lALogger.log(null, FQCN, LocationAwareLogger.DEBUG_INT, msg, null, null);
+        } else {
+            logger.debug(msg);
+        }
     }
 
     @Override
     protected void internalDebug(String msg, Throwable cause) {
-        logger.debug(msg, cause);
+        if (lALogger != null) {
+            lALogger.log(null, FQCN, LocationAwareLogger.DEBUG_INT, msg, null, cause);
+        } else {
+            logger.debug(msg);
+        }
     }
 
     @Override
     protected void internalInfo(String msg) {
-        logger.info(msg);
+        if (lALogger != null) {
+            lALogger.log(null, FQCN, LocationAwareLogger.INFO_INT, msg, null, null);
+        } else {
+            logger.info(msg);
+        }
     }
 
     @Override
     protected void internalInfo(String msg, Throwable cause) {
-        logger.info(msg, cause);
+        if (lALogger != null) {
+            lALogger.log(null, FQCN, LocationAwareLogger.INFO_INT, msg, null, cause);
+        } else {
+            logger.info(msg, cause);
+        }
     }
 
     @Override
     protected void internalWarn(String msg) {
-        logger.warn(msg);
+        if (lALogger != null) {
+            lALogger.log(null, FQCN, LocationAwareLogger.WARN_INT, msg, null, null);
+        } else {
+            logger.warn(msg);
+        }
     }
 
     @Override
     protected void internalWarn(String msg, Throwable cause) {
-        logger.warn(msg, cause);
+        if (lALogger != null) {
+            lALogger.log(null, FQCN, LocationAwareLogger.WARN_INT, msg, null, cause);
+        } else {
+            logger.warn(msg);
+        }
     }
 
     @Override
     protected void internalError(String msg) {
-        logger.error(msg);
+        if (lALogger != null) {
+            lALogger.log(null, FQCN, LocationAwareLogger.ERROR_INT, msg, null, null);
+        } else {
+            logger.error(msg);
+        }
     }
 
     @Override
     protected void internalError(String msg, Throwable cause) {
-        logger.error(msg, cause);
+        if (lALogger != null) {
+            lALogger.log(null, FQCN, LocationAwareLogger.ERROR_INT, msg, null, cause);
+        } else {
+            logger.error(msg);
+        }
+    }
+
+    protected Logger logger() {
+        return logger;
     }
 }

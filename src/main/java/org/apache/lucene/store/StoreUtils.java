@@ -18,6 +18,8 @@
  */
 package org.apache.lucene.store;
 
+import java.util.Arrays;
+
 /**
  */
 public final class StoreUtils {
@@ -45,5 +47,13 @@ public final class StoreUtils {
         }
 
         return directory.toString();
+    }
+
+    public static String toString(Directory[] directories) {
+        String[] strings = new String[directories.length];
+        for(int i=0;i<directories.length;i++) {
+            strings[i] = toString(directories[i]);
+        }
+        return Arrays.toString(strings);
     }
 }

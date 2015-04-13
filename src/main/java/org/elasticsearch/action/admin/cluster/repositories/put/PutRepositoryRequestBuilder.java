@@ -116,6 +116,17 @@ public class PutRepositoryRequestBuilder extends AcknowledgedRequestBuilder<PutR
         return this;
     }
 
+    /**
+     * Sets whether or not repository should be verified after creation
+     *
+     * @param verify true if repository should be verified after registration, false otherwise
+     * @return this builder
+     */
+    public PutRepositoryRequestBuilder setVerify(boolean verify) {
+        request.verify(verify);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<PutRepositoryResponse> listener) {
         client.putRepository(request, listener);

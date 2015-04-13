@@ -1,8 +1,6 @@
 [[cat-fielddata]]
 == cat fielddata
 
-added[1.2.0]
-
 `fielddata` shows information about currently loaded fielddata on a per-node
 basis.
 

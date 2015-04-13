@@ -54,7 +54,7 @@ public class SimpleAllTests extends ElasticsearchTestCase {
         allEntries.addText("field1", "boosts", 0.5f);
         allEntries.reset();
         // whitespace analyzer's tokenizer reads characters eagerly on the contrary to the standard tokenizer
-        final TokenStream ts = AllTokenStream.allTokenStream("any", allEntries, new WhitespaceAnalyzer(Lucene.VERSION));
+        final TokenStream ts = AllTokenStream.allTokenStream("any", allEntries, new WhitespaceAnalyzer());
         final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
         final PayloadAttribute payloadAtt = ts.addAttribute(PayloadAttribute.class);
         ts.reset();
@@ -125,7 +125,7 @@ public class SimpleAllTests extends ElasticsearchTestCase {
     @Test
     public void testSimpleAllNoBoost() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         Document doc = new Document();
         doc.add(new Field("_id", "1", StoredField.TYPE));
@@ -172,7 +172,7 @@ public class SimpleAllTests extends ElasticsearchTestCase {
     @Test
     public void testSimpleAllWithBoost() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         Document doc = new Document();
         doc.add(new Field("_id", "1", StoredField.TYPE));
@@ -220,7 +220,7 @@ public class SimpleAllTests extends ElasticsearchTestCase {
     @Test
     public void testMultipleTokensAllNoBoost() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         Document doc = new Document();
         doc.add(new Field("_id", "1", StoredField.TYPE));
@@ -271,7 +271,7 @@ public class SimpleAllTests extends ElasticsearchTestCase {
     @Test
     public void testMultipleTokensAllWithBoost() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         Document doc = new Document();
         doc.add(new Field("_id", "1", StoredField.TYPE));
@@ -322,7 +322,7 @@ public class SimpleAllTests extends ElasticsearchTestCase {
     @Test
     public void testNoTokensWithKeywordAnalyzer() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.KEYWORD_ANALYZER));
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.KEYWORD_ANALYZER));
 
         Document doc = new Document();
         doc.add(new Field("_id", "1", StoredField.TYPE));

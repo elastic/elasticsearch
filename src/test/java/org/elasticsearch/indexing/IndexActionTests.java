@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -51,9 +50,8 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
      * while the index is being created.
      */
     @Test
-    @TestLogging("action.search:TRACE,indices.recovery:TRACE,index.shard.service:TRACE")
     public void testAutoGenerateIdNoDuplicates() throws Exception {
-        int numberOfIterations = randomIntBetween(10, 50);
+        int numberOfIterations = scaledRandomIntBetween(10, 50);
         for (int i = 0; i < numberOfIterations; i++) {
             Throwable firstError = null;
             createIndex("test");
@@ -64,6 +62,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
                 builders.add(client().prepareIndex("test", "type").setSource("field", "value"));
             }
             indexRandom(true, builders);
+            ensureYellow("test");
             logger.info("verifying indexed content");
             int numOfChecks = randomIntBetween(8, 12);
             for (int j = 0; j < numOfChecks; j++) {
@@ -157,6 +156,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         for (int i=0;i<docCount;i++) {
             assertThat(createdCounts.get(i), lessThanOrEqualTo(1));
         }
+        terminate(threadPool);
     }
 
     @Test

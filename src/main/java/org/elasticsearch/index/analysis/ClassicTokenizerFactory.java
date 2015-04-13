@@ -44,8 +44,8 @@ public class ClassicTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Override
-    public Tokenizer create(Reader reader) {
-        ClassicTokenizer tokenizer = new ClassicTokenizer(version, reader);
+    public Tokenizer create() {
+        ClassicTokenizer tokenizer = new ClassicTokenizer();
         tokenizer.setMaxTokenLength(maxTokenLength);
         return tokenizer;
     }

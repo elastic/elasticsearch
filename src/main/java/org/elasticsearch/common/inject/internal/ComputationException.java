@@ -17,7 +17,7 @@
 package org.elasticsearch.common.inject.internal;
 
 /**
- * Wraps an exception that occured during a computation.
+ * Wraps an exception that occurred during a computation.
  */
 public class ComputationException extends RuntimeException {
 

@@ -1,8 +1,6 @@
 [[search-request-source-filtering]]
 === Source filtering
 
-added[1.0.0.Beta1]
-
 
 Allows to control how the `_source` field is returned with every hit.
 

@@ -20,12 +20,16 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.search.MultiValueMode;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -48,6 +52,13 @@ public class ParentChildAtomicFieldData extends AbstractAtomicParentChildFieldDa
     @Override
     public long ramBytesUsed() {
         return memorySizeInBytes;
+    }
+
+    @Override
+    public Collection<Accountable> getChildResources() {
+        // TODO: should we break down by type?
+        // the current 'map' does not impl java.util.Map so we cant use Accountables.namedAccountables...
+        return Collections.emptyList();
     }
 
     @Override

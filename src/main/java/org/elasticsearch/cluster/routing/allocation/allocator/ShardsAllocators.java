@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
@@ -29,7 +28,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.none.NoneGatewayAllocator;
+import org.elasticsearch.gateway.GatewayAllocator;
 
 /**
  * The {@link ShardsAllocator} class offers methods for allocating shard within a cluster.
@@ -41,12 +40,12 @@ public class ShardsAllocators extends AbstractComponent implements ShardsAllocat
     private final GatewayAllocator gatewayAllocator;
     private final ShardsAllocator allocator;
 
-    public ShardsAllocators() {
-        this(ImmutableSettings.Builder.EMPTY_SETTINGS);
+    public ShardsAllocators(GatewayAllocator allocator) {
+        this(ImmutableSettings.Builder.EMPTY_SETTINGS, allocator);
     }
 
-    public ShardsAllocators(Settings settings) {
-      this(settings, new NoneGatewayAllocator(), new BalancedShardsAllocator(settings));
+    public ShardsAllocators(Settings settings, GatewayAllocator allocator) {
+      this(settings, allocator, new BalancedShardsAllocator(settings));
     }
 
     @Inject

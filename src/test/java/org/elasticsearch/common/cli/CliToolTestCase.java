@@ -22,6 +22,7 @@ package org.elasticsearch.common.cli;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -33,7 +34,8 @@ import java.util.Locale;
 /**
  *
  */
-public class CliToolTestCase extends ElasticsearchTestCase {
+@Ignore
+public abstract class CliToolTestCase extends ElasticsearchTestCase {
 
     protected static String[] args(String command) {
         if (!Strings.hasLength(command)) {

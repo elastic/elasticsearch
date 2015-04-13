@@ -156,8 +156,8 @@ public class MultiPhrasePrefixQuery extends Query {
         // SlowCompositeReaderWrapper could be used... but this would merge all terms from each segment into one terms
         // instance, which is very expensive. Therefore I think it is better to iterate over each leaf individually.
         TermsEnum termsEnum = null;
-        List<AtomicReaderContext> leaves = reader.leaves();
-        for (AtomicReaderContext leaf : leaves) {
+        List<LeafReaderContext> leaves = reader.leaves();
+        for (LeafReaderContext leaf : leaves) {
             Terms _terms = leaf.reader().terms(field);
             if (_terms == null) {
                 continue;

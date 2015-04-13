@@ -19,25 +19,37 @@
 
 package org.elasticsearch.index.mapper.internal;
 
-import com.google.common.collect.ImmutableSet;
-import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
 
-    private static Set<String> extract(String path) {
-        return ImmutableSet.<String>builder().addAll(FieldNamesFieldMapper.extractFieldNames(path)).build();
+    private static SortedSet<String> extract(String path) {
+        SortedSet<String> set = new TreeSet<>();
+        for (String fieldName : FieldNamesFieldMapper.extractFieldNames(path)) {
+            set.add(fieldName);
+        }
+        return set;
     }
 
-    private static <T> Set<T> set(T... values) {
-        return new HashSet<T>(Arrays.asList(values));
+    private static <T> SortedSet<T> set(T... values) {
+        return new TreeSet<>(Arrays.asList(values));
+    }
+
+    void assertFieldNames(SortedSet<String> expected, ParsedDocument doc) {
+        String[] got = doc.rootDoc().getValues("_field_names");
+        assertEquals(expected, set(got));
     }
 
     public void testExtractFieldNames() {
@@ -50,8 +62,9 @@ public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
         assertEquals(set("", ".", ".."), extract(".."));
     }
 
-    public void test() throws Exception {
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string());
+    public void testInjectIntoDocDuringParsing() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -61,13 +74,99 @@ public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
                     .endObject()
                 .endObject()
                 .bytes());
+        
+        assertFieldNames(set("a", "b", "b.c", "_uid", "_type", "_version", "_source", "_all"), doc);
+    }
+    
+    public void testExplicitEnabled() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_field_names").field("enabled", true).endObject()
+            .endObject().endObject().string();
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        FieldNamesFieldMapper fieldNamesMapper = docMapper.rootMapper(FieldNamesFieldMapper.class);
+        assertTrue(fieldNamesMapper.enabled());
 
-        final Set<String> fieldNames = new HashSet<>();
-        for (IndexableField field : doc.rootDoc().getFields()) {
-            if (FieldNamesFieldMapper.CONTENT_TYPE.equals(field.name())) {
-                fieldNames.add(field.stringValue());
-            }
-        }
-        assertEquals(new HashSet<>(Arrays.asList("a", "b", "b.c", "_uid", "_type", "_version", "_source", "_all")), fieldNames);
+        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+            .startObject()
+            .field("field", "value")
+            .endObject()
+            .bytes());
+
+        assertFieldNames(set("field", "_uid", "_type", "_version", "_source", "_all"), doc);
+    }
+
+    public void testDisabled() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_field_names").field("enabled", false).endObject()
+            .endObject().endObject().string();
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        FieldNamesFieldMapper fieldNamesMapper = docMapper.rootMapper(FieldNamesFieldMapper.class);
+        assertFalse(fieldNamesMapper.enabled());
+
+        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+            .startObject()
+            .field("field", "value")
+            .endObject()
+            .bytes());
+        
+        assertNull(doc.rootDoc().get("_field_names"));
+    }
+    
+    public void testPre13Disabled() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_2_4.id).build();
+        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(mapping);
+        FieldNamesFieldMapper fieldNamesMapper = docMapper.rootMapper(FieldNamesFieldMapper.class);
+        assertFalse(fieldNamesMapper.enabled());
+    }
+    
+    public void testDisablingBackcompat() throws Exception {
+        // before 1.5, disabling happened by setting index:no
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_field_names").field("index", "no").endObject()
+            .endObject().endObject().string();
+
+        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(mapping);
+        FieldNamesFieldMapper fieldNamesMapper = docMapper.rootMapper(FieldNamesFieldMapper.class);
+        assertFalse(fieldNamesMapper.enabled());
+
+        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+            .startObject()
+            .field("field", "value")
+            .endObject()
+            .bytes());
+
+        assertNull(doc.rootDoc().get("_field_names"));
+    }
+
+    public void testFieldTypeSettingsBackcompat() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_field_names").field("store", "yes").endObject()
+            .endObject().endObject().string();
+
+        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(mapping);
+        FieldNamesFieldMapper fieldNamesMapper = docMapper.rootMapper(FieldNamesFieldMapper.class);
+        assertTrue(fieldNamesMapper.fieldType().stored());
+    }
+
+    public void testMergingMappings() throws Exception {
+        String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_field_names").field("enabled", true).endObject()
+            .endObject().endObject().string();
+        String disabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_field_names").field("enabled", false).endObject()
+            .endObject().endObject().string();
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        
+        DocumentMapper mapperEnabled = parser.parse(enabledMapping);
+        DocumentMapper mapperDisabled = parser.parse(disabledMapping);
+        mapperEnabled.merge(mapperDisabled, DocumentMapper.MergeFlags.mergeFlags().simulate(false));
+        assertFalse(mapperEnabled.rootMapper(FieldNamesFieldMapper.class).enabled());
+
+        mapperEnabled = parser.parse(enabledMapping);
+        mapperDisabled.merge(mapperEnabled, DocumentMapper.MergeFlags.mergeFlags().simulate(false));
+        assertTrue(mapperEnabled.rootMapper(FieldNamesFieldMapper.class).enabled());
     }
 }

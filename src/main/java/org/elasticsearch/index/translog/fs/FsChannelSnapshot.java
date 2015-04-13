@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.translog.fs;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.index.translog.TranslogStreams;
@@ -41,7 +43,7 @@ public class FsChannelSnapshot implements Translog.Snapshot {
 
     private final int totalOperations;
 
-    private final RafReference raf;
+    private final ChannelReference channelReference;
 
     private final FileChannel channel;
 
@@ -59,10 +61,10 @@ public class FsChannelSnapshot implements Translog.Snapshot {
      * Create a snapshot of translog file channel. The length parameter should be consistent with totalOperations and point
      * at the end of the last operation in this snapshot.
      */
-    public FsChannelSnapshot(long id, RafReference raf, long length, int totalOperations) throws FileNotFoundException {
+    public FsChannelSnapshot(long id, ChannelReference channelReference, long length, int totalOperations) throws FileNotFoundException {
         this.id = id;
-        this.raf = raf;
-        this.channel = raf.raf().getChannel();
+        this.channelReference = channelReference;
+        this.channel = channelReference.channel();
         this.length = length;
         this.totalOperations = totalOperations;
     }
@@ -110,12 +112,11 @@ public class FsChannelSnapshot implements Translog.Snapshot {
             }
             assert bytesRead == 4;
             cacheBuffer.flip();
-            int opSize = cacheBuffer.getInt();
-            position += 4;
+            // Add an extra 4 to account for the operation size integer itself
+            int opSize = cacheBuffer.getInt() + 4;
             if ((position + opSize) > length) {
                 // the snapshot is acquired under a write lock. we should never
                 // read beyond the EOF, must be an abrupt EOF
-                position -= 4;
                 throw new EOFException("opSize of [" + opSize + "] pointed beyond EOF. position [" + position + "] length [" + length + "]");
             }
             if (cacheBuffer.capacity() < opSize) {
@@ -131,9 +132,10 @@ public class FsChannelSnapshot implements Translog.Snapshot {
             }
             cacheBuffer.flip();
             position += opSize;
-            return TranslogStreams.readTranslogOperation(new BytesStreamInput(cacheBuffer.array(), 0, opSize, true));
+            BytesArray bytesArray = new BytesArray(cacheBuffer.array(), 0, opSize);
+            return TranslogStreams.readTranslogOperation(new BytesStreamInput(bytesArray.copyBytesArray()));
         } catch (IOException e) {
-            throw new ElasticsearchException("unexpected exception reading from translog snapshot of " + this.raf.file(), e);
+            throw new ElasticsearchException("unexpected exception reading from translog snapshot of " + this.channelReference.file(), e);
         }
     }
 
@@ -144,9 +146,8 @@ public class FsChannelSnapshot implements Translog.Snapshot {
 
     @Override
     public void close() throws ElasticsearchException {
-        if (!closed.compareAndSet(false, true)) {
-            return;
+        if (closed.compareAndSet(false, true)) {
+            channelReference.decRef();
         }
-        raf.decreaseRefCount(true);
     }
 }

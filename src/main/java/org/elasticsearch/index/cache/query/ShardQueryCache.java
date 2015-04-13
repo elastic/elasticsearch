@@ -36,7 +36,7 @@ import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 
 /**
  */
-public class ShardQueryCache extends AbstractIndexShardComponent implements RemovalListener<IndicesQueryCache.Key, BytesReference> {
+public class ShardQueryCache extends AbstractIndexShardComponent implements RemovalListener<IndicesQueryCache.Key, IndicesQueryCache.Value> {
 
     final CounterMetric evictionsMetric = new CounterMetric();
     final CounterMetric totalMetric = new CounterMetric();
@@ -60,12 +60,12 @@ public class ShardQueryCache extends AbstractIndexShardComponent implements Remo
         missCount.inc();
     }
 
-    public void onCached(IndicesQueryCache.Key key, BytesReference value) {
-        totalMetric.inc(key.ramBytesUsed() + value.length());
+    public void onCached(IndicesQueryCache.Key key, IndicesQueryCache.Value value) {
+        totalMetric.inc(key.ramBytesUsed() + value.ramBytesUsed());
     }
 
     @Override
-    public void onRemoval(RemovalNotification<IndicesQueryCache.Key, BytesReference> removalNotification) {
+    public void onRemoval(RemovalNotification<IndicesQueryCache.Key, IndicesQueryCache.Value> removalNotification) {
         if (removalNotification.wasEvicted()) {
             evictionsMetric.inc();
         }
@@ -74,7 +74,7 @@ public class ShardQueryCache extends AbstractIndexShardComponent implements Remo
             dec += removalNotification.getKey().ramBytesUsed();
         }
         if (removalNotification.getValue() != null) {
-            dec += removalNotification.getValue().length();
+            dec += removalNotification.getValue().ramBytesUsed();
         }
         totalMetric.dec(dec);
     }

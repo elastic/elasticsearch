@@ -23,10 +23,16 @@ search hit (there will be another element in each search hit, called
 `highlight`, which includes the highlighted fields and the highlighted
 fragments).
 
+[NOTE]
+==================================
 In order to perform highlighting, the actual content of the field is
 required. If the field in question is stored (has `store` set to `true`
 in the mapping) it will be used, otherwise, the actual `_source` will
 be loaded and the relevant field will be extracted from it.
+
+The `_all` field cannot be extracted from `_source`, so it can only
+be used for highlighting if it mapped to have `store` set to `true`.
+==================================
 
 The field name supports wildcard notation. For example, using `comment_*`
 will cause all fields that match the expression to be highlighted.
@@ -123,8 +129,6 @@ The following is an example that forces the use of the plain highlighter:
 --------------------------------------------------
 
 ==== Force highlighting on source
-
-added[1.0.0.RC1]
 
 Forces the highlighting to highlight fields based on the source even if fields are
 stored separately. Defaults to `false`.

@@ -23,15 +23,14 @@ import org.apache.lucene.analysis.NumericTokenStream;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
-import java.io.Reader;
 
 /**
  *
  */
 public class NumericDateTokenizer extends NumericTokenizer {
 
-    public NumericDateTokenizer(Reader reader, int precisionStep, char[] buffer, DateTimeFormatter dateTimeFormatter) throws IOException {
-        super(reader, new NumericTokenStream(precisionStep), buffer, dateTimeFormatter);
+    public NumericDateTokenizer(int precisionStep, char[] buffer, DateTimeFormatter dateTimeFormatter) throws IOException {
+        super(new NumericTokenStream(precisionStep), buffer, dateTimeFormatter);
     }
 
     @Override

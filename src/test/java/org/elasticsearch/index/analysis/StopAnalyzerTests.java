@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -40,7 +42,7 @@ public class StopAnalyzerTests extends ElasticsearchTokenStreamTestCase {
     @Test
     public void testDefaultsCompoundAnalysis() throws Exception {
         Index index = new Index("test");
-        Settings settings = settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/stop.json").build();
+        Settings settings = settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/stop.json").put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings)), new IndicesAnalysisModule()).createInjector();
         Injector injector = new ModulesBuilder().add(
                 new IndexSettingsModule(index, settings),

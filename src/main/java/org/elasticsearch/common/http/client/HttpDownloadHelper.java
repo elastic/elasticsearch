@@ -21,6 +21,7 @@ package org.elasticsearch.common.http.client;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -28,6 +29,9 @@ import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 
 /**
  *
@@ -37,8 +41,8 @@ public class HttpDownloadHelper {
     private boolean useTimestamp = false;
     private boolean skipExisting = false;
 
-    public boolean download(URL source, File dest, @Nullable DownloadProgress progress, TimeValue timeout) throws Exception {
-        if (dest.exists() && skipExisting) {
+    public boolean download(URL source, Path dest, @Nullable DownloadProgress progress, TimeValue timeout) throws Exception {
+        if (Files.exists(dest) && skipExisting) {
             return true;
         }
 
@@ -51,8 +55,8 @@ public class HttpDownloadHelper {
         long timestamp = 0;
 
         boolean hasTimestamp = false;
-        if (useTimestamp && dest.exists()) {
-            timestamp = dest.lastModified();
+        if (useTimestamp && Files.exists(dest) ) {
+            timestamp = Files.getLastModifiedTime(dest).toMillis();
             hasTimestamp = true;
         }
 
@@ -106,6 +110,7 @@ public class HttpDownloadHelper {
         /**
          * begin a download
          */
+        @Override
         public void beginDownload() {
 
         }
@@ -113,12 +118,14 @@ public class HttpDownloadHelper {
         /**
          * tick handler
          */
+        @Override
         public void onTick() {
         }
 
         /**
          * end a download
          */
+        @Override
         public void endDownload() {
 
         }
@@ -154,6 +161,7 @@ public class HttpDownloadHelper {
         /**
          * begin a download
          */
+        @Override
         public void beginDownload() {
             writer.print("Downloading ");
             dots = 0;
@@ -162,6 +170,7 @@ public class HttpDownloadHelper {
         /**
          * tick handler
          */
+        @Override
         public void onTick() {
             writer.print(".");
             if (dots++ > 50) {
@@ -173,6 +182,7 @@ public class HttpDownloadHelper {
         /**
          * end a download
          */
+        @Override
         public void endDownload() {
             writer.println("DONE");
             writer.flush();
@@ -182,7 +192,7 @@ public class HttpDownloadHelper {
     private class GetThread extends Thread {
 
         private final URL source;
-        private final File dest;
+        private final Path dest;
         private final boolean hasTimestamp;
         private final long timestamp;
         private final DownloadProgress progress;
@@ -194,7 +204,7 @@ public class HttpDownloadHelper {
         private URLConnection connection;
         private int redirections = 0;
 
-        GetThread(URL source, File dest, boolean h, long t, DownloadProgress p) {
+        GetThread(URL source, Path dest, boolean h, long t, DownloadProgress p) {
             this.source = source;
             this.dest = dest;
             hasTimestamp = h;
@@ -202,6 +212,7 @@ public class HttpDownloadHelper {
             progress = p;
         }
 
+        @Override
         public void run() {
             try {
                 success = get();
@@ -267,6 +278,9 @@ public class HttpDownloadHelper {
                 ((HttpURLConnection) connection).setUseCaches(true);
                 ((HttpURLConnection) connection).setConnectTimeout(5000);
             }
+            connection.setRequestProperty("ES-Version", Version.CURRENT.toString());
+            connection.setRequestProperty("User-Agent", "elasticsearch-plugin-manager");
+
             // connect to the remote site (may take some time)
             connection.connect();
 
@@ -329,7 +343,7 @@ public class HttpDownloadHelper {
                 throw new IOException("Can't get " + source + " to " + dest, lastEx);
             }
 
-            os = new FileOutputStream(dest);
+            os = Files.newOutputStream(dest);
             progress.beginDownload();
             boolean finished = false;
             try {
@@ -346,7 +360,7 @@ public class HttpDownloadHelper {
                     // Try to delete the garbage we'd otherwise leave
                     // behind.
                     IOUtils.closeWhileHandlingException(os, is);
-                    dest.delete();
+                    IOUtils.deleteFilesIgnoringExceptions(dest);
                 } else {
                     IOUtils.close(os, is);
                 }
@@ -355,10 +369,10 @@ public class HttpDownloadHelper {
             return true;
         }
 
-        private void updateTimeStamp() {
+        private void updateTimeStamp() throws IOException {
             long remoteTimestamp = connection.getLastModified();
             if (remoteTimestamp != 0) {
-                dest.setLastModified(remoteTimestamp);
+                Files.setLastModifiedTime(dest, FileTime.fromMillis(remoteTimestamp));
             }
         }
 
@@ -384,8 +398,8 @@ public class HttpDownloadHelper {
                 IOUtils.close(is, os);
             } else {
                 IOUtils.closeWhileHandlingException(is, os);
-                if (dest != null && dest.exists()) {
-                    dest.delete();
+                if (dest != null && Files.exists(dest)) {
+                    IOUtils.deleteFilesIgnoringExceptions(dest);
                 }
             }
         }

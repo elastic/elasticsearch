@@ -32,6 +32,14 @@ public class EnvelopeBuilder extends ShapeBuilder {
     protected Coordinate topLeft;
     protected Coordinate bottomRight;
 
+    public EnvelopeBuilder() {
+        this(Orientation.RIGHT);
+    }
+
+    public EnvelopeBuilder(Orientation orientation) {
+        super(orientation);
+    }
+
     public EnvelopeBuilder topLeft(Coordinate topLeft) {
         this.topLeft = topLeft;
         return this;

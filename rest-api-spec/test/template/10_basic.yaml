@@ -8,17 +8,40 @@
   - match: { _id: "1" }
 
   - do:
-     get_template:
-       id: 1
+      get_template:
+        id: 1
+  - match: { found: true }
+  - match: { lang: mustache }
+  - match: { _id: "1" }
+  - match: { _version: 1 }
   - match: { template: /.*query\S\S\S\Smatch_all.*/ }
 
+  - do:
+      catch: missing
+      get_template:
+        id: 2
+  - match: { found: false }
+  - match: { lang: mustache }
+  - match: { _id: "2" }
+  - is_false: _version
+  - is_false: template
 
   - do:
-     delete_template:
-       id: "1"
+      delete_template:
+        id: "1"
   - match: { found: true }
   - match: { _index: ".scripts" }
   - match: { _id: "1" }
+  - match: { _version: 2}
+
+  - do:
+      catch: missing
+      delete_template:
+        id: "non_existing"
+  - match: { found: false }
+  - match: { _index: ".scripts" }
+  - match: { _id: "non_existing" }
+  - match: { _version: 1 }
 
   - do:
       catch: request

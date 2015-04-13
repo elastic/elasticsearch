@@ -21,11 +21,13 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.InternalAggregation;
 
+import java.util.Map;
+
 public abstract class InternalMetricsAggregation extends InternalAggregation {
 
     protected InternalMetricsAggregation() {} // for serialization
 
-    protected InternalMetricsAggregation(String name) {
-        super(name);
+    protected InternalMetricsAggregation(String name, Map<String, Object> metaData) {
+        super(name, metaData);
     }
 }

@@ -19,11 +19,8 @@
 
 package org.elasticsearch.search.rescore;
 
-import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -33,6 +30,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Set;
 
 public final class QueryRescorer implements Rescorer {
@@ -106,28 +104,49 @@ public final class QueryRescorer implements Rescorer {
     }
 
     @Override
-    public void rescore(TopDocs topDocs, SearchContext context, RescoreSearchContext rescoreContext) throws IOException {
+    public TopDocs rescore(TopDocs topDocs, SearchContext context, RescoreSearchContext rescoreContext) throws IOException {
+
         assert rescoreContext != null;
         if (topDocs == null || topDocs.totalHits == 0 || topDocs.scoreDocs.length == 0) {
-            return;
+            return topDocs;
         }
 
-        QueryRescoreContext rescore = (QueryRescoreContext) rescoreContext;
-        ContextIndexSearcher searcher = context.searcher();
-        TopDocsFilter filter = new TopDocsFilter(topDocs, rescoreContext.window());
-        TopDocs rescored = searcher.search(rescore.query(), filter, rescoreContext.window());
-        context.queryResult().topDocs(merge(topDocs, rescored, rescore));
+        final QueryRescoreContext rescore = (QueryRescoreContext) rescoreContext;
+
+        org.apache.lucene.search.Rescorer rescorer = new org.apache.lucene.search.QueryRescorer(rescore.query()) {
+
+            @Override
+            protected float combine(float firstPassScore, boolean secondPassMatches, float secondPassScore) {
+                if (secondPassMatches) {
+                    return rescore.scoreMode.combine(firstPassScore * rescore.queryWeight(), secondPassScore * rescore.rescoreQueryWeight());
+                }
+                // TODO: shouldn't this be up to the ScoreMode?  I.e., we should just invoke ScoreMode.combine, passing 0.0f for the
+                // secondary score?
+                return firstPassScore * rescore.queryWeight();
+            }
+        };
+
+        // First take top slice of incoming docs, to be rescored:
+        TopDocs topNFirstPass = topN(topDocs, rescoreContext.window());
+
+        // Rescore them:
+        TopDocs rescored = rescorer.rescore(context.searcher(), topNFirstPass, rescoreContext.window());
+
+        // Splice back to non-topN hits and resort all of them:
+        return combine(topDocs, rescored, (QueryRescoreContext) rescoreContext);
     }
 
     @Override
     public Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext,
-            Explanation sourceExplanation) throws IOException {
-        QueryRescoreContext rescore = ((QueryRescoreContext) rescoreContext);
+                               Explanation sourceExplanation) throws IOException {
+        QueryRescoreContext rescore = (QueryRescoreContext) rescoreContext;
         ContextIndexSearcher searcher = context.searcher();
         if (sourceExplanation == null) {
             // this should not happen but just in case
             return new ComplexExplanation(false, 0.0f, "nothing matched");
         }
+        // TODO: this isn't right?  I.e., we are incorrectly pretending all first pass hits were rescored?  If the requested docID was
+        // beyond the top rescoreContext.window() in the first pass hits, we don't rescore it now?
         Explanation rescoreExplain = searcher.explain(rescore.query(), topLevelDocId);
         float primaryWeight = rescore.queryWeight();
         ComplexExplanation prim = new ComplexExplanation(sourceExplanation.isMatch(),
@@ -135,6 +154,9 @@ public final class QueryRescorer implements Rescorer {
                 "product of:");
         prim.addDetail(sourceExplanation);
         prim.addDetail(new Explanation(primaryWeight, "primaryWeight"));
+
+        // NOTE: we don't use Lucene's Rescorer.explain because we want to insert our own description with which ScoreMode was used.  Maybe
+        // we should add QueryRescorer.explainCombine to Lucene?
         if (rescoreExplain != null && rescoreExplain.isMatch()) {
             float secondaryWeight = rescore.rescoreQueryWeight();
             ComplexExplanation sec = new ComplexExplanation(rescoreExplain.isMatch(),
@@ -195,6 +217,48 @@ public final class QueryRescorer implements Rescorer {
         return rescoreContext;
     }
 
+    private final static Comparator<ScoreDoc> SCORE_DOC_COMPARATOR = new Comparator<ScoreDoc>() {
+        @Override
+        public int compare(ScoreDoc o1, ScoreDoc o2) {
+            int cmp = Float.compare(o2.score, o1.score);
+            return cmp == 0 ?  Integer.compare(o1.doc, o2.doc) : cmp;
+        }
+    };
+
+    /** Returns a new {@link TopDocs} with the topN from the incoming one, or the same TopDocs if the number of hits is already <=
+     *  topN. */
+    private TopDocs topN(TopDocs in, int topN) {
+        if (in.totalHits < topN) {
+            assert in.scoreDocs.length == in.totalHits;
+            return in;
+        }
+
+        ScoreDoc[] subset = new ScoreDoc[topN];
+        System.arraycopy(in.scoreDocs, 0, subset, 0, topN);
+
+        return new TopDocs(in.totalHits, subset, in.getMaxScore());
+    }
+
+    /** Modifies incoming TopDocs (in) by replacing the top hits with resorted's hits, and then resorting all hits. */
+    private TopDocs combine(TopDocs in, TopDocs resorted, QueryRescoreContext ctx) {
+
+        System.arraycopy(resorted.scoreDocs, 0, in.scoreDocs, 0, resorted.scoreDocs.length);
+        if (in.scoreDocs.length > resorted.scoreDocs.length) {
+            // These hits were not rescored (beyond the rescore window), so we treat them the same as a hit that did get rescored but did
+            // not match the 2nd pass query:
+            for(int i=resorted.scoreDocs.length;i<in.scoreDocs.length;i++) {
+                // TODO: shouldn't this be up to the ScoreMode?  I.e., we should just invoke ScoreMode.combine, passing 0.0f for the
+                // secondary score?
+                in.scoreDocs[i].score *= ctx.queryWeight();
+            }
+            
+            // TODO: this is wrong, i.e. we are comparing apples and oranges at this point.  It would be better if we always rescored all
+            // incoming first pass hits, instead of allowing recoring of just the top subset:
+            Arrays.sort(in.scoreDocs, SCORE_DOC_COMPARATOR);
+        }
+        return in;
+    }
+
     public static class QueryRescoreContext extends RescoreSearchContext {
 
         public QueryRescoreContext(QueryRescorer rescorer) {
@@ -237,174 +301,6 @@ public final class QueryRescorer implements Rescorer {
 
         public void setScoreMode(ScoreMode scoreMode) {
             this.scoreMode = scoreMode;
-        }
-
-    }
-
-
-    private TopDocs merge(TopDocs primary, TopDocs secondary, QueryRescoreContext context) {
-        DocIdSorter sorter = new DocIdSorter();
-        sorter.array = primary.scoreDocs;
-        sorter.sort(0, sorter.array.length);
-        ScoreDoc[] primaryDocs = sorter.array;
-        sorter.array = secondary.scoreDocs;
-        sorter.sort(0, sorter.array.length);
-        ScoreDoc[] secondaryDocs = sorter.array;
-        int j = 0;
-        float primaryWeight = context.queryWeight();
-        float secondaryWeight = context.rescoreQueryWeight();
-        ScoreMode scoreMode = context.scoreMode();
-        for (int i = 0; i < primaryDocs.length; i++) {
-            if (j < secondaryDocs.length && primaryDocs[i].doc == secondaryDocs[j].doc) {
-                primaryDocs[i].score = scoreMode.combine(primaryDocs[i].score * primaryWeight, secondaryDocs[j++].score * secondaryWeight);
-            } else {
-                primaryDocs[i].score *= primaryWeight;
-            }
-        }
-        ScoreSorter scoreSorter = new ScoreSorter();
-        scoreSorter.array = primaryDocs;
-        scoreSorter.sort(0, primaryDocs.length);
-        primary.setMaxScore(primaryDocs[0].score);
-        return primary;
-    }
-
-    private static final class DocIdSorter extends IntroSorter {
-        private ScoreDoc[] array;
-        private ScoreDoc pivot;
-
-        @Override
-        protected void swap(int i, int j) {
-            ScoreDoc scoreDoc = array[i];
-            array[i] = array[j];
-            array[j] = scoreDoc;
-        }
-
-        @Override
-        protected int compare(int i, int j) {
-            return compareDocId(array[i], array[j]);
-        }
-
-        @Override
-        protected void setPivot(int i) {
-            pivot = array[i];
-
-        }
-
-        @Override
-        protected int comparePivot(int j) {
-            return compareDocId(pivot, array[j]);
-        }
-
-    }
-
-    private static final int compareDocId(ScoreDoc left, ScoreDoc right) {
-        if (left.doc < right.doc) {
-            return 1;
-        } else if (left.doc == right.doc) {
-            return 0;
-        }
-        return -1;
-    }
-
-    private static final class ScoreSorter extends IntroSorter {
-        private ScoreDoc[] array;
-        private ScoreDoc pivot;
-
-        @Override
-        protected void swap(int i, int j) {
-            ScoreDoc scoreDoc = array[i];
-            array[i] = array[j];
-            array[j] = scoreDoc;
-        }
-
-        @Override
-        protected int compare(int i, int j) {
-            int cmp = Float.compare(array[j].score, array[i].score);
-            return cmp == 0 ? compareDocId(array[i], array[j]) : cmp;
-        }
-
-        @Override
-        protected void setPivot(int i) {
-            pivot = array[i];
-
-        }
-
-        @Override
-        protected int comparePivot(int j) {
-            int cmp = Float.compare(array[j].score, pivot.score);
-            return cmp == 0 ? compareDocId(pivot, array[j]) : cmp;
-        }
-
-    }
-
-    private static final class TopDocsFilter extends Filter {
-
-        private final int[] docIds;
-
-        public TopDocsFilter(TopDocs topDocs, int max) {
-            ScoreDoc[] scoreDocs = topDocs.scoreDocs;
-            max = Math.min(max, scoreDocs.length);
-            this.docIds = new int[max];
-            for (int i = 0; i < max; i++) {
-                docIds[i] = scoreDocs[i].doc;
-            }
-            Arrays.sort(docIds);
-        }
-
-        @Override
-        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
-            final int docBase = context.docBase;
-            int limit = docBase + context.reader().maxDoc();
-            int offset = Arrays.binarySearch(docIds, docBase);
-            if (offset < 0) {
-                offset = (-offset) - 1;
-            }
-            int end = Arrays.binarySearch(docIds, limit);
-            if (end < 0) {
-                end = (-end) - 1;
-            }
-            final int start = offset;
-            final int stop = end;
-
-            return new DocIdSet() {
-
-                @Override
-                public DocIdSetIterator iterator() throws IOException {
-                    return new DocIdSetIterator() {
-                        private int current = start;
-                        private int docId = NO_MORE_DOCS;
-
-                        @Override
-                        public int nextDoc() throws IOException {
-                            if (current < stop) {
-                                return docId = docIds[current++] - docBase;
-                            }
-                            return docId = NO_MORE_DOCS;
-                        }
-
-                        @Override
-                        public int docID() {
-                            return docId;
-                        }
-
-                        @Override
-                        public int advance(int target) throws IOException {
-                            if (target == NO_MORE_DOCS) {
-                                current = stop;
-                                return docId = NO_MORE_DOCS;
-                            }
-                            while (nextDoc() < target) {
-                            }
-                            return docId;
-                        }
-
-                        @Override
-                        public long cost() {
-                            return docIds.length;
-                        }
-                    };
-                }
-            };
         }
 
     }

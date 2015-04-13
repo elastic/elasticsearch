@@ -190,6 +190,7 @@ public class ElasticsearchException extends RuntimeException {
             this.headers = headers != null ? headers : ImmutableMap.<String, List<String>>of();
         }
 
+        @Override
         public ImmutableMap<String, List<String>> getHeaders() {
             return headers;
         }

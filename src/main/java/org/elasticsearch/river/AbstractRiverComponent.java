@@ -23,8 +23,9 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 /**
- *
+ * @deprecated See blog post https://www.elastic.co/blog/deprecating_rivers
  */
+@Deprecated
 public class AbstractRiverComponent implements RiverComponent {
 
     protected final ESLogger logger;

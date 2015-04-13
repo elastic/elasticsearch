@@ -42,12 +42,14 @@ public class ExposureBuilder<T> implements AnnotatedElementBuilder {
         }
     }
 
+    @Override
     public void annotatedWith(Class<? extends Annotation> annotationType) {
         com.google.common.base.Preconditions.checkNotNull(annotationType, "annotationType");
         checkNotAnnotated();
         key = Key.get(key.getTypeLiteral(), annotationType);
     }
 
+    @Override
     public void annotatedWith(Annotation annotation) {
         com.google.common.base.Preconditions.checkNotNull(annotation, "annotation");
         checkNotAnnotated();

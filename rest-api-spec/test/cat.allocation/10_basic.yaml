@@ -3,6 +3,7 @@
   - do:
       cat.allocation:
         help: true
+        v: false
 
   - match:
       $body: |
@@ -20,7 +21,8 @@
 "Empty cluster":
 
   - do:
-      cat.allocation: {}
+      cat.allocation:
+        v: false
 
   - match:
       $body: |
@@ -50,7 +52,8 @@
             timeout: 1s
 
   - do:
-        cat.allocation: {}
+        cat.allocation:
+          v: false
 
   - match:
       $body: |
@@ -80,6 +83,7 @@
   - do:
         cat.allocation:
             node_id: _master
+            v: false
 
   - match:
       $body: |
@@ -99,6 +103,7 @@
   - do:
         cat.allocation:
             node_id: non_existent
+            v: false
 
   - match:
       $body: |
@@ -143,6 +148,7 @@
   - do:
         cat.allocation:
             h: [disk.percent, node]
+            v: false
 
   - match:
       $body: |
@@ -179,6 +185,7 @@
   - do:
       cat.allocation:
         bytes: g
+        v: false
 
   - match:
       $body: |

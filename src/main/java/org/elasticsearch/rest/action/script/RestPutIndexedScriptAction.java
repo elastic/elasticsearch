@@ -43,23 +43,24 @@ import static org.elasticsearch.rest.RestStatus.*;
 public class RestPutIndexedScriptAction extends BaseRestHandler {
 
     @Inject
-    public RestPutIndexedScriptAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
-
-        controller.registerHandler(POST, "/_scripts/{lang}/{id}", this);
-        controller.registerHandler(PUT, "/_scripts/{lang}/{id}", this);
-
-        controller.registerHandler(PUT, "/_scripts/{lang}/{id}/_create", new CreateHandler(settings, client));
-        controller.registerHandler(POST, "/_scripts/{lang}/{id}/_create", new CreateHandler(settings, client));
+    public RestPutIndexedScriptAction(Settings settings, RestController controller, Client client) {
+        this(settings, controller, true, client);
     }
 
-    protected RestPutIndexedScriptAction(Settings settings, Client client) {
-        super(settings, client);
+    protected RestPutIndexedScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers, Client client) {
+        super(settings, controller, client);
+        if (registerDefaultHandlers) {
+            controller.registerHandler(POST, "/_scripts/{lang}/{id}", this);
+            controller.registerHandler(PUT, "/_scripts/{lang}/{id}", this);
+
+            controller.registerHandler(PUT, "/_scripts/{lang}/{id}/_create", new CreateHandler(settings, controller, client));
+            controller.registerHandler(POST, "/_scripts/{lang}/{id}/_create", new CreateHandler(settings, controller, client));
+        }
     }
 
     final class CreateHandler extends BaseRestHandler {
-        protected CreateHandler(Settings settings, final Client client) {
-            super(settings, client);
+        protected CreateHandler(Settings settings, RestController controller, Client client) {
+            super(settings, controller, client);
         }
 
         @Override
@@ -78,7 +79,7 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
         PutIndexedScriptRequest putRequest = new PutIndexedScriptRequest(getScriptLang(request), request.param("id")).listenerThreaded(false);
         putRequest.version(request.paramAsLong("version", putRequest.version()));
         putRequest.versionType(VersionType.fromString(request.param("version_type"), putRequest.versionType()));
-        putRequest.source(request.content(), request.contentUnsafe());
+        putRequest.source(request.content());
         String sOpType = request.param("op_type");
         if (sOpType != null) {
             try {

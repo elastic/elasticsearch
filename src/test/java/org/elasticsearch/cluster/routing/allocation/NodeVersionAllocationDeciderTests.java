@@ -61,7 +61,7 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
         logger.info("Building initial routing table");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(5).numberOfReplicas(2))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(2))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -179,7 +179,7 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
         RoutingTable.Builder rtBuilder = RoutingTable.builder();
         int numIndices = between(1, 20);
         for (int i = 0; i < numIndices; i++) {
-            builder.put(IndexMetaData.builder("test_" + i).numberOfShards(between(1, 5)).numberOfReplicas(between(0, 2)));
+            builder.put(IndexMetaData.builder("test_" + i).settings(settings(Version.CURRENT)).numberOfShards(between(1, 5)).numberOfReplicas(between(0, 2)));
         }
         MetaData metaData = builder.build();
 
@@ -227,7 +227,7 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
         logger.info("Building initial routing table");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(5).numberOfReplicas(2))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(2))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()

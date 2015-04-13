@@ -64,42 +64,52 @@ abstract class AbstractProcessor implements ElementVisitor<Boolean> {
         }
     }
 
+    @Override
     public Boolean visit(Message message) {
         return false;
     }
 
+    @Override
     public Boolean visit(ScopeBinding scopeBinding) {
         return false;
     }
 
+    @Override
     public Boolean visit(InjectionRequest injectionRequest) {
         return false;
     }
 
+    @Override
     public Boolean visit(StaticInjectionRequest staticInjectionRequest) {
         return false;
     }
 
+    @Override
     public Boolean visit(TypeConverterBinding typeConverterBinding) {
         return false;
     }
 
+    @Override
     public <T> Boolean visit(Binding<T> binding) {
         return false;
     }
 
+    @Override
     public <T> Boolean visit(ProviderLookup<T> providerLookup) {
         return false;
     }
 
+    @Override
     public Boolean visit(PrivateElements privateElements) {
         return false;
     }
 
+    @Override
     public <T> Boolean visit(MembersInjectorLookup<T> lookup) {
         return false;
     }
 
+    @Override
     public Boolean visit(TypeListenerBinding binding) {
         return false;
     }

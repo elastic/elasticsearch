@@ -66,11 +66,6 @@ public abstract class RestRequest extends ContextHolder implements ToXContent.Pa
 
     public abstract boolean hasContent();
 
-    /**
-     * Is the byte array content safe or unsafe for usage on other threads
-     */
-    public abstract boolean contentUnsafe();
-
     public abstract BytesReference content();
 
     public abstract String header(String name);

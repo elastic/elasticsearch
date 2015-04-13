@@ -30,13 +30,6 @@ import java.io.OutputStream;
  */
 public interface BlobContainer {
 
-    interface BlobNameFilter {
-        /**
-         * Return <tt>false</tt> if the blob should be filtered.
-         */
-        boolean accept(String blobName);
-    }
-
     BlobPath path();
 
     boolean blobExists(String blobName);
@@ -51,13 +44,30 @@ public interface BlobContainer {
      */
     OutputStream createOutput(String blobName) throws IOException;
 
-    boolean deleteBlob(String blobName) throws IOException;
+    /**
+     * Deletes a blob with giving name.
+     *
+     * If blob exist but cannot be deleted an exception has to be thrown.
+     */
+    void deleteBlob(String blobName) throws IOException;
 
+    /**
+     * Deletes all blobs in the container that match the specified prefix.
+     */
     void deleteBlobsByPrefix(String blobNamePrefix) throws IOException;
 
-    void deleteBlobsByFilter(BlobNameFilter filter) throws IOException;
-
+    /**
+     * Lists all blobs in the container
+     */
     ImmutableMap<String, BlobMetaData> listBlobs() throws IOException;
 
+    /**
+     * Lists all blobs in the container that match specified prefix
+     */
     ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException;
+
+    /**
+     * Atomically renames source blob into target blob
+     */
+    void move(String sourceBlobName, String targetBlobName) throws IOException;
 }

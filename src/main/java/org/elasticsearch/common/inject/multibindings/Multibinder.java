@@ -207,6 +207,7 @@ public abstract class Multibinder<T> {
             this.setKey = checkNotNull(setKey, "setKey");
         }
 
+        @Override
         @SuppressWarnings("unchecked")
         public void configure(Binder binder) {
             checkConfiguration(!isInitialized(), "Multibinder was already initialized");
@@ -254,6 +255,7 @@ public abstract class Multibinder<T> {
             return binder == null;
         }
 
+        @Override
         public Set<T> get() {
             checkConfiguration(isInitialized(), "Multibinder is not initialized");
 
@@ -275,6 +277,7 @@ public abstract class Multibinder<T> {
             return setKey;
         }
 
+        @Override
         public Set<Dependency<?>> getDependencies() {
             return dependencies;
         }

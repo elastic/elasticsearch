@@ -23,15 +23,16 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.store.DirectoryService;
+import org.elasticsearch.index.store.support.AbstractIndexStore;
 import org.elasticsearch.indices.store.IndicesStore;
 
 /**
  *
  */
-public final class NioFsIndexStore extends FsIndexStore {
+public final class NioFsIndexStore extends AbstractIndexStore {
 
     @Inject
     public NioFsIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, IndicesStore indicesStore, NodeEnvironment nodeEnv) {

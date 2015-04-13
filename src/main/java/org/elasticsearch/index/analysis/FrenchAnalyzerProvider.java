@@ -38,9 +38,9 @@ public class FrenchAnalyzerProvider extends AbstractIndexAnalyzerProvider<French
     @Inject
     public FrenchAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        analyzer = new FrenchAnalyzer(version,
-                Analysis.parseStopWords(env, settings, FrenchAnalyzer.getDefaultStopSet(), version),
-                Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET, version));
+        analyzer = new FrenchAnalyzer(Analysis.parseStopWords(env, settings, FrenchAnalyzer.getDefaultStopSet()),
+                                      Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+        analyzer.setVersion(version);
     }
 
     @Override

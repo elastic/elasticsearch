@@ -21,6 +21,7 @@ package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.search.*;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 
@@ -148,22 +149,12 @@ public class Queries {
      * If a filter has an anti per segment execution / caching nature then @{@link CustomQueryWrappingFilter} is returned
      * otherwise the standard {@link org.apache.lucene.search.QueryWrapperFilter} is returned.
      */
+    @SuppressForbidden(reason = "QueryWrapperFilter cachability")
     public static Filter wrap(Query query, QueryParseContext context) {
-        return FACTORY.wrap(query, context);
-    }
-
-    private static final QueryWrapperFilterFactory FACTORY = new QueryWrapperFilterFactory();
-    // NOTE: This is a separate class since we added QueryWrapperFilter as a forbidden API
-    // that way we can exclude only the inner class without excluding the entire Queries class
-    // and potentially miss a forbidden API usage!
-    private static final class QueryWrapperFilterFactory {
-
-        public Filter wrap(Query query, QueryParseContext context) {
-            if (context.requireCustomQueryWrappingFilter() || CustomQueryWrappingFilter.shouldUseCustomQueryWrappingFilter(query)) {
-                return new CustomQueryWrappingFilter(query);
-            } else {
-                return new QueryWrapperFilter(query);
-            }
+        if (context.requireCustomQueryWrappingFilter() || CustomQueryWrappingFilter.shouldUseCustomQueryWrappingFilter(query)) {
+            return new CustomQueryWrappingFilter(query);
+        } else {
+            return new QueryWrapperFilter(query);
         }
     }
 }

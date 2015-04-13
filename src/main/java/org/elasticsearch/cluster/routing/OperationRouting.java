@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.math.MathUtils;
@@ -247,6 +248,7 @@ public class OperationRouting extends AbstractComponent {
         return indexShard;
     }
 
+    @SuppressForbidden(reason = "Math#abs is trappy")
     private int shardId(ClusterState clusterState, String index, String type, String id, @Nullable String routing) {
         final IndexMetaData indexMetaData = indexMetaData(clusterState, index);
         final Version createdVersion = indexMetaData.getCreationVersion();

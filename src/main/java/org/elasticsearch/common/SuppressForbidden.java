@@ -16,22 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.common;
 
-package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.SuppressForbidden;
-
-import java.util.concurrent.Future;
-
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.lang.annotation.ElementType;
 /**
+ * Annotation to suppress forbidden-apis errors inside a whole class, a method, or a field.
  */
-public class FutureUtils {
-
-    @SuppressForbidden(reason = "Future#cancel()")
-    public static boolean cancel(Future<?> toCancel) {
-        if (toCancel != null) {
-            return toCancel.cancel(false); // this method is a forbidden API since it interrupts threads
-        }
-        return false;
-    }
+@Retention(RetentionPolicy.CLASS)
+@Target({ ElementType.CONSTRUCTOR, ElementType.FIELD, ElementType.METHOD, ElementType.TYPE })
+public @interface SuppressForbidden {
+    String reason();
 }

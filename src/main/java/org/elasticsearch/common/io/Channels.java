@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.io;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.EOFException;
@@ -28,6 +29,7 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
 import java.nio.channels.WritableByteChannel;
 
+@SuppressForbidden(reason = "Channel#read")
 public final class Channels {
 
     private Channels() {

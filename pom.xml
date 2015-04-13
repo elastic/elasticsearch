@@ -1423,33 +1423,6 @@
                             <failOnUnsupportedJava>false</failOnUnsupportedJava>
                             <excludes>
                                 <exclude>jsr166e/**</exclude>
-                                <!-- start excludes for valid system-out -->
-                                <exclude>org/elasticsearch/common/logging/log4j/ConsoleAppender*</exclude>
-                                <exclude>org/elasticsearch/common/http/client/HttpDownloadHelper*</exclude>
-                                <exclude>org/elasticsearch/common/cli/Terminal*</exclude>
-                                <exclude>org/elasticsearch/plugins/PluginManager$SysOut.class</exclude>
-                                <exclude>org/elasticsearch/common/http/client/HttpDownloadHelper.class</exclude>
-                                <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
-                                <exclude>org/elasticsearch/Version.class</exclude>
-                                <exclude>org/elasticsearch/common/lucene/search/Queries$QueryWrapperFilterFactory.class</exclude>
-                                <!-- end excludes for valid system-out -->
-                                <!-- start excludes for Math.abs -->
-                                <exclude>org/elasticsearch/common/util/MathUtils.class</exclude>
-                                <exclude>org/elasticsearch/common/math/UnboxedMathUtils.class</exclude>
-                                <exclude>org/elasticsearch/cluster/routing/OperationRouting.class</exclude>
-                                <!-- end excludes for Math.abs -->
-                                <!-- start exclude for FilteredQuery -->
-                                <exclude>org/elasticsearch/common/lucene/search/XFilteredQuery.class</exclude>
-                                <!-- end exclude for FilteredQuery -->
-                                <!-- start exclude for Channels utility class -->
-                                <exclude>org/elasticsearch/common/io/Channels.class</exclude>
-                                <!-- end exclude for Channels -->
-                                <!-- start exclude for Lucene utility class -->
-                                <exclude>org/elasticsearch/common/lucene/Lucene$LenientParser.class</exclude>
-                                <!-- end exclude for Lucene -->
-                                <!-- start exclude for Future utility class -->
-                                <exclude>org/elasticsearch/common/util/concurrent/FutureUtils.class</exclude>
-                                <!-- end exclude for Future utility class -->
                             </excludes>
                             <bundledSignatures>
                                 <!-- This will automatically choose the right signatures based on 'targetVersion': -->
@@ -1462,6 +1435,7 @@
                                 <signaturesFile>dev-tools/forbidden/all-signatures.txt</signaturesFile>
                             </signaturesFiles>
                             <signatures>${forbidden.signatures}</signatures>
+                            <suppressAnnotations><annotation>**.SuppressForbidden</annotation></suppressAnnotations>
                         </configuration>
                         <phase>compile</phase>
                         <goals>

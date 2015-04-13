@@ -23,6 +23,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.*;
@@ -134,6 +135,7 @@ public class HttpDownloadHelper {
     /**
      * verbose progress system prints to some output stream
      */
+    @SuppressForbidden(reason = "System#out")
     public static class VerboseProgress implements DownloadProgress {
         private int dots = 0;
         // CheckStyle:VisibilityModifier OFF - bc

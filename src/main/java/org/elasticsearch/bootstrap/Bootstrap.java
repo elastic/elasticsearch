@@ -22,6 +22,7 @@ package org.elasticsearch.bootstrap;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.PidFile;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
@@ -90,6 +91,7 @@ public class Bootstrap {
         }
     }
 
+    @SuppressForbidden(reason = "Exception#printStackTrace()")
     private static void setupLogging(Tuple<Settings, Environment> tuple) {
         try {
             tuple.v1().getClassLoader().loadClass("org.apache.log4j.Logger");
@@ -99,7 +101,7 @@ public class Bootstrap {
         } catch (NoClassDefFoundError e) {
             // no log4j
         } catch (Exception e) {
-            System.err.println("Failed to configure logging...");
+            sysError("Failed to configure logging...", false);
             e.printStackTrace();
         }
     }
@@ -154,8 +156,7 @@ public class Bootstrap {
                 PidFile.create(Paths.get(pidFile), true);
             } catch (Exception e) {
                 String errorMessage = buildErrorMessage("pid", e);
-                System.err.println(errorMessage);
-                System.err.flush();
+                sysError(errorMessage, true);
                 System.exit(3);
             }
         }
@@ -171,8 +172,7 @@ public class Bootstrap {
             setupLogging(tuple);
         } catch (Exception e) {
             String errorMessage = buildErrorMessage("Setup", e);
-            System.err.println(errorMessage);
-            System.err.flush();
+            sysError(errorMessage, true);
             System.exit(3);
         }
 
@@ -191,7 +191,7 @@ public class Bootstrap {
         try {
             if (!foreground) {
                 Loggers.disableConsoleLogging();
-                System.out.close();
+                closeSystOut();
             }
 
             // fail if using broken version
@@ -203,7 +203,7 @@ public class Bootstrap {
             bootstrap.start();
 
             if (!foreground) {
-                System.err.close();
+                closeSysError();
             }
 
             keepAliveLatch = new CountDownLatch(1);
@@ -234,13 +234,30 @@ public class Bootstrap {
             }
             String errorMessage = buildErrorMessage(stage, e);
             if (foreground) {
-                System.err.println(errorMessage);
-                System.err.flush();
+                sysError(errorMessage, true);
                 Loggers.disableConsoleLogging();
             }
             logger.error("Exception", e);
             
             System.exit(3);
+        }
+    }
+
+    @SuppressForbidden(reason = "System#out")
+    private static void closeSystOut() {
+        System.out.close();
+    }
+
+    @SuppressForbidden(reason = "System#err")
+    private static void closeSysError() {
+        System.err.close();
+    }
+
+    @SuppressForbidden(reason = "System#err")
+    private static void sysError(String line, boolean flush) {
+        System.err.println(line);
+        if (flush) {
+            System.err.flush();
         }
     }
 

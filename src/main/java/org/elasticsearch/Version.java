@@ -21,6 +21,7 @@ package org.elasticsearch;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -580,6 +581,7 @@ public class Version {
         return sb.toString();
     }
 
+    @SuppressForbidden(reason = "System.out.*")
     public static void main(String[] args) {
         System.out.println("Version: " + Version.CURRENT + ", Build: " + Build.CURRENT.hashShort() + "/" + Build.CURRENT.timestamp() + ", JVM: " + JvmInfo.jvmInfo().version());
     }

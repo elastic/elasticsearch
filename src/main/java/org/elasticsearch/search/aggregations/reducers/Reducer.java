@@ -45,7 +45,7 @@ public abstract class Reducer implements Streamable {
      */
     public static interface Parser {
 
-        public static final ParseField BUCKETS_PATH = new ParseField("bucketsPath");
+        public static final ParseField BUCKETS_PATH = new ParseField("buckets_path");
 
         /**
          * @return The reducer type this parser is associated with.

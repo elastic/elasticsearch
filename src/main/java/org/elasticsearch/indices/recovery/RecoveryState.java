@@ -52,10 +52,10 @@ public class RecoveryState implements ToXContent, Streamable {
         /** recovery of lucene files, either reusing local ones are copying new ones */
         INDEX((byte) 1),
 
-        /** starting up the engine, potentially running checks */
-        START((byte) 2),
+        /** potentially running check index */
+        VERIFY_INDEX((byte) 2),
 
-        /** replaying the translog */
+        /**  starting up the engine, replaying the translog */
         TRANSLOG((byte) 3),
 
         /** performing final task after all translog ops have been done */
@@ -127,7 +127,7 @@ public class RecoveryState implements ToXContent, Streamable {
 
     private final Index index = new Index();
     private final Translog translog = new Translog();
-    private final Start start = new Start();
+    private final VerifyIndex verifyIndex = new VerifyIndex();
     private final Timer timer = new Timer();
 
     private Type type;
@@ -183,21 +183,21 @@ public class RecoveryState implements ToXContent, Streamable {
                 // reinitializing stop remove all state except for start time
                 this.stage = Stage.INIT;
                 getIndex().reset();
-                getStart().reset();
+                getVerifyIndex().reset();
                 getTranslog().reset();
                 break;
             case INDEX:
                 validateAndSetStage(Stage.INIT, stage);
                 getIndex().start();
                 break;
-            case START:
+            case VERIFY_INDEX:
                 validateAndSetStage(Stage.INDEX, stage);
                 getIndex().stop();
-                getStart().start();
+                getVerifyIndex().start();
                 break;
             case TRANSLOG:
-                validateAndSetStage(Stage.START, stage);
-                getStart().stop();
+                validateAndSetStage(Stage.VERIFY_INDEX, stage);
+                getVerifyIndex().stop();
                 getTranslog().start();
                 break;
             case FINALIZE:
@@ -218,8 +218,8 @@ public class RecoveryState implements ToXContent, Streamable {
         return index;
     }
 
-    public Start getStart() {
-        return this.start;
+    public VerifyIndex getVerifyIndex() {
+        return this.verifyIndex;
     }
 
     public Translog getTranslog() {
@@ -269,7 +269,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
         index.readFrom(in);
         translog.readFrom(in);
-        start.readFrom(in);
+        verifyIndex.readFrom(in);
         primary = in.readBoolean();
     }
 
@@ -287,7 +287,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
         index.writeTo(out);
         translog.writeTo(out);
-        start.writeTo(out);
+        verifyIndex.writeTo(out);
         out.writeBoolean(primary);
     }
 
@@ -333,8 +333,8 @@ public class RecoveryState implements ToXContent, Streamable {
         translog.toXContent(builder, params);
         builder.endObject();
 
-        builder.startObject(Fields.START);
-        start.toXContent(builder, params);
+        builder.startObject(Fields.VERIFY_INDEX);
+        verifyIndex.toXContent(builder, params);
         builder.endObject();
 
         return builder;
@@ -360,7 +360,7 @@ public class RecoveryState implements ToXContent, Streamable {
         static final XContentBuilderString INDEX = new XContentBuilderString("index");
         static final XContentBuilderString TRANSLOG = new XContentBuilderString("translog");
         static final XContentBuilderString TOTAL_ON_START = new XContentBuilderString("total_on_start");
-        static final XContentBuilderString START = new XContentBuilderString("start");
+        static final XContentBuilderString VERIFY_INDEX = new XContentBuilderString("verify_index");
         static final XContentBuilderString RECOVERED = new XContentBuilderString("recovered");
         static final XContentBuilderString RECOVERED_IN_BYTES = new XContentBuilderString("recovered_in_bytes");
         static final XContentBuilderString CHECK_INDEX_TIME = new XContentBuilderString("check_index_time");
@@ -440,7 +440,7 @@ public class RecoveryState implements ToXContent, Streamable {
 
     }
 
-    public static class Start extends Timer implements ToXContent, Streamable {
+    public static class VerifyIndex extends Timer implements ToXContent, Streamable {
         private volatile long checkIndexTime;
 
 

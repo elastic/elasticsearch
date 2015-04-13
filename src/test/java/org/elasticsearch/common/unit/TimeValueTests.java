@@ -79,6 +79,7 @@ public class TimeValueTests extends ElasticsearchTestCase {
     @Test(expected = ElasticsearchParseException.class)
     public void testFailOnMissingUnits() {
         TimeValue.parseTimeValue("42", null);
+    }
 
     private void assertEqualityAfterSerialize(TimeValue value) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();

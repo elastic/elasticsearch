@@ -181,6 +181,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
             if (context.parser().currentToken() == XContentParser.Token.VALUE_STRING) {
                 ttl = TimeValue.parseTimeValue(context.parser().text(), null, "ttl").millis();
             } else {
+                // nocommit how to require units here too?
                 ttl = context.parser().longValue(coerce.value());
             }
             if (ttl <= 0) {

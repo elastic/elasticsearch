@@ -311,6 +311,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                             if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
                                 ttl = TimeValue.parseTimeValue(parser.text(), null, "ttl").millis();
                             } else {
+                                // nocommit how to require units here too?
                                 ttl = parser.longValue();
                             }
                         } else if ("op_type".equals(currentFieldName) || "opType".equals(currentFieldName)) {

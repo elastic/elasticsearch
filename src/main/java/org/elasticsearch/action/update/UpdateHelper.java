@@ -257,6 +257,7 @@ public class UpdateHelper extends AbstractComponent {
         Object fetchedTTL = ctx.get("_ttl");
         if (fetchedTTL != null) {
             if (fetchedTTL instanceof Number) {
+                // nocommit how to require units here too?
                 ttl = ((Number) fetchedTTL).longValue();
             } else {
                 ttl = TimeValue.parseTimeValue((String) fetchedTTL, null, "_ttl").millis();

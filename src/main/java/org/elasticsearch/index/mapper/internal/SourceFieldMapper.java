@@ -152,6 +152,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                     iterator.remove();
                 } else if (fieldName.equals("compress_threshold") && fieldNode != null) {
                     if (fieldNode instanceof Number) {
+                        // nocommit how to require units here too?
                         builder.compressThreshold(((Number) fieldNode).longValue());
                         builder.compress(true);
                     } else {

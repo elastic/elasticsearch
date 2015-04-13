@@ -20,7 +20,6 @@
 package org.elasticsearch.common.util.concurrent;
 
 import com.google.common.annotations.Beta;
-
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.transport.Transports;
 
@@ -116,6 +115,22 @@ public abstract class BaseFuture<V> implements Future<V> {
     public V get() throws InterruptedException, ExecutionException {
         Transports.assertNotTransportThread("Blocking operation");
         return sync.get();
+    }
+
+    /**
+     * Similar to {@link #get()} with the exception that it never blocks. If the operation wasn't completed yet
+     * it will return {@code null}. Otherwise it will behave in a similar fashion to {@link #get()} and will return
+     * the computed result, including throwing a {@link CancellationException} or {@link ExecutionException} if
+     * the computation was cancelled or threw an error (respectively).
+     *
+     * @throws CancellationException if the computation was cancelled
+     * @throws ExecutionException    if the computation threw an exception
+     */
+    public V tryGet() throws CancellationException, ExecutionException {
+        if (sync.isDone() == false) {
+            return null;
+        }
+        return sync.getValue();
     }
 
     @Override

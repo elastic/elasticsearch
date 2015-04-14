@@ -68,8 +68,6 @@ public class MatchAllQueryParser implements QueryParser {
             return Queries.newMatchAllQuery();
         }
 
-        //LUCENE 4 UPGRADE norms field is not supported anymore need to find another way or drop the functionality
-        //MatchAllDocsQuery query = new MatchAllDocsQuery(normsField);
         MatchAllDocsQuery query = new MatchAllDocsQuery();
         query.setBoost(boost);
         return query;

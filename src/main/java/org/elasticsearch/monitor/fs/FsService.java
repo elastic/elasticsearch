@@ -25,8 +25,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
 
-/**
- */
+import java.io.IOException;
+
 public class FsService extends AbstractComponent {
 
     private final FsProbe probe;
@@ -34,7 +34,7 @@ public class FsService extends AbstractComponent {
     private final SingleObjectCache<FsStats> fsStatsCache;
 
     @Inject
-    public FsService(Settings settings, FsProbe probe) {
+    public FsService(Settings settings, FsProbe probe) throws IOException {
         super(settings);
         this.probe = probe;
         TimeValue refreshInterval = settings.getAsTime("monitor.fs.refresh_interval", TimeValue.timeValueSeconds(1));
@@ -53,7 +53,12 @@ public class FsService extends AbstractComponent {
 
         @Override
         protected FsStats refresh() {
-            return probe.stats();
+            try {
+                return probe.stats();
+            } catch (IOException ex) {
+                logger.warn("Failed to fetch fs stats - returning empty instance");
+                return new FsStats();
+            }
         }
     }
 

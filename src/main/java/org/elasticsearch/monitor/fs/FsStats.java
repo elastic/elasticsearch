@@ -20,6 +20,7 @@
 package org.elasticsearch.monitor.fs;
 
 import com.google.common.collect.Iterators;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,8 +36,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
-/**
- */
 public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
 
     public static class Info implements Streamable, ToXContent {
@@ -46,6 +45,9 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
         String mount;
         @Nullable
         String dev;
+        /** File system type from {@code java.nio.file.FileStore type()}, if available. */
+        @Nullable
+        String type;
         long total = -1;
         long free = -1;
         long available = -1;
@@ -86,6 +88,9 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             path = in.readOptionalString();
             mount = in.readOptionalString();
             dev = in.readOptionalString();
+            if (in.getVersion().onOrAfter(Version.V_1_6_0)) {
+                type = in.readOptionalString();
+            }
             total = in.readLong();
             free = in.readLong();
             available = in.readLong();
@@ -102,6 +107,9 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             out.writeOptionalString(path); // total aggregates do not have a path
             out.writeOptionalString(mount);
             out.writeOptionalString(dev);
+            if (out.getVersion().onOrAfter(Version.V_1_6_0)) {
+                out.writeOptionalString(type);
+            }
             out.writeLong(total);
             out.writeLong(free);
             out.writeLong(available);
@@ -123,6 +131,10 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
 
         public String getDev() {
             return dev;
+        }
+
+        public String getType() {
+            return type;
         }
 
         public ByteSizeValue getTotal() {
@@ -205,6 +217,7 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             static final XContentBuilderString PATH = new XContentBuilderString("path");
             static final XContentBuilderString MOUNT = new XContentBuilderString("mount");
             static final XContentBuilderString DEV = new XContentBuilderString("dev");
+            static final XContentBuilderString TYPE = new XContentBuilderString("type");
             static final XContentBuilderString TOTAL = new XContentBuilderString("total");
             static final XContentBuilderString TOTAL_IN_BYTES = new XContentBuilderString("total_in_bytes");
             static final XContentBuilderString FREE = new XContentBuilderString("free");
@@ -235,6 +248,9 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             }
             if (dev != null) {
                 builder.field(Fields.DEV, dev, XContentBuilder.FieldCaseConversion.NONE);
+            }
+            if (type != null) {
+                builder.field(Fields.TYPE, type, XContentBuilder.FieldCaseConversion.NONE);
             }
 
             if (total != -1) {

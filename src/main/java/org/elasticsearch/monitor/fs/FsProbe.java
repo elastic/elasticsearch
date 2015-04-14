@@ -19,9 +19,9 @@
 
 package org.elasticsearch.monitor.fs;
 
-/**
- */
+import java.io.IOException;
+
 public interface FsProbe {
 
-    FsStats stats();
+    FsStats stats() throws IOException;
 }

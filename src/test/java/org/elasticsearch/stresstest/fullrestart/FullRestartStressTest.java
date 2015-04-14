@@ -147,7 +147,7 @@ public class FullRestartStressTest {
             // verify search
             for (int i = 0; i < (nodes.length * 5); i++) {
                 // do a search with norms field, so we don't rely on match all filtering cache
-                SearchResponse search = client.client().prepareSearch().setQuery(matchAllQuery().normsField("field")).execute().actionGet();
+                SearchResponse search = client.client().prepareSearch().setQuery(matchAllQuery()).execute().actionGet();
                 logger.debug("index_count [{}], expected_count [{}]", search.getHits().totalHits(), indexCounter.get());
                 if (count.getCount() != indexCounter.get()) {
                     logger.warn("!!! search does not match, index_count [{}], expected_count [{}]", search.getHits().totalHits(), indexCounter.get());

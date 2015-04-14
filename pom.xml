@@ -50,12 +50,15 @@
 
         <!-- Properties used for building RPM & DEB packages (see common/packaging.properties) -->
         <packaging.elasticsearch.home.dir>/usr/share/elasticsearch</packaging.elasticsearch.home.dir>
+        <packaging.elasticsearch.bin.dir>/usr/share/elasticsearch/bin</packaging.elasticsearch.bin.dir>
         <packaging.elasticsearch.conf.dir>/etc/elasticsearch</packaging.elasticsearch.conf.dir>
         <packaging.elasticsearch.data.dir>/var/lib/elasticsearch</packaging.elasticsearch.data.dir>
         <packaging.elasticsearch.user>elasticsearch</packaging.elasticsearch.user>
         <packaging.elasticsearch.group>elasticsearch</packaging.elasticsearch.group>
-        <packaging.elasticsearch.work.dir>/var/run/elasticsearch</packaging.elasticsearch.work.dir>
+        <packaging.elasticsearch.work.dir>/tmp/elasticsearch</packaging.elasticsearch.work.dir>
         <packaging.elasticsearch.log.dir>/var/log/elasticsearch</packaging.elasticsearch.log.dir>
+        <packaging.elasticsearch.plugins.dir>${packaging.elasticsearch.home.dir}/plugins</packaging.elasticsearch.plugins.dir>
+        <packaging.elasticsearch.pid.dir>/var/run/elasticsearch</packaging.elasticsearch.pid.dir>
 
     </properties>
 
@@ -1068,7 +1071,7 @@
                 <version>1.4</version>
                 <configuration>
                     <deb>${project.build.directory}/releases/${project.artifactId}-${project.version}.deb</deb>
-                    <controlDir>${project.build.directory}/generated-packaging/deb/control</controlDir>
+                    <controlDir>${project.build.directory}/generated-packaging/deb/scripts</controlDir>
                 </configuration>
                 <executions>
                     <execution>
@@ -1078,31 +1081,44 @@
                         </goals>
                         <configuration>
                             <dataSet>
+                                <!-- Add bin directory -->
                                 <data>
-                                    <src>${project.basedir}/</src>
-                                    <includes>*.txt, *.textile</includes>
-                                    <excludes>LICENSE.txt, .DS_Store</excludes>
-                                    <type>directory</type>
-                                    <mapper>
-                                        <type>perm</type>
-                                        <prefix>${packaging.elasticsearch.home.dir}</prefix>
-                                        <user>root</user>
-                                        <group>root</group>
-                                    </mapper>
-                                </data>
-                                <data>
-                                    <!-- use the filtered one from the resources plugin -->
                                     <src>${project.build.directory}/generated-packaging/deb/bin</src>
                                     <type>directory</type>
-                                    <excludes>*.bat, .DS_Store, *.exe</excludes>
+                                    <includes>elasticsearch,elasticsearch.in.sh,plugin</includes>
                                     <mapper>
                                         <type>perm</type>
-                                        <prefix>${packaging.elasticsearch.home.dir}/bin</prefix>
+                                        <prefix>${packaging.elasticsearch.bin.dir}</prefix>
                                         <filemode>755</filemode>
                                         <user>root</user>
                                         <group>root</group>
                                     </mapper>
                                 </data>
+                                <!-- Add configuration files -->
+                                <data>
+                                    <src>${project.basedir}/config</src>
+                                    <type>directory</type>
+                                    <excludes>.DS_Store</excludes>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <prefix>${packaging.elasticsearch.conf.dir}</prefix>
+                                        <user>root</user>
+                                        <group>root</group>
+                                    </mapper>
+                                </data>
+                                <!-- Add environment vars file -->
+                                <data>
+                                    <src>${project.build.directory}/generated-packaging/deb/env/elasticsearch</src>
+                                    <type>file</type>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <prefix>/etc/default</prefix>
+                                        <filemode>644</filemode>
+                                        <user>root</user>
+                                        <group>root</group>
+                                    </mapper>
+                                </data>
+                                <!-- Add libs -->
                                 <data>
                                     <src>${project.build.directory}/</src>
                                     <includes>${project.build.finalName}.jar</includes>
@@ -1136,17 +1152,7 @@
                                         <group>root</group>
                                     </mapper>
                                 </data>
-                                <data>
-                                    <src>${project.build.directory}/generated-packaging/deb/default/</src>
-                                    <type>directory</type>
-                                    <excludes>.DS_Store</excludes>
-                                    <mapper>
-                                        <type>perm</type>
-                                        <prefix>/etc/default</prefix>
-                                        <user>root</user>
-                                        <group>root</group>
-                                    </mapper>
-                                </data>
+                                <!-- Add init.d files  -->
                                 <data>
                                     <src>${project.build.directory}/generated-packaging/deb/init.d/</src>
                                     <type>directory</type>
@@ -1159,22 +1165,13 @@
                                         <group>root</group>
                                     </mapper>
                                 </data>
+                                <!-- Adds systemd file -->
                                 <data>
                                     <src>${project.build.directory}/generated-packaging/deb/systemd/elasticsearch.service</src>
                                     <dst>/usr/lib/systemd/system/elasticsearch.service</dst>
                                     <type>file</type>
                                 </data>
-                                <data>
-                                    <src>${project.basedir}/config</src>
-                                    <type>directory</type>
-                                    <excludes>.DS_Store</excludes>
-                                    <mapper>
-                                        <type>perm</type>
-                                        <prefix>${packaging.elasticsearch.conf.dir}</prefix>
-                                        <user>root</user>
-                                        <group>root</group>
-                                    </mapper>
-                                </data>
+                                <!-- Add lintian files  -->
                                 <data>
                                     <src>${project.build.directory}/generated-packaging/deb/lintian</src>
                                     <type>directory</type>
@@ -1186,6 +1183,20 @@
                                         <group>root</group>
                                     </mapper>
                                 </data>
+                                <!-- Add readme files  -->
+                                <data>
+                                    <src>${project.basedir}/</src>
+                                    <includes>*.txt, *.textile</includes>
+                                    <excludes>LICENSE.txt, .DS_Store</excludes>
+                                    <type>directory</type>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <prefix>${packaging.elasticsearch.home.dir}</prefix>
+                                        <user>root</user>
+                                        <group>root</group>
+                                    </mapper>
+                                </data>
+                                <!-- Add license files  -->
                                 <data>
                                     <src>${project.build.directory}/generated-packaging/deb/copyright</src>
                                     <dst>/usr/share/doc/elasticsearch/copyright</dst>
@@ -1198,6 +1209,8 @@
                                         <path>${packaging.elasticsearch.data.dir}</path>
                                         <path>${packaging.elasticsearch.log.dir}</path>
                                         <path>${packaging.elasticsearch.work.dir}</path>
+                                        <path>${packaging.elasticsearch.plugins.dir}</path>
+                                        <path>${packaging.elasticsearch.pid.dir}</path>
                                     </paths>
                                     <mapper>
                                         <type>perm</type>
@@ -1233,40 +1246,101 @@
                     <defaultUsername>root</defaultUsername>
                     <defaultGroupname>root</defaultGroupname>
                     <mappings>
+                        <!-- Add bin directory -->
+                        <mapping>
+                            <directory>${packaging.elasticsearch.bin.dir}/</directory>
+                            <filemode>755</filemode>
+                            <sources>
+                                <source>
+                                    <location>${project.build.directory}/generated-packaging/rpm/bin</location>
+                                    <includes>
+                                        <include>elasticsearch</include>
+                                        <include>elasticsearch.in.sh</include>
+                                        <include>plugin</include>
+                                    </includes>
+                                </source>
+                            </sources>
+                        </mapping>
+                        <!-- Add configuration files -->
                         <mapping>
                             <directory>${packaging.elasticsearch.conf.dir}/</directory>
                             <configuration>noreplace</configuration>
                             <sources>
                                 <source>
-                                    <location>config/</location>
+                                    <location>${project.basedir}/config/</location>
                                     <includes>
                                         <include>*.yml</include>
                                     </includes>
                                 </source>
                             </sources>
                         </mapping>
+                        <!-- Add environment vars file -->
                         <mapping>
                             <directory>/etc/sysconfig/</directory>
+                            <directoryIncluded>false</directoryIncluded>
                             <configuration>noreplace</configuration>
                             <sources>
                                 <source>
-                                    <location>${project.build.directory}/generated-packaging/rpm/sysconfig</location>
+                                    <location>${project.build.directory}/generated-packaging/rpm/env/</location>
                                     <includes>
                                         <include>elasticsearch</include>
                                     </includes>
                                 </source>
                             </sources>
                         </mapping>
+                        <!-- Add libs -->
                         <mapping>
-                            <directory>/etc/rc.d/init.d/</directory>
+                            <directory>${packaging.elasticsearch.home.dir}/lib</directory>
+                            <sources>
+                                <source>
+                                    <location>target/lib/</location>
+                                    <includes>
+                                        <include>lucene*</include>
+                                        <include>*log4j*</include>
+                                        <include>jna*</include>
+                                        <include>spatial4j*</include>
+                                        <include>jts*</include>
+                                        <include>groovy*</include>
+                                        <include>antlr-runtime*</include>
+                                        <include>asm*</include>
+                                    </includes>
+                                </source>
+                                <source>
+                                    <location>${project.build.directory}/</location>
+                                    <includes>
+                                        <include>${project.build.finalName}.jar</include>
+                                    </includes>
+                                </source>
+                            </sources>
+                        </mapping>
+                        <mapping>
+                            <directory>${packaging.elasticsearch.home.dir}/lib/sigar</directory>
+                            <sources>
+                                <source>
+                                    <location>lib/sigar</location>
+                                    <includes>
+                                        <include>sigar*.jar</include>
+                                        <include>libsigar-*-linux.*</include>
+                                    </includes>
+                                </source>
+                            </sources>
+                        </mapping>
+                        <!-- Add init.d files  -->
+                        <mapping>
+                            <directory>/etc/init.d</directory>
+                            <directoryIncluded>false</directoryIncluded>
                             <filemode>755</filemode>
                             <configuration>true</configuration>
                             <sources>
                                 <source>
-                                    <location>${project.build.directory}/generated-packaging/rpm/init.d/elasticsearch</location>
+                                    <location>${project.build.directory}/generated-packaging/rpm/init.d</location>
+                                    <includes>
+                                        <include>elasticsearch</include>
+                                    </includes>
                                 </source>
                             </sources>
                         </mapping>
+                        <!-- Adds systemd file -->
                         <mapping>
                             <directory>/usr/lib/systemd/system/</directory>
                             <filemode>755</filemode>
@@ -1305,74 +1379,7 @@
                                 </source>
                             </sources>
                         </mapping>
-                        <mapping>
-                            <directory>${packaging.elasticsearch.work.dir}/</directory>
-                            <filemode>755</filemode>
-                            <username>${packaging.elasticsearch.user}</username>
-                            <username>${packaging.elasticsearch.group}</username>
-                        </mapping>
-                        <mapping>
-                            <directory>${packaging.elasticsearch.data.dir}/</directory>
-                            <filemode>755</filemode>
-                            <username>${packaging.elasticsearch.user}</username>
-                            <username>${packaging.elasticsearch.group}</username>
-                        </mapping>
-                        <mapping>
-                            <directory>${packaging.elasticsearch.log.dir}/</directory>
-                            <filemode>755</filemode>
-                            <username>${packaging.elasticsearch.user}</username>
-                            <username>${packaging.elasticsearch.group}</username>
-                        </mapping>
-                        <mapping>
-                            <directory>${packaging.elasticsearch.home.dir}/bin/</directory>
-                            <filemode>755</filemode>
-                            <sources>
-                                <source>
-                                    <location>${project.build.directory}/generated-packaging/rpm/bin</location>
-                                    <includes>
-                                        <include>elasticsearch</include>
-                                        <include>elasticsearch.in.sh</include>
-                                        <include>plugin</include>
-                                    </includes>
-                                </source>
-                            </sources>
-                        </mapping>
-                        <mapping>
-                            <directory>${packaging.elasticsearch.home.dir}/lib</directory>
-                            <sources>
-                                <source>
-                                    <location>target/lib/</location>
-                                    <includes>
-                                        <include>lucene*</include>
-                                        <include>*log4j*</include>
-                                        <include>jna*</include>
-                                        <include>spatial4j*</include>
-                                        <include>jts*</include>
-                                        <include>groovy*</include>
-                                        <include>antlr-runtime*</include>
-                                        <include>asm*</include>
-                                    </includes>
-                                </source>
-                                <source>
-                                    <location>${project.build.directory}/</location>
-                                    <includes>
-                                        <include>${project.build.finalName}.jar</include>
-                                    </includes>
-                                </source>
-                            </sources>
-                        </mapping>
-                        <mapping>
-                            <directory>${packaging.elasticsearch.home.dir}/lib/sigar</directory>
-                            <sources>
-                                <source>
-                                    <location>lib/sigar</location>
-                                    <includes>
-                                        <include>sigar*.jar</include>
-                                        <include>libsigar-*-linux.*</include>
-                                    </includes>
-                                </source>
-                            </sources>
-                        </mapping>
+                        <!-- Add readme files  -->
                         <mapping>
                             <directory>${packaging.elasticsearch.home.dir}</directory>
                             <sources>
@@ -1405,21 +1412,33 @@
                             <username>${packaging.elasticsearch.user}</username>
                             <groupname>${packaging.elasticsearch.group}</groupname>
                         </mapping>
+                        <mapping>
+                            <directory>${packaging.elasticsearch.plugins.dir}</directory>
+                            <filemode>755</filemode>
+                            <username>${packaging.elasticsearch.user}</username>
+                            <groupname>${packaging.elasticsearch.group}</groupname>
+                        </mapping>
+                        <mapping>
+                            <directory>${packaging.elasticsearch.pid.dir}</directory>
+                            <filemode>755</filemode>
+                            <username>${packaging.elasticsearch.user}</username>
+                            <groupname>${packaging.elasticsearch.group}</groupname>
+                        </mapping>
                     </mappings>
                     <preinstallScriptlet>
-                        <scriptFile>${project.build.directory}/generated-packaging/rpm/scripts/preinstall</scriptFile>
+                        <scriptFile>${project.build.directory}/generated-packaging/rpm/scripts/preinst</scriptFile>
                         <fileEncoding>utf-8</fileEncoding>
                     </preinstallScriptlet>
                     <postinstallScriptlet>
-                        <scriptFile>${project.build.directory}/generated-packaging/rpm/scripts/postinstall</scriptFile>
+                        <scriptFile>${project.build.directory}/generated-packaging/rpm/scripts/postinst</scriptFile>
                         <fileEncoding>utf-8</fileEncoding>
                     </postinstallScriptlet>
                     <preremoveScriptlet>
-                        <scriptFile>${project.build.directory}/generated-packaging/rpm/scripts/preremove</scriptFile>
+                        <scriptFile>${project.build.directory}/generated-packaging/rpm/scripts/prerm</scriptFile>
                         <fileEncoding>utf-8</fileEncoding>
                     </preremoveScriptlet>
                     <postremoveScriptlet>
-                        <scriptFile>${project.build.directory}/generated-packaging/rpm/scripts/postremove</scriptFile>
+                        <scriptFile>${project.build.directory}/generated-packaging/rpm/scripts/postrm</scriptFile>
                         <fileEncoding>utf-8</fileEncoding>
                     </postremoveScriptlet>
                 </configuration>

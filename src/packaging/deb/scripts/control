@@ -1,11 +1,11 @@
 Package: elasticsearch
 Version: [[version]]
 Architecture: all
-Maintainer: Elasticsearch Team <info@elasticsearch.com>
+Maintainer: Elasticsearch Team <info@elastic.co>
 Depends: libc6, adduser
 Section: web
 Priority: optional
-Homepage: http://www.elasticsearch.org/
+Homepage: https://www.elastic.co/
 Description: Open Source, Distributed, RESTful Search Engine
  Elasticsearch is a distributed RESTful search engine built for the cloud.
  .

@@ -45,7 +45,6 @@ import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -246,8 +245,6 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                 if (currentFree < size) {
                     size = currentFree;
                     location = file;
-                } else if (currentFree == size && ThreadLocalRandom.current().nextBoolean()) {
-                    location = file;
                 }
             }
             try {
@@ -282,8 +279,6 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                 long currentFree = file.getFreeSpace();
                 if (currentFree < size) {
                     size = currentFree;
-                    location = file;
-                } else if (currentFree == size && ThreadLocalRandom.current().nextBoolean()) {
                     location = file;
                 }
             }

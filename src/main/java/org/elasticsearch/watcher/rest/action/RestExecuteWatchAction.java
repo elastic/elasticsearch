@@ -58,6 +58,11 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
     private static ExecuteWatchRequest parseRequest(RestRequest request, WatcherClient client) throws IOException {
         ExecuteWatchRequestBuilder executeWatchRequestBuilder = client.prepareExecuteWatch(request.param("id"));
 
+        if (request.content() == null || request.content().length() == 0) {
+            //If there isn't any content just return the default request
+            return executeWatchRequestBuilder.request();
+        }
+
         XContentParser parser = XContentHelper.createParser(request.content());
         parser.nextToken();
 

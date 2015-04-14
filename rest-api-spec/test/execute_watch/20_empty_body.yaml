@@ -1,0 +1,65 @@
+---
+"Test execute watch api with empty body":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      put_watch:
+        id: "my_logging_watch"
+        body:  > 
+          {
+          "trigger" : {
+            "schedule" : { "cron" : "0 0/1 * * * ?" }
+            },
+            "input" : {
+            "search" : {
+              "request" : {
+                "indices" : [ "logstash*" ],
+                "body" : {
+                  "query" : {
+                    "filtered": {
+                      "query": {
+                        "match": {
+                          "response": 404
+                          }
+                        },
+                        "filter": {
+                          "range": {
+                            "@timestamp" : {
+                              "from": "{{ctx.trigger.scheduled_time}}||-5m",
+                              "to": "{{ctx.trigger.triggered_time}}"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "condition" : {
+              "script" : {
+                "script" : "ctx.payload.hits.total > 1"
+              }
+            },
+            "actions" : {
+              "Logging" : {
+                "logging" : {
+                  "text" : "foobar"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_logging_watch" }
+
+  - do:
+      execute_watch:
+        id: "my_logging_watch"
+        body: null
+
+  - match: { "watch_id": "my_logging_watch" }
+  - match: { "watch_execution.condition_result.always_true": {} }
+  - match: { "state": "executed" }
+  - match: { "watch_execution.actions_results.Logging.logging.success" : true }
+  - match: { "watch_execution.actions_results.Logging.logging.logged_text" : "foobar" }

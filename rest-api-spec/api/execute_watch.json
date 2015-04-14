@@ -22,7 +22,7 @@
     },
     "body": {
       "description" : "Execution control",
-      "required" : true
+      "required" : false
     }    
   }
 }

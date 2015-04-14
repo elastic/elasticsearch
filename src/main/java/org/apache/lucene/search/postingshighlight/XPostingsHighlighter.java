@@ -28,6 +28,7 @@ import org.apache.lucene.util.InPlaceMergeSorter;
 import org.apache.lucene.util.UnicodeUtil;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.text.BreakIterator;
 import java.util.*;
 
@@ -426,7 +427,7 @@ public class XPostingsHighlighter {
                 throw new IllegalArgumentException("field '" + field + "' was indexed without offsets, cannot highlight");
             }
             if (leaf != lastLeaf) {
-                termsEnum = t.iterator(null);
+                termsEnum = t.iterator();
                 postings = new PostingsEnum[terms.length];
             }
             Passage passages[] = highlightDoc(field, terms, content.length(), bi, doc - subContext.docBase, termsEnum, postings, maxPassages);
@@ -745,7 +746,8 @@ public class XPostingsHighlighter {
         }
 
         @Override
-        public void stringField(FieldInfo fieldInfo, String value) throws IOException {
+        public void stringField(FieldInfo fieldInfo, byte[] bytes) throws IOException {
+            String value = new String(bytes, StandardCharsets.UTF_8);
             assert currentField >= 0;
             StringBuilder builder = builders[currentField];
             if (builder.length() > 0 && builder.length() < maxLength) {

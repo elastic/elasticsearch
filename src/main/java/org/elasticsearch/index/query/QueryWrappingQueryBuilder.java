@@ -38,7 +38,7 @@ public class QueryWrappingQueryBuilder extends BaseQueryBuilder {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        throw new org.apache.commons.lang3.NotImplementedException("Not Implemented");
+        throw new UnsupportedOperationException();
     }
 
     @Override

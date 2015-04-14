@@ -202,18 +202,19 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
                     spinsDesc = "no";
                 }
 
+                FsStats.Info fsInfo = JmxFsProbe.getFSInfo(nodePath);
                 sb.append(", free_space [")
-                    .append(new ByteSizeValue(nodePath.fileStore.getUnallocatedSpace()))
+                    .append(fsInfo.getFree())
                     .append("], usable_space [")
-                    .append(new ByteSizeValue(nodePath.fileStore.getUsableSpace()))
+                    .append(fsInfo.getAvailable())
                     .append("], total_space [")
-                    .append(new ByteSizeValue(nodePath.fileStore.getTotalSpace()))
+                    .append(fsInfo.getTotal())
                     .append("], spins? [")
                     .append(spinsDesc)
                     .append("], mount [")
-                    .append(nodePath.fileStore)
+                    .append(fsInfo.getMount())
                     .append("], type [")
-                    .append(nodePath.fileStore.type())
+                    .append(fsInfo.getType())
                     .append(']');
             }
             logger.debug(sb.toString());
@@ -246,8 +247,9 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
 
             // Just log a 1-line summary:
             logger.info(String.format(Locale.ROOT,
-                                      "using [%d] data paths, net usable_space [%s], net total_space [%s], spins? [%s], types [%s]",
+                                      "using [%d] data paths, mounts [%s], net usable_space [%s], net total_space [%s], spins? [%s], types [%s]",
                                       nodePaths.length,
+                                      allMounts,
                                       totFSInfo.getAvailable(),
                                       totFSInfo.getTotal(),
                                       toString(allSpins),

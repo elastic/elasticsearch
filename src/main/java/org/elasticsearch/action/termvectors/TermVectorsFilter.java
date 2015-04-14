@@ -206,7 +206,9 @@ public class TermVectorsFilter {
             topLevelTermsEnum = topLevelTerms.iterator(topLevelTermsEnum);
             while (termsEnum.next() != null) {
                 BytesRef termBytesRef = termsEnum.term();
-                topLevelTermsEnum.seekExact(termBytesRef);
+                boolean foundTerm = topLevelTermsEnum.seekExact(termBytesRef);
+                assert foundTerm : "Term: " + termBytesRef.utf8ToString() + " not found!";
+                
                 Term term = new Term(fieldName, termBytesRef);
                 
                 // remove noise words

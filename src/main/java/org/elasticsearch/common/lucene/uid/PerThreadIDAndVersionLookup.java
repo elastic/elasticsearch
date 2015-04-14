@@ -82,7 +82,7 @@ final class PerThreadIDAndVersionLookup {
                 if (terms != null) {
                     readerContexts[numSegs] = readerContext;
                     hasPayloads[numSegs] = terms.hasPayloads();
-                    termsEnums[numSegs] = terms.iterator(null);
+                    termsEnums[numSegs] = terms.iterator();
                     assert termsEnums[numSegs] != null;
                     liveDocs[numSegs] = readerContext.reader().getLiveDocs();
                     hasDeletions |= readerContext.reader().hasDeletions();

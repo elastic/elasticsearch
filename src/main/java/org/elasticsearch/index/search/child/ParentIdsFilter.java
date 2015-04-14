@@ -140,7 +140,7 @@ final class ParentIdsFilter extends Filter {
             return null;
         }
 
-        TermsEnum termsEnum = terms.iterator(null);
+        TermsEnum termsEnum = terms.iterator();
         BytesRefBuilder uidSpare = new BytesRefBuilder();
         BytesRef idSpare = new BytesRef();
 

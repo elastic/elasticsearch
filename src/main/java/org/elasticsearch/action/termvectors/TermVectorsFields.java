@@ -212,7 +212,7 @@ public final class TermVectorsFields extends Fields {
         }
 
         @Override
-        public TermsEnum iterator(TermsEnum reuse) throws IOException {
+        public TermsEnum iterator() throws IOException {
             // reset before asking for an iterator
             reset();
             // convert bytes ref for the terms to actual data

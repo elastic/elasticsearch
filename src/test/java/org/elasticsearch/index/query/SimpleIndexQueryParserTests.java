@@ -1769,7 +1769,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
 
     private static String termsToString(Terms terms) throws IOException {
         String strings = "";
-        TermsEnum termsEnum = terms.iterator(null);
+        TermsEnum termsEnum = terms.iterator();
         CharsRefBuilder spare = new CharsRefBuilder();
         BytesRef text;
         while((text = termsEnum.next()) != null) {

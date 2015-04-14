@@ -144,18 +144,11 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         
         assertNotUpgraded(httpClient(), null);
         final String indexToUpgrade = "test" + randomInt(numIndexes - 1);
+
+        // This test fires up another node running an older version of ES, but because wire protocol changes across major ES versions, it
+        // means we can never generate ancient segments in this test (unless Lucene major version bumps but ES major version does not):
+        assertFalse(hasAncientSegments(httpClient(), indexToUpgrade));
         
-        // #10213:
-        logger.info("--> Running upgrade on index " + indexToUpgrade + ", only ancient segments");
-        runUpgrade(httpClient(), indexToUpgrade, "only_ancient_segments", "true");
-
-        // TODO: why do we never test upgrading ancient segments here...?
-        // E.g. 0.90.x (Lucene 3.x) --> 1.x (Lucene 4.x)  ElasticsearchBackwardsCompatIntegrationTest.backwardsCompatibilityPath checks that
-        // major version is the same...
-
-        // Make sure we (still!) have no ancient segments, and non-ancient segments still need upgrading:
-        assertNoAncientSegments(httpClient(), indexToUpgrade);
-
         logger.info("--> Running upgrade on index " + indexToUpgrade);
         runUpgrade(httpClient(), indexToUpgrade);
         awaitBusy(new Predicate<Object>() {
@@ -209,6 +202,15 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         }
     }
 
+    public static boolean hasAncientSegments(HttpRequestBuilder httpClient, String index) throws Exception {
+        for (UpgradeStatus status : getUpgradeStatus(httpClient, upgradePath(index))) {
+            if (status.toUpgradeBytesAncient != 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static void assertUpgraded(HttpRequestBuilder httpClient, String index) throws Exception {
         for (UpgradeStatus status : getUpgradeStatus(httpClient, upgradePath(index))) {
             assertTrue("index " + status.indexName + " should not be zero sized", status.totalBytes != 0);
@@ -236,7 +238,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
             }
         }
     }
-    
+
     static boolean isUpgraded(HttpRequestBuilder httpClient, String index) throws Exception {
         ESLogger logger = Loggers.getLogger(UpgradeTest.class);
         int toUpgrade = 0;

@@ -36,10 +36,12 @@ public class UpgradeReallyOldIndexTest extends StaticIndexBackwardCompatibilityT
     public void testUpgrade_0_20() throws Exception {
         loadIndex("index-0.20.zip", InternalNode.HTTP_ENABLED, true);
         
-        HttpRequestBuilder httpClient = httpClient();
-        UpgradeTest.assertNotUpgraded(httpClient, "test");
-        UpgradeTest.runUpgrade(httpClient, "test", "wait_for_completion", "true");
-        UpgradeTest.assertUpgraded(httpClient, "test");
-    }
+        assertTrue(UpgradeTest.hasAncientSegments(httpClient(), "test"));
+        UpgradeTest.assertNotUpgraded(httpClient(), "test");
+        UpgradeTest.runUpgrade(httpClient(), "test", "wait_for_completion", "true", "only_ancient_segments", "true");
+        assertFalse(UpgradeTest.hasAncientSegments(httpClient(), "test"));
 
+        // This index has only ancient segments so the whole index should now be upgraded:
+        UpgradeTest.assertUpgraded(httpClient(), "test");
+    }
 }

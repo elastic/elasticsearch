@@ -19,10 +19,14 @@ import glob
 import logging
 import os
 import random
+import shutil
 import subprocess
 import sys
 import tempfile
 import time
+
+DEFAULT_TRANSPORT_TCP_PORT = 9300
+DEFAULT_HTTP_TCP_PORT = 9200
 
 if sys.version_info[0] < 3:
   print('%s must use python 3.x (for the ES python client)' % sys.argv[0])
@@ -125,7 +129,7 @@ def build_version(version_tuple):
 def build_tuple(version_string):
   return [int(x) for x in version_string.split('.')]
 
-def start_node(version, release_dir, data_dir, tcp_port, http_port):
+def start_node(version, release_dir, data_dir, tcp_port=DEFAULT_TRANSPORT_TCP_PORT, http_port=DEFAULT_HTTP_TCP_PORT):
   logging.info('Starting node from %s on port %s/%s' % (release_dir, tcp_port, http_port))
   cmd = [
     os.path.join(release_dir, 'bin/elasticsearch'),
@@ -141,7 +145,7 @@ def start_node(version, release_dir, data_dir, tcp_port, http_port):
     cmd.append('-f') # version before 1.0 start in background automatically
   return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-def create_client(http_port, timeout=30):
+def create_client(http_port=DEFAULT_HTTP_TCP_PORT, timeout=30):
   logging.info('Waiting for node to startup')
   for _ in range(0, timeout):
     # TODO: ask Honza if there is a better way to do this?
@@ -274,9 +278,9 @@ def parse_config():
                       help='The directory containing elasticsearch releases')
   parser.add_argument('--output-dir', '-o', default='src/test/resources/org/elasticsearch/bwcompat',
                       help='The directory to write the zipped index into')
-  parser.add_argument('--tcp-port', default=9300, type=int,
+  parser.add_argument('--tcp-port', default=DEFAULT_TRANSPORT_TCP_PORT, type=int,
                       help='The port to use as the minimum port for TCP communication')
-  parser.add_argument('--http-port', default=9200, type=int,
+  parser.add_argument('--http-port', default=DEFAULT_HTTP_TCP_PORT, type=int,
                       help='The port to use as the minimum port for HTTP communication')
   cfg = parser.parse_args()
 
@@ -295,36 +299,39 @@ def create_bwc_index(cfg, version):
   logging.info('--> Creating bwc index for %s' % version)
   release_dir = os.path.join(cfg.releases_dir, 'elasticsearch-%s' % version)
   if not os.path.exists(release_dir):
-    parser.error('ES version %s does not exist in %s' % (version, cfg.releases_dir)) 
+    raise RuntimeError('ES version %s does not exist in %s' % (version, cfg.releases_dir))
   snapshot_supported = not (version.startswith('0.') or version == '1.0.0.Beta1')
   tmp_dir = tempfile.mkdtemp()
-  data_dir = os.path.join(tmp_dir, 'data')
-  repo_dir = os.path.join(tmp_dir, 'repo')
-  logging.info('Temp data dir: %s' % data_dir)
-  logging.info('Temp repo dir: %s' % repo_dir)
-
   try:
-    node = start_node(version, release_dir, data_dir, cfg.tcp_port, cfg.http_port)
-    client = create_client(cfg.http_port)
-    index_name = 'index-%s' % version.lower()
-    generate_index(client, version, index_name)
+    data_dir = os.path.join(tmp_dir, 'data')
+    repo_dir = os.path.join(tmp_dir, 'repo')
+    logging.info('Temp data dir: %s' % data_dir)
+    logging.info('Temp repo dir: %s' % repo_dir)
+
+    try:
+      node = start_node(version, release_dir, data_dir, cfg.tcp_port, cfg.http_port)
+      client = create_client(cfg.http_port)
+      index_name = 'index-%s' % version.lower()
+      generate_index(client, version, index_name)
+      if snapshot_supported:
+        snapshot_index(client, cfg, version, repo_dir)
+
+      # 10067: get a delete-by-query into the translog on upgrade.  We must do
+      # this after the snapshot, because it calls flush.  Otherwise the index
+      # will already have the deletions applied on upgrade.
+      delete_by_query(client, version, index_name, 'doc')
+
+    finally:
+      if 'node' in vars():
+        logging.info('Shutting down node with pid %d', node.pid)
+        node.terminate()
+        time.sleep(1) # some nodes take time to terminate
+    compress_index(version, tmp_dir, cfg.output_dir)
     if snapshot_supported:
-      snapshot_index(client, cfg, version, repo_dir)
-
-    # 10067: get a delete-by-query into the translog on upgrade.  We must do
-    # this after the snapshot, because it calls flush.  Otherwise the index
-    # will already have the deletions applied on upgrade.
-    delete_by_query(client, version, index_name, 'doc')
-    
+      compress_repo(version, tmp_dir, cfg.output_dir)
   finally:
-    if 'node' in vars():
-      logging.info('Shutting down node with pid %d', node.pid)
-      node.terminate()
-      time.sleep(1) # some nodes take time to terminate
-  compress_index(version, tmp_dir, cfg.output_dir)
-  if snapshot_supported:
-    compress_repo(version, tmp_dir, cfg.output_dir)
-
+    shutil.rmtree(tmp_dir)
+    
 def main():
   logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s', level=logging.INFO,
                       datefmt='%Y-%m-%d %I:%M:%S %p')

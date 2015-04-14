@@ -202,9 +202,20 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         }
     }
 
+    /** Returns true if there are any ancient segments. */
     public static boolean hasAncientSegments(HttpRequestBuilder httpClient, String index) throws Exception {
         for (UpgradeStatus status : getUpgradeStatus(httpClient, upgradePath(index))) {
             if (status.toUpgradeBytesAncient != 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Returns true if there are any old but not ancient segments. */
+    public static boolean hasOldButNotAncientSegments(HttpRequestBuilder httpClient, String index) throws Exception {
+        for (UpgradeStatus status : getUpgradeStatus(httpClient, upgradePath(index))) {
+            if (status.toUpgradeBytes > status.toUpgradeBytesAncient) {
                 return true;
             }
         }

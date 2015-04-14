@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import org.apache.lucene.store.*;
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -61,7 +62,8 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         public final Path indicesPath;
         /** Cached FileStore from path */
         public final FileStore fileStore;
-        /** Cached result of Lucene's {@code uIOUtils.spins} on path */
+        /** Cached result of Lucene's {@code IOUtils.spins} on path.  This is a trilean value: null means we could not determine it (we are
+         *  not running on Linux, or we hit an exception trying), True means the device possibly spins and False means it does not. */
         public final Boolean spins;
 
         public NodePath(Path path) throws IOException {
@@ -69,9 +71,15 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
             this.indicesPath = path.resolve(INDICES_FOLDER);
             this.fileStore = getFileStore(path);
             Boolean spins;
-            try {
-                spins = IOUtils.spins(path);
-            } catch (Exception e) {
+
+            // Lucene's IOUtils.spins only works on Linux today:
+            if (Constants.LINUX) {
+                try {
+                    spins = IOUtils.spins(path);
+                } catch (Exception e) {
+                    spins = null;
+                }
+            } else {
                 spins = null;
             }
             this.spins = spins;
@@ -264,7 +272,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
     // NOTE: poached from Lucene's IOUtils:
 
     /** Files.getFileStore(Path) useless here!  Don't complain, just try it yourself. */
-    public static FileStore getFileStore(Path path) throws IOException {
+    private static FileStore getFileStore(Path path) throws IOException {
         FileStore store = Files.getFileStore(path);
 
         try {

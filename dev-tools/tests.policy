@@ -27,9 +27,7 @@ grant {
   // project base directory
   permission java.io.FilePermission "${project.basedir}${/}target${/}-", "read";
   // mvn custom ./m2/repository for dependency jars
-  permission java.io.FilePermission "${m2.repository}{/}-", "read";
-  // maven default repo for settings.xml etc.
-  permission java.io.FilePermission "${user.home}${/}.m2${/}-", "read";
+  permission java.io.FilePermission "${m2.repository}${/}-", "read";
   // system jar resources
   permission java.io.FilePermission "${java.home}${/}-", "read";
   permission java.io.FilePermission "${junit4.childvm.cwd}", "read,write";

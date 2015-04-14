@@ -58,8 +58,11 @@ import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.MapperAnalyzer;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
@@ -95,10 +98,8 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.apache.lucene.util.AbstractRandomizedTest.CHILD_JVM_ID;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
@@ -1030,7 +1031,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     public void testForceMerge() {
         int numDocs = randomIntBetween(10, 100);
-        for (int i=0; i < numDocs; i++) {
+        for (int i = 0; i < numDocs; i++) {
             ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), B_1, false);
             Engine.Index index = new Engine.Index(null, newUid(Integer.toString(i)), doc);
             engine.index(index);
@@ -1049,8 +1050,8 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
         assertEquals(engine.segments(true).size(), 1);
         try (Engine.Searcher test = engine.acquireSearcher("test")) {
-            assertEquals(numDocs-1, test.reader().numDocs());
-            assertEquals(numDocs-1, test.reader().maxDoc());
+            assertEquals(numDocs - 1, test.reader().numDocs());
+            assertEquals(numDocs - 1, test.reader().maxDoc());
         }
 
         doc = testParsedDocument(Integer.toString(1), Integer.toString(1), "test", null, -1, -1, testDocument(), B_1, false);
@@ -1060,8 +1061,8 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
         assertEquals(engine.segments(true).size(), 1);
         try (Engine.Searcher test = engine.acquireSearcher("test")) {
-            assertEquals(numDocs-2, test.reader().numDocs());
-            assertEquals(numDocs-1, test.reader().maxDoc());
+            assertEquals(numDocs - 2, test.reader().numDocs());
+            assertEquals(numDocs - 1, test.reader().maxDoc());
         }
     }
 
@@ -1084,7 +1085,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                             }
                             int i = 0;
                             while (true) {
-                                int numDocs  = randomIntBetween(1, 20);
+                                int numDocs = randomIntBetween(1, 20);
                                 for (int j = 0; j < numDocs; j++) {
                                     i++;
                                     ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), B_1, false);
@@ -1704,12 +1705,12 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     public void testDeletesAloneCanTriggerRefresh() throws Exception {
         // Tiny indexing buffer:
         Settings indexSettings = ImmutableSettings.builder().put(defaultSettings)
-            .put(EngineConfig.INDEX_BUFFER_SIZE_SETTING, "1kb").build();
+                .put(EngineConfig.INDEX_BUFFER_SIZE_SETTING, "1kb").build();
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), indexSettings);
         try (Store store = createStore();
-            Translog translog = createTranslog();
-            final Engine engine = new InternalEngine(config(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService)), false)) {
-            for(int i=0;i<100;i++) {
+             Translog translog = createTranslog();
+             final Engine engine = new InternalEngine(config(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService)), false)) {
+            for (int i = 0; i < 100; i++) {
                 String id = Integer.toString(i);
                 ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocument(), B_1, false);
                 engine.index(new Engine.Index(null, newUid(id), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
@@ -1721,7 +1722,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             Searcher s = engine.acquireSearcher("test");
             final long version1 = ((DirectoryReader) s.reader()).getVersion();
             s.close();
-            for(int i=0;i<100;i++) {
+            for (int i = 0; i < 100; i++) {
                 String id = Integer.toString(i);
                 engine.delete(new Engine.Delete("test", id, newUid(id), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
             }
@@ -1758,36 +1759,39 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         }
         engine.close();
         final MockDirectoryWrapper directory = DirectoryUtils.getLeaf(store.directory(), MockDirectoryWrapper.class);
-        if(directory != null) {
+        if (directory != null) {
             // since we rollback the IW we are writing the same segment files again after starting IW but MDW prevents
             // this so we have to disable the check explicitly
             directory.setPreventDoubleWrite(false);
-        }
-        boolean started = false;
-        final int numIters = randomIntBetween(10, 20);
-        for (int i = 0; i < numIters; i++) {
-            directory.setRandomIOExceptionRateOnOpen(randomDouble());
-            directory.setRandomIOExceptionRate(randomDouble());
-            directory.setFailOnOpenInput(randomBoolean());
-            directory.setAllowRandomFileNotFoundException(randomBoolean());
-            try {
-                engine = createEngine(store, translog);
-                started = true;
-                break;
-            } catch (EngineCreationFailureException ex) {
-                // skip
+            boolean started = false;
+            final int numIters = randomIntBetween(10, 20);
+            for (int i = 0; i < numIters; i++) {
+                directory.setRandomIOExceptionRateOnOpen(randomDouble());
+                directory.setRandomIOExceptionRate(randomDouble());
+                directory.setFailOnOpenInput(randomBoolean());
+                directory.setAllowRandomFileNotFoundException(randomBoolean());
+                try {
+                    engine = createEngine(store, translog);
+                    started = true;
+                    break;
+                } catch (EngineCreationFailureException ex) {
+                    // skip
+                }
             }
-        }
 
-        directory.setRandomIOExceptionRateOnOpen(0.0);
-        directory.setRandomIOExceptionRate(0.0);
-        directory.setFailOnOpenInput(false);
-        directory.setAllowRandomFileNotFoundException(false);
-        if (started == false) {
+            directory.setRandomIOExceptionRateOnOpen(0.0);
+            directory.setRandomIOExceptionRate(0.0);
+            directory.setFailOnOpenInput(false);
+            directory.setAllowRandomFileNotFoundException(false);
+            if (started == false) {
+                engine = createEngine(store, translog);
+            }
+        } else {
+            // no mock directory, no fun.
             engine = createEngine(store, translog);
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs+10));
+            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
             assertThat(topDocs.totalHits, equalTo(numDocs));
         }
         TranslogHandler parser = (TranslogHandler) engine.config().getTranslogRecoveryPerformer();
@@ -1811,7 +1815,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             assertThat(topDocs.totalHits, equalTo(numDocs));
         }
         final MockDirectoryWrapper directory = DirectoryUtils.getLeaf(store.directory(), MockDirectoryWrapper.class);
-        if(directory != null) {
+        if (directory != null) {
             // since we rollback the IW we are writing the same segment files again after starting IW but MDW prevents
             // this so we have to disable the check explicitly
             directory.setPreventDoubleWrite(false);
@@ -1820,10 +1824,10 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         engine.close();
         engine = new InternalEngine(engine.config(), true);
         assertTrue(currentTranslogId + "<" + translog.currentId(), currentTranslogId < translog.currentId());
-        assertEquals("translog ID must be incremented by 2 after initial recovery", currentTranslogId+2, translog.currentId());
+        assertEquals("translog ID must be incremented by 2 after initial recovery", currentTranslogId + 2, translog.currentId());
 
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs+10));
+            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
             assertThat(topDocs.totalHits, equalTo(0));
         }
 
@@ -1845,7 +1849,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             assertThat(topDocs.totalHits, equalTo(numDocs));
         }
         final MockDirectoryWrapper directory = DirectoryUtils.getLeaf(store.directory(), MockDirectoryWrapper.class);
-        if(directory != null) {
+        if (directory != null) {
             // since we rollback the IW we are writing the same segment files again after starting IW but MDW prevents
             // this so we have to disable the check explicitly
             directory.setPreventDoubleWrite(false);
@@ -1858,10 +1862,10 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         engine.close();
         engine = new InternalEngine(engine.config(), false); // we need to reuse the engine config unless the parser.mappingModified won't work
         assertTrue(currentTranslogId + "<" + translog.currentId(), currentTranslogId < translog.currentId());
-        assertEquals("translog ID must be incremented by 2 after initial recovery", currentTranslogId+2, translog.currentId());
+        assertEquals("translog ID must be incremented by 2 after initial recovery", currentTranslogId + 2, translog.currentId());
 
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs+10));
+            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
             assertThat(topDocs.totalHits, equalTo(numDocs));
         }
         parser = (TranslogHandler) engine.config().getTranslogRecoveryPerformer();
@@ -1876,14 +1880,14 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         engine.close();
         engine = createEngine(store, translog);
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs+10));
+            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
             assertThat(topDocs.totalHits, equalTo(numDocs));
         }
         parser = (TranslogHandler) engine.config().getTranslogRecoveryPerformer();
         assertEquals(0, parser.recoveredOps.get());
 
         final boolean flush = randomBoolean();
-        int randomId = randomIntBetween(numDocs+1, numDocs+10);
+        int randomId = randomIntBetween(numDocs + 1, numDocs + 10);
         String uuidValue = "test#" + Integer.toString(randomId);
         ParsedDocument doc = testParsedDocument(uuidValue, Integer.toString(randomId), "test", null, -1, -1, testDocument(), new BytesArray("{}"), false);
         Engine.Create firstIndexRequest = new Engine.Create(null, newUid(uuidValue), doc, 1, VersionType.EXTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
@@ -1899,15 +1903,15 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         engine.refresh("test");
         assertThat(idxRequest.version(), equalTo(2l));
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs+1);
-            assertThat(topDocs.totalHits, equalTo(numDocs+1));
+            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs + 1);
+            assertThat(topDocs.totalHits, equalTo(numDocs + 1));
         }
 
         engine.close();
         engine = createEngine(store, translog);
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs+1);
-            assertThat(topDocs.totalHits, equalTo(numDocs+1));
+            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs + 1);
+            assertThat(topDocs.totalHits, equalTo(numDocs + 1));
         }
         parser = (TranslogHandler) engine.config().getTranslogRecoveryPerformer();
         assertEquals(flush ? 1 : 2, parser.recoveredOps.get());

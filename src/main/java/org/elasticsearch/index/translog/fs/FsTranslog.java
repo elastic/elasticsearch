@@ -49,7 +49,6 @@ import java.nio.file.*;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
@@ -237,8 +236,6 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                 if (currentFree < size) {
                     size = currentFree;
                     location = file;
-                } else if (currentFree == size && ThreadLocalRandom.current().nextBoolean()) {
-                    location = file;
                 }
             }
             try {
@@ -265,8 +262,6 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                 long currentFree = Files.getFileStore(file).getUsableSpace();
                 if (currentFree < size) {
                     size = currentFree;
-                    location = file;
-                } else if (currentFree == size && ThreadLocalRandom.current().nextBoolean()) {
                     location = file;
                 }
             }

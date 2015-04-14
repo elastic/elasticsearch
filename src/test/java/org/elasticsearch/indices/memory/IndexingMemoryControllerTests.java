@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.memory;
 
 import com.google.common.base.Predicate;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -36,6 +37,7 @@ import org.junit.Test;
 public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest {
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/10584")
     public void testIndexBufferSizeUpdateAfterCreationRemoval() throws InterruptedException {
 
         createNode(ImmutableSettings.EMPTY);

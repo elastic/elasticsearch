@@ -36,7 +36,9 @@ public class MatchAllQueryBuilder extends BaseQueryBuilder implements BoostableQ
 
     /**
      * Field used for normalization factor (document boost). Defaults to no field.
+     * @deprecated the norms field is not supported since lucene 4. Will be removed in ES 2.0
      */
+    @Deprecated
     public MatchAllQueryBuilder normsField(String normsField) {
         this.normsField = normsField;
         return this;

@@ -96,13 +96,15 @@ With that out of the way, let's get started with the fun part...
 
 == Installation
 
-Elasticsearch requires Java 7. Specifically as of this writing, it is recommended that you use the Oracle JDK version {jdk}. Java installation varies from platform to platform so we won't go into those details here. Suffice to say, before you install Elasticsearch, please check your Java version first by running (and then install/upgrade accordingly if needed):
+Elasticsearch requires Java 7 or Java 8. Specifically as of this writing, it is recommended that you use the Oracle JDK version {jdk}. Java installation varies from platform to platform so we won't go into those details here. Suffice to say, before you install Elasticsearch, please check your Java version first by running (and then install/upgrade accordingly if needed):
 
 [source,sh]
 --------------------------------------------------
 java -version
 echo $JAVA_HOME
 --------------------------------------------------
+
+We strongly recommend installing the _same_ version of Java on all nodes in the cluster.
 
 Once we have Java set up, we can then download and run Elasticsearch. The binaries are available from http://www.elasticsearch.org/download[`www.elasticsearch.org/download`] along with all the releases that have been made in the past. For each release, you have a choice among a `zip` or `tar` archive, or a `DEB` or `RPM` package. For simplicity, let's use the tar file.
 

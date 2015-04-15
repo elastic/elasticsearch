@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.shield.crypto;
 
-import org.apache.commons.codec.binary.Base64;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -191,7 +191,7 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
         }
 
         byte[] charBytes = CharArrays.toUtf8Bytes(chars);
-        return Base64.encodeBase64String(encryptInternal(charBytes, key)).toCharArray();
+        return Base64.encodeBytes(encryptInternal(charBytes, key)).toCharArray();
     }
 
     @Override
@@ -212,7 +212,12 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
                     + "the file [" + ShieldPlugin.resolveConfigFile(env, FILE_NAME) + "] to all nodes and the key will be loaded automatically.");
         }
 
-        byte[] bytes = Base64.decodeBase64(new String(chars));
+        byte[] bytes;
+        try {
+            bytes = Base64.decode(new String(chars));
+        } catch (IOException e) {
+            throw new ShieldException("unable to decode encrypted data", e);
+        }
         byte[] decrypted = decryptInternal(bytes, key);
         return CharArrays.utf8BytesToChars(decrypted);
     }
@@ -274,7 +279,11 @@ public class InternalCryptoService extends AbstractLifecycleComponent<InternalCr
     private String signInternal(String text) {
         Mac mac = createMac(systemKey);
         byte[] sig = mac.doFinal(text.getBytes(Charsets.UTF_8));
-        return Base64.encodeBase64URLSafeString(sig);
+        try {
+            return Base64.encodeBytes(sig, 0, sig.length, Base64.URL_SAFE);
+        } catch (IOException e) {
+            throw new SignatureException("unable to encode signed data", e);
+        }
     }
 
 

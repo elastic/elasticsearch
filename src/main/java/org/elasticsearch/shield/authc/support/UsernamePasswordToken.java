@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.shield.authc.support;
 
-import org.apache.commons.codec.binary.Base64;
-import org.elasticsearch.common.base.Charsets;
+import org.elasticsearch.common.Base64;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
 
+import java.io.IOException;
 import java.nio.CharBuffer;
 import java.util.Arrays;
 import java.util.Objects;
@@ -72,20 +72,7 @@ public class UsernamePasswordToken implements AuthenticationToken {
             return defaultToken;
         }
 
-        Matcher matcher = BASIC_AUTH_PATTERN.matcher(authStr.trim());
-        if (!matcher.matches()) {
-            throw new AuthenticationException("invalid basic authentication header value");
-        }
-
-        char[] userpasswd = CharArrays.utf8BytesToChars(Base64.decodeBase64(matcher.group(1)));
-        int i = CharArrays.indexOf(userpasswd, ':');
-        if (i < 0) {
-            throw new AuthenticationException("invalid basic authentication header value");
-        }
-
-        return new UsernamePasswordToken(
-                new String(Arrays.copyOfRange(userpasswd, 0, i)),
-                new SecuredString(Arrays.copyOfRange(userpasswd, i + 1, userpasswd.length)));
+        return extractToken(authStr);
     }
 
     public static UsernamePasswordToken extractToken(RestRequest request, UsernamePasswordToken defaultToken) {
@@ -94,12 +81,22 @@ public class UsernamePasswordToken implements AuthenticationToken {
             return defaultToken;
         }
 
-        Matcher matcher = BASIC_AUTH_PATTERN.matcher(authStr.trim());
+        return extractToken(authStr);
+    }
+
+    static UsernamePasswordToken extractToken(String token) {
+        Matcher matcher = BASIC_AUTH_PATTERN.matcher(token.trim());
         if (!matcher.matches()) {
             throw new AuthenticationException("invalid basic authentication header value");
         }
 
-        char[] userpasswd = CharArrays.utf8BytesToChars(Base64.decodeBase64(matcher.group(1)));
+        char[] userpasswd;
+        try {
+            userpasswd = CharArrays.utf8BytesToChars(Base64.decode(matcher.group(1)));
+        } catch (IllegalArgumentException|IOException e) {
+            throw new AuthenticationException("invalid basic authentication header encoding", e);
+        }
+
         int i = CharArrays.indexOf(userpasswd, ':');
         if (i < 0) {
             throw new AuthenticationException("invalid basic authentication header value");
@@ -119,7 +116,7 @@ public class UsernamePasswordToken implements AuthenticationToken {
         chars.put(username).put(':').put(passwd.internalChars());
 
         //TODO we still have passwords in Strings in headers
-        String basicToken = new String(Base64.encodeBase64(CharArrays.toUtf8Bytes(chars.array())), Charsets.UTF_8);
+        String basicToken = Base64.encodeBytes(CharArrays.toUtf8Bytes(chars.array()));
         return "Basic " + basicToken;
     }
 }

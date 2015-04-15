@@ -6,7 +6,7 @@
 package org.elasticsearch.shield.authc.support;
 
 import com.google.common.base.Charsets;
-import org.apache.commons.codec.binary.Base64;
+import org.elasticsearch.common.Base64;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -36,7 +36,7 @@ public class UsernamePasswordTokenTests extends ElasticsearchTestCase {
         assertThat(header, notNullValue());
         assertTrue(header.startsWith("Basic "));
         String token = header.substring("Basic ".length());
-        token = new String(Base64.decodeBase64(token), Charsets.UTF_8);
+        token = new String(Base64.decode(token), Charsets.UTF_8);
         int i = token.indexOf(":");
         assertTrue(i > 0);
         String username = token.substring(0, i);
@@ -48,7 +48,7 @@ public class UsernamePasswordTokenTests extends ElasticsearchTestCase {
     @Test
     public void testExtractToken() throws Exception {
         TransportRequest request = new TransportRequest() {};
-        String header = "Basic " + new String(Base64.encodeBase64("user1:test123".getBytes(Charsets.UTF_8)), Charsets.UTF_8);
+        String header = "Basic " + Base64.encodeBytes("user1:test123".getBytes(Charsets.UTF_8));
         request.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, header);
         UsernamePasswordToken token = UsernamePasswordToken.extractToken(request, null);
         assertThat(token, notNullValue());

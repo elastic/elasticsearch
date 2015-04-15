@@ -76,22 +76,22 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTests {
                     "\n";
 
     public static final String USERS =
-            "admin:{plain}passwd\n" +
-            "u1:{plain}passwd\n" +
-            "u2:{plain}passwd\n" +
-            "u3:{plain}passwd\n" +
-            "u4:{plain}passwd\n" +
-            "u5:{plain}passwd\n" +
-            "u6:{plain}passwd\n" +
-            "u7:{plain}passwd\n" +
-            "u8:{plain}passwd\n" +
-            "u9:{plain}passwd\n" +
-            "u10:{plain}passwd\n" +
-            "u11:{plain}passwd\n" +
-            "u12:{plain}passwd\n" +
-            "u13:{plain}passwd\n" +
-            "u14:{plain}passwd\n" +
-            "u15:{plain}passwd\n";
+            "admin:" + USERS_PASSWD_HASHED + "\n" +
+            "u1:" + USERS_PASSWD_HASHED + "\n" +
+            "u2:" + USERS_PASSWD_HASHED + "\n" +
+            "u3:" + USERS_PASSWD_HASHED + "\n" +
+            "u4:" + USERS_PASSWD_HASHED + "\n" +
+            "u5:" + USERS_PASSWD_HASHED + "\n" +
+            "u6:" + USERS_PASSWD_HASHED + "\n" +
+            "u7:" + USERS_PASSWD_HASHED + "\n"+
+            "u8:" + USERS_PASSWD_HASHED + "\n"+
+            "u9:" + USERS_PASSWD_HASHED + "\n" +
+            "u10:" + USERS_PASSWD_HASHED + "\n" +
+            "u11:" + USERS_PASSWD_HASHED + "\n" +
+            "u12:" + USERS_PASSWD_HASHED + "\n" +
+            "u13:" + USERS_PASSWD_HASHED + "\n" +
+            "u14:" + USERS_PASSWD_HASHED + "\n" +
+            "u15:" + USERS_PASSWD_HASHED + "\n";
 
     public static final String USERS_ROLES =
             "all_indices_role:admin,u8\n" +

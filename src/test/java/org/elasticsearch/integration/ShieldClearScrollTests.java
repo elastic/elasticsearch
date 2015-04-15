@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authz.AuthorizationException;
 import org.elasticsearch.test.ShieldIntegrationTest;
@@ -28,13 +29,15 @@ import static org.hamcrest.Matchers.is;
 
 public class ShieldClearScrollTests extends ShieldIntegrationTest {
 
+    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("change_me".toCharArray())));
+
     private List<String> scrollIds;
 
     @Override
     protected String configUsers() {
         return super.configUsers() +
-            "allowed_user:{plain}change_me\n" +
-            "denied_user:{plain}change_me\n" ;
+            "allowed_user:" + USERS_PASSWD_HASHED + "\n" +
+            "denied_user:" + USERS_PASSWD_HASHED + "\n" ;
     }
 
     @Override

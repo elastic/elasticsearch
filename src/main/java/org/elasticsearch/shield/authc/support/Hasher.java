@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.shield.authc.support;
 
-import org.apache.commons.codec.binary.Base64;
-import org.apache.commons.codec.digest.*;
-import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.ShieldSettingsException;
@@ -22,47 +20,6 @@ import java.util.concurrent.ThreadLocalRandom;
  *
  */
 public enum Hasher {
-
-    /**
-     * A hasher that is compatible with apache htpasswd. Hashes by default using bcrypt type $2a$
-     * but can verify any of the hashes supported by htpasswd.
-     */
-    HTPASSWD() {
-
-        @Override
-        public char[] hash(SecuredString text) {
-            String salt = org.elasticsearch.shield.authc.support.BCrypt.gensalt();
-            return BCrypt.hashpw(text, salt).toCharArray();
-        }
-
-        @Override
-        public boolean verify(SecuredString text, char[] hash) {
-            String hashStr = new String(hash);
-            if (hashStr.startsWith(BCRYPT_PREFIX)) {
-                return BCrypt.checkpw(text, hashStr);
-            }
-            if (hashStr.startsWith(PLAIN_PREFIX)) {
-                hashStr = hashStr.substring(PLAIN_PREFIX.length());
-                return SecuredString.constantTimeEquals(text, hashStr);
-            }
-            byte[] textBytes = CharArrays.toUtf8Bytes(text.internalChars());
-            if (hashStr.startsWith(APR1_PREFIX)) {
-                return SecuredString.constantTimeEquals(hashStr, Md5Crypt.apr1Crypt(textBytes, hashStr));
-            }
-            if (hashStr.startsWith(SHA1_PREFIX)) {
-                String passwd64 = Base64.encodeBase64String(DigestUtils.sha1(textBytes));
-                String hashNoPrefix = hashStr.substring(SHA1_PREFIX.length());
-                return SecuredString.constantTimeEquals(passwd64, hashNoPrefix);
-            }
-            if (hashStr.startsWith(SHA2_PREFIX_5) || hashStr.startsWith(SHA2_PREFIX_6)) {
-                return SecuredString.constantTimeEquals(hashStr, Sha2Crypt.sha256Crypt(textBytes, hashStr));
-            }
-            return CRYPT_SUPPORTED ?
-                    SecuredString.constantTimeEquals(hashStr, Crypt.crypt(textBytes, hashStr)) :  // crypt algo
-                    SecuredString.constantTimeEquals(text, hashStr);                              // plain text
-        }
-    },
-
 
     BCRYPT() {
         @Override
@@ -183,31 +140,13 @@ public enum Hasher {
         }
     },
 
-    APR1() {
-        @Override
-        public char[] hash(SecuredString text) {
-            byte[] textBytes = CharArrays.toUtf8Bytes(text.internalChars());
-            return Md5Crypt.apr1Crypt(textBytes).toCharArray();
-        }
-
-        @Override
-        public boolean verify(SecuredString text, char[] hash) {
-            String hashStr = new String(hash);
-            if (!hashStr.startsWith(APR1_PREFIX)) {
-                return false;
-            }
-            byte[] textBytes = CharArrays.toUtf8Bytes(text.internalChars());
-            return SecuredString.constantTimeEquals(hashStr, Md5Crypt.apr1Crypt(textBytes, hashStr));
-        }
-    },
-
     SHA1() {
         @Override
         public char[] hash(SecuredString text) {
             byte[] textBytes = CharArrays.toUtf8Bytes(text.internalChars());
             MessageDigest md = SHA1Provider.sha1();
             md.update(textBytes);
-            String hash = Base64.encodeBase64String(md.digest());
+            String hash = Base64.encodeBytes(md.digest());
             return (SHA1_PREFIX + hash).toCharArray();
         }
 
@@ -220,27 +159,9 @@ public enum Hasher {
             byte[] textBytes = CharArrays.toUtf8Bytes(text.internalChars());
             MessageDigest md = SHA1Provider.sha1();
             md.update(textBytes);
-            String passwd64 = Base64.encodeBase64String(md.digest());
+            String passwd64 = Base64.encodeBytes(md.digest());
             String hashNoPrefix = hashStr.substring(SHA1_PREFIX.length());
             return SecuredString.constantTimeEquals(hashNoPrefix, passwd64);
-        }
-    },
-
-    SHA2() {
-        @Override
-        public char[] hash(SecuredString text) {
-            byte[] textBytes = CharArrays.toUtf8Bytes(text.internalChars());
-            return Sha2Crypt.sha256Crypt(textBytes).toCharArray();
-        }
-
-        @Override
-        public boolean verify(SecuredString text, char[] hash) {
-            String hashStr = new String(hash);
-            if (hashStr.startsWith(SHA2_PREFIX_5) || hashStr.startsWith(SHA2_PREFIX_6)) {
-                byte[] textBytes = CharArrays.toUtf8Bytes(text.internalChars());
-                return SecuredString.constantTimeEquals(hashStr, Sha2Crypt.sha256Crypt(textBytes, hashStr));
-            }
-            return false;
         }
     },
 
@@ -249,7 +170,7 @@ public enum Hasher {
         public char[] hash(SecuredString text) {
             MessageDigest md = MD5Provider.md5();
             md.update(CharArrays.toUtf8Bytes(text.internalChars()));
-            String hash = Base64.encodeBase64String(md.digest());
+            String hash = Base64.encodeBytes(md.digest());
             return (MD5_PREFIX + hash).toCharArray();
         }
 
@@ -262,7 +183,7 @@ public enum Hasher {
             hashStr = hashStr.substring(MD5_PREFIX.length());
             MessageDigest md = MD5Provider.md5();
             md.update(CharArrays.toUtf8Bytes(text.internalChars()));
-            String computedHashStr = Base64.encodeBase64String(md.digest());
+            String computedHashStr = Base64.encodeBytes(md.digest());
             return SecuredString.constantTimeEquals(hashStr, computedHashStr);
         }
     },
@@ -274,7 +195,7 @@ public enum Hasher {
             md.update(CharArrays.toUtf8Bytes(text.internalChars()));
             char[] salt = SaltProvider.salt(8);
             md.update(CharArrays.toUtf8Bytes(salt));
-            String hash = Base64.encodeBase64String(md.digest());
+            String hash = Base64.encodeBytes(md.digest());
             char[] result = new char[SSHA256_PREFIX.length() + salt.length + hash.length()];
             System.arraycopy(SSHA256_PREFIX.toCharArray(), 0, result, 0, SSHA256_PREFIX.length());
             System.arraycopy(salt, 0, result, SSHA256_PREFIX.length(), salt.length);
@@ -293,7 +214,7 @@ public enum Hasher {
             MessageDigest md = SHA256Provider.sha256();
             md.update(CharArrays.toUtf8Bytes(text.internalChars()));
             md.update(new String(saltAndHash, 0, 8).getBytes(Charsets.UTF_8));
-            String computedHash = Base64.encodeBase64String(md.digest());
+            String computedHash = Base64.encodeBytes(md.digest());
             return SecuredString.constantTimeEquals(computedHash, new String(saltAndHash, 8, saltAndHash.length - 8));
         }
     },
@@ -310,22 +231,16 @@ public enum Hasher {
         }
     };
 
-    private static final String APR1_PREFIX = "$apr1$";
     private static final String BCRYPT_PREFIX = "$2a$";
     private static final String SHA1_PREFIX = "{SHA}";
-    private static final String SHA2_PREFIX_5 = "$5$";
-    private static final String SHA2_PREFIX_6 = "$6$";
     private static final String MD5_PREFIX = "{MD5}";
     private static final String SSHA256_PREFIX = "{SSHA256}";
-    private static final String PLAIN_PREFIX = "{plain}";
-    static final boolean CRYPT_SUPPORTED = !Constants.WINDOWS;
 
     public static Hasher resolve(String name, Hasher defaultHasher) {
         if (name == null) {
             return defaultHasher;
         }
         switch (name.toLowerCase(Locale.ROOT)) {
-            case "htpasswd"     : return HTPASSWD;
             case "bcrypt"       : return BCRYPT;
             case "bcrypt4"      : return BCRYPT4;
             case "bcrypt5"      : return BCRYPT5;
@@ -333,9 +248,7 @@ public enum Hasher {
             case "bcrypt7"      : return BCRYPT7;
             case "bcrypt8"      : return BCRYPT8;
             case "bcrypt9"      : return BCRYPT9;
-            case "apr1"         : return APR1;
             case "sha1"         : return SHA1;
-            case "sha2"         : return SHA2;
             case "md5"          : return MD5;
             case "ssha256"      : return SSHA256;
             case "noop"         :
@@ -363,9 +276,9 @@ public enum Hasher {
 
         static {
             try {
-                digest = MessageDigest.getInstance(MessageDigestAlgorithms.MD5);
+                digest = MessageDigest.getInstance("MD5");
             } catch (NoSuchAlgorithmException e) {
-                throw new ShieldException("unsupported digest algorithm [" + MessageDigestAlgorithms.MD5 + "]. Please verify you are running on Java 7 or above", e);
+                throw new ShieldException("unsupported digest algorithm [MD5]. Please verify you are running on Java 7 or above", e);
             }
         }
 
@@ -386,9 +299,9 @@ public enum Hasher {
 
         static {
             try {
-                digest = MessageDigest.getInstance(MessageDigestAlgorithms.SHA_1);
+                digest = MessageDigest.getInstance("SHA-1");
             } catch (NoSuchAlgorithmException e) {
-                throw new ShieldException("unsupported digest algorithm [" + MessageDigestAlgorithms.SHA_1 + "]", e);
+                throw new ShieldException("unsupported digest algorithm [SHA-1]", e);
             }
         }
 
@@ -398,7 +311,7 @@ public enum Hasher {
                 sha1.reset();
                 return sha1;
             } catch (CloneNotSupportedException e) {
-                throw new ShieldException("could not create SHA1 digest", e);
+                throw new ShieldException("could not create SHA-1 digest", e);
             }
         }
     }
@@ -409,9 +322,9 @@ public enum Hasher {
 
         static {
             try {
-                digest = MessageDigest.getInstance(MessageDigestAlgorithms.SHA_256);
+                digest = MessageDigest.getInstance("SHA-256");
             } catch (NoSuchAlgorithmException e) {
-                throw new ShieldException("unsupported digest algorithm [" + MessageDigestAlgorithms.SHA_256 + "]. Please verify you are running on Java 7 or above", e);
+                throw new ShieldException("unsupported digest algorithm [SHA-256]. Please verify you are running on Java 7 or above", e);
             }
         }
 
@@ -421,7 +334,7 @@ public enum Hasher {
                 sha.reset();
                 return sha;
             } catch (CloneNotSupportedException e) {
-                throw new ShieldException("could not create [" + MessageDigestAlgorithms.SHA_256 + "] digest", e);
+                throw new ShieldException("could not create [SHA-256] digest", e);
             }
         }
     }

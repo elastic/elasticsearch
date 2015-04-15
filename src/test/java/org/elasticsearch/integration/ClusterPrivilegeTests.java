@@ -37,9 +37,9 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTests {
                     "    'someindex': all\n";
 
     public static final String USERS =
-                    "user_a:{plain}passwd\n" +
-                    "user_b:{plain}passwd\n" +
-                    "user_c:{plain}passwd\n";
+                    "user_a:" + USERS_PASSWD_HASHED + "\n" +
+                    "user_b:" + USERS_PASSWD_HASHED + "\n" +
+                    "user_c:" + USERS_PASSWD_HASHED + "\n";
 
     public static final String USERS_ROLES =
                     "role_a:user_a\n" +

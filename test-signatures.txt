@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Licensed to Elasticsearch under one or more contributor
 # license agreements. See the NOTICE file distributed with
 # this work for additional information regarding copyright
@@ -18,3 +19,15 @@ com.carrotsearch.randomizedtesting.RandomizedTest#globalTempDir() @ Use newTempD
 com.carrotsearch.randomizedtesting.annotations.Seed @ Don't commit hardcoded seeds
 
 org.apache.lucene.codecs.Codec#setDefault(org.apache.lucene.codecs.Codec) @ Use the SuppressCodecs("*") annotation instead
+
+@defaultMessage use org.elasticsearch.common.Base64#encodeBytes(byte[])
+org.apache.commons.codec.binary.Base64#encodeBase64(byte[])
+org.apache.commons.codec.binary.Base64#encodeBase64String(byte[])
+
+@defaultMessage use org.elasticsearch.common.Base64#encodeBytes(byte[], int, int, int) with Base64.URL_SAFE
+org.apache.commons.codec.binary.Base64#encodeBase64URLSafe(byte[])
+org.apache.commons.codec.binary.Base64#encodeBase64URLSafeString(byte[])
+
+@defaultMessage use org.elasticsearch.common.Base64#decode
+org.apache.commons.codec.binary.Base64#decodeBase64(java.lang.String)
+org.apache.commons.codec.binary.Base64#decodeBase64(byte[])

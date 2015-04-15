@@ -23,7 +23,6 @@
             <useTransitiveDependencies>false</useTransitiveDependencies>
             <includes>
                 <include>org.elasticsearch:elasticsearch-shield</include>
-                <include>commons-codec:commons-codec</include>
                 <include>dk.brics.automaton:automaton</include>
                 <include>com.unboundid:unboundid-ldapsdk</include>
             </includes>

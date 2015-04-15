@@ -10,6 +10,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ShieldIntegrationTest;
 import org.junit.Before;
@@ -24,14 +25,16 @@ import static org.hamcrest.CoreMatchers.is;
 
 public class IndexAliasesTests extends ShieldIntegrationTest {
 
+    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("test123".toCharArray())));
+
     @Override
     protected String configUsers() {
         return super.configUsers() +
-                "create_only:{plain}test123\n" +
-                "create_test_aliases_test:{plain}test123\n" +
-                "create_test_aliases_alias:{plain}test123\n" +
-                "create_test_aliases_test_alias:{plain}test123\n" +
-                "aliases_only:{plain}test123\n";
+                "create_only:" + USERS_PASSWD_HASHED + "\n" +
+                "create_test_aliases_test:" + USERS_PASSWD_HASHED + "\n" +
+                "create_test_aliases_alias:" + USERS_PASSWD_HASHED + "\n" +
+                "create_test_aliases_test_alias:" + USERS_PASSWD_HASHED + "\n" +
+                "aliases_only:" + USERS_PASSWD_HASHED + "\n";
     }
 
     @Override

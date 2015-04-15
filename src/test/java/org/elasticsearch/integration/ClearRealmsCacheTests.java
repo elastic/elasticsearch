@@ -12,6 +12,8 @@ import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheRequest;
 import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheResponse;
 import org.elasticsearch.shield.authc.Realm;
 import org.elasticsearch.shield.authc.Realms;
+import org.elasticsearch.shield.authc.support.Hasher;
+import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.client.ShieldClient;
@@ -31,6 +33,8 @@ import static org.hamcrest.Matchers.*;
  *
  */
 public class ClearRealmsCacheTests extends ShieldIntegrationTest {
+
+    private static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("passwd".toCharArray())));
 
     private static String[] usernames;
 
@@ -96,7 +100,7 @@ public class ClearRealmsCacheTests extends ShieldIntegrationTest {
     protected String configUsers() {
         StringBuilder builder = new StringBuilder(ShieldSettingsSource.CONFIG_STANDARD_USER);
         for (String username : usernames) {
-            builder.append(username).append(":{plain}passwd\n");
+            builder.append(username).append(":").append(USERS_PASSWD_HASHED).append("\n");
         }
         return builder.toString();
     }

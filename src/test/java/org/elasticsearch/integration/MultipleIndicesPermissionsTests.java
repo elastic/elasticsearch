@@ -9,6 +9,8 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.shield.authc.support.Hasher;
+import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authz.AuthorizationException;
@@ -25,6 +27,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.is;
 
 public class MultipleIndicesPermissionsTests extends ShieldIntegrationTest {
+
+    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("passwd".toCharArray())));
 
     @Override
     protected String configRoles() {
@@ -48,8 +52,8 @@ public class MultipleIndicesPermissionsTests extends ShieldIntegrationTest {
     @Override
     protected String configUsers() {
         return ShieldSettingsSource.CONFIG_STANDARD_USER +
-                "user_a:{plain}passwd\n" +
-                "user_ab:{plain}passwd\n";
+                "user_a:" + USERS_PASSWD_HASHED + "\n" +
+                "user_ab:" + USERS_PASSWD_HASHED + "\n";
     }
 
     @Override

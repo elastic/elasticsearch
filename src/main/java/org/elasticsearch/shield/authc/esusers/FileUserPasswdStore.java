@@ -43,7 +43,7 @@ public class FileUserPasswdStore {
     private final ESLogger logger;
 
     private final Path file;
-    final Hasher hasher = Hasher.HTPASSWD;
+    final Hasher hasher = Hasher.BCRYPT;
 
     private volatile ImmutableMap<String, char[]> users;
 

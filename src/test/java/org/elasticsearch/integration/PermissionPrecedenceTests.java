@@ -9,6 +9,7 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResp
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
@@ -31,6 +32,8 @@ import static org.hamcrest.Matchers.hasSize;
  */
 public class PermissionPrecedenceTests extends ShieldIntegrationTest {
 
+    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("test123".toCharArray())));
+
     @Override
     protected String configRoles() {
         return "admin:\n" +
@@ -50,9 +53,9 @@ public class PermissionPrecedenceTests extends ShieldIntegrationTest {
 
     @Override
     protected String configUsers() {
-        return "admin:{plain}test123\n" +
-                "client:{plain}test123\n" +
-                "user:{plain}test123\n";
+        return "admin:" + USERS_PASSWD_HASHED + "\n" +
+                "client:" + USERS_PASSWD_HASHED + "\n" +
+                "user:" + USERS_PASSWD_HASHED + "\n";
     }
 
     @Override

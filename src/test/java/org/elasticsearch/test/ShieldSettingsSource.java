@@ -13,6 +13,7 @@ import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
+import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
@@ -45,14 +46,15 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
     public static final String DEFAULT_USER_NAME = "test_user";
     public static final String DEFAULT_PASSWORD = "changeme";
+    private static final String DEFAULT_PASSWORD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString(DEFAULT_PASSWORD.toCharArray())));
     public static final String DEFAULT_ROLE = "user";
 
     public static final String DEFAULT_TRANSPORT_CLIENT_ROLE = "trans_client_user";
     public static final String DEFAULT_TRANSPORT_CLIENT_USER_NAME = "test_trans_client_user";
 
     public static final String CONFIG_STANDARD_USER =
-            DEFAULT_USER_NAME + ":{plain}" + DEFAULT_PASSWORD + "\n" +
-            DEFAULT_TRANSPORT_CLIENT_USER_NAME + ":{plain}" + DEFAULT_PASSWORD + "\n";
+            DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD_HASHED + "\n" +
+            DEFAULT_TRANSPORT_CLIENT_USER_NAME + ":" + DEFAULT_PASSWORD_HASHED + "\n";
 
     public static final String CONFIG_STANDARD_USER_ROLES =
             DEFAULT_ROLE + ":" + DEFAULT_USER_NAME + "," + DEFAULT_TRANSPORT_CLIENT_USER_NAME + "\n" +

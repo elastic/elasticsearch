@@ -17,28 +17,6 @@ import static org.hamcrest.Matchers.sameInstance;
 public class HasherTests extends ElasticsearchTestCase {
 
     @Test
-    public void testHtpasswd_ToolGenerated() throws Exception {
-        Hasher hasher = Hasher.HTPASSWD;
-        SecuredString passwd = SecuredStringTests.build("test123");
-        assertTrue(hasher.verify(passwd, "$2a$05$zxnP0vdREMxnEpkLCDI2OuSaSk/QEKA2.A42iOpI6U2u.RLLOWm1e".toCharArray()));
-        assertTrue(hasher.verify(passwd, "$2a$10$vNMk6GyVUU./7YSZB6BGPuozm921GVPw/Pdukzd09s.sL2rIWROU6".toCharArray()));
-        assertTrue(hasher.verify(passwd, "$apr1$R3DdqiAZ$aljIkaIVPSarmDMlJUBBP.".toCharArray()));
-        if (!Hasher.CRYPT_SUPPORTED) {
-            assertTrue(hasher.verify(passwd, "test123".toCharArray()));
-        } else {
-            assertTrue(hasher.verify(passwd, "hsP1PYSLsEEvs".toCharArray()));
-        }
-        assertTrue(hasher.verify(passwd, "{plain}test123".toCharArray()));
-        assertTrue(hasher.verify(passwd, "{SHA}cojt0Pw//L6ToM8G41aOKFIWh7w=".toCharArray()));
-        assertTrue(hasher.verify(passwd, "$5$RsqcsPiF$51tIIXf6oZb3Awox6FWNhITVlM/aW3oa8uN2eptIf54".toCharArray()));
-    }
-
-    @Test
-    public void testHtpasswd_SelfGenerated() throws Exception {
-        testHasherSelfGenerated(Hasher.HTPASSWD);
-    }
-
-    @Test
     public void testBcryptFamily_SelfGenerated() throws Exception {
         testHasherSelfGenerated(Hasher.BCRYPT);
         testHasherSelfGenerated(Hasher.BCRYPT4);
@@ -60,11 +38,6 @@ public class HasherTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testSha2_SelfGenerated() throws Exception {
-        testHasherSelfGenerated(Hasher.SHA2);
-    }
-
-    @Test
     public void testSSHA256_SelfGenerated() throws Exception {
         testHasherSelfGenerated(Hasher.SSHA256);
     }
@@ -76,7 +49,6 @@ public class HasherTests extends ElasticsearchTestCase {
 
     @Test
     public void testResolve() throws Exception {
-        assertThat(Hasher.resolve("htpasswd"), sameInstance(Hasher.HTPASSWD));
         assertThat(Hasher.resolve("bcrypt"), sameInstance(Hasher.BCRYPT));
         assertThat(Hasher.resolve("bcrypt4"), sameInstance(Hasher.BCRYPT4));
         assertThat(Hasher.resolve("bcrypt5"), sameInstance(Hasher.BCRYPT5));
@@ -85,8 +57,6 @@ public class HasherTests extends ElasticsearchTestCase {
         assertThat(Hasher.resolve("bcrypt8"), sameInstance(Hasher.BCRYPT8));
         assertThat(Hasher.resolve("bcrypt9"), sameInstance(Hasher.BCRYPT9));
         assertThat(Hasher.resolve("sha1"), sameInstance(Hasher.SHA1));
-        assertThat(Hasher.resolve("sha2"), sameInstance(Hasher.SHA2));
-        assertThat(Hasher.resolve("apr1"), sameInstance(Hasher.APR1));
         assertThat(Hasher.resolve("md5"), sameInstance(Hasher.MD5));
         assertThat(Hasher.resolve("ssha256"), sameInstance(Hasher.SSHA256));
         assertThat(Hasher.resolve("noop"), sameInstance(Hasher.NOOP));

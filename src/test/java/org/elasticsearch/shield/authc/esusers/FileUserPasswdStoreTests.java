@@ -109,7 +109,7 @@ public class FileUserPasswdStoreTests extends ElasticsearchTestCase {
 
         try (BufferedWriter writer = Files.newBufferedWriter(tmp, Charsets.UTF_8, StandardOpenOption.APPEND)) {
             writer.newLine();
-            writer.append("foobar:").append(new String(Hasher.HTPASSWD.hash(SecuredStringTests.build("barfoo"))));
+            writer.append("foobar:").append(new String(Hasher.BCRYPT.hash(SecuredStringTests.build("barfoo"))));
         }
 
         if (!latch.await(5, TimeUnit.SECONDS)) {

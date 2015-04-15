@@ -12,6 +12,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.search.suggest.SuggestBuilders;
+import org.elasticsearch.shield.authc.support.Hasher;
+import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authz.AuthorizationException;
@@ -25,6 +27,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class SearchGetAndSuggestPermissionsTests extends ShieldIntegrationTest {
+
+    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("passwd".toCharArray())));
 
     @Override
     protected String configRoles() {
@@ -46,9 +50,9 @@ public class SearchGetAndSuggestPermissionsTests extends ShieldIntegrationTest {
     @Override
     protected String configUsers() {
         return super.configUsers() +
-                "search_user:{plain}passwd\n" +
-                "get_user:{plain}passwd\n" +
-                "suggest_user:{plain}passwd\n";
+                "search_user:" + USERS_PASSWD_HASHED + "\n" +
+                "get_user:" + USERS_PASSWD_HASHED + "\n" +
+                "suggest_user:" + USERS_PASSWD_HASHED + "\n";
 
     }
 

@@ -239,7 +239,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                 }
             }
             try {
-                newFile = type.create(shardId, id, new InternalChannelReference(location.resolve(getPath(id)), StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW), bufferSize);
+                newFile = type.create(shardId, id, new InternalChannelReference(location.resolve(getFilename(id)), StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW), bufferSize);
             } catch (IOException e) {
                 throw new TranslogException(shardId, "failed to create new translog file", e);
             }
@@ -265,7 +265,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                     location = file;
                 }
             }
-            this.trans = type.create(shardId, id, new InternalChannelReference(location.resolve(getPath(id)), StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW), transientBufferSize);
+            this.trans = type.create(shardId, id, new InternalChannelReference(location.resolve(getFilename(id)), StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW), transientBufferSize);
         } catch (IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
         } finally {
@@ -431,7 +431,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     }
 
     @Override
-    public String getPath(long translogId) {
+    public String getFilename(long translogId) {
         return TRANSLOG_FILE_PREFIX + translogId;
     }
 
@@ -473,7 +473,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     @Override
     public OperationIterator openIterator(long translogId) throws IOException {
-        final String translogName = getPath(translogId);
+        final String translogName = getFilename(translogId);
         Path recoveringTranslogFile = null;
         logger.trace("try open translog file {} locations: {}", translogName, Arrays.toString(locations()));
         OUTER:

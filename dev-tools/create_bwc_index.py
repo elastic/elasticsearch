@@ -303,34 +303,44 @@ def create_bwc_index(cfg, version):
     raise RuntimeError('ES version %s does not exist in %s' % (version, cfg.releases_dir))
   snapshot_supported = not (version.startswith('0.') or version == '1.0.0.Beta1')
   tmp_dir = tempfile.mkdtemp()
+
+  data_dir = os.path.join(tmp_dir, 'data')
+  repo_dir = os.path.join(tmp_dir, 'repo')
+  logging.info('Temp data dir: %s' % data_dir)
+  logging.info('Temp repo dir: %s' % repo_dir)
+
+  node = None
+
   try:
-    data_dir = os.path.join(tmp_dir, 'data')
-    repo_dir = os.path.join(tmp_dir, 'repo')
-    logging.info('Temp data dir: %s' % data_dir)
-    logging.info('Temp repo dir: %s' % repo_dir)
+    node = start_node(version, release_dir, data_dir, cfg.tcp_port, cfg.http_port)
+    client = create_client(cfg.http_port)
+    index_name = 'index-%s' % version.lower()
+    generate_index(client, version, index_name)
+    if snapshot_supported:
+      snapshot_index(client, cfg, version, repo_dir)
 
-    try:
-      node = start_node(version, release_dir, data_dir, cfg.tcp_port, cfg.http_port)
-      client = create_client(cfg.http_port)
-      index_name = 'index-%s' % version.lower()
-      generate_index(client, version, index_name)
-      if snapshot_supported:
-        snapshot_index(client, cfg, version, repo_dir)
+    # 10067: get a delete-by-query into the translog on upgrade.  We must do
+    # this after the snapshot, because it calls flush.  Otherwise the index
+    # will already have the deletions applied on upgrade.
+    delete_by_query(client, version, index_name, 'doc')
 
-      # 10067: get a delete-by-query into the translog on upgrade.  We must do
-      # this after the snapshot, because it calls flush.  Otherwise the index
-      # will already have the deletions applied on upgrade.
-      delete_by_query(client, version, index_name, 'doc')
+    logging.info('Shutting down node with pid %d', node.pid)
+    node.terminate()
+    node.wait()
+    node = None
 
-    finally:
-      if 'node' in vars():
-        logging.info('Shutting down node with pid %d', node.pid)
-        node.terminate()
-        node.wait()
     compress_index(version, tmp_dir, cfg.output_dir)
     if snapshot_supported:
       compress_repo(version, tmp_dir, cfg.output_dir)
   finally:
+
+    if node is not None:
+      # This only happens if we've hit an exception:
+      logging.info('Shutting down node with pid %d', node.pid)
+      node.terminate()
+      node.wait()
+      node = None
+      
     shutil.rmtree(tmp_dir)
     
 def main():

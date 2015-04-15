@@ -61,7 +61,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
             Aggregator create(String name, AggregatorFactories factories, int shardSize, int maxDocsPerValue, ValuesSource valuesSource,
                     AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
 
-                return new DiversifiedSamplerAggregator(name, shardSize, factories, context, parent, metaData, valuesSource,
+                return new DiversifiedMapSamplerAggregator(name, shardSize, factories, context, parent, metaData, valuesSource,
                         maxDocsPerValue);
             }
 

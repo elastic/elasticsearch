@@ -127,6 +127,7 @@ public class SamplerTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void nestedDiversity() throws Exception {
+        // Test multiple samples gathered under buckets made by a parent agg
         int MAX_DOCS_PER_AUTHOR = 1;
         TermsBuilder rootTerms = new TermsBuilder("genres").field("genre");
 
@@ -148,7 +149,39 @@ public class SamplerTests extends ElasticsearchIntegrationTest {
             for (Terms.Bucket testBucket : testBuckets) {
                 assertThat(testBucket.getDocCount(), lessThanOrEqualTo((long) NUM_SHARDS * MAX_DOCS_PER_AUTHOR));
             }
+        }
+    }
 
+    @Test
+    public void nestedSamples() throws Exception {
+        // Test samples nested under samples
+        int MAX_DOCS_PER_AUTHOR = 1;
+        int MAX_DOCS_PER_GENRE = 2;
+        SamplerAggregationBuilder rootSample = new SamplerAggregationBuilder("genreSample").shardSize(100).field("genre")
+                .maxDocsPerValue(MAX_DOCS_PER_GENRE);
+
+        SamplerAggregationBuilder sampleAgg = new SamplerAggregationBuilder("sample").shardSize(100);
+        sampleAgg.field("author").maxDocsPerValue(MAX_DOCS_PER_AUTHOR).executionHint(randomExecutionHint());
+        sampleAgg.subAggregation(new TermsBuilder("authors").field("author"));
+        sampleAgg.subAggregation(new TermsBuilder("genres").field("genre"));
+
+        rootSample.subAggregation(sampleAgg);
+        SearchResponse response = client().prepareSearch("test").setSearchType(SearchType.QUERY_AND_FETCH).addAggregation(rootSample)
+                .execute().actionGet();
+        assertSearchResponse(response);
+        Sampler genreSample = response.getAggregations().get("genreSample");
+        Sampler sample = genreSample.getAggregations().get("sample");
+
+        Terms genres = sample.getAggregations().get("genres");
+        Collection<Bucket> testBuckets = genres.getBuckets();
+        for (Terms.Bucket testBucket : testBuckets) {
+            assertThat(testBucket.getDocCount(), lessThanOrEqualTo((long) NUM_SHARDS * MAX_DOCS_PER_GENRE));
+        }
+
+        Terms authors = sample.getAggregations().get("authors");
+        testBuckets = authors.getBuckets();
+        for (Terms.Bucket testBucket : testBuckets) {
+            assertThat(testBucket.getDocCount(), lessThanOrEqualTo((long) NUM_SHARDS * MAX_DOCS_PER_AUTHOR));
         }
     }
 

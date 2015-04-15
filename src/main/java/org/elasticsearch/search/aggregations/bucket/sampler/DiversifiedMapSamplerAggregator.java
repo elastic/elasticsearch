@@ -40,13 +40,13 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import java.io.IOException;
 import java.util.Map;
 
-public class DiversifiedSamplerAggregator extends SamplerAggregator {
+public class DiversifiedMapSamplerAggregator extends SamplerAggregator {
 
     private ValuesSource valuesSource;
     private int maxDocsPerValue;
     private BytesRefHash bucketOrds;
 
-    public DiversifiedSamplerAggregator(String name, int shardSize, AggregatorFactories factories,
+    public DiversifiedMapSamplerAggregator(String name, int shardSize, AggregatorFactories factories,
             AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData, ValuesSource valuesSource,
             int maxDocsPerValue) throws IOException {
         super(name, shardSize, factories, aggregationContext, parent, metaData);

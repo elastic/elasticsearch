@@ -34,27 +34,29 @@ import java.net.InetSocketAddress;
 public class UpgradeReallyOldIndexTest extends StaticIndexBackwardCompatibilityTest {
 
     public void testUpgrade_0_20() throws Exception {
-        loadIndex("index-0.20.zip", InternalNode.HTTP_ENABLED, true);
+        String indexName = "test";
+        loadIndex("index-0.20.zip", indexName, InternalNode.HTTP_ENABLED, true);
         
-        assertTrue(UpgradeTest.hasAncientSegments(httpClient(), "test"));
-        UpgradeTest.assertNotUpgraded(httpClient(), "test");
-        UpgradeTest.runUpgrade(httpClient(), "test", "wait_for_completion", "true", "only_ancient_segments", "true");
-        assertFalse(UpgradeTest.hasAncientSegments(httpClient(), "test"));
+        assertTrue(UpgradeTest.hasAncientSegments(httpClient(), indexName));
+        UpgradeTest.assertNotUpgraded(httpClient(), indexName);
+        UpgradeTest.runUpgrade(httpClient(), indexName, "wait_for_completion", "true", "only_ancient_segments", "true");
+        assertFalse(UpgradeTest.hasAncientSegments(httpClient(), indexName));
 
         // This index has entirely ancient segments so the whole index should now be upgraded:
-        UpgradeTest.assertUpgraded(httpClient(), "test");
+        UpgradeTest.assertUpgraded(httpClient(), indexName);
     }
 
     public void testUpgradeMixed_0_20_6_and_0_90_6() throws Exception {
-        loadIndex("index-0.20.6-and-0.90.6.zip", InternalNode.HTTP_ENABLED, true);
+        String indexName = "index-0.20.6-and-0.90.6";
+        loadIndex(indexName + ".zip", indexName, InternalNode.HTTP_ENABLED, true);
         
-        assertTrue(UpgradeTest.hasAncientSegments(httpClient(), "test"));
-        assertTrue(UpgradeTest.hasOldButNotAncientSegments(httpClient(), "test"));
-        UpgradeTest.assertNotUpgraded(httpClient(), "test");
-        UpgradeTest.runUpgrade(httpClient(), "test", "wait_for_completion", "true", "only_ancient_segments", "true");
-        assertFalse(UpgradeTest.hasAncientSegments(httpClient(), "test"));
+        assertTrue(UpgradeTest.hasAncientSegments(httpClient(), indexName));
+        assertTrue(UpgradeTest.hasOldButNotAncientSegments(httpClient(), indexName));
+        UpgradeTest.assertNotUpgraded(httpClient(), indexName);
+        UpgradeTest.runUpgrade(httpClient(), indexName, "wait_for_completion", "true", "only_ancient_segments", "true");
+        assertFalse(UpgradeTest.hasAncientSegments(httpClient(), indexName));
 
         // We succeeded in upgrading only the ancient segments but leaving the merely old ones untouched:
-        assertTrue(UpgradeTest.hasOldButNotAncientSegments(httpClient(), "test"));
+        assertTrue(UpgradeTest.hasOldButNotAncientSegments(httpClient(), indexName));
     }
 }

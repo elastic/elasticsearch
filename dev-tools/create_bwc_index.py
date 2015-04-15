@@ -129,13 +129,16 @@ def build_version(version_tuple):
 def build_tuple(version_string):
   return [int(x) for x in version_string.split('.')]
 
-def start_node(version, release_dir, data_dir, tcp_port=DEFAULT_TRANSPORT_TCP_PORT, http_port=DEFAULT_HTTP_TCP_PORT):
-  logging.info('Starting node from %s on port %s/%s' % (release_dir, tcp_port, http_port))
+def start_node(version, release_dir, data_dir, tcp_port=DEFAULT_TRANSPORT_TCP_PORT, http_port=DEFAULT_HTTP_TCP_PORT, cluster_name=None):
+  logging.info('Starting node from %s on port %s/%s, data_dir %s' % (release_dir, tcp_port, http_port, data_dir))
+  if cluster_name is None:
+    cluster_name = 'bwc_index_' + version
+    
   cmd = [
     os.path.join(release_dir, 'bin/elasticsearch'),
     '-Des.path.data=%s' % data_dir,
     '-Des.path.logs=logs',
-    '-Des.cluster.name=bwc_index_' + version,
+    '-Des.cluster.name=%s' % cluster_name,
     '-Des.network.host=localhost',
     '-Des.discovery.zen.ping.multicast.enabled=false',
     '-Des.transport.tcp.port=%s' % tcp_port,
@@ -161,8 +164,6 @@ def create_client(http_port=DEFAULT_HTTP_TCP_PORT, timeout=30):
 
 def generate_index(client, version, index_name):
   client.indices.delete(index=index_name, ignore=404)
-  num_shards = random.randint(1, 10)
-  num_replicas = random.randint(0, 1)
   logging.info('Create single shard test index')
 
   mappings = {}
@@ -260,7 +261,7 @@ def compress(tmp_dir, output_dir, zipfile, directory):
   zipfile = os.path.join(abs_output_dir, zipfile)
   if os.path.exists(zipfile):
     os.remove(zipfile)
-  logging.info('Compressing index into %s', zipfile)
+  logging.info('Compressing index into %s, tmpDir %s', zipfile, tmp_dir)
   olddir = os.getcwd()
   os.chdir(tmp_dir)
   subprocess.check_call('zip -r %s %s' % (zipfile, directory), shell=True)
@@ -325,7 +326,7 @@ def create_bwc_index(cfg, version):
       if 'node' in vars():
         logging.info('Shutting down node with pid %d', node.pid)
         node.terminate()
-        time.sleep(1) # some nodes take time to terminate
+        node.wait()
     compress_index(version, tmp_dir, cfg.output_dir)
     if snapshot_supported:
       compress_repo(version, tmp_dir, cfg.output_dir)

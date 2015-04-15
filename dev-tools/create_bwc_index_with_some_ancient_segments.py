@@ -25,6 +25,7 @@ def main():
   tmp_dir = tempfile.mkdtemp()
   try:
     data_dir = os.path.join(tmp_dir, 'data')
+    logging.info('Temp data dir: %s' % data_dir)
 
     first_version = '0.20.6'
     second_version = '0.90.6'
@@ -35,17 +36,16 @@ def main():
     if not os.path.exists(release_dir):
       fetch_version(first_version)
 
-    tmp_dir = tempfile.mkdtemp()
-    data_dir = os.path.join(tmp_dir, 'data')
-    repo_dir = os.path.join(tmp_dir, 'repo')
-    logging.info('Temp data dir: %s' % data_dir)
-    logging.info('Temp repo dir: %s' % repo_dir)
-
-    node = create_bwc_index.start_node(first_version, release_dir, data_dir)
+    node = create_bwc_index.start_node(first_version, release_dir, data_dir, cluster_name=index_name)
     client = create_bwc_index.create_client()
 
     # Creates the index & indexes docs w/ first_version:
     create_bwc_index.generate_index(client, first_version, index_name)
+
+    # Make sure we write segments:
+    flush_result = client.indices.flush(index=index_name)
+    if not flush_result['ok']:
+      raise RuntimeError('flush failed: %s' % str(flush_result))
 
     segs = client.indices.segments(index=index_name)
     shards = segs['indices'][index_name]['shards']
@@ -53,15 +53,18 @@ def main():
       raise RuntimeError('index should have 1 shard but got %s' % len(shards))
 
     first_version_segs = shards['0'][0]['segments'].keys()
-    
+
     node.terminate()
+    node.wait()
+    print('%s server output:\n%s' % (first_version, node.stdout.read().decode('utf-8')))
+    node = None
 
     release_dir = os.path.join('backwards', 'elasticsearch-%s' % second_version)
     if not os.path.exists(release_dir):
       fetch_version(second_version)
 
     # Now also index docs with second_version:
-    node = create_bwc_index.start_node(second_version, release_dir, data_dir)
+    node = create_bwc_index.start_node(second_version, release_dir, data_dir, cluster_name=index_name)
     client = create_bwc_index.create_client()
 
     # If we index too many docs, the random refresh/flush causes the ancient segments to be merged away:
@@ -69,7 +72,9 @@ def main():
     create_bwc_index.index_documents(client, index_name, 'doc', num_docs)
 
     # Make sure we get a segment:
-    client.indices.flush(index=index_name)
+    flush_result = client.indices.flush(index=index_name)
+    if not flush_result['ok']:
+      raise RuntimeError('flush failed: %s' % str(flush_result))
 
     # Make sure we see mixed segments (it's possible Lucene could have "accidentally" merged away the first_version segments):
     segs = client.indices.segments(index=index_name)
@@ -78,8 +83,8 @@ def main():
       raise RuntimeError('index should have 1 shard but got %s' % len(shards))
 
     second_version_segs = shards['0'][0]['segments'].keys()
-    print("first: %s" % first_version_segs)
-    print("second: %s" % second_version_segs)
+    #print("first: %s" % first_version_segs)
+    #print("second: %s" % second_version_segs)
 
     for segment_name in first_version_segs:
       if segment_name in second_version_segs:
@@ -96,8 +101,14 @@ def main():
       raise RuntimeError('index has no second_version segs left')
 
     node.terminate()
+    node.wait()
+    print('%s server output:\n%s' % (second_version, node.stdout.read().decode('utf-8')))
+    node = None
     create_bwc_index.compress_index('%s-and-%s' % (first_version, second_version), tmp_dir, 'src/test/resources/org/elasticsearch/rest/action/admin/indices/upgrade')
   finally:
+    if node is not None:
+      node.terminate()
+      node.wait()
     shutil.rmtree(tmp_dir)
     
 if __name__ == '__main__':

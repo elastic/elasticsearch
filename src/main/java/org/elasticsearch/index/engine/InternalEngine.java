@@ -1084,9 +1084,9 @@ public class InternalEngine extends Engine {
         store.incRef();
         try {
             if (Lucene.upgradeLucene3xSegmentsMetadata(store.directory())) {
-                logger.debug("upgraded pending 3.x segments on startup");
+                logger.debug("upgraded current 3.x segments file on startup");
             } else {
-                logger.debug("no 3.x segments needed upgrading");
+                logger.debug("segments file is already after 3.x; not upgrading");
             }
         } finally {
             store.decRef();

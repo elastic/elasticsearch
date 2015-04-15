@@ -46,27 +46,20 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
 public class StaticIndexBackwardCompatibilityTest extends ElasticsearchIntegrationTest {
 
-    public void loadIndex(String index, Object... settings) throws Exception {
-        logger.info("Checking static index " + index);
-        Settings nodeSettings = prepareBackwardsDataDir(new File(getClass().getResource(index).toURI()), settings);
+    public void loadIndex(String zipFile, String indexName, Object... settings) throws Exception {
+        logger.info("Checking static index " + zipFile);
+        Settings nodeSettings = prepareBackwardsDataDir(new File(getClass().getResource(zipFile).toURI()), settings);
         internalCluster().startNode(nodeSettings);
-        ensureGreen("test");
-        assertIndexSanity();
+        ensureGreen(indexName);
+        assertIndexSanity(indexName);
     }
 
-    public void unloadIndex() throws Exception {
-        ElasticsearchAssertions.assertAcked(client().admin().indices().prepareDelete("test").get());
-        while (internalCluster().stopRandomDataNode()) {} // stop all data nodes
-        ElasticsearchAssertions.assertAllFilesClosed();
-    }
-
-    void assertIndexSanity() {
+    void assertIndexSanity(String indexName) {
         GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().get();
         assertEquals(1, getIndexResponse.indices().length);
-        assertEquals("test", getIndexResponse.indices()[0]);
-        ensureYellow("test");
-        SearchResponse test = client().prepareSearch("test").get();
+        assertEquals(indexName, getIndexResponse.indices()[0]);
+        ensureYellow(indexName);
+        SearchResponse test = client().prepareSearch(indexName).get();
         assertThat(test.getHits().getTotalHits(), greaterThanOrEqualTo(1l));
     }
-
 }

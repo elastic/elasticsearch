@@ -5,5 +5,3 @@
       watcher_stats:
         pretty: true
   - match: { "watch_service_state": "started" }
-  - match: { "watch_count": 0 }
-  - match: { "execution_queue": { "size": 0, "max_size": 0 } }

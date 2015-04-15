@@ -62,7 +62,7 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
 
     @Override
     protected Class<? extends Plugin> licensePluginClass() {
-        return InternalLicensePlugin.class;
+        return MockLicensePlugin.class;
     }
 
     @Override
@@ -264,18 +264,18 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
     }
 
     public static void disableLicensing() {
-        for (InternalLicensesClientService service : internalTestCluster().getInstances(InternalLicensesClientService.class)) {
+        for (MockLicenseService service : internalTestCluster().getInstances(MockLicenseService.class)) {
             service.disable();
         }
     }
 
     public static void enableLicensing() {
-        for (InternalLicensesClientService service : internalTestCluster().getInstances(InternalLicensesClientService.class)) {
+        for (MockLicenseService service : internalTestCluster().getInstances(MockLicenseService.class)) {
             service.enable();
         }
     }
 
-    public static class InternalLicensePlugin extends AbstractPlugin {
+    public static class MockLicensePlugin extends AbstractPlugin {
 
         public static final String NAME = "internal-test-licensing";
 
@@ -298,17 +298,17 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
     public static class InternalLicenseModule extends AbstractModule {
         @Override
         protected void configure() {
-            bind(InternalLicensesClientService.class).asEagerSingleton();
-            bind(LicensesClientService.class).to(InternalLicensesClientService.class);
+            bind(MockLicenseService.class).asEagerSingleton();
+            bind(LicensesClientService.class).to(MockLicenseService.class);
         }
     }
 
-    public static class InternalLicensesClientService extends AbstractComponent implements LicensesClientService {
+    public static class MockLicenseService extends AbstractComponent implements LicensesClientService {
 
         private final List<Listener> listeners = new ArrayList<>();
 
         @Inject
-        public InternalLicensesClientService(Settings settings) {
+        public MockLicenseService(Settings settings) {
             super(settings);
             enable();
         }
@@ -319,14 +319,14 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
             enable();
         }
 
-        void enable() {
+        public void enable() {
             // enabled all listeners (incl. shield)
             for (Listener listener : listeners) {
                 listener.onEnabled(DUMMY_LICENSE);
             }
         }
 
-        void disable() {
+        public void disable() {
             // only disable watcher listener (we need shield to work)
             for (Listener listener : listeners) {
                 if (listener instanceof LicenseService.InternalListener) {

@@ -33,7 +33,7 @@ import java.nio.file.Path;
 @TestLogging("_root:DEBUG")
 public class WatcherRestTests extends ElasticsearchRestTests {
 
-    private final boolean shieldEnabled = randomBoolean();
+    final boolean shieldEnabled = randomBoolean();
 
     public WatcherRestTests(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);

@@ -156,7 +156,7 @@ public class QueryParseContext {
     public XContentParser parser() {
         return parser;
     }
-    
+
     public IndexQueryParserService indexQueryParserService() {
         return indexQueryParser;
     }
@@ -322,17 +322,21 @@ public class QueryParseContext {
         QueryBuilder builder = toQueryBuilder();
 
         Query result = builder.toQuery(this);
-        if (result instanceof NoCacheQuery) {
+        checkCachable(result);
+        return result;
+    }
+
+    public void checkCachable(Query query) {
+        if (query instanceof NoCacheQuery) {
             propagateNoCache = true;
         }
-        if (CustomQueryWrappingFilter.shouldUseCustomQueryWrappingFilter(result)) {
+        if (CustomQueryWrappingFilter.shouldUseCustomQueryWrappingFilter(query)) {
             requireCustomQueryWrappingFilter = true;
             // If later on, either directly or indirectly this query gets wrapped in a query filter it must never
             // get cached even if a filter higher up the chain is configured to do this. This will happen, because
             // the result filter will be instance of NoCacheFilter (CustomQueryWrappingFilter) which will in
             // #executeFilterParser() set propagateNoCache to true.
         }
-        return result;
     }
 
     @Nullable

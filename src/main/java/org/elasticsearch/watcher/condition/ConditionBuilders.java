@@ -5,9 +5,12 @@
  */
 package org.elasticsearch.watcher.condition;
 
+import org.elasticsearch.watcher.condition.always.AlwaysCondition;
+import org.elasticsearch.watcher.condition.never.NeverCondition;
+import org.elasticsearch.watcher.condition.script.ExecutableScriptCondition;
+import org.elasticsearch.watcher.condition.never.ExecutableNeverCondition;
+import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
-import org.elasticsearch.watcher.condition.simple.AlwaysFalseCondition;
-import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
 
 /**
  *
@@ -17,20 +20,15 @@ public final class ConditionBuilders {
     private ConditionBuilders() {
     }
 
-    public static AlwaysTrueCondition.SourceBuilder alwaysTrueCondition() {
-        return AlwaysTrueCondition.SourceBuilder.INSTANCE;
+    public static AlwaysCondition.Builder alwaysCondition() {
+        return AlwaysCondition.Builder.INSTANCE;
     }
 
-    public static AlwaysFalseCondition.SourceBuilder alwaysFalseCondition() {
-        return AlwaysFalseCondition.SourceBuilder.INSTANCE;
+    public static NeverCondition.Builder neverCondition() {
+        return NeverCondition.Builder.INSTANCE;
     }
 
-    public static ScriptCondition.SourceBuilder scriptCondition() {
-        return new ScriptCondition.SourceBuilder();
+    public static ScriptCondition.Builder scriptCondition(String script) {
+        return ScriptCondition.builder(script);
     }
-
-    public static ScriptCondition.SourceBuilder scriptCondition(String script) {
-        return new ScriptCondition.SourceBuilder().script(script);
-    }
-
 }

@@ -18,7 +18,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
-import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
+import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.input.Input;
@@ -85,7 +85,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
                 mock(LicenseService.class),
                 new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
                 new SimpleInput(logger, new Payload.Simple()),
-                new AlwaysTrueCondition(logger),
+                new ExecutableAlwaysCondition(logger),
                 null,
                 new ExecutableActions(new ArrayList<ActionWrapper>()),
                 null,

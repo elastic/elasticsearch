@@ -34,10 +34,15 @@ import org.elasticsearch.watcher.actions.index.IndexActionFactory;
 import org.elasticsearch.watcher.actions.webhook.ExecutableWebhookAction;
 import org.elasticsearch.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.watcher.actions.webhook.WebhookActionFactory;
-import org.elasticsearch.watcher.condition.Condition;
+import org.elasticsearch.watcher.condition.ConditionFactory;
 import org.elasticsearch.watcher.condition.ConditionRegistry;
+import org.elasticsearch.watcher.condition.ExecutableCondition;
+import org.elasticsearch.watcher.condition.always.AlwaysCondition;
+import org.elasticsearch.watcher.condition.always.AlwaysConditionFactory;
+import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
+import org.elasticsearch.watcher.condition.script.ExecutableScriptCondition;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
-import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
+import org.elasticsearch.watcher.condition.script.ScriptConditionFactory;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputRegistry;
 import org.elasticsearch.watcher.input.search.SearchInput;
@@ -111,7 +116,7 @@ public class WatchTests extends ElasticsearchTestCase {
         Input input = randomInput();
         InputRegistry inputRegistry = registry(input);
 
-        Condition condition = randomCondition();
+        ExecutableCondition condition = randomCondition();
         ConditionRegistry conditionRegistry = registry(condition);
 
         Transform transform = randomTransform();
@@ -218,24 +223,24 @@ public class WatchTests extends ElasticsearchTestCase {
         }
     }
 
-    private Condition randomCondition() {
-        String type = randomFrom(ScriptCondition.TYPE, AlwaysTrueCondition.TYPE);
+    private ExecutableCondition randomCondition() {
+        String type = randomFrom(ScriptCondition.TYPE, AlwaysCondition.TYPE);
         switch (type) {
             case ScriptCondition.TYPE:
-                return new ScriptCondition(logger, scriptService, new Script("_script"));
+                return new ExecutableScriptCondition(new ScriptCondition(new Script("_script")), logger, scriptService);
             default:
-                return new AlwaysTrueCondition(logger);
+                return new ExecutableAlwaysCondition(logger);
         }
     }
 
-    private ConditionRegistry registry(Condition condition) {
-        ImmutableMap.Builder<String, Condition.Parser> parsers = ImmutableMap.builder();
+    private ConditionRegistry registry(ExecutableCondition condition) {
+        ImmutableMap.Builder<String, ConditionFactory> parsers = ImmutableMap.builder();
         switch (condition.type()) {
             case ScriptCondition.TYPE:
-                parsers.put(ScriptCondition.TYPE, new ScriptCondition.Parser(settings, scriptService));
+                parsers.put(ScriptCondition.TYPE, new ScriptConditionFactory(settings, scriptService));
                 return new ConditionRegistry(parsers.build());
             default:
-                parsers.put(AlwaysTrueCondition.TYPE, new AlwaysTrueCondition.Parser(settings));
+                parsers.put(AlwaysCondition.TYPE, new AlwaysConditionFactory(settings));
                 return new ConditionRegistry(parsers.build());
         }
     }

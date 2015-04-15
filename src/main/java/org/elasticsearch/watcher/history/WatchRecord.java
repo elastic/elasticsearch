@@ -60,7 +60,7 @@ public class WatchRecord implements ToXContent {
         this.id = id;
         this.name = watch.name();
         this.triggerEvent = triggerEvent;
-        this.condition = watch.condition();
+        this.condition = watch.condition().condition();
         this.input = watch.input();
         this.state = State.AWAITS_EXECUTION;
         this.metadata = watch.metadata();
@@ -250,7 +250,7 @@ public class WatchRecord implements ToXContent {
                     if (Watch.Parser.INPUT_FIELD.match(currentFieldName)) {
                         record.input = inputRegistry.parse(parser);
                     } else if (Watch.Parser.CONDITION_FIELD.match(currentFieldName)) {
-                        record.condition = conditionRegistry.parse(parser);
+                        record.condition = conditionRegistry.parseCondition(id, parser);
                     } else if (METADATA_FIELD.match(currentFieldName)) {
                         record.metadata = parser.map();
                     } else if (WATCH_EXECUTION_FIELD.match(currentFieldName)) {

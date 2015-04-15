@@ -11,12 +11,12 @@ import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.Action;
-import org.elasticsearch.watcher.actions.ExecutableAction;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.Condition;
-import org.elasticsearch.watcher.condition.simple.AlwaysFalseCondition;
-import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
+import org.elasticsearch.watcher.condition.ExecutableCondition;
+import org.elasticsearch.watcher.condition.always.AlwaysCondition;
+import org.elasticsearch.watcher.condition.never.NeverCondition;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.support.clock.Clock;
@@ -66,7 +66,7 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testExecute() throws Exception {
-        Condition.Result conditionResult = AlwaysTrueCondition.RESULT;
+        Condition.Result conditionResult = AlwaysCondition.Result.INSTANCE;
         Throttler.Result throttleResult = Throttler.Result.NO;
         Transform.Result transformResult = mock(Transform.Result.class);
         when(transformResult.payload()).thenReturn(payload);
@@ -74,7 +74,7 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
         when(actionResult.type()).thenReturn("_action_type");
         ActionWrapper.Result watchActionResult = new ActionWrapper.Result("_id", null, actionResult);
 
-        Condition condition = mock(Condition.class);
+        ExecutableCondition condition = mock(ExecutableCondition.class);
         when(condition.execute(any(WatchExecutionContext.class))).thenReturn(conditionResult);
         Throttler throttler = mock(Throttler.class);
         when(throttler.throttle(any(WatchExecutionContext.class))).thenReturn(throttleResult);
@@ -111,7 +111,7 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testExecute_throttled() throws Exception {
-        Condition.Result conditionResult = AlwaysTrueCondition.RESULT;
+        Condition.Result conditionResult = AlwaysCondition.Result.INSTANCE;
         Throttler.Result throttleResult = mock(Throttler.Result.class);
         when(throttleResult.throttle()).thenReturn(true);
 
@@ -120,7 +120,7 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
         ActionWrapper.Result actionResult = mock(ActionWrapper.Result.class);
         when(actionResult.id()).thenReturn("_id");
 
-        Condition condition = mock(Condition.class);
+        ExecutableCondition condition = mock(ExecutableCondition.class);
         when(condition.execute(any(WatchExecutionContext.class))).thenReturn(conditionResult);
         Throttler throttler = mock(Throttler.class);
         when(throttler.throttle(any(WatchExecutionContext.class))).thenReturn(throttleResult);
@@ -158,7 +158,7 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testExecute_conditionNotMet() throws Exception {
-        Condition.Result conditionResult = AlwaysFalseCondition.RESULT;
+        Condition.Result conditionResult = NeverCondition.Result.INSTANCE;
         Throttler.Result throttleResult = mock(Throttler.Result.class);
         when(throttleResult.throttle()).thenReturn(true);
 
@@ -166,7 +166,7 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
         ActionWrapper.Result actionResult = mock(ActionWrapper.Result.class);
         when(actionResult.id()).thenReturn("_id");
 
-        Condition condition = mock(Condition.class);
+        ExecutableCondition condition = mock(ExecutableCondition.class);
         when(condition.execute(any(WatchExecutionContext.class))).thenReturn(conditionResult);
         Throttler throttler = mock(Throttler.class);
         when(throttler.throttle(any(WatchExecutionContext.class))).thenReturn(throttleResult);

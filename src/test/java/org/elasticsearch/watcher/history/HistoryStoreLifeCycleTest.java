@@ -9,14 +9,13 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.DateTimeZone;
-import org.elasticsearch.watcher.condition.Condition;
-import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
+import org.elasticsearch.watcher.condition.ExecutableCondition;
+import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.Collection;
@@ -30,7 +29,7 @@ public class HistoryStoreLifeCycleTest extends AbstractWatcherIntegrationTests {
 
     @Test
     public void testPutLoadUpdate() throws Exception {
-        Condition condition = new AlwaysTrueCondition(logger);
+        ExecutableCondition condition = new ExecutableAlwaysCondition(logger);
         HistoryStore historyStore = getInstanceFromMaster(HistoryStore.class);
         Watch watch = new Watch("_name", SystemClock.INSTANCE, licenseService(), null, null, condition, null, null, null, null, null);
 

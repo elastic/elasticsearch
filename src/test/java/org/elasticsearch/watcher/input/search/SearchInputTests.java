@@ -21,7 +21,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
-import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
+import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputException;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
@@ -76,7 +76,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                         mock(LicenseService.class),
                         new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
                         new SimpleInput(logger, new Payload.Simple()),
-                        new AlwaysTrueCondition(logger),
+                        new ExecutableAlwaysCondition(logger),
                         null,
                         new ExecutableActions(new ArrayList<ActionWrapper>()),
                         null,
@@ -114,7 +114,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                         mock(LicenseService.class),
                         new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
                         new SimpleInput(logger, new Payload.Simple()),
-                        new AlwaysTrueCondition(logger),
+                        new ExecutableAlwaysCondition(logger),
                         null,
                         new ExecutableActions(new ArrayList<ActionWrapper>()),
                         null,

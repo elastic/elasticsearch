@@ -5,11 +5,14 @@
  */
 package org.elasticsearch.watcher.condition;
 
-import org.elasticsearch.watcher.condition.script.ScriptCondition;
-import org.elasticsearch.watcher.condition.simple.AlwaysFalseCondition;
-import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
+import org.elasticsearch.watcher.condition.always.AlwaysCondition;
+import org.elasticsearch.watcher.condition.always.AlwaysConditionFactory;
+import org.elasticsearch.watcher.condition.never.NeverCondition;
+import org.elasticsearch.watcher.condition.never.NeverConditionFactory;
+import org.elasticsearch.watcher.condition.script.ScriptCondition;
+import org.elasticsearch.watcher.condition.script.ScriptConditionFactory;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -19,26 +22,29 @@ import java.util.Map;
  */
 public class ConditionModule extends AbstractModule {
 
-    private final Map<String, Class<? extends Condition.Parser>> parsers = new HashMap<>();
+    private final Map<String, Class<? extends ConditionFactory>> factories = new HashMap<>();
 
-    public void registerCondition(String type, Class<? extends Condition.Parser> parserType) {
-        parsers.put(type, parserType);
+    public void registerCondition(String type, Class<? extends ConditionFactory> factoryType) {
+        factories.put(type, factoryType);
     }
 
     @Override
     protected void configure() {
 
-        MapBinder<String, Condition.Parser> parsersBinder = MapBinder.newMapBinder(binder(), String.class, Condition.Parser.class);
-        bind(ScriptCondition.Parser.class).asEagerSingleton();
-        parsersBinder.addBinding(ScriptCondition.TYPE).to(ScriptCondition.Parser.class);
-        bind(AlwaysFalseCondition.Parser.class).asEagerSingleton();
-        parsersBinder.addBinding(AlwaysFalseCondition.TYPE).to(AlwaysFalseCondition.Parser.class);
-        bind(AlwaysTrueCondition.Parser.class).asEagerSingleton();
-        parsersBinder.addBinding(AlwaysTrueCondition.TYPE).to(AlwaysTrueCondition.Parser.class);
+        MapBinder<String, ConditionFactory> factoriesBinder = MapBinder.newMapBinder(binder(), String.class, ConditionFactory.class);
 
-        for (Map.Entry<String, Class<? extends Condition.Parser>> entry : parsers.entrySet()) {
+        bind(ScriptConditionFactory.class).asEagerSingleton();
+        factoriesBinder.addBinding(ScriptCondition.TYPE).to(ScriptConditionFactory.class);
+
+        bind(NeverConditionFactory.class).asEagerSingleton();
+        factoriesBinder.addBinding(NeverCondition.TYPE).to(NeverConditionFactory.class);
+
+        bind(AlwaysConditionFactory.class).asEagerSingleton();
+        factoriesBinder.addBinding(AlwaysCondition.TYPE).to(AlwaysConditionFactory.class);
+
+        for (Map.Entry<String, Class<? extends ConditionFactory>> entry : factories.entrySet()) {
             bind(entry.getValue()).asEagerSingleton();
-            parsersBinder.addBinding(entry.getKey()).to(entry.getValue());
+            factoriesBinder.addBinding(entry.getKey()).to(entry.getValue());
         }
 
         bind(ConditionRegistry.class).asEagerSingleton();

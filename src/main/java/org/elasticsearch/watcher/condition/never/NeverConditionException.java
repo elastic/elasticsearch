@@ -3,20 +3,20 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.condition;
+package org.elasticsearch.watcher.condition.never;
 
-import org.elasticsearch.watcher.WatcherException;
+import org.elasticsearch.watcher.condition.ConditionException;
 
 /**
  *
  */
-public class ConditionException extends WatcherException {
+public class NeverConditionException extends ConditionException {
 
-    public ConditionException(String msg, Object... args) {
+    public NeverConditionException(String msg, Object... args) {
         super(msg, args);
     }
 
-    public ConditionException(String msg, Throwable cause, Object... args) {
+    public NeverConditionException(String msg, Throwable cause, Object... args) {
         super(msg, cause, args);
     }
 }

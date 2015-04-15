@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.script.ScriptEngineService;
@@ -23,8 +24,6 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.watcher.WatcherSettingsException;
-import org.elasticsearch.watcher.condition.ConditionException;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
@@ -60,7 +59,7 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
     @Test
     public void testExecute() throws Exception {
         ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
-        ScriptCondition condition = new ScriptCondition(logger, scriptService, new Script("ctx.payload.hits.total > 1"));
+        ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(new Script("ctx.payload.hits.total > 1")), logger, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         assertFalse(condition.execute(ctx).met());
@@ -70,16 +69,16 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
     public void testExecute_MergedParams() throws Exception {
         ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
         Script script = new Script("ctx.payload.hits.total > threshold", ScriptService.ScriptType.INLINE, ScriptService.DEFAULT_LANG, ImmutableMap.<String, Object>of("threshold", 1));
-        ScriptCondition condition = new ScriptCondition(logger, scriptService, script);
+        ExecutableScriptCondition executable = new ExecutableScriptCondition(new ScriptCondition(script), logger, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
-        assertFalse(condition.execute(ctx).met());
+        assertFalse(executable.execute(ctx).met());
     }
 
     @Test
     @Repeat(iterations =  5)
     public void testParser_Valid() throws Exception {
-        ScriptCondition.Parser conditionParser = new ScriptCondition.Parser(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
+        ScriptConditionFactory factory = new ScriptConditionFactory(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
 
         XContentBuilder builder;
         if (randomBoolean()) {
@@ -95,69 +94,71 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
 
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
-        ScriptCondition condition = conditionParser.parse(parser);
+        ScriptCondition condition = factory.parseCondition("_watch", parser);
+        ExecutableScriptCondition executable = factory.createExecutable(condition);
 
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
 
-        assertFalse(condition.execute(ctx).met());
+        assertFalse(executable.execute(ctx).met());
 
 
         builder = createConditionContent("return true", null, null);
         parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
-        condition = conditionParser.parse(parser);
+        condition = factory.parseCondition("_watch", parser);
+        executable = factory.createExecutable(condition);
 
         ctx = mockExecutionContext("_name", new Payload.XContent(response));
 
-        assertTrue(condition.execute(ctx).met());
+        assertTrue(executable.execute(ctx).met());
     }
 
-    @Test(expected = WatcherSettingsException.class)
+    @Test(expected = ScriptConditionException.class)
     public void testParser_InValid() throws Exception {
-        ScriptCondition.Parser conditionParser = new ScriptCondition.Parser(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
+        ScriptConditionFactory factory = new ScriptConditionFactory(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject().endObject();
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
-        conditionParser.parse(parser);
+        factory.parseCondition("_id", parser);
         fail("expected a condition exception trying to parse an invalid condition XContent");
     }
 
 
     @Test
     public void testScriptResultParser_Valid() throws Exception {
-        ScriptCondition.Parser conditionParser = new ScriptCondition.Parser(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
+        ScriptConditionFactory conditionParser = new ScriptConditionFactory(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
 
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.field("met", true );
+        builder.field("met", true);
         builder.endObject();
 
-        ScriptCondition.Result scriptResult = conditionParser.parseResult(XContentFactory.xContent(builder.bytes()).createParser(builder.bytes()));
+        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        parser.nextToken();
+        ScriptCondition.Result scriptResult = conditionParser.parseResult("_id", parser);
         assertTrue(scriptResult.met());
 
         builder = jsonBuilder();
         builder.startObject();
-        builder.field("met", false );
+        builder.field("met", false);
         builder.endObject();
 
-        scriptResult = conditionParser.parseResult(XContentFactory.xContent(builder.bytes()).createParser(builder.bytes()));
+        parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        parser.nextToken();
+        scriptResult = conditionParser.parseResult("_id", parser);
         assertFalse(scriptResult.met());
     }
 
-    @Test(expected = ConditionException.class)
+    @Test(expected = ScriptConditionException.class)
     public void testScriptResultParser_Invalid() throws Exception {
-        ScriptCondition.Parser conditionParser = new ScriptCondition.Parser(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
+        ScriptConditionFactory conditionParser = new ScriptConditionFactory(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
 
         XContentBuilder builder = jsonBuilder();
         builder.startObject().endObject();
 
-        try {
-            conditionParser.parseResult(XContentFactory.xContent(builder.bytes()).createParser(builder.bytes()));
-        } catch (Throwable t) {
-            throw t;
-        }
+        conditionParser.parseResult("_id", XContentFactory.xContent(builder.bytes()).createParser(builder.bytes()));
         fail("expected a condition exception trying to parse an invalid condition XContent");
     }
 

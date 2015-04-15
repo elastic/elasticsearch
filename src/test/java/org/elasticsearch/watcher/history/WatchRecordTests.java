@@ -13,8 +13,7 @@ import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.email.EmailAction;
 import org.elasticsearch.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.watcher.condition.Condition;
-import org.elasticsearch.watcher.condition.simple.AlwaysFalseCondition;
-import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
+import org.elasticsearch.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.execution.Wid;
@@ -68,7 +67,7 @@ public class WatchRecordTests extends AbstractWatcherIntegrationTests {
                 .build();
         ctx.onActionResult(new ActionWrapper.Result("_webhook", new WebhookAction.Result.Executed(request, new HttpResponse(300))));
         Input.Result inputResult = new SimpleInput.Result(new Payload.Simple());
-        Condition.Result conditionResult = AlwaysTrueCondition.RESULT;
+        Condition.Result conditionResult = AlwaysCondition.Result.INSTANCE;
         ctx.onThrottleResult(Throttler.NO_THROTTLE.throttle(ctx));
         ctx.onInputResult(inputResult);
         ctx.onConditionResult(conditionResult);
@@ -97,7 +96,7 @@ public class WatchRecordTests extends AbstractWatcherIntegrationTests {
                 .build();
         ctx.onActionResult(new ActionWrapper.Result("_webhook", new WebhookAction.Result.Executed(request, new HttpResponse(300))));
         Input.Result inputResult = new SimpleInput.Result(new Payload.Simple());
-        Condition.Result conditionResult = AlwaysFalseCondition.RESULT;
+        Condition.Result conditionResult = AlwaysCondition.Result.INSTANCE;
         ctx.onThrottleResult(Throttler.NO_THROTTLE.throttle(ctx));
         ctx.onInputResult(inputResult);
         ctx.onConditionResult(conditionResult);

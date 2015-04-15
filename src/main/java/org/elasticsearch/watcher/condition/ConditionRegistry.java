@@ -18,74 +18,99 @@ import java.util.Set;
  */
 public class ConditionRegistry {
 
-    private final ImmutableMap<String, Condition.Parser> parsers;
+    private final ImmutableMap<String, ConditionFactory> factories;
 
     @Inject
-    public ConditionRegistry(Map<String, Condition.Parser> parsers) {
-        this.parsers = ImmutableMap.copyOf(parsers);
+    public ConditionRegistry(Map<String, ConditionFactory> factories) {
+        this.factories = ImmutableMap.copyOf(factories);
     }
 
     public Set<String> types() {
-        return parsers.keySet();
+        return factories.keySet();
     }
 
     /**
-     * Reads the contents of parser to create the correct Condition
-     *
-     * @param parser    The parser containing the condition definition
-     * @return          A new condition instance from the parser
-     * @throws IOException
+     * Parses the xcontent and returns the appropriate executable condition. Expecting the following format:
+     * <code><pre>
+     *     {
+     *         "condition_type" : {
+     *             ...              //condition body
+     *         }
+     *     }
+     * </pre></code>
      */
-    public Condition parse(XContentParser parser) throws IOException {
+    public ExecutableCondition parseExecutable(String watchId, XContentParser parser) throws IOException {
+        Condition condition = parseCondition(watchId, parser);
+        return factories.get(condition.type()).createExecutable(condition);
+    }
+
+    /**
+     * Parses the xcontent and returns the appropriate condition. Expecting the following format:
+     * <code><pre>
+     *     {
+     *         "condition_type" : {
+     *             ...              //condition body
+     *         }
+     *     }
+     * </pre></code>
+     */
+    public Condition parseCondition(String watchId, XContentParser parser) throws IOException {
+        Condition condition = null;
+        ConditionFactory factory = null;
+
         String type = null;
         XContentParser.Token token;
-        Condition condition = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT && type != null) {
-                Condition.Parser conditionParser = parsers.get(type);
-                if (conditionParser == null) {
-                    throw new ConditionException("unknown condition type [" + type + "]");
+            } else if (type == null) {
+                throw new ConditionException("could not parse condition for watch [{}]. invalid definition. expected a field indicating the condition type, but found", watchId, token);
+            } else {
+                factory = factories.get(type);
+                if (factory == null) {
+                    throw new ConditionException("could not parse condition for watch [{}]. unknown condition type [{}]", watchId, type);
                 }
-                condition = conditionParser.parse(parser);
-            } else if (token == XContentParser.Token.VALUE_STRING && type != null) {
-                Condition.Parser conditionParser = parsers.get(type);
-                if (conditionParser == null) {
-                    throw new ConditionException("unknown condition type [" + type + "]");
-                }
-                condition = conditionParser.parse(parser);
+                condition = factory.parseCondition(watchId, parser);
             }
         }
         if (condition == null) {
-            throw new ConditionException("failed to parse condition");
+            throw new ConditionException("could not parse condition for watch [{}]. missing required condition type field", watchId);
         }
         return condition;
     }
 
     /**
-     * Reads the contents of parser to create the correct Condition.Result
-     *
-     * @param parser    The parser containing the condition result definition
-     * @return          A new condition result instance from the parser
-     * @throws IOException
+     * Parses the xcontent and returns the appropriate condition result. Expecting the following format:
+     * <code><pre>
+     *     {
+     *         "condition_type" : {
+     *             ...              // result body
+     *         }
+     *     }
+     * </pre></code>
      */
-    public Condition.Result parseResult(XContentParser parser) throws IOException {
+    public Condition.Result parseResult(String watchId, XContentParser parser) throws IOException {
+        Condition.Result result = null;
+
         String type = null;
         XContentParser.Token token;
-        Condition.Result conditionResult = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT && type != null) {
-                Condition.Parser conditionParser = parsers.get(type);
-                if (conditionParser == null) {
-                    throw new ConditionException("unknown condition type [" + type + "]");
+            } else if (type == null) {
+                throw new ConditionException("could not parse condition result for watch [{}]. invalid definition. expected a field indicating the condition type, but found", watchId, token);
+            } else {
+                ConditionFactory factory = factories.get(type);
+                if (factory == null) {
+                    throw new ConditionException("could not parse condition result for watch [{}]. un known condition type [{}]", watchId, type);
                 }
-                conditionResult = conditionParser.parseResult(parser);
+                result = factory.parseResult(watchId, parser);
             }
         }
-        return conditionResult;
+        if (result == null) {
+            throw new ConditionException("could not parse condition result for watch [{}]. missing required condition type field", watchId);
+        }
+        return result;
     }
 
 }

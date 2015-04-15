@@ -16,7 +16,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.condition.Condition;
-import org.elasticsearch.watcher.condition.ConditionBuilders;
+import org.elasticsearch.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.NoneInput;
 import org.elasticsearch.watcher.transform.Transform;
@@ -34,7 +34,7 @@ public class WatchSourceBuilder implements ToXContent {
 
     private Trigger.SourceBuilder trigger;
     private Input.SourceBuilder input = NoneInput.SourceBuilder.INSTANCE;
-    private Condition.SourceBuilder condition = ConditionBuilders.alwaysTrueCondition();
+    private Condition condition = AlwaysCondition.INSTANCE;
     private Transform.SourceBuilder transform = null;
     private Map<String, TransformedAction> actions = new HashMap<>();
     private TimeValue throttlePeriod = null;
@@ -50,7 +50,11 @@ public class WatchSourceBuilder implements ToXContent {
         return this;
     }
 
-    public WatchSourceBuilder condition(Condition.SourceBuilder condition) {
+    public WatchSourceBuilder condition(Condition.Builder condition) {
+        return condition(condition.build());
+    }
+
+    public WatchSourceBuilder condition(Condition condition) {
         this.condition = condition;
         return this;
     }

@@ -9,6 +9,7 @@ import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.condition.Condition;
+import org.elasticsearch.watcher.condition.ExecutableCondition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.transform.Transform;

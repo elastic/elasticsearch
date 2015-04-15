@@ -31,7 +31,6 @@ import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.HashSet;
@@ -83,7 +82,7 @@ public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTests 
                 .addAggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp").interval(DateHistogram.Interval.HOUR).order(Histogram.Order.COUNT_DESC))
                 .get();
 
-        ScriptCondition condition = new ScriptCondition(logger, scriptService, new Script("ctx.payload.aggregations.rate.buckets[0]?.doc_count >= 5"));
+        ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(new Script("ctx.payload.aggregations.rate.buckets[0]?.doc_count >= 5")), logger, scriptService);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         assertFalse(condition.execute(ctx).met());
@@ -101,7 +100,7 @@ public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTests 
 
     @Test
     public void testExecute_accessHits() throws Exception {
-        ScriptCondition condition = new ScriptCondition(logger, scriptService, new Script("ctx.payload.hits?.hits[0]?._score == 1.0"));
+        ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(new Script("ctx.payload.hits?.hits[0]?._score == 1.0")), logger, scriptService);
         InternalSearchHit hit = new InternalSearchHit(0, "1", new StringText("type"), null);
         hit.score(1f);
         hit.shard(new SearchShardTarget("a", "a", 0));

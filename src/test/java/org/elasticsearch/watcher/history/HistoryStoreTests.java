@@ -31,7 +31,7 @@ import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
+import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.TemplateUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
@@ -73,7 +73,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
     public void testPut() throws Exception {
         Watch watch = mock(Watch.class);
         when(watch.name()).thenReturn("_name");
-        when(watch.condition()).thenReturn(new AlwaysTrueCondition(logger));
+        when(watch.condition()).thenReturn(new ExecutableAlwaysCondition(logger));
         when(watch.input()).thenReturn(null);
         when(watch.metadata()).thenReturn(null);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
@@ -93,7 +93,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
     public void testUpdate() throws Exception {
         Watch watch = mock(Watch.class);
         when(watch.name()).thenReturn("_name");
-        when(watch.condition()).thenReturn(new AlwaysTrueCondition(logger));
+        when(watch.condition()).thenReturn(new ExecutableAlwaysCondition(logger));
         when(watch.input()).thenReturn(null);
         when(watch.metadata()).thenReturn(null);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
@@ -114,7 +114,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
     public void testPut_stopped() {
         Watch watch = mock(Watch.class);
         when(watch.name()).thenReturn("_name");
-        when(watch.condition()).thenReturn(new AlwaysTrueCondition(logger));
+        when(watch.condition()).thenReturn(new ExecutableAlwaysCondition(logger));
         when(watch.input()).thenReturn(null);
         when(watch.metadata()).thenReturn(null);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
@@ -134,7 +134,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
     public void testUpdate_stopped() throws Exception {
         Watch watch = mock(Watch.class);
         when(watch.name()).thenReturn("_name");
-        when(watch.condition()).thenReturn(new AlwaysTrueCondition(logger));
+        when(watch.condition()).thenReturn(new ExecutableAlwaysCondition(logger));
         when(watch.input()).thenReturn(null);
         when(watch.metadata()).thenReturn(null);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));

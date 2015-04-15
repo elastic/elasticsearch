@@ -21,7 +21,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.WatcherException;
-import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
+import org.elasticsearch.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.execution.ManualExecutionContext;
 import org.elasticsearch.watcher.history.WatchRecord;
@@ -94,7 +94,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
                 ctxBuilder.withInput(new SimpleInput.Result(new Payload.Simple(request.getAlternativeInput())));
             }
             if (request.isIgnoreCondition()) {
-                ctxBuilder.withCondition(AlwaysTrueCondition.RESULT);
+                ctxBuilder.withCondition(AlwaysCondition.Result.INSTANCE);
             }
             if (request.isIgnoreThrottle()) {
                 ctxBuilder.withThrottle(Throttler.Result.NO);

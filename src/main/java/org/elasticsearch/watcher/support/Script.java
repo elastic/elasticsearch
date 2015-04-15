@@ -22,6 +22,9 @@ import java.util.Map;
  */
 public class Script implements ToXContent {
 
+    public static final ScriptService.ScriptType DEFAULT_TYPE = ScriptService.ScriptType.INLINE;
+    public static final String DEFAULT_LANG = ScriptService.DEFAULT_LANG;
+
     public static final ParseField SCRIPT_FIELD = new ParseField("script");
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField LANG_FIELD = new ParseField("lang");
@@ -33,7 +36,7 @@ public class Script implements ToXContent {
     private final Map<String, Object> params;
 
     public Script(String script) {
-        this(script, ScriptService.ScriptType.INLINE, ScriptService.DEFAULT_LANG, Collections.<String, Object>emptyMap());
+        this(script, DEFAULT_TYPE, DEFAULT_LANG, Collections.<String, Object>emptyMap());
     }
 
     public Script(String script, ScriptService.ScriptType type, String lang) {

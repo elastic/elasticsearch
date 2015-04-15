@@ -25,9 +25,9 @@ import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.watcher.actions.ActionRegistry;
 import org.elasticsearch.watcher.actions.ExecutableActions;
-import org.elasticsearch.watcher.condition.Condition;
+import org.elasticsearch.watcher.condition.ExecutableCondition;
 import org.elasticsearch.watcher.condition.ConditionRegistry;
-import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
+import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputRegistry;
 import org.elasticsearch.watcher.input.NoneInput;
@@ -57,7 +57,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
     private final String name;
     private final Trigger trigger;
     private final Input input;
-    private final Condition condition;
+    private final ExecutableCondition condition;
     private final ExecutableActions actions;
     private final Throttler throttler;
     private final Status status;
@@ -71,7 +71,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
 
     private final transient AtomicLong nonceCounter = new AtomicLong();
 
-    public Watch(String name, Clock clock, LicenseService licenseService, Trigger trigger, Input input, Condition condition, @Nullable Transform transform,
+    public Watch(String name, Clock clock, LicenseService licenseService, Trigger trigger, Input input, ExecutableCondition condition, @Nullable Transform transform,
                  ExecutableActions actions, @Nullable Map<String, Object> metadata, @Nullable TimeValue throttlePeriod, @Nullable Status status) {
         this.name = name;
         this.trigger = trigger;
@@ -95,7 +95,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
 
     public Input input() { return input;}
 
-    public Condition condition() {
+    public ExecutableCondition condition() {
         return condition;
     }
 
@@ -196,7 +196,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         private final Clock clock;
 
         private final Input defaultInput;
-        private final Condition defaultCondition;
+        private final ExecutableCondition defaultCondition;
         private final TimeValue defaultThrottleTimePeriod;
 
         @Inject
@@ -214,7 +214,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             this.clock = clock;
 
             this.defaultInput = new NoneInput(logger);
-            this.defaultCondition = new AlwaysTrueCondition(logger);
+            this.defaultCondition = new ExecutableAlwaysCondition(logger);
             this.defaultThrottleTimePeriod = settings.getAsTime(DEFAULT_THROTTLE_PERIOD_SETTING, DEFAULT_THROTTLE_PERIOD);
         }
 
@@ -232,7 +232,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         public Watch parse(String id, boolean includeStatus, XContentParser parser) throws IOException {
             Trigger trigger = null;
             Input input = defaultInput;
-            Condition condition = defaultCondition;
+            ExecutableCondition condition = defaultCondition;
             ExecutableActions actions = null;
             Transform transform = null;
             Map<String, Object> metatdata = null;
@@ -252,7 +252,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                     } else if (INPUT_FIELD.match(currentFieldName)) {
                         input = inputRegistry.parse(parser);
                     } else if (CONDITION_FIELD.match(currentFieldName)) {
-                        condition = conditionRegistry.parse(parser);
+                        condition = conditionRegistry.parseExecutable(id, parser);
                     } else if (ACTIONS_FIELD.match(currentFieldName)) {
                         actions = actionRegistry.parseActions(id, parser);
                     } else if (TRANSFORM_FIELD.match(currentFieldName)) {

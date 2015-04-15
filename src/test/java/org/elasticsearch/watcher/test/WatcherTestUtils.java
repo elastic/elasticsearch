@@ -26,6 +26,7 @@ import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.email.service.Profile;
 import org.elasticsearch.watcher.actions.webhook.ExecutableWebhookAction;
 import org.elasticsearch.watcher.actions.webhook.WebhookAction;
+import org.elasticsearch.watcher.condition.script.ExecutableScriptCondition;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.input.search.SearchInput;
@@ -96,8 +97,8 @@ public final class WatcherTestUtils {
         return new Payload.Simple(key, value);
     }
 
-    public static WatchExecutionContext mockExecutionContext(String watchName, Payload payload) {
-        return mockExecutionContext(watchName, DateTime.now(UTC), payload);
+    public static WatchExecutionContext mockExecutionContext(String watchId, Payload payload) {
+        return mockExecutionContext(watchId, DateTime.now(UTC), payload);
     }
 
     public static WatchExecutionContext mockExecutionContext(String watchName, DateTime time, Payload payload) {
@@ -174,7 +175,7 @@ public final class WatcherTestUtils {
                 licenseService,
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
                 new SimpleInput(logger, new Payload.Simple(inputData)),
-                new ScriptCondition(logger, scriptService, new Script("return true")),
+                new ExecutableScriptCondition(new ScriptCondition(new Script("return true")), logger, scriptService),
                 new SearchTransform(logger, scriptService, client, transformRequest),
                 new ExecutableActions(actions),
                 metadata,

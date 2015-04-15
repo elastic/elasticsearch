@@ -24,8 +24,10 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -153,7 +155,43 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
             assertEquals("Hotel Amsterdam in Berlin", suggestResponse.getSuggest().getSuggestion(suggestionName).iterator().next()
                     .getOptions().iterator().next().getText().string()); 
         }
-    }    
+    }
+
+    @Test
+    public void testMappingIdempotency() throws Exception {
+        List<Integer> precisions = new ArrayList<>();
+        for (int i = 0; i < randomIntBetween(4, 12); i++) {
+            precisions.add(i+1);
+        }
+        Collections.shuffle(precisions, getRandom());
+        XContentBuilder mapping = jsonBuilder().startObject().startObject(TYPE)
+                .startObject("properties").startObject("completion")
+                .field("type", "completion")
+                .startObject("context")
+                .startObject("location")
+                .field("type", "geo")
+                .array("precision", precisions.toArray(new Integer[precisions.size()]))
+                .endObject()
+                .endObject().endObject()
+                .endObject().endObject();
+
+        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping.string()));
+        ensureYellow();
+
+        Collections.shuffle(precisions, getRandom());
+        mapping = jsonBuilder().startObject().startObject(TYPE)
+                .startObject("properties").startObject("completion")
+                .field("type", "completion")
+                .startObject("context")
+                .startObject("location")
+                .field("type", "geo")
+                .array("precision", precisions.toArray(new Integer[precisions.size()]))
+                .endObject()
+                .endObject().endObject()
+                .endObject().endObject();
+        assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(mapping.string()).get());
+    }
+
 
     @Test
     public void testGeoField() throws Exception {

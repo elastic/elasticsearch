@@ -601,7 +601,9 @@ public class GeolocationContextMapping extends ContextMapping {
             if(precisions.isEmpty()) {
                 precisions.add(GeoHashUtils.PRECISION);
             }
-            return new GeolocationContextMapping(name, precisions.toArray(), neighbors, defaultLocations, fieldName);
+            int[] precisionArray = precisions.toArray();
+            Arrays.sort(precisionArray);
+            return new GeolocationContextMapping(name, precisionArray, neighbors, defaultLocations, fieldName);
         }
 
     }

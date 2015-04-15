@@ -20,7 +20,6 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -60,15 +59,15 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
+    protected Path translogDir;
     protected Translog translog;
 
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        translog = create();
-        // if a previous test failed we clean up things here
-        FileSystemUtils.deleteSubDirectories(translog.locations());
+        translogDir = newTempDirPath();
+        translog = create(translogDir);
         translog.newTranslog(1);
     }
 
@@ -76,22 +75,18 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
     @After
     public void tearDown() throws Exception {
         try {
-            final Path[] locations = translog.locations();
             translog.close();
             if (translog.currentId() > 1) {
                 // ensure all snapshots etc are closed if this fails something was not closed
                 assertFileDeleted(translog, translog.currentId() - 1);
             }
             assertFileIsPresent(translog, translog.currentId());
-            IOUtils.rm(locations); // delete all the locations
         } finally {
             super.tearDown();
         }
     }
 
-    protected abstract Translog create() throws IOException;
-
-    protected abstract Path translogFileDirectory();
+    protected abstract Translog create(Path translogDir) throws IOException;
 
     @Test
     public void testRead() throws IOException {
@@ -567,7 +562,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         }
         translog.sync();
 
-        corruptTranslogs(translogFileDirectory());
+        corruptTranslogs(translogDir);
 
         AtomicInteger corruptionsCaught = new AtomicInteger(0);
         for (Translog.Location location : locations) {
@@ -591,7 +586,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         }
         translog.sync();
 
-        truncateTranslogs(translogFileDirectory());
+        truncateTranslogs(translogDir);
 
         AtomicInteger truncations = new AtomicInteger(0);
         for (Translog.Location location : locations) {
@@ -650,8 +645,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
 
     @Test
     public void testVerifyTranslogIsNotDeleted() throws IOException {
-        Path path = translogFileDirectory();
-        assertTrue(Files.exists(path.resolve("translog-1")));
+        assertTrue(Files.exists(translogDir.resolve("translog-1")));
         translog.add(new Translog.Create("test", "1", new byte[]{1}));
         Translog.Snapshot snapshot = translog.snapshot();
         assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
@@ -664,6 +658,6 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
             translog.close();
         }
 
-        assertTrue(Files.exists(path.resolve("translog-1")));
+        assertTrue(Files.exists(translogDir.resolve("translog-1")));
     }
 }

@@ -563,8 +563,8 @@
                             <haltOnFailure>${tests.failfast}</haltOnFailure>
                             <uniqueSuiteNames>false</uniqueSuiteNames>
                             <systemProperties>
-                                <java.io.tmpdir>.</java.io.tmpdir>
-                                <!-- we use '.' since this is different per JVM-->
+                                <!-- we use './temp' since this is per JVM and tests are forbidden from writing to CWD -->
+                                <java.io.tmpdir>./temp</java.io.tmpdir>
                                 <!-- RandomizedTesting library system properties -->
                                 <tests.bwc>${tests.bwc}</tests.bwc>
                                 <tests.bwc.path>${tests.bwc.path}</tests.bwc.path>

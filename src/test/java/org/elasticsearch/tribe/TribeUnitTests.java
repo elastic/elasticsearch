@@ -19,6 +19,7 @@
 
 package org.elasticsearch.tribe;
 
+import com.carrotsearch.randomizedtesting.LifecycleScope;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -52,11 +53,14 @@ public class TribeUnitTests extends ElasticsearchTestCase {
 
     @BeforeClass
     public static void createTribes() {
-        tribe1 = NodeBuilder.nodeBuilder().settings(ImmutableSettings.builder().put("config.ignore_system_properties", true).put("http.enabled", false)
-                .put("node.mode", NODE_MODE).put("cluster.name", "tribe1").put("node.name", "tribe1_node")).node();
-        tribe2 = NodeBuilder.nodeBuilder().settings(ImmutableSettings.builder().put("config.ignore_system_properties", true).put("http.enabled", false)
-                .put("node.mode", NODE_MODE).put("cluster.name", "tribe2").put("node.name", "tribe2_node")).node();
+        Settings baseSettings = ImmutableSettings.builder()
+            .put("config.ignore_system_properties", true)
+            .put("http.enabled", false)
+            .put("node.mode", NODE_MODE)
+            .put("path.home", newTempDirPath(LifecycleScope.SUITE)).build();
 
+        tribe1 = NodeBuilder.nodeBuilder().settings(ImmutableSettings.builder().put(baseSettings).put("cluster.name", "tribe1").put("node.name", "tribe1_node")).node();
+        tribe2 = NodeBuilder.nodeBuilder().settings(ImmutableSettings.builder().put(baseSettings).put("cluster.name", "tribe2").put("node.name", "tribe2_node")).node();
     }
 
     @AfterClass

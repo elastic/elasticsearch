@@ -25,18 +25,21 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.nio.file.Path;
 import java.util.Arrays;
 
 public class RoutingBackwardCompatibilityTests extends ElasticsearchTestCase {
 
     public void testBackwardCompatibility() throws Exception {
-        Node node = new Node();
+        Path baseDir = newTempDirPath();
+        Node node = new Node(ImmutableSettings.builder().put("path.home", baseDir.toString()).build(), false);
         try {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(RoutingBackwardCompatibilityTests.class.getResourceAsStream("/org/elasticsearch/cluster/routing/shard_routes.txt"), "UTF-8"))) {
                 for (String line = reader.readLine(); line != null; line = reader.readLine()) {

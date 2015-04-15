@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.Randomness;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
@@ -25,7 +26,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
-
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.AbstractRandomizedTest;
@@ -92,16 +92,23 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
-import org.elasticsearch.index.mapper.internal.*;
-import org.elasticsearch.index.merge.policy.*;
+import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.index.mapper.internal.SizeFieldMapper;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.index.merge.policy.AbstractMergePolicyProvider;
+import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
+import org.elasticsearch.index.merge.policy.LogDocMergePolicyProvider;
+import org.elasticsearch.index.merge.policy.MergePolicyModule;
+import org.elasticsearch.index.merge.policy.MergePolicyProvider;
+import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.store.StoreModule;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.index.translog.fs.FsTranslog;
@@ -122,7 +129,11 @@ import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.transport.netty.NettyTransport;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
-import org.junit.*;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -136,8 +147,20 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -146,8 +169,13 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * {@link ElasticsearchIntegrationTest} is an abstract base class to run integration
@@ -173,7 +201,7 @@ import static org.hamcrest.Matchers.*;
  * If no {@link ClusterScope} annotation is present on an integration test the default scope is {@link Scope#SUITE}
  * <p/>
  * A test cluster creates a set of nodes in the background before the test starts. The number of nodes in the cluster is
- * determined at random and can change across tests. The {@link ClusterScope} allows configuring the initial number of nodes 
+ * determined at random and can change across tests. The {@link ClusterScope} allows configuring the initial number of nodes
  * that are created before the tests start.
  * <p/>
  *  <pre>
@@ -325,7 +353,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
             randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards())
                     .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas());
-            
+
             randomSettingsBuilder.put("index.codec", randomFrom("default", "best_compression"));
             XContentBuilder mappings = null;
             if (frequently() && randomDynamicTemplates()) {
@@ -469,7 +497,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (random.nextBoolean()) {
             builder.put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, random.nextBoolean());
         }
-        
+
         if (random.nextBoolean()) {
             builder.put("index.shard.check_on_startup", randomFrom(random, "false", "checksum", "true"));
         }
@@ -778,7 +806,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
         // 30% of the time
         if (randomInt(9) < 3) {
-            String dataPath = "data/custom-" + CHILD_JVM_ID + "/" + UUID.randomUUID().toString();
+            final Path dataPath = newTempDirPath(LifecycleScope.SUITE);
             logger.info("using custom data_path for index: [{}]", dataPath);
             builder.put(IndexMetaData.SETTING_DATA_PATH, dataPath);
         }
@@ -1647,7 +1675,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     protected Settings transportClientSettings() {
         return ImmutableSettings.EMPTY;
     }
-    
+
     private ExternalTestCluster buildExternalCluster(String clusterAddresses) {
         String[] stringAddresses = clusterAddresses.split(",");
         TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
@@ -1676,12 +1704,15 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         final String nodePrefix;
+        final LifecycleScope nodeDirScope;
         switch (scope) {
             case TEST:
                 nodePrefix = TEST_CLUSTER_NODE_PREFIX;
+                nodeDirScope = LifecycleScope.TEST;
                 break;
             case SUITE:
                 nodePrefix = SUITE_CLUSTER_NODE_PREFIX;
+                nodeDirScope = LifecycleScope.SUITE;
                 break;
             default:
                 throw new ElasticsearchException("Scope not supported: " + scope);
@@ -1692,13 +1723,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 return ImmutableSettings.builder().put(Node.HTTP_ENABLED, false).
                         put(nodeSettings(nodeOrdinal)).build();
             }
-            
+
             @Override
             public Settings transportClient() {
                 return transportClientSettings();
             }
         };
-        
+
         int numDataNodes = getNumDataNodes();
         int minNumDataNodes;
         int maxNumDataNodes;
@@ -1709,7 +1740,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             maxNumDataNodes = getMaxNumDataNodes();
         }
 
-        return new InternalTestCluster(seed, minNumDataNodes, maxNumDataNodes,
+        return new InternalTestCluster(seed, newTempDirPath(nodeDirScope), minNumDataNodes, maxNumDataNodes,
                 clusterName(scope.name(), Integer.toString(CHILD_JVM_ID), seed), settingsSource, getNumClientNodes(),
                 InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, CHILD_JVM_ID, nodePrefix);
     }

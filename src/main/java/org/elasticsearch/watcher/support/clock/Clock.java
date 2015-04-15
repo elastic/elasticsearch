@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.support.clock;
 
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
@@ -18,6 +19,8 @@ public interface Clock {
     long nanos();
 
     DateTime now();
+
+    DateTime now(DateTimeZone timeZone);
 
     TimeValue timeElapsedSince(DateTime time);
 

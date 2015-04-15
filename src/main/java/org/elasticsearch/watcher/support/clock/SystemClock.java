@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.support.clock;
 
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
@@ -30,8 +31,14 @@ public final class SystemClock implements Clock {
 
     @Override
     public DateTime now() {
-        return DateTime.now();
+        return now(DateTimeZone.getDefault());
     }
+
+    @Override
+    public DateTime now(DateTimeZone timeZone) {
+        return DateTime.now(timeZone);
+    }
+
 
     @Override
     public TimeValue timeElapsedSince(DateTime time) {

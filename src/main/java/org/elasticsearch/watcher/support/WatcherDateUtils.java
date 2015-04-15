@@ -5,13 +5,14 @@
  */
 package org.elasticsearch.watcher.support;
 
-import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.watcher.WatcherSettingsException;
 
 import java.io.IOException;
 
@@ -25,20 +26,21 @@ public class WatcherDateUtils {
     private WatcherDateUtils() {
     }
 
-    public static DateTime parseDate(String format) {
-        return dateTimeFormatter.parser().parseDateTime(format);
+    public static DateTime parseDate(String format, DateTimeZone timeZone) {
+        DateTime dateTime = dateTimeFormatter.parser().parseDateTime(format);
+        return dateTime.toDateTime(timeZone);
     }
 
     public static String formatDate(DateTime date) {
         return dateTimeFormatter.printer().print(date);
     }
 
-    public static DateTime parseDate(String fieldName, XContentParser.Token token, XContentParser parser) throws IOException {
+    public static DateTime parseDate(String fieldName, XContentParser.Token token, XContentParser parser, DateTimeZone timeZone) throws IOException {
         if (token == XContentParser.Token.VALUE_NUMBER) {
-            return new DateTime(parser.longValue());
+            return new DateTime(parser.longValue(), timeZone);
         }
         if (token == XContentParser.Token.VALUE_STRING) {
-            return dateTimeFormatter.parser().parseDateTime(parser.text());
+            return parseDate(parser.text(), timeZone);
         }
         if (token == XContentParser.Token.VALUE_NULL) {
             return null;
@@ -51,8 +53,8 @@ public class WatcherDateUtils {
         out.writeLong(date.getMillis());
     }
 
-    public static DateTime readDate(StreamInput in) throws IOException {
-        return new DateTime(in.readLong());
+    public static DateTime readDate(StreamInput in, DateTimeZone timeZone) throws IOException {
+        return new DateTime(in.readLong(), timeZone);
     }
 
     public static void writeOptionalDate(StreamOutput out, DateTime date) throws IOException {
@@ -64,7 +66,7 @@ public class WatcherDateUtils {
         out.writeLong(date.getMillis());
     }
 
-    public static DateTime readOptionalDate(StreamInput in) throws IOException {
-        return in.readBoolean() ? new DateTime(in.readLong()) : null;
+    public static DateTime readOptionalDate(StreamInput in, DateTimeZone timeZone) throws IOException {
+        return in.readBoolean() ? new DateTime(in.readLong(), timeZone) : null;
     }
 }

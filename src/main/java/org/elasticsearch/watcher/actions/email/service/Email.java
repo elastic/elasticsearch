@@ -20,9 +20,9 @@ import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.text.ParseException;
 import java.util.*;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 /**
  *
  */
@@ -50,7 +50,7 @@ public class Email implements ToXContent {
         this.from = from;
         this.replyTo = replyTo;
         this.priority = priority;
-        this.sentDate = sentDate != null ? sentDate : new DateTime();
+        this.sentDate = sentDate != null ? sentDate : new DateTime(UTC);
         this.to = to;
         this.cc = cc;
         this.bcc = bcc;

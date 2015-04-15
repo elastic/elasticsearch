@@ -7,7 +7,6 @@ package org.elasticsearch.watcher.trigger.schedule.engine;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
@@ -28,6 +27,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.*;
 import static org.hamcrest.Matchers.is;
 
@@ -101,7 +101,7 @@ public abstract class BaseTriggerEngineTests extends ElasticsearchTestCase {
                 latch.countDown();
             }
         });
-        DateTime now = new DateTime(DateTimeZone.UTC);
+        DateTime now = new DateTime(UTC);
         Minute minOfHour = new Minute(now);
         if (now.getSecondOfMinute() < 58) {
             minOfHour.inc(1);
@@ -135,7 +135,7 @@ public abstract class BaseTriggerEngineTests extends ElasticsearchTestCase {
                 }
             }
         });
-        DateTime now = new DateTime(DateTimeZone.UTC);
+        DateTime now = new DateTime(UTC);
         Minute minOfHour = new Minute(now);
         Hour hourOfDay = new Hour(now);
         boolean jumpedHour = now.getSecondOfMinute() < 29 ? minOfHour.inc(1) : minOfHour.inc(2);
@@ -171,7 +171,7 @@ public abstract class BaseTriggerEngineTests extends ElasticsearchTestCase {
                 latch.countDown();
             }
         });
-        DateTime now = new DateTime(DateTimeZone.UTC);
+        DateTime now = new DateTime(UTC);
         Minute minOfHour = new Minute(now);
         Hour hourOfDay = new Hour(now);
         Day dayOfWeek = new Day(now);

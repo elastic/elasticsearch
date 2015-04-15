@@ -35,6 +35,7 @@ import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchStore;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 /**
  * Performs the watch execution operation.
  */
@@ -78,7 +79,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
             }
 
             ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watch);
-            DateTime executionTime = clock.now();
+            DateTime executionTime = clock.now(UTC);
             ctxBuilder.executionTime(executionTime);
             if (request.isSimulateAllActions()) {
                 ctxBuilder.simulateAllActions();

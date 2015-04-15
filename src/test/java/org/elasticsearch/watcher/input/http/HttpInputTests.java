@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -42,6 +41,7 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.Map;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Matchers.any;
@@ -92,8 +92,8 @@ public class HttpInputTests extends ElasticsearchTestCase {
                 null,
                 new Watch.Status());
         WatchExecutionContext ctx = new TriggeredExecutionContext(watch,
-                new DateTime(0, DateTimeZone.UTC),
-                new ScheduleTriggerEvent(watch.id(), new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC)));
+                new DateTime(0, UTC),
+                new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)));
         HttpInput.Result result = input.execute(ctx);
         assertThat(result.type(), equalTo(HttpInput.TYPE));
         assertThat(result.payload().data(), equalTo(MapBuilder.<String, Object>newMapBuilder().put("key", "value").map()));

@@ -23,6 +23,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 /**
  *
  */
@@ -85,8 +86,8 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
     }
 
     protected void notifyListeners(String name, long triggeredTime, long scheduledTime) {
-        logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", name, new DateTime(triggeredTime), new DateTime(scheduledTime));
-        final ScheduleTriggerEvent event = new ScheduleTriggerEvent(name, new DateTime(triggeredTime), new DateTime(scheduledTime));
+        logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", name, new DateTime(triggeredTime, UTC), new DateTime(scheduledTime, UTC));
+        final ScheduleTriggerEvent event = new ScheduleTriggerEvent(name, new DateTime(triggeredTime, UTC), new DateTime(scheduledTime, UTC));
         for (Listener listener : listeners) {
             listener.triggered(ImmutableList.<TriggerEvent>of(event));
         }

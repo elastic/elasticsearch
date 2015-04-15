@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -47,6 +46,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.watcher.support.WatcherDateUtils.*;
 
 public class Watch implements TriggerEngine.Job, ToXContent {
@@ -129,7 +129,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
      * @return  {@code true} if the status of this watch changed, {@code false} otherwise.
      */
     public boolean ack() {
-        return status.onAck(new DateTime());
+        return status.onAck(new DateTime(UTC));
     }
 
     public boolean acked() {
@@ -486,11 +486,11 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             version = in.readLong();
-            lastChecked = readOptionalDate(in);
-            lastMetCondition = readOptionalDate(in);
-            lastExecuted = readOptionalDate(in);
-            lastThrottle = in.readBoolean() ? new Throttle(readDate(in), in.readString()) : null;
-            ackStatus = new AckStatus(AckStatus.State.valueOf(in.readString()), readDate(in));
+            lastChecked = readOptionalDate(in, UTC);
+            lastMetCondition = readOptionalDate(in, UTC);
+            lastExecuted = readOptionalDate(in, UTC);
+            lastThrottle = in.readBoolean() ? new Throttle(readDate(in, UTC), in.readString()) : null;
+            ackStatus = new AckStatus(AckStatus.State.valueOf(in.readString()), readDate(in, UTC));
         }
 
         public static Status read(StreamInput in) throws IOException {
@@ -539,19 +539,19 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                     currentFieldName = parser.currentName();
                 } else if (LAST_CHECKED_FIELD.match(currentFieldName)) {
                     if (token.isValue()) {
-                        lastChecked = parseDate(currentFieldName, token, parser);
+                        lastChecked = parseDate(currentFieldName, token, parser, UTC);
                     } else {
                         throw new WatcherException("expecting field [" + currentFieldName + "] to hold a date value, found [" + token + "] instead");
                     }
                 } else if (LAST_MET_CONDITION_FIELD.match(currentFieldName)) {
                     if (token.isValue()) {
-                        lastMetCondition = parseDate(currentFieldName, token, parser);
+                        lastMetCondition = parseDate(currentFieldName, token, parser, UTC);
                     } else {
                         throw new WatcherException("expecting field [" + currentFieldName + "] to hold a date value, found [" + token + "] instead");
                     }
                 } else if (LAST_EXECUTED_FIELD.match(currentFieldName)) {
                     if (token.isValue()) {
-                        lastExecuted = parseDate(currentFieldName, token, parser);
+                        lastExecuted = parseDate(currentFieldName, token, parser, UTC);
                     } else {
                         throw new WatcherException("expecting field [" + currentFieldName + "] to hold a date value, found [" + token + "] instead");
                     }
@@ -564,7 +564,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                                 currentFieldName = parser.currentName();
                             } else if (token.isValue()) {
                                 if (TIMESTAMP_FIELD.match(currentFieldName)) {
-                                    timestamp = parseDate(currentFieldName, token, parser);
+                                    timestamp = parseDate(currentFieldName, token, parser, UTC);
                                 } else if (REASON_FIELD.match(currentFieldName)) {
                                     reason = parser.text();
                                 } else {
@@ -585,7 +585,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                                 currentFieldName = parser.currentName();
                             } else if (token.isValue()) {
                                 if (TIMESTAMP_FIELD.match(currentFieldName)) {
-                                    timestamp = parseDate(currentFieldName, token, parser);
+                                    timestamp = parseDate(currentFieldName, token, parser, UTC);
                                 } else if (STATE_FIELD.match(currentFieldName)) {
                                     state = AckStatus.State.valueOf(parser.text().toUpperCase(Locale.ROOT));
                                 } else {
@@ -616,7 +616,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             private final DateTime timestamp;
 
             public AckStatus() {
-                this(State.AWAITS_EXECUTION, new DateTime(DateTimeZone.UTC));
+                this(State.AWAITS_EXECUTION, new DateTime(UTC));
             }
 
             public AckStatus(State state, DateTime timestamp) {

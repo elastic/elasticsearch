@@ -11,7 +11,6 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.history.HistoryStore;
@@ -28,6 +27,7 @@ import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
@@ -142,7 +142,7 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
         assertThat(putWatchResponse.isCreated(), is(true));
 
         if (timeWarped()) {
-            timeWarp().clock().setTime(DateTime.now(DateTimeZone.UTC));
+            timeWarp().clock().setTime(DateTime.now(UTC));
 
             timeWarp().scheduler().trigger("_name");
             refresh();
@@ -283,7 +283,7 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
             assertThat(putWatchResponse.isCreated(), is(true));
 
             if (timeWarped()) {
-                timeWarp().clock().setTime(DateTime.now(DateTimeZone.UTC));
+                timeWarp().clock().setTime(DateTime.now(UTC));
 
                 timeWarp().scheduler().trigger("_name");
                 refresh();

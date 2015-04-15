@@ -15,9 +15,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.support.clock.ClockMock;
-import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEngine;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleRegistry;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEngine;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 
 import java.io.IOException;
@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 /**
  * A mock scheduler to help with unit testing. Provide {@link ScheduleTriggerEngineMock#trigger} method to manually trigger
  * jobs.
@@ -80,7 +81,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
 
     public void trigger(String jobName, int times, TimeValue interval) {
         for (int i = 0; i < times; i++) {
-            DateTime now = clock.now();
+            DateTime now = clock.now(UTC);
             logger.debug("firing [" + jobName + "] at [" + now + "]");
             ScheduleTriggerEvent event = new ScheduleTriggerEvent(jobName, now, now);
             for (Listener listener : listeners) {

@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.input.search;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -42,6 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.rangeFilter;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
@@ -80,8 +80,8 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                         null,
                         null,
                         new Watch.Status()),
-                new DateTime(0, DateTimeZone.UTC),
-                new ScheduleTriggerEvent("test-watch", new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC)));
+                new DateTime(0, UTC),
+                new ScheduleTriggerEvent("test-watch", new DateTime(0, UTC), new DateTime(0, UTC)));
         SearchInput.Result result = searchInput.execute(ctx);
 
         assertThat((Integer) XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
@@ -118,8 +118,8 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                         null,
                         null,
                         new Watch.Status()),
-                new DateTime(0, DateTimeZone.UTC),
-                new ScheduleTriggerEvent("test-watch", new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC)));
+                new DateTime(0, UTC),
+                new ScheduleTriggerEvent("test-watch", new DateTime(0, UTC), new DateTime(0, UTC)));
         SearchInput.Result result = searchInput.execute(ctx);
 
         assertThat((Integer) XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));

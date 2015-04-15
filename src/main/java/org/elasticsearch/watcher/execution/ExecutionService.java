@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 /**
  */
 public class ExecutionService extends AbstractComponent {
@@ -121,7 +122,7 @@ public class ExecutionService extends AbstractComponent {
         final LinkedList<WatchRecord> records = new LinkedList<>();
         final LinkedList<TriggeredExecutionContext> contexts = new LinkedList<>();
 
-        DateTime now = clock.now();
+        DateTime now = clock.now(UTC);
         for (TriggerEvent event : events) {
             Watch watch = watchStore.get(event.jobName());
             if (watch == null) {
@@ -182,7 +183,7 @@ public class ExecutionService extends AbstractComponent {
         final LinkedList<WatchRecord> records = new LinkedList<>();
         final LinkedList<TriggeredExecutionContext> contexts = new LinkedList<>();
 
-        DateTime now = clock.now();
+        DateTime now = clock.now(UTC);
         for (TriggerEvent event : events) {
             Watch watch = watchStore.get(event.jobName());
             if (watch == null) {
@@ -291,7 +292,7 @@ public class ExecutionService extends AbstractComponent {
                 logger.warn("unable to find watch [{}]/[{}] in watch store. perhaps it has been deleted. skipping...", record.name(), record.id());
                 continue;
             }
-            TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, clock.now(), record.triggerEvent());
+            TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, clock.now(UTC), record.triggerEvent());
             executeAsync(ctx, record);
             counter++;
         }

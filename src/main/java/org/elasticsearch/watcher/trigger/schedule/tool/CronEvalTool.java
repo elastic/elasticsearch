@@ -10,6 +10,7 @@ import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.cli.commons.CommandLine;
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.joda.time.format.DateTimeFormat;
 import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
 import org.elasticsearch.common.settings.Settings;
@@ -82,7 +83,7 @@ public class CronEvalTool extends CliTool {
 
             terminal.println("Valid!");
 
-            DateTime date = DateTime.now();
+            DateTime date = DateTime.now(DateTimeZone.getDefault());
 
             terminal.println("Now is [" + formatter.print(date) + "]");
             terminal.println("Here are the next " + count + " times this cron expression will trigger:");

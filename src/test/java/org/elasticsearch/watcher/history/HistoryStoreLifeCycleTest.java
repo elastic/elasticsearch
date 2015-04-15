@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.history;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.watcher.condition.ExecutableCondition;
 import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.watcher.execution.Wid;
@@ -36,7 +35,7 @@ public class HistoryStoreLifeCycleTest extends AbstractWatcherIntegrationTests {
         // Put watch records and verify that these are stored
         WatchRecord[] watchRecords = new WatchRecord[randomIntBetween(1, 50)];
         for (int i = 0; i < watchRecords.length; i++) {
-            DateTime dateTime = new DateTime(i, DateTimeZone.UTC);
+            DateTime dateTime = new DateTime(i, UTC);
             ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.id(), dateTime, dateTime);
             Wid wid = new Wid("record_" + i, randomLong(), DateTime.now(UTC));
             watchRecords[i] = new WatchRecord(wid, watch, event);

@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transform.search.ExecutableSearchTransform;
@@ -22,12 +23,12 @@ import org.elasticsearch.watcher.transform.search.SearchTransform;
 import org.elasticsearch.watcher.transform.search.SearchTransformFactory;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
@@ -113,8 +114,8 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
 
         ExecutableSearchTransform transform = new ExecutableSearchTransform(new SearchTransform(request), logger, scriptService(), ClientProxy.of(client()));
 
-        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_name", parseDate("2015-01-04T00:00:00"), parseDate("2015-01-01T00:00:00"));
-        WatchExecutionContext ctx = mockExecutionContext("_name", parseDate("2015-01-04T00:00:00"), event, EMPTY_PAYLOAD);
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_name", parseDate("2015-01-04T00:00:00", UTC), parseDate("2015-01-01T00:00:00", UTC));
+        WatchExecutionContext ctx = mockExecutionContext("_name", parseDate("2015-01-04T00:00:00", UTC), event, EMPTY_PAYLOAD);
 
         Payload payload = simplePayload("value", "val_3");
 
@@ -199,7 +200,7 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
 
     private static Map<String, Object> doc(String date, String value) {
         Map<String, Object> doc = new HashMap<>();
-        doc.put("date", parseDate(date));
+        doc.put("date", parseDate(date, UTC));
         doc.put("value", value);
         return doc;
     }

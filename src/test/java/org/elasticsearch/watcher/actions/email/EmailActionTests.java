@@ -312,7 +312,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         Email email = Email.builder().id("_id")
                 .from(new Email.Address("from@domain"))
                 .to(Email.AddressList.parse("to@domain"))
-                .sentDate(new DateTime())
+                .sentDate(new DateTime(UTC))
                 .subject("_subject")
                 .textBody("_text_body")
                 .build();
@@ -361,7 +361,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         Email email = Email.builder().id("_id")
                 .from(new Email.Address("from@domain"))
                 .to(Email.AddressList.parse("to@domain"))
-                .sentDate(new DateTime())
+                .sentDate(new DateTime(UTC))
                 .subject("_subject")
                 .textBody("_text_body")
                 .build();

@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 /**
  */
 public class ManualTriggerEvent extends TriggerEvent {
@@ -59,7 +60,7 @@ public class ManualTriggerEvent extends TriggerEvent {
             } else {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     if (TRIGGERED_TIME_FIELD.match(currentFieldName)) {
-                        triggeredTime = WatcherDateUtils.parseDate(parser.text());
+                        triggeredTime = WatcherDateUtils.parseDate(parser.text(), UTC);
                     } else {
                         throw new ParseException("could not parse trigger event for [" + context + "]. unknown string value field [" + currentFieldName + "]");
                     }

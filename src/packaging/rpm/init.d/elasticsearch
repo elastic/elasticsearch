@@ -31,11 +31,27 @@ if [ -f /etc/rc.d/init.d/functions ]; then
     . /etc/rc.d/init.d/functions
 fi
 
-exec="/usr/share/elasticsearch/bin/elasticsearch"
+# Sets the default values for elasticsearch variables used in this script
+ES_USER="${packaging.elasticsearch.user}"
+ES_GROUP="${packaging.elasticsearch.group}"
+ES_HOME="${packaging.elasticsearch.home.dir}"
+MAX_OPEN_FILES=${packaging.os.max.open.files}
+MAX_MAP_COUNT=${packaging.os.max.map.count}
+LOG_DIR="${packaging.elasticsearch.log.dir}"
+DATA_DIR="${packaging.elasticsearch.data.dir}"
+WORK_DIR="${packaging.elasticsearch.work.dir}"
+CONF_DIR="${packaging.elasticsearch.conf.dir}"
+CONF_FILE="${packaging.elasticsearch.conf.dir}/elasticsearch.yml"
+
+# Source the default env file
+ES_ENV_FILE="${packaging.env.file}"
+if [ -f "$ES_ENV_FILE" ]; then
+    . "$ES_ENV_FILE"
+fi
+
+exec="$ES_HOME/bin/elasticsearch"
 prog="elasticsearch"
 pidfile=/var/run/elasticsearch/${prog}.pid
-
-[ -e /etc/sysconfig/$prog ] && . /etc/sysconfig/$prog
 
 export ES_HEAP_SIZE
 export ES_HEAP_NEWSIZE

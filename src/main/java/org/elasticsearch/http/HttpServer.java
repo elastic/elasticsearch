@@ -195,7 +195,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
                 return;
             }
         }
-        if (!file.toAbsolutePath().startsWith(siteFile)) {
+        if (!file.toAbsolutePath().startsWith(siteFile.toAbsolutePath())) {
             channel.sendResponse(new BytesRestResponse(FORBIDDEN));
             return;
         }

@@ -28,7 +28,12 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexDeletionPolicy;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LiveIndexWriterConfig;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -36,8 +41,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
@@ -92,26 +97,27 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
-import static org.apache.lucene.util.AbstractRandomizedTest.CHILD_JVM_ID;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomDouble;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
 import static org.elasticsearch.test.ElasticsearchTestCase.terminate;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
+@LuceneTestCase.SuppressFileSystems("*") // mock FS causes translog issues recovering sometimes because of their use of globs, see LUCENE-6424
 public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
-    public static final String TRANSLOG_PRIMARY_LOCATION = "work/fs-translog/JVM_" + CHILD_JVM_ID + "/primary";
-    public static final String TRANSLOG_REPLICA_LOCATION = "work/fs-translog/JVM_" + CHILD_JVM_ID + "/replica";
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
     protected ThreadPool threadPool;
@@ -133,19 +139,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        // clean up shared directory
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    IOUtils.rm(Paths.get(TRANSLOG_PRIMARY_LOCATION));
-                    IOUtils.rm(Paths.get(TRANSLOG_REPLICA_LOCATION));
-                } catch (IOException e) {
-                    fail("failed to delete translogs before tests."
-                            + ExceptionsHelper.detailedMessage(e) + "\n" + ExceptionsHelper.stackTrace(e));
-                }
-            }
-        }, 30, TimeUnit.SECONDS);
+
         CodecService codecService = new CodecService(shardId.index());
         indexConcurrency = randomIntBetween(1, 20);
         String name = Codec.getDefault().getName();
@@ -237,11 +231,11 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     }
 
     protected Translog createTranslog() throws IOException {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, Paths.get(TRANSLOG_PRIMARY_LOCATION).toAbsolutePath());
+        return new FsTranslog(shardId, EMPTY_SETTINGS, createTempDir("translog-primary"));
     }
 
     protected Translog createTranslogReplica() throws IOException {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, Paths.get(TRANSLOG_REPLICA_LOCATION).toAbsolutePath());
+        return new FsTranslog(shardId, EMPTY_SETTINGS, createTempDir("translog-replica"));
     }
 
     protected IndexDeletionPolicy createIndexDeletionPolicy() {
@@ -1856,11 +1850,11 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         }
 
         TranslogHandler parser = (TranslogHandler) engine.config().getTranslogRecoveryPerformer();
-        long currentTranslogId = translog.currentId();
         parser.mappingModified = randomBoolean();
 
+        long currentTranslogId = translog.currentId();
         engine.close();
-        engine = new InternalEngine(engine.config(), false); // we need to reuse the engine config unless the parser.mappingModified won't work
+        engine = new InternalEngine(engine.config(), false); // we need to reuse the engine config otherwise the parser.mappingModified won't work
         assertTrue(currentTranslogId + "<" + translog.currentId(), currentTranslogId < translog.currentId());
         assertEquals("translog ID must be incremented by 2 after initial recovery", currentTranslogId + 2, translog.currentId());
 

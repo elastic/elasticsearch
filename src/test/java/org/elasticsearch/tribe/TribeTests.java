@@ -19,6 +19,7 @@
 
 package org.elasticsearch.tribe;
 
+import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
@@ -69,7 +70,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
     public static void setupSecondCluster() throws Exception {
         ElasticsearchIntegrationTest.beforeClass();
         // create another cluster
-        cluster2 = new InternalTestCluster(randomLong(), 2, 2, Strings.randomBase64UUID(getRandom()), 0, false, CHILD_JVM_ID, SECOND_CLUSTER_NODE_PREFIX);
+        cluster2 = new InternalTestCluster(randomLong(), newTempDirPath(LifecycleScope.SUITE), 2, 2, Strings.randomBase64UUID(getRandom()), 0, false, CHILD_JVM_ID, SECOND_CLUSTER_NODE_PREFIX);
         cluster2.beforeTest(getRandom(), 0.1);
         cluster2.ensureAtLeastNumDataNodes(2);
     }

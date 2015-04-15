@@ -82,6 +82,7 @@ public class FileBasedMappingsTests extends ElasticsearchTestCase {
             Settings settings = ImmutableSettings.builder()
                     .put(ClusterName.SETTING, NAME)
                     .put("node.name", NAME)
+                    .put("path.home", newTempDirPath())
                     .put("path.conf", configDir.toAbsolutePath())
                     .put("http.enabled", false)
                     .build();

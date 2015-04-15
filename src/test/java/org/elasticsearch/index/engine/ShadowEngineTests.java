@@ -24,7 +24,10 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.IndexDeletionPolicy;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LiveIndexWriterConfig;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
@@ -69,15 +72,20 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomDouble;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.test.ElasticsearchTestCase.newTempDirPath;
 import static org.elasticsearch.test.ElasticsearchTestCase.terminate;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * TODO: document me!
@@ -123,7 +131,7 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
                 .put(EngineConfig.INDEX_CONCURRENCY_SETTING, indexConcurrency)
                 .build(); // TODO randomize more settings
         threadPool = new ThreadPool(getClass().getName());
-        dirPath = newTempDirPath(LifecycleScope.TEST);
+        dirPath = createTempDir();
         store = createStore(dirPath);
         storeReplica = createStore(dirPath);
         Lucene.cleanLuceneIndex(store.directory());
@@ -201,11 +209,11 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
     }
 
     protected Translog createTranslog() throws IOException {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, Paths.get("work/fs-translog/"));
+        return new FsTranslog(shardId, EMPTY_SETTINGS, createTempDir("translog-primary"));
     }
 
     protected Translog createTranslogReplica() throws IOException {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, Paths.get("work/fs-translog/"));
+        return new FsTranslog(shardId, EMPTY_SETTINGS, createTempDir("translog-replica"));
     }
 
     protected IndexDeletionPolicy createIndexDeletionPolicy() {

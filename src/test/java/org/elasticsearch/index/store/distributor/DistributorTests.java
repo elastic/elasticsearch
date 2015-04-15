@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.store.distributor;
 
+import com.carrotsearch.randomizedtesting.LifecycleScope;
 import org.apache.lucene.store.*;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -137,7 +138,7 @@ public class DistributorTests extends ElasticsearchTestCase {
 
     }
 
-    public static class FakeDirectoryService extends DirectoryService {
+    public class FakeDirectoryService extends DirectoryService {
 
         private final Directory[] directories;
 
@@ -157,14 +158,14 @@ public class DistributorTests extends ElasticsearchTestCase {
         }
     }
 
-    public static class FakeFsDirectory extends FSDirectory {
+    public class FakeFsDirectory extends FSDirectory {
 
         public int allocationCount;
         public long useableSpace;
 
 
         public FakeFsDirectory(String path, long usableSpace) throws IOException {
-            super(Paths.get(path), NoLockFactory.INSTANCE);
+            super(newTempDirPath().resolve(path), NoLockFactory.INSTANCE);
             allocationCount = 0;
             this.useableSpace = usableSpace;
         }

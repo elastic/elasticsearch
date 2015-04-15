@@ -383,16 +383,16 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
 
     public void assertFileIsPresent(Translog translog, long id) {
         for (Path location : translog.locations()) {
-            if (Files.exists(location.resolve(translog.getPath(id)))) {
+            if (Files.exists(location.resolve(translog.getFilename(id)))) {
                 return;
             }
         }
-        fail(translog.getPath(id) + " is not present in any location: " + Arrays.toString(translog.locations()));
+        fail(translog.getFilename(id) + " is not present in any location: " + Arrays.toString(translog.locations()));
     }
 
     public void assertFileDeleted(Translog translog, long id) {
         for (Path location : translog.locations()) {
-            assertFalse(Files.exists(location.resolve(translog.getPath(id))));
+            assertFalse(Files.exists(location.resolve(translog.getFilename(id))));
         }
     }
 

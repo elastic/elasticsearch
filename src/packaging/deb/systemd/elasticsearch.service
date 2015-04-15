@@ -5,7 +5,13 @@ Wants=network-online.target
 After=network-online.target
 
 [Service]
-EnvironmentFile=/etc/default/elasticsearch
+Environment=CONF_FILE=${packaging.elasticsearch.conf.dir}/elasticsearch.yml
+Environment=ES_HOME=${packaging.elasticsearch.home.dir}
+Environment=LOG_DIR=${packaging.elasticsearch.log.dir}
+Environment=DATA_DIR=${packaging.elasticsearch.data.dir}
+Environment=WORK_DIR=${packaging.elasticsearch.work.dir}
+Environment=CONF_DIR=${packaging.elasticsearch.conf.dir}
+EnvironmentFile=-${packaging.env.file}
 User=elasticsearch
 Group=elasticsearch
 ExecStart=/usr/share/elasticsearch/bin/elasticsearch            \

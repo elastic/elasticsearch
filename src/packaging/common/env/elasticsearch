@@ -3,28 +3,25 @@
 ################################
 
 # Elasticsearch home directory
-ES_HOME=${packaging.elasticsearch.home.dir}
+#ES_HOME=${packaging.elasticsearch.home.dir}
 
 # Elasticsearch configuration directory
-CONF_DIR=${packaging.elasticsearch.conf.dir}
+#CONF_DIR=${packaging.elasticsearch.conf.dir}
 
 # Elasticsearch configuration file
-CONF_FILE=$CONF_DIR/elasticsearch.yml
+#CONF_FILE=$CONF_DIR/elasticsearch.yml
 
 # Elasticsearch data directory
-DATA_DIR=${packaging.elasticsearch.data.dir}
+#DATA_DIR=${packaging.elasticsearch.data.dir}
 
 # Elasticsearch logs directory
-LOG_DIR=${packaging.elasticsearch.log.dir}
+#LOG_DIR=${packaging.elasticsearch.log.dir}
 
 # Elasticsearch work directory
-WORK_DIR=${packaging.elasticsearch.work.dir}
-
-# Elasticsearch plugins directory
-PLUGINS_DIR=${packaging.elasticsearch.plugins.dir}
+#WORK_DIR=${packaging.elasticsearch.work.dir}
 
 # Elasticsearch PID directory
-PID_DIR=${packaging.elasticsearch.pid.dir}
+#PID_DIR=${packaging.elasticsearch.pid.dir}
 
 # Heap size defaults to ${packaging.elasticsearch.heap.min} min, ${packaging.elasticsearch.heap.max} max
 # Set ES_HEAP_SIZE to 50% of available RAM, but no more than 31g
@@ -56,8 +53,8 @@ PID_DIR=${packaging.elasticsearch.pid.dir}
 # Note that this setting is only used by the init script. If changed, make sure that
 # the configured user can read and write into the data, work, plugins and log directories.
 # For systemd service, the user is usually configured in file ${packaging.elasticsearch.systemd.dir}/elasticsearch.service
-ES_USER=${packaging.elasticsearch.user}
-ES_GROUP=${packaging.elasticsearch.group}
+#ES_USER=${packaging.elasticsearch.user}
+#ES_GROUP=${packaging.elasticsearch.group}
 
 ################################
 # System properties
@@ -66,7 +63,7 @@ ES_GROUP=${packaging.elasticsearch.group}
 # Specifies the maximum file descriptor number that can be opened by this process
 # When using Systemd, this setting is ignored and the LimitNOFILE defined in
 # ${packaging.elasticsearch.systemd.dir}/elasticsearch.service takes precedence
-MAX_OPEN_FILES=${packaging.os.max.open.files}
+#MAX_OPEN_FILES=${packaging.os.max.open.files}
 
 # The maximum number of bytes of memory that may be locked into RAM
 # Set to "unlimited" if you use the 'bootstrap.mlockall: true' option
@@ -78,4 +75,4 @@ MAX_OPEN_FILES=${packaging.os.max.open.files}
 # Maximum number of VMA (Virtual Memory Areas) a process can own
 # When using Systemd, this setting is ignored and the 'vm.max_map_count'
 # property is set at boot time in ${packaging.elasticsearch.systemd.sysctl.dir}/elasticsearch.conf
-MAX_MAP_COUNT=${packaging.os.max.map.count}
+#MAX_MAP_COUNT=${packaging.os.max.map.count}

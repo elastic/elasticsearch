@@ -13,14 +13,6 @@ ${packaging.scripts.header}
 
 
 
-# Source the default env file
-ES_ENV_FILE="${packaging.env.file}"
-if [ -f "$ES_ENV_FILE" ]; then
-    . "$ES_ENV_FILE"
-else
-    echo "Unable to source environment file $ES_ENV_FILE" >&2
-fi
-
 STOP_REQUIRED=false
 
 case "$1" in

@@ -13,9 +13,15 @@ ${packaging.scripts.header}
 
 
 
-# Define default user and group
-[ -z "$ES_USER" ] && ES_USER="${packaging.elasticsearch.user}"
-[ -z "$ES_GROUP" ] && ES_GROUP="${packaging.elasticsearch.group}"
+# Sets the default values for elasticsearch variables used in this script
+ES_USER="${packaging.elasticsearch.user}"
+ES_GROUP="${packaging.elasticsearch.group}"
+
+# Source the default env file
+ES_ENV_FILE="${packaging.env.file}"
+if [ -f "$ES_ENV_FILE" ]; then
+    . "$ES_ENV_FILE"
+fi
 
 case "$1" in
 

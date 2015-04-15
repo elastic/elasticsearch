@@ -946,6 +946,18 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
         logger.info("-->  deleting snapshot");
         client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").get();
+
+        logger.info("--> snapshot with closed index");
+        createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx", "test-idx-closed").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().indices().size(), equalTo(2));
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.FAILED));
+        assertThat(createSnapshotResponse.getSnapshotInfo().reason(), containsString("Indices are closed [test-idx-closed]"));
+        for(SnapshotShardFailure failure : createSnapshotResponse.getSnapshotInfo().shardFailures()) {
+            assertThat(failure.reason(), containsString("index is closed"));
+        }
+
+        logger.info("-->  deleting snapshot");
+        client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").get();
     }
 
     @Test

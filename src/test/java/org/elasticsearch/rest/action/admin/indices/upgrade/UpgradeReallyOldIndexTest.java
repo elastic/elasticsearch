@@ -49,14 +49,23 @@ public class UpgradeReallyOldIndexTest extends StaticIndexBackwardCompatibilityT
     public void testUpgradeMixed_0_20_6_and_0_90_6() throws Exception {
         String indexName = "index-0.20.6-and-0.90.6";
         loadIndex(indexName + ".zip", indexName, InternalNode.HTTP_ENABLED, true);
-        
+
+        // Has ancient segments?:
         assertTrue(UpgradeTest.hasAncientSegments(httpClient(), indexName));
+
+        // Also has "merely old" segments?:
         assertTrue(UpgradeTest.hasOldButNotAncientSegments(httpClient(), indexName));
+
+        // Needs upgrading?
         UpgradeTest.assertNotUpgraded(httpClient(), indexName);
+        
+        // Now upgrade only the ancient ones:
         UpgradeTest.runUpgrade(httpClient(), indexName, "wait_for_completion", "true", "only_ancient_segments", "true");
+
+        // No more ancient ones?
         assertFalse(UpgradeTest.hasAncientSegments(httpClient(), indexName));
 
-        // We succeeded in upgrading only the ancient segments but leaving the merely old ones untouched:
+        // We succeeded in upgrading only the ancient segments but leaving the "merely old" ones untouched:
         assertTrue(UpgradeTest.hasOldButNotAncientSegments(httpClient(), indexName));
     }
 }

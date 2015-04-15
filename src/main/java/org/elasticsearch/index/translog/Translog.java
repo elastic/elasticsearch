@@ -33,7 +33,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.VersionType;
@@ -41,7 +40,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShardComponent;
 
 import java.io.Closeable;
-import java.io.EOFException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -145,10 +143,9 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
     public Path[] locations();
 
     /**
-     * Returns the translog file with the given id as a Path. This
-     * will return a filename.
+     * Returns the translog filename for the given id.
      */
-    String getPath(long translogId);
+    String getFilename(long translogId);
 
     /**
      * return stats

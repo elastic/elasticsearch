@@ -9,11 +9,10 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.watcher.WatcherException;
-import org.elasticsearch.watcher.support.TemplateUtils;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -28,9 +27,19 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.watcher.WatcherException;
+import org.elasticsearch.watcher.support.TemplateUtils;
+import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  */
@@ -47,6 +56,11 @@ public class HistoryStore extends AbstractComponent {
     private final int scrollSize;
     private final TimeValue scrollTimeout;
     private final WatchRecord.Parser recordParser;
+    private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+    private final Lock putUpdateLock = readWriteLock.readLock();
+    private final Lock stopLock = readWriteLock.writeLock();
+    private final AtomicBoolean started = new AtomicBoolean(false);
+
 
     @Inject
     public HistoryStore(Settings settings, ClientProxy client, TemplateUtils templateUtils, WatchRecord.Parser recordParser) {
@@ -58,7 +72,25 @@ public class HistoryStore extends AbstractComponent {
         this.scrollSize = componentSettings.getAsInt("scroll.size", 100);
     }
 
+    public void start() {
+        started.set(true);
+    }
+
+    public void stop() {
+        stopLock.lock(); //This will block while put or update actions are underway
+        try {
+            started.set(false);
+        } finally {
+            stopLock.unlock();
+        }
+
+    }
+
     public void put(WatchRecord watchRecord) throws HistoryException {
+        putUpdateLock.lock();
+        if (!started.get()) {
+            throw new HistoryException("unable to persist watch record history store is not ready");
+        }
         String index = getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
         try {
             IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
@@ -68,11 +100,16 @@ public class HistoryStore extends AbstractComponent {
             watchRecord.version(response.getVersion());
         } catch (IOException e) {
             throw new HistoryException("failed to persist watch record [" + watchRecord + "]", e);
+        } finally {
+            putUpdateLock.unlock();
         }
     }
 
     public void update(WatchRecord watchRecord) throws HistoryException {
-        logger.debug("updating watch record [{}]...", watchRecord);
+        putUpdateLock.lock();
+        if (!started.get()) {
+            throw new HistoryException("unable to persist watch record history store is not ready");
+        }
         try {
             BytesReference bytes = XContentFactory.jsonBuilder().value(watchRecord).bytes();
             IndexRequest request = new IndexRequest(getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime()), DOC_TYPE, watchRecord.id().value())
@@ -83,6 +120,8 @@ public class HistoryStore extends AbstractComponent {
             logger.debug("successfully updated watch record [{}]", watchRecord);
         } catch (IOException e) {
             throw new HistoryException("failed to update watch record [" + watchRecord + "]", e);
+        } finally {
+            putUpdateLock.unlock();
         }
     }
 

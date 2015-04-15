@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.AbstractSnapshotTests;
@@ -94,7 +95,7 @@ public class RestoreBackwardsCompatTests extends AbstractSnapshotTests {
 
     public static List<String> repoVersions() throws Exception {
         List<String> repoVersions = newArrayList();
-        Path repoFiles = Paths.get(RestoreBackwardsCompatTests.class.getResource(".").toURI());
+        Path repoFiles = PathUtils.get(RestoreBackwardsCompatTests.class.getResource(".").toURI());
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(repoFiles, "repo-*.zip")) {
             for (Path entry : stream) {
                 String fileName = entry.getFileName().toString();

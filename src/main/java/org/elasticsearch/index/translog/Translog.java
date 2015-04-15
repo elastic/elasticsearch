@@ -146,9 +146,9 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
 
     /**
      * Returns the translog file with the given id as a Path. This
-     * will return a relative path.
+     * will return a filename.
      */
-    Path getPath(long translogId);
+    String getPath(long translogId);
 
     /**
      * return stats

@@ -21,6 +21,7 @@ package org.elasticsearch.common.logging.log4j;
 
 import org.apache.log4j.Appender;
 import org.apache.log4j.Logger;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -145,7 +146,7 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
 
     private static Path resolveConfigDir() throws Exception {
         URL url = LoggingConfigurationTests.class.getResource("config");
-        return Paths.get(url.toURI());
+        return PathUtils.get(url.toURI());
     }
 
     private static String loggingConfiguration(String suffix) {

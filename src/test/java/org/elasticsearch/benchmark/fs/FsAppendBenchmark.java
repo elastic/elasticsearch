@@ -20,6 +20,7 @@ package org.elasticsearch.benchmark.fs;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.nio.ByteBuffer;
@@ -35,7 +36,7 @@ import java.util.Random;
 public class FsAppendBenchmark {
 
     public static void main(String[] args) throws Exception {
-        Path path = Paths.get("work/test.log");
+        Path path = PathUtils.get("work/test.log");
         IOUtils.deleteFilesIgnoringExceptions(path);
 
         int CHUNK = (int) ByteSizeValue.parseBytesSizeValue("1k").bytes();

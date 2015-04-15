@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.nodesinfo.plugin.dummy1.TestPlugin;
@@ -162,7 +163,7 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
         ImmutableSettings.Builder settings = settingsBuilder();
         settings.put(nodeSettings);
         if (resource != null) {
-            settings.put("path.plugins", Paths.get(resource.toURI()).toAbsolutePath());
+            settings.put("path.plugins", PathUtils.get(resource.toURI()).toAbsolutePath());
         }
 
         if (pluginClassNames.length > 0) {

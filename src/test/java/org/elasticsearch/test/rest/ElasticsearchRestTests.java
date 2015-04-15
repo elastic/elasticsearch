@@ -25,9 +25,11 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.google.common.collect.Lists;
+
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
@@ -46,10 +48,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
-import java.nio.file.Paths;
 import java.util.*;
 
 /**
@@ -102,7 +102,7 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
             blacklistPathMatchers = new PathMatcher[blacklist.length];
             int i = 0;
             for (String glob : blacklist) {
-                blacklistPathMatchers[i++] = FileSystems.getDefault().getPathMatcher("glob:" + glob);
+                blacklistPathMatchers[i++] = PathUtils.getDefaultFileSystem().getPathMatcher("glob:" + glob);
             }
         } else {
             blacklistPathMatchers = new PathMatcher[0];
@@ -251,7 +251,7 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
             //we need to replace a few characters otherwise the test section name can't be parsed as a path on windows
             String testSection = testCandidate.getTestSection().getName().replace("*", "").replace("\\", "/").replaceAll("\\s+/", "/").trim();
             String testPath = testCandidate.getSuitePath() + "/" + testSection;
-            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher.matches(Paths.get(testPath)));
+            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher.matches(PathUtils.get(testPath)));
         }
         //The client needs non static info to get initialized, therefore it can't be initialized in the before class
         restTestExecutionContext.initClient(cluster().httpAddresses(), restClientSettings());

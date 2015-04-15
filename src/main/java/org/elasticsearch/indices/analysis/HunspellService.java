@@ -22,11 +22,13 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.util.concurrent.UncheckedExecutionException;
+
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -116,7 +118,7 @@ public class HunspellService extends AbstractComponent {
     private Path resolveHunspellDirectory(Settings settings, Environment env) {
         String location = settings.get(HUNSPELL_LOCATION, null);
         if (location != null) {
-            return Paths.get(location);
+            return PathUtils.get(location);
         }
         return env.configFile().resolve("hunspell");
     }

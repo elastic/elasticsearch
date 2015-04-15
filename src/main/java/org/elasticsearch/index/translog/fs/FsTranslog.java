@@ -431,8 +431,8 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     }
 
     @Override
-    public Path getPath(long translogId) {
-        return Paths.get(TRANSLOG_FILE_PREFIX + translogId);
+    public String getPath(long translogId) {
+        return TRANSLOG_FILE_PREFIX + translogId;
     }
 
     @Override
@@ -473,14 +473,14 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     @Override
     public OperationIterator openIterator(long translogId) throws IOException {
-        final Path translogName = getPath(translogId);
+        final String translogName = getPath(translogId);
         Path recoveringTranslogFile = null;
         logger.trace("try open translog file {} locations: {}", translogName, Arrays.toString(locations()));
         OUTER:
         for (Path translogLocation : locations()) {
             // we have to support .recovering since it's a leftover from previous version but might still be on the filesystem
             // we used to rename the foo into foo.recovering since foo was reused / overwritten but we fixed that in 2.0
-            for (Path recoveryFiles : FileSystemUtils.files(translogLocation, translogName.getFileName() + "{.recovering,}")) {
+            for (Path recoveryFiles : FileSystemUtils.files(translogLocation, translogName + "{.recovering,}")) {
                 logger.trace("translog file found in {}", recoveryFiles);
                 recoveringTranslogFile = recoveryFiles;
                 break OUTER;

@@ -53,7 +53,7 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
         // We first copy sources test files from src/test/resources
         // Because after when the test runs, src files are moved to their destination
-        final Path path = Paths.get(FileSystemUtilsTests.class.getResource("/org/elasticsearch/common/io/copyappend").toURI());
+        final Path path = PathUtils.get(FileSystemUtilsTests.class.getResource("/org/elasticsearch/common/io/copyappend").toURI());
         FileSystemUtils.copyDirectoryRecursively(path, src);
     }
 
@@ -161,13 +161,13 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
     @Test
     public void testAppend() {
-        assertEquals(FileSystemUtils.append(Paths.get("/foo/bar"), Paths.get("/hello/world/this_is/awesome"), 0),
-                Paths.get("/foo/bar/hello/world/this_is/awesome"));
+        assertEquals(FileSystemUtils.append(PathUtils.get("/foo/bar"), PathUtils.get("/hello/world/this_is/awesome"), 0),
+                PathUtils.get("/foo/bar/hello/world/this_is/awesome"));
 
-        assertEquals(FileSystemUtils.append(Paths.get("/foo/bar"), Paths.get("/hello/world/this_is/awesome"), 2),
-                Paths.get("/foo/bar/this_is/awesome"));
+        assertEquals(FileSystemUtils.append(PathUtils.get("/foo/bar"), PathUtils.get("/hello/world/this_is/awesome"), 2),
+                PathUtils.get("/foo/bar/this_is/awesome"));
 
-        assertEquals(FileSystemUtils.append(Paths.get("/foo/bar"), Paths.get("/hello/world/this_is/awesome"), 1),
-                Paths.get("/foo/bar/world/this_is/awesome"));
+        assertEquals(FileSystemUtils.append(PathUtils.get("/foo/bar"), PathUtils.get("/hello/world/this_is/awesome"), 1),
+                PathUtils.get("/foo/bar/world/this_is/awesome"));
     }
 }

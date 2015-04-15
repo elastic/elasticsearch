@@ -20,9 +20,11 @@
 package org.elasticsearch.tribe;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
+
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
@@ -88,7 +90,7 @@ public class TribeUnitTests extends ElasticsearchTestCase {
 
     @Test
     public void testThatTribeClientsIgnoreGlobalConfig() throws Exception {
-        Path pathConf = Paths.get(TribeUnitTests.class.getResource("elasticsearch.yml").toURI()).getParent();
+        Path pathConf = PathUtils.get(TribeUnitTests.class.getResource("elasticsearch.yml").toURI()).getParent();
         Settings settings = ImmutableSettings.builder().put("config.ignore_system_properties", true).put("path.conf", pathConf).build();
         assertTribeNodeSuccesfullyCreated(settings);
     }

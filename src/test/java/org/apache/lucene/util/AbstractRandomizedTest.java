@@ -27,7 +27,9 @@ import com.carrotsearch.randomizedtesting.rules.NoClassHooksShadowingRule;
 import com.carrotsearch.randomizedtesting.rules.NoInstanceHooksOverridesRule;
 import com.carrotsearch.randomizedtesting.rules.StaticFieldsInvariantRule;
 import com.carrotsearch.randomizedtesting.rules.SystemPropertiesInvariantRule;
+
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -190,7 +192,7 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
         String s = System.getProperty("tempDir", System.getProperty("java.io.tmpdir"));
         if (s == null)
             throw new RuntimeException("To run tests, you need to define system property 'tempDir' or 'java.io.tmpdir'.");
-        TEMP_DIR = Paths.get(s);
+        TEMP_DIR = PathUtils.get(s);
         try {
             Files.createDirectories(TEMP_DIR);
         } catch (IOException e) {

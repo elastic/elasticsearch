@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableList;
 
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.AbstractRandomizedTest;
+import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.elasticsearch.Version;
@@ -78,6 +79,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE) // timeout the suite after 20min and fail the test.
 @Listeners(LoggingListener.class)
+@LuceneTestCase.SuppressFileSystems("*") // we aren't ready for this yet.
 public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     private static Thread.UncaughtExceptionHandler defaultHandler;

@@ -114,7 +114,7 @@ public class HashWheelScheduleTriggerEngine extends ScheduleTriggerEngine {
         return true;
     }
 
-    void notifyListeners(String name, long triggeredTime, long scheduledTime) {
+    protected void notifyListeners(String name, long triggeredTime, long scheduledTime) {
         logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", name, new DateTime(triggeredTime), new DateTime(scheduledTime));
         final ScheduleTriggerEvent event = new ScheduleTriggerEvent(new DateTime(triggeredTime), new DateTime(scheduledTime));
         for (Listener listener : listeners) {

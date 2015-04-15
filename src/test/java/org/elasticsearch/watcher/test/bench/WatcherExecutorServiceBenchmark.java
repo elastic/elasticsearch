@@ -12,6 +12,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -35,16 +36,18 @@ import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 
 /**
- * Starts a master only node with watcher and benchmarks it.
+ * Starts a master only node with watcher and benchmarks the executor service side, so no scheduling. The benchmark
+ * uses the mock scheduler to trigger watches.
+ *
  * A date node needs to be started outside this benchmark. This the removes non watcher noise like indexing.
  */
-public class WatcherBenchmark {
+public class WatcherExecutorServiceBenchmark {
 
     private final static Settings SETTINGS = ImmutableSettings.builder()
             .put("plugins.load_classpath_plugins", false)
             .put("shield.enabled", false)
-            .put("plugin.types", WatcherBenchmarkPlugin.class.getName())
-            .put("cluster.name", WatcherBenchmark.class.getSimpleName())
+            .put("plugin.types", WatcherBenchmarkPlugin.class.getName() + "," + LicensePlugin.class.getName())
+            .put("cluster.name", "bench")
             .put("network.host", "localhost")
             .put("script.disable_dynamic", false)
             .put("discovery.zen.ping.unicast.hosts", "localhost")
@@ -67,7 +70,7 @@ public class WatcherBenchmark {
         scheduler = node.injector().getInstance(ScheduleTriggerEngineMock.class);
     }
 
-    public static final class SmallSearchInput extends WatcherBenchmark {
+    public static final class SmallSearchInput extends WatcherExecutorServiceBenchmark {
 
         public static void main(String[] args) throws Exception {
             start();
@@ -113,7 +116,7 @@ public class WatcherBenchmark {
 
     }
 
-    public static final class BigSearchInput extends WatcherBenchmark {
+    public static final class BigSearchInput extends WatcherExecutorServiceBenchmark {
 
         public static void main(String[] args) throws Exception {
             start();
@@ -160,7 +163,7 @@ public class WatcherBenchmark {
 
     }
 
-    public static final class HttpInput extends WatcherBenchmark {
+    public static final class HttpInput extends WatcherExecutorServiceBenchmark {
 
         public static void main(String[] args) throws Exception {
             start();

@@ -156,7 +156,7 @@ public class QuartzScheduleTriggerEngine extends ScheduleTriggerEngine {
         return triggers;
     }
 
-    void notifyListeners(String name, JobExecutionContext ctx) {
+    protected void notifyListeners(String name, JobExecutionContext ctx) {
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(new DateTime(ctx.getFireTime()), new DateTime(ctx.getScheduledFireTime()));
         for (Listener listener : listeners) {
             executor.execute(new ListenerRunnable(listener, name, event));

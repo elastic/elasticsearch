@@ -108,7 +108,7 @@ public class TimerTickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         }
     }
 
-    void notifyListeners(String name, long triggeredTime, long scheduledTime) {
+    protected void notifyListeners(String name, long triggeredTime, long scheduledTime) {
         final ScheduleTriggerEvent event = new ScheduleTriggerEvent(new DateTime(triggeredTime), new DateTime(scheduledTime));
         for (Listener listener : listeners) {
             executor.execute(new ListenerRunnable(listener, name, event));

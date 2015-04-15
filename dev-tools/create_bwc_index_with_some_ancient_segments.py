@@ -54,8 +54,7 @@ def main():
 
     first_version_segs = shards['0'][0]['segments'].keys()
 
-    node.terminate()
-    node.wait()
+    create_bwc_index.shutdown_node(node)
     print('%s server output:\n%s' % (first_version, node.stdout.read().decode('utf-8')))
     node = None
 
@@ -100,15 +99,13 @@ def main():
     else:
       raise RuntimeError('index has no second_version segs left')
 
-    node.terminate()
-    node.wait()
+    create_bwc_index.shutdown_node(node)
     print('%s server output:\n%s' % (second_version, node.stdout.read().decode('utf-8')))
     node = None
     create_bwc_index.compress_index('%s-and-%s' % (first_version, second_version), tmp_dir, 'src/test/resources/org/elasticsearch/rest/action/admin/indices/upgrade')
   finally:
     if node is not None:
-      node.terminate()
-      node.wait()
+      create_bwc_index.shutdown_node(node)
     shutil.rmtree(tmp_dir)
     
 if __name__ == '__main__':

@@ -324,9 +324,7 @@ def create_bwc_index(cfg, version):
     # will already have the deletions applied on upgrade.
     delete_by_query(client, version, index_name, 'doc')
 
-    logging.info('Shutting down node with pid %d', node.pid)
-    node.terminate()
-    node.wait()
+    shutdown_node(node)
     node = None
 
     compress_index(version, tmp_dir, cfg.output_dir)
@@ -336,12 +334,14 @@ def create_bwc_index(cfg, version):
 
     if node is not None:
       # This only happens if we've hit an exception:
-      logging.info('Shutting down node with pid %d', node.pid)
-      node.terminate()
-      node.wait()
-      node = None
+      shutdown_node(node)
       
     shutil.rmtree(tmp_dir)
+
+def shutdown_node(node):
+  logging.info('Shutting down node with pid %d', node.pid)
+  node.terminate()
+  node.wait()
     
 def main():
   logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s', level=logging.INFO,

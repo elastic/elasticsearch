@@ -208,7 +208,7 @@ public final class FileSystemUtils {
                 } else if (suffix != null) {
                     if (!isSameFile(file, path)) {
                         // If it already exists we try to copy this new version appending suffix to its name
-                        path = Paths.get(path.toString().concat(suffix));
+                        path = path.resolveSibling(path.getFileName().toString().concat(suffix));
                         // We just move the file to new dir but with a new name (appended with suffix)
                         Files.move(file, path, StandardCopyOption.REPLACE_EXISTING);
                     }

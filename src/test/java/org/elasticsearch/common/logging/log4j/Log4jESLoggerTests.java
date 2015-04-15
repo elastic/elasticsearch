@@ -24,6 +24,7 @@ import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.spi.LocationInfo;
 import org.apache.log4j.spi.LoggingEvent;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -129,7 +130,7 @@ public class Log4jESLoggerTests extends ElasticsearchTestCase {
 
     private static Path resolveConfigDir() throws Exception {
         URL url = Log4jESLoggerTests.class.getResource("config");
-        return Paths.get(url.toURI());
+        return PathUtils.get(url.toURI());
     }
 
     private static class TestAppender extends AppenderSkeleton {

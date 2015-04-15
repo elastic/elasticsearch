@@ -26,6 +26,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
+
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.AbstractRandomizedTest;
@@ -76,6 +77,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -1838,7 +1840,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * Asserts that there are no files in the specified path
      */
     public void assertPathHasBeenCleared(String path) throws Exception {
-        assertPathHasBeenCleared(Paths.get(path));
+        assertPathHasBeenCleared(PathUtils.get(path));
     }
 
     /**

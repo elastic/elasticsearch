@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -99,7 +100,7 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
             throw new IllegalArgumentException("Backcompat elasticsearch version must be same major version as current. " +
                 "backcompat: " + version + ", current: " + Version.CURRENT.toString());
         }
-        Path file = Paths.get(path, "elasticsearch-" + version);
+        Path file = PathUtils.get(path, "elasticsearch-" + version);
         if (!Files.exists(file)) {
             throw new IllegalArgumentException("Backwards tests location is missing: " + file.toAbsolutePath());
         }

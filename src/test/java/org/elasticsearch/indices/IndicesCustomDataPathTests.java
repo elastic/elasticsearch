@@ -23,6 +23,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -53,7 +54,7 @@ public class IndicesCustomDataPathTests extends ElasticsearchIntegrationTest {
 
     @After
     public void teardown() throws Exception {
-        IOUtils.deleteFilesIgnoringExceptions(Paths.get(path));
+        IOUtils.deleteFilesIgnoringExceptions(PathUtils.get(path));
     }
 
     @Test

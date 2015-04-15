@@ -21,6 +21,7 @@ package org.elasticsearch.bwcompat;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.util.concurrent.ListenableFuture;
+
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
@@ -30,6 +31,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -88,7 +90,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     public static void initIndexesList() throws Exception {
         indexes = new ArrayList<>();
         URL dirUrl = OldIndexBackwardsCompatibilityTests.class.getResource(".");
-        Path dir = Paths.get(dirUrl.toURI());
+        Path dir = PathUtils.get(dirUrl.toURI());
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "index-*.zip")) {
             for (Path path : stream) {
                 indexes.add(path.getFileName().toString());
@@ -157,7 +159,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         String indexName = indexFile.replace(".zip", "").toLowerCase(Locale.ROOT);
 
         // decompress the index
-        Path backwardsIndex = Paths.get(getClass().getResource(indexFile).toURI());
+        Path backwardsIndex = PathUtils.get(getClass().getResource(indexFile).toURI());
         try (InputStream stream = Files.newInputStream(backwardsIndex)) {
             TestUtil.unzip(stream, unzipDir);
         }

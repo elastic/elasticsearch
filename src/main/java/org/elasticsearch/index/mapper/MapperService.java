@@ -45,6 +45,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.NotFilter;
@@ -180,7 +181,7 @@ public class MapperService extends AbstractIndexComponent  {
             } catch (FailedToResolveConfigException e) {
                 // not there, default to the built in one
                 try {
-                    percolatorMappingUrl = Paths.get(percolatorMappingLocation).toUri().toURL();
+                    percolatorMappingUrl = PathUtils.get(percolatorMappingLocation).toUri().toURL();
                 } catch (MalformedURLException e1) {
                     throw new FailedToResolveConfigException("Failed to resolve default percolator mapping location [" + percolatorMappingLocation + "]");
                 }
@@ -231,7 +232,7 @@ public class MapperService extends AbstractIndexComponent  {
             } catch (FailedToResolveConfigException e) {
                 // not there, default to the built in one
                 try {
-                    mappingUrl = Paths.get(mappingLocation).toUri().toURL();
+                    mappingUrl = PathUtils.get(mappingLocation).toUri().toURL();
                 } catch (MalformedURLException e1) {
                     throw new FailedToResolveConfigException("Failed to resolve dynamic mapping location [" + mappingLocation + "]");
                 }

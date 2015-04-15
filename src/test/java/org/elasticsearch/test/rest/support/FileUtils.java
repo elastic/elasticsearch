@@ -22,6 +22,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.PathUtils;
 
 import java.io.IOException;
 import java.net.URI;
@@ -106,7 +107,7 @@ public final class FileUtils {
             }
         }
 
-        return Paths.get(URI.create(resource.toString()));
+        return PathUtils.get(URI.create(resource.toString()));
     }
 
     private static URL findResource(String path, String optionalFileSuffix) {
@@ -121,9 +122,9 @@ public final class FileUtils {
     }
 
     private static Path findFile(String path, String optionalFileSuffix) {
-        Path file = Paths.get(path);
+        Path file = PathUtils.get(path);
         if (!Files.exists(file)) {
-            file = Paths.get(path + optionalFileSuffix);
+            file = PathUtils.get(path + optionalFileSuffix);
         }
         return file;
     }

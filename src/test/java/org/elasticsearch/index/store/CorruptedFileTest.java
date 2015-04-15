@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Charsets;
 import com.google.common.base.Predicate;
+
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexFileNames;
@@ -45,6 +46,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -528,7 +530,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         for (FsStats.Info info : nodeStatses.getNodes()[0].getFs()) {
             String path = info.getPath();
             final String relativeDataLocationPath = "indices/test/" + Integer.toString(shardRouting.getId()) + "/index";
-            Path file = Paths.get(path).resolve(relativeDataLocationPath);
+            Path file = PathUtils.get(path).resolve(relativeDataLocationPath);
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
                 for (Path item : stream) {
                     if (Files.isRegularFile(item) && "write.lock".equals(item.getFileName().toString()) == false) {
@@ -637,7 +639,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         List<Path> files = new ArrayList<>();
         for (FsStats.Info info : nodeStatses.getNodes()[0].getFs()) {
             String path = info.getPath();
-            Path file = Paths.get(path).resolve("indices/test/" + Integer.toString(routing.getId()) + "/index");
+            Path file = PathUtils.get(path).resolve("indices/test/" + Integer.toString(routing.getId()) + "/index");
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
                 for (Path item : stream) {
                     files.add(item);

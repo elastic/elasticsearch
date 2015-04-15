@@ -34,6 +34,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.DjbHashFunction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -200,7 +201,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
      */
     public Path getResourcePath(String relativePath) {
         URI uri = URI.create(getClass().getResource(relativePath).toString());
-        return Paths.get(uri);
+        return PathUtils.get(uri);
     }
 
     @After

@@ -22,6 +22,7 @@ package org.elasticsearch.env;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
+
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -128,7 +130,8 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         int maxLocalStorageNodes = settings.getAsInt("node.max_local_storage_nodes", 50);
         for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
             for (int dirIndex = 0; dirIndex < environment.dataWithClusterFiles().length; dirIndex++) {
-                Path dir = environment.dataWithClusterFiles()[dirIndex].resolve(Paths.get(NODES_FOLDER, Integer.toString(possibleLockId)));
+                // TODO: wtf with resolve(get())
+                Path dir = environment.dataWithClusterFiles()[dirIndex].resolve(PathUtils.get(NODES_FOLDER, Integer.toString(possibleLockId)));
                 Files.createDirectories(dir);
                 
                 try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
@@ -616,7 +619,8 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         final NodePath[] nodePaths = nodePaths();
         final Path[] shardLocations = new Path[nodePaths.length];
         for (int i = 0; i < nodePaths.length; i++) {
-            shardLocations[i] = nodePaths[i].path.resolve(Paths.get(INDICES_FOLDER,
+            // TODO: wtf with resolve(get())
+            shardLocations[i] = nodePaths[i].path.resolve(PathUtils.get(INDICES_FOLDER,
                     shardId.index().name(),
                     Integer.toString(shardId.id())));
         }
@@ -730,9 +734,9 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
             // This assert is because this should be caught by MetaDataCreateIndexService
             assert customPathsEnabled;
             if (addNodeId) {
-                return Paths.get(customDataDir, Integer.toString(this.localNodeId));
+                return PathUtils.get(customDataDir, Integer.toString(this.localNodeId));
             } else {
-                return Paths.get(customDataDir);
+                return PathUtils.get(customDataDir);
             }
         } else {
             throw new ElasticsearchIllegalArgumentException("no custom " + IndexMetaData.SETTING_DATA_PATH + " setting available");

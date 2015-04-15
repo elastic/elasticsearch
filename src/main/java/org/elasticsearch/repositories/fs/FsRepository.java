@@ -23,6 +23,8 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryException;
@@ -74,7 +76,7 @@ public class FsRepository extends BlobStoreRepository {
             logger.warn("using local fs location for gateway, should be changed to be a shared location across nodes");
             throw new RepositoryException(name.name(), "missing location");
         } else {
-            locationFile = Paths.get(location);
+            locationFile = PathUtils.get(location);
         }
         blobStore = new FsBlobStore(settings, locationFile);
         this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", settings.getAsBytesSize("repositories.fs.chunk_size", null));

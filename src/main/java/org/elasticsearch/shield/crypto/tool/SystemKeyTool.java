@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.signature.tool;
+package org.elasticsearch.shield.crypto.tool;
 
 import org.elasticsearch.common.cli.CheckFileCommand;
 import org.elasticsearch.common.cli.CliTool;
@@ -13,7 +13,7 @@ import org.elasticsearch.common.cli.commons.CommandLine;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.signature.InternalSignatureService;
+import org.elasticsearch.shield.crypto.InternalCryptoService;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -78,7 +78,7 @@ public class SystemKeyTool extends CliTool {
         protected Path[] pathsForPermissionsCheck(Settings settings, Environment env) {
             Path path = this.path;
             if (path == null) {
-                path = InternalSignatureService.resolveFile(settings, env);
+                path = InternalCryptoService.resolveSystemKey(settings, env);
             }
             return new Path[] { path };
         }
@@ -88,10 +88,10 @@ public class SystemKeyTool extends CliTool {
             Path path = this.path;
             try {
                 if (path == null) {
-                    path = InternalSignatureService.resolveFile(settings, env);
+                    path = InternalCryptoService.resolveSystemKey(settings, env);
                 }
                 terminal.println(Terminal.Verbosity.VERBOSE, "generating...");
-                byte[] key = InternalSignatureService.generateKey();
+                byte[] key = InternalCryptoService.generateKey();
                 terminal.println("Storing generated key in [%s]...", path.toAbsolutePath());
                 Files.write(path, key, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
             } catch (IOException ioe) {

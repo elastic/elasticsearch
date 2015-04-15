@@ -15,7 +15,7 @@ import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.shield.signature.InternalSignatureService;
+import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.shield.test.ShieldTestUtils;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
@@ -111,7 +111,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put(super.node(nodeOrdinal))
                 .put("plugin.types", ShieldPlugin.class.getName() + "," + licensePluginClass().getName())
                 .put("shield.audit.enabled", randomBoolean())
-                .put(InternalSignatureService.FILE_SETTING, writeFile(folder, "system_key", systemKey))
+                .put(InternalCryptoService.FILE_SETTING, writeFile(folder, "system_key", systemKey))
                 .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
                 .put("shield.authc.realms.esusers.order", 0)
                 .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", configUsers()))
@@ -180,7 +180,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
     private static byte[] generateKey() {
         try {
-            return InternalSignatureService.generateKey();
+            return InternalCryptoService.generateKey();
         } catch (Exception e) {
             throw new ElasticsearchException("exception while generating the system key", e);
         }

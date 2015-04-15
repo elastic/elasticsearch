@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.signature.tool;
+package org.elasticsearch.shield.crypto.tool;
 
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolTestCase;
@@ -13,7 +13,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.shield.signature.InternalSignatureService;
+import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -24,7 +24,7 @@ import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Set;
 
-import static org.elasticsearch.shield.signature.tool.SystemKeyTool.Generate;
+import static org.elasticsearch.shield.crypto.tool.SystemKeyTool.Generate;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -67,7 +67,7 @@ public class SystemKeyToolTests extends CliToolTestCase {
         CliTool.ExitStatus status = generate.execute(ImmutableSettings.EMPTY, env);
         assertThat(status, is(CliTool.ExitStatus.OK));
         byte[] bytes = Streams.copyToByteArray(path.toFile());
-        assertThat(bytes.length, is(InternalSignatureService.KEY_SIZE / 8));
+        assertThat(bytes.length, is(InternalCryptoService.KEY_SIZE / 8));
     }
 
     @Test
@@ -80,7 +80,7 @@ public class SystemKeyToolTests extends CliToolTestCase {
         CliTool.ExitStatus status = generate.execute(settings, env);
         assertThat(status, is(CliTool.ExitStatus.OK));
         byte[] bytes = Streams.copyToByteArray(path.toFile());
-        assertThat(bytes.length, is(InternalSignatureService.KEY_SIZE / 8));
+        assertThat(bytes.length, is(InternalCryptoService.KEY_SIZE / 8));
     }
 
     @Test
@@ -94,7 +94,7 @@ public class SystemKeyToolTests extends CliToolTestCase {
         CliTool.ExitStatus status = generate.execute(ImmutableSettings.EMPTY, env);
         assertThat(status, is(CliTool.ExitStatus.OK));
         byte[] bytes = Streams.copyToByteArray(path.toFile());
-        assertThat(bytes.length, is(InternalSignatureService.KEY_SIZE / 8));
+        assertThat(bytes.length, is(InternalCryptoService.KEY_SIZE / 8));
     }
 
     @Test

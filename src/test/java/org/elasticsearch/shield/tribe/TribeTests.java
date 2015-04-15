@@ -16,7 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.shield.signature.InternalSignatureService;
+import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.ShieldIntegrationTest;
@@ -57,7 +57,7 @@ public class TribeTests extends ShieldIntegrationTest {
         final boolean sslTransportEnabled = globalClusterSettings.getAsBoolean("shield.transport.ssl", null);
 
         //we need to make sure that all clusters and the tribe node use the same system key, we just point to the same file on all clusters
-        byte[] systemKey = Files.readAllBytes(Paths.get(globalClusterSettings.get(InternalSignatureService.FILE_SETTING)));
+        byte[] systemKey = Files.readAllBytes(Paths.get(globalClusterSettings.get(InternalCryptoService.FILE_SETTING)));
 
         //we run this part in @Before instead of beforeClass because we need to have the current cluster already assigned to global
         //so that we can retrieve its settings and apply some of them the the second cluster (and tribe node too)
@@ -124,7 +124,7 @@ public class TribeTests extends ShieldIntegrationTest {
                         return true;
                     }
                     //forward the system key to the tribe clients, same file will be used
-                    if (settingKey.equals(InternalSignatureService.FILE_SETTING)) {
+                    if (settingKey.equals(InternalCryptoService.FILE_SETTING)) {
                         return true;
                     }
                     //forward ssl settings to the tribe clients, same certificates will be used

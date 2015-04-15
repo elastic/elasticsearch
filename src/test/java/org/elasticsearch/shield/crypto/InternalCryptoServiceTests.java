@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.signature;
+package org.elasticsearch.shield.crypto;
 
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -17,17 +17,17 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
  */
-public class InternalSignatureServiceTests extends ElasticsearchTestCase {
+public class InternalCryptoServiceTests extends ElasticsearchTestCase {
 
     private ResourceWatcherService watcherService;
     private Settings settings;
@@ -38,7 +38,7 @@ public class InternalSignatureServiceTests extends ElasticsearchTestCase {
     @Before
     public void init() throws Exception {
         keyFile = new File(newTempDir(), "system_key");
-        Streams.copy(InternalSignatureService.generateKey(), keyFile);
+        Streams.copy(InternalCryptoService.generateKey(), keyFile);
         settings = ImmutableSettings.builder()
                 .put("shield.system_key.file", keyFile.getAbsolutePath())
                 .put("watcher.interval.high", "2s")
@@ -51,12 +51,13 @@ public class InternalSignatureServiceTests extends ElasticsearchTestCase {
 
     @After
     public void shutdown() throws InterruptedException {
+        watcherService.stop();
         terminate(threadPool);
     }
 
     @Test
     public void testSigned() throws Exception {
-        InternalSignatureService service = new InternalSignatureService(settings, env, watcherService).start();
+        InternalCryptoService service = new InternalCryptoService(settings, env, watcherService).start();
         String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
         assertThat(service.signed(signed), is(true));
@@ -64,7 +65,7 @@ public class InternalSignatureServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testSignAndUnsign() throws Exception {
-        InternalSignatureService service = new InternalSignatureService(settings, env, watcherService).start();
+        InternalCryptoService service = new InternalCryptoService(settings, env, watcherService).start();
         String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
         assertThat(text.equals(signed), is(false));
@@ -74,7 +75,7 @@ public class InternalSignatureServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testSignAndUnsign_NoKeyFile() throws Exception {
-        InternalSignatureService service = new InternalSignatureService(ImmutableSettings.EMPTY, env, watcherService).start();
+        InternalCryptoService service = new InternalCryptoService(ImmutableSettings.EMPTY, env, watcherService).start();
         String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
         assertThat(text, equalTo(signed));
@@ -84,7 +85,7 @@ public class InternalSignatureServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testTamperedSignature() throws Exception {
-        InternalSignatureService service = new InternalSignatureService(settings, env, watcherService).start();
+        InternalCryptoService service = new InternalCryptoService(settings, env, watcherService).start();
         String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
         int i = signed.indexOf("$$", 2);
@@ -102,7 +103,7 @@ public class InternalSignatureServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testTamperedSignatureOneChar() throws Exception {
-        InternalSignatureService service = new InternalSignatureService(settings, env, watcherService).start();
+        InternalCryptoService service = new InternalCryptoService(settings, env, watcherService).start();
         String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
         int i = signed.indexOf("$$", 2);
@@ -122,7 +123,7 @@ public class InternalSignatureServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testTamperedSignatureLength() throws Exception {
-        InternalSignatureService service = new InternalSignatureService(settings, env, watcherService).start();
+        InternalCryptoService service = new InternalCryptoService(settings, env, watcherService).start();
         String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
         int i = signed.indexOf("$$", 2);
@@ -149,9 +150,87 @@ public class InternalSignatureServiceTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testEncryptionAndDecryptionChars() {
+        InternalCryptoService service = new InternalCryptoService(settings, env, watcherService).start();
+        final char[] chars = randomAsciiOfLengthBetween(0, 1000).toCharArray();
+        final char[] encrypted = service.encrypt(chars);
+        assertThat(encrypted, notNullValue());
+        assertThat(Arrays.equals(encrypted, chars), is(false));
+
+        final char[] decrypted = service.decrypt(encrypted);
+        assertThat(Arrays.equals(chars, decrypted), is(true));
+    }
+
+    @Test
+    public void testEncryptionAndDecryptionBytes() {
+        InternalCryptoService service = new InternalCryptoService(settings, env, watcherService).start();
+        final byte[] bytes = randomByteArray();
+        final byte[] encrypted = service.encrypt(bytes);
+        assertThat(encrypted, notNullValue());
+        assertThat(Arrays.equals(encrypted, bytes), is(false));
+
+        final byte[] decrypted = service.decrypt(encrypted);
+        assertThat(Arrays.equals(bytes, decrypted), is(true));
+    }
+
+    @Test
+    public void testEncryptionAndDecryptionCharsWithoutKey() {
+        InternalCryptoService service = new InternalCryptoService(ImmutableSettings.EMPTY, env, watcherService).start();
+        final char[] chars = randomAsciiOfLengthBetween(0, 1000).toCharArray();
+        try {
+            service.encrypt(chars);
+            fail("exception should have been thrown");
+        } catch (Exception e) {
+            assertThat(e, instanceOf(UnsupportedOperationException.class));
+            assertThat(e.getMessage(), containsString("system_key"));
+        }
+
+        try {
+            service.decrypt(chars);
+        } catch (Exception e) {
+            assertThat(e, instanceOf(UnsupportedOperationException.class));
+            assertThat(e.getMessage(), containsString("system_key"));
+        }
+    }
+
+    @Test
+    public void testEncryptionAndDecryptionBytesWithoutKey() {
+        InternalCryptoService service = new InternalCryptoService(ImmutableSettings.EMPTY, env, watcherService).start();
+        final byte[] bytes = randomByteArray();
+        try {
+            service.encrypt(bytes);
+            fail("exception should have been thrown");
+        } catch (Exception e) {
+            assertThat(e, instanceOf(UnsupportedOperationException.class));
+            assertThat(e.getMessage(), containsString("system_key"));
+        }
+
+        try {
+            service.decrypt(bytes);
+        } catch (Exception e) {
+            assertThat(e, instanceOf(UnsupportedOperationException.class));
+            assertThat(e.getMessage(), containsString("system_key"));
+        }
+    }
+
+    @Test
+    public void testChangingAByte() {
+        InternalCryptoService service = new InternalCryptoService(settings, env, watcherService).start();
+        final byte[] bytes = randomByteArray();
+        final byte[] encrypted = service.encrypt(bytes);
+        assertThat(encrypted, notNullValue());
+        assertThat(Arrays.equals(encrypted, bytes), is(false));
+
+        int tamperedIndex = randomIntBetween(0, encrypted.length - 1);
+        encrypted[tamperedIndex] = randomByte();
+        final byte[] decrypted = service.decrypt(encrypted);
+        assertThat(Arrays.equals(bytes, decrypted), is(false));
+    }
+
+    @Test
     public void testReloadKey() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
-        InternalSignatureService service = new InternalSignatureService(settings, env, watcherService, new InternalSignatureService.Listener() {
+        InternalCryptoService service = new InternalCryptoService(settings, env, watcherService, new InternalCryptoService.Listener() {
             @Override
             public void onKeyRefresh() {
                 latch.countDown();
@@ -160,16 +239,34 @@ public class InternalSignatureServiceTests extends ElasticsearchTestCase {
 
         String text = randomAsciiOfLength(10);
         String signed = service.sign(text);
+        char[] textChars = text.toCharArray();
+        char[] encrypted = service.encrypt(textChars);
 
         // we need to sleep so to ensure the timestamp of the file will definitely change
         // and so the resource watcher will pick up the change.
         sleep(1000);
 
-        Streams.copy(InternalSignatureService.generateKey(), keyFile);
+        Streams.copy(InternalCryptoService.generateKey(), keyFile);
         if (!latch.await(10, TimeUnit.SECONDS)) {
             fail("waiting too long for test to complete. Expected callback is not called");
         }
         String signed2 = service.sign(text);
         assertThat(signed.equals(signed2), is(false));
+
+        char[] encrypted2 = service.encrypt(textChars);
+
+        char[] decrypted = service.decrypt(encrypted);
+        char[] decrypted2 = service.decrypt(encrypted2);
+        assertThat(Arrays.equals(textChars, decrypted), is(false));
+        assertThat(Arrays.equals(textChars, decrypted2), is(true));
+    }
+
+    private static byte[] randomByteArray() {
+        int count = randomIntBetween(0, 1000);
+        byte[] bytes = new byte[count];
+        for (int i = 0; i < count; i++) {
+            bytes[i] = randomByte();
+        }
+        return bytes;
     }
 }

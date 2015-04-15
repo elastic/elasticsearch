@@ -20,7 +20,7 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.shield.license.LicenseService;
-import org.elasticsearch.shield.signature.InternalSignatureService;
+import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 
 import java.io.File;
@@ -67,7 +67,7 @@ public class ShieldPlugin extends AbstractPlugin {
     @Override
     public Collection<Class<? extends LifecycleComponent>> services() {
         return enabled && !clientMode ?
-                ImmutableList.<Class<? extends LifecycleComponent>>of(LicenseService.class, FileRolesStore.class, Realms.class, InternalSignatureService.class, IPFilter.class) :
+                ImmutableList.<Class<? extends LifecycleComponent>>of(LicenseService.class, InternalCryptoService.class, FileRolesStore.class, Realms.class, IPFilter.class) :
                 ImmutableList.<Class<? extends LifecycleComponent>>of();
     }
 

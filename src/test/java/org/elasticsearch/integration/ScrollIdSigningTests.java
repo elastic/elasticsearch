@@ -10,10 +10,9 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.authz.AuthorizationException;
-import org.elasticsearch.shield.signature.InternalSignatureService;
-import org.elasticsearch.shield.signature.SignatureService;
+import org.elasticsearch.shield.crypto.InternalCryptoService;
+import org.elasticsearch.shield.crypto.CryptoService;
 import org.elasticsearch.test.ShieldIntegrationTest;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Locale;
@@ -104,8 +103,8 @@ public class ScrollIdSigningTests extends ShieldIntegrationTest {
     }
 
     private void assertSigned(String scrollId) {
-        SignatureService signatureService = internalCluster().getDataNodeInstance(InternalSignatureService.class);
+        CryptoService cryptoService = internalCluster().getDataNodeInstance(InternalCryptoService.class);
         String message = String.format(Locale.ROOT, "Expected scrollId [%s] to be signed, but was not", scrollId);
-        assertThat(message, signatureService.signed(scrollId), is(true));
+        assertThat(message, cryptoService.signed(scrollId), is(true));
     }
 }

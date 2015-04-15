@@ -14,7 +14,7 @@ import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.shield.authz.AuthorizationModule;
 import org.elasticsearch.shield.license.LicenseModule;
 import org.elasticsearch.shield.rest.ShieldRestModule;
-import org.elasticsearch.shield.signature.SignatureModule;
+import org.elasticsearch.shield.crypto.CryptoModule;
 import org.elasticsearch.shield.ssl.SSLModule;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 import org.elasticsearch.shield.transport.ShieldTransportModule;
@@ -42,13 +42,13 @@ public class ShieldModule extends AbstractShieldModule.Spawn {
 
         return ImmutableList.<Module>of(
                 new LicenseModule(settings),
+                new CryptoModule(settings),
                 new AuthenticationModule(settings),
                 new AuthorizationModule(settings),
                 new AuditTrailModule(settings),
                 new ShieldRestModule(settings),
                 new ShieldActionModule(settings),
                 new ShieldTransportModule(settings),
-                new SignatureModule(settings),
                 new SSLModule(settings));
     }
 

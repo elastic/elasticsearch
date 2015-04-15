@@ -16,7 +16,7 @@ import java.util.Arrays;
  */
 public class CharArrays {
 
-    static char[] utf8BytesToChars(byte[] utf8Bytes) {
+    public static char[] utf8BytesToChars(byte[] utf8Bytes) {
         ByteBuffer byteBuffer = ByteBuffer.wrap(utf8Bytes);
         CharBuffer charBuffer = Charsets.UTF_8.decode(byteBuffer);
         char[] chars = Arrays.copyOfRange(charBuffer.array(), charBuffer.position(), charBuffer.limit());

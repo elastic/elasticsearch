@@ -657,15 +657,23 @@ public final class XMoreLikeThis {
         BooleanQuery bq = new BooleanQuery();
         for (String fieldName : fieldNames) {
             Map<String, Int> termFreqMap = new HashMap<>();
+            Terms vector = null;
             for (Fields fields : likeFields) {
-                Terms vector = fields.terms(fieldName);
+                vector = fields.terms(fieldName);
                 if (vector != null) {
                     addTermFrequencies(termFreqMap, vector, fieldName);
                 }
             }
-            addToQuery(createQueue(termFreqMap, fieldName), bq);
+            addToQuery(createQueue(termFreqMap, !hasFreqs(vector), fieldName), bq);
         }
         return bq;
+    }
+
+    /**
+     * Detect whether the field has frequencies other than all 1s
+     */
+    private boolean hasFreqs(Terms terms) throws IOException {
+        return terms != null && terms.hasFreqs() && terms.getSumTotalTermFreq() > terms.getSumDocFreq();
     }
 
     /**
@@ -717,9 +725,10 @@ public final class XMoreLikeThis {
      * Create a PriorityQueue from a word->tf map.
      *
      * @param words a map of words keyed on the word(String) with Int objects as the values.
+     * @param skipTermFreq whether to skip check on min term freq.
      * @param fieldNames an array of field names to override defaults.
      */
-    private PriorityQueue<ScoreTerm> createQueue(Map<String, Int> words, String... fieldNames) throws IOException {
+    private PriorityQueue<ScoreTerm> createQueue(Map<String, Int> words, boolean skipTermFreq, String... fieldNames) throws IOException {
         // have collected all words in doc and their freqs
         int numDocs = ir.numDocs();
         final int limit = Math.min(maxQueryTerms, words.size());
@@ -727,7 +736,7 @@ public final class XMoreLikeThis {
 
         for (String word : words.keySet()) { // for every word
             int tf = words.get(word).x; // term freq in the source doc
-            if (minTermFreq > 0 && tf < minTermFreq) {
+            if (!skipTermFreq && minTermFreq > 0 && tf < minTermFreq) {
                 continue; // filter out words that don't occur enough times in the source
             }
 
@@ -767,6 +776,16 @@ public final class XMoreLikeThis {
             }
         }
         return queue;
+    }
+
+    /**
+     * Create a PriorityQueue from a word->tf map.
+     *
+     * @param words a map of words keyed on the word(String) with Int objects as the values.
+     * @param fieldNames an array of field names to override defaults.
+     */
+    private PriorityQueue<ScoreTerm> createQueue(Map<String, Int> words, String... fieldNames) throws IOException {
+        return createQueue(words, false, fieldNames);
     }
 
     /**

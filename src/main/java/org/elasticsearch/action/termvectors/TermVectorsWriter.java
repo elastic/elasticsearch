@@ -87,6 +87,8 @@ final class TermVectorsWriter {
                 } else {
                     writeFieldStatistics(topLevelTerms);
                 }
+            } else { // write document level stats
+                writeFieldStatistics(fieldTermVector);
             }
             TermsEnum iterator = fieldTermVector.iterator();
             final boolean useDocsAndPos = positions || offsets || payloads;
@@ -108,6 +110,8 @@ final class TermVectorsWriter {
                     } else {
                         writeTermStatistics(topLevelIterator);
                     }
+                } else { // write document level stats
+                    writeTermStatistics(iterator);
                 }
                 if (useDocsAndPos) {
                     // given we have pos or offsets

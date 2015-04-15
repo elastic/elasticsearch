@@ -212,9 +212,9 @@ public final class TermVectorsFields extends Fields {
             this.hasOffsets = perFieldTermVectorInput.readBoolean();
             this.hasPayloads = perFieldTermVectorInput.readBoolean();
             // read the field statistics
-            this.sumTotalTermFreq = hasFieldStatistic ? readPotentiallyNegativeVLong(perFieldTermVectorInput) : -1;
-            this.sumDocFreq = hasFieldStatistic ? readPotentiallyNegativeVLong(perFieldTermVectorInput) : -1;
-            this.docCount = hasFieldStatistic ? readPotentiallyNegativeVInt(perFieldTermVectorInput) : -1;
+            this.sumTotalTermFreq = readPotentiallyNegativeVLong(perFieldTermVectorInput);
+            this.sumDocFreq = readPotentiallyNegativeVLong(perFieldTermVectorInput);
+            this.docCount = readPotentiallyNegativeVInt(perFieldTermVectorInput);
         }
 
         @Override
@@ -243,10 +243,8 @@ public final class TermVectorsFields extends Fields {
                         // ...then the value.
                         perFieldTermVectorInput.readBytes(spare.bytes(), 0, termVectorSize);
                         spare.setLength(termVectorSize);
-                        if (hasTermStatistic) {
-                            docFreq = readPotentiallyNegativeVInt(perFieldTermVectorInput);
-                            totalTermFrequency = readPotentiallyNegativeVLong(perFieldTermVectorInput);
-                        }
+                        docFreq = readPotentiallyNegativeVInt(perFieldTermVectorInput);
+                        totalTermFrequency = readPotentiallyNegativeVLong(perFieldTermVectorInput);
 
                         freq = readPotentiallyNegativeVInt(perFieldTermVectorInput);
                         // grow the arrays to read the values. this is just

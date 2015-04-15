@@ -578,7 +578,7 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
         logger.info("Indexing a single document ...");
         XContentBuilder doc = jsonBuilder().startObject();
         for (int i = 0; i < numFields; i++) {
-            doc.field("field"+i, generateRandomStringArray(5, 10));
+            doc.field("field" + i, generateRandomStringArray(5, 10));
         }
         doc.endObject();
         indexRandom(true, client().prepareIndex("test", "type1", "0").setSource(doc));
@@ -714,5 +714,31 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
             assertSearchResponse(response);
             assertHitCount(response, numFields - (i + 1));
         }
+    }
+
+    @Test
+    public void testMoreLikeAllUniqueValues() throws ExecutionException, InterruptedException {
+        logger.info("Creating the index ...");
+        assertAcked(prepareCreate("test")
+                .addMapping("type1", "text", "type=string,index=not_analyzed")
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        ensureGreen();
+
+        logger.info("Indexing one doc with all unique values ...");
+        String[] values = new String[randomIntBetween(1, 10)];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = "tag_" + i;
+        }
+        indexRandom(true, client().prepareIndex("test", "type1", "0").setSource("text", values));
+
+        logger.info("Ensuring we still return a result ...");
+        MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery("text")
+                .ids("0")
+                .include(true)
+                .minDocFreq(1)
+                .minTermFreq(randomIntBetween(2,10));
+        SearchResponse response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 1);
     }
 }

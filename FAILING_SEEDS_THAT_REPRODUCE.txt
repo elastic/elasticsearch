@@ -1,0 +1,3 @@
+mvn test -Pdev -Dtests.seed=3BE26A0D85E40D93 -Dtests.class=org.elasticsearch.indices.state.OpenCloseIndexTests -Dtests.method="testOpenCloseWithDocs" -Des.logger.level=INFO -Dtests.heap.size=512m -Dtests.timezone=Atlantic/South_Georgia -Dtests.processors=8
+
+mvn test -Pdev -Dtests.seed=3BE26A0D85E40D93 -Dtests.class=org.elasticsearch.indices.template.IndexTemplateFileLoadingTests -Dtests.method="testThatLoadingTemplateFromFileWorks" -Des.logger.level=INFO -Dtests.heap.size=512m -Dtests.locale=hu_HU -Dtests.timezone=Africa/Harare -Dtests.processors=8

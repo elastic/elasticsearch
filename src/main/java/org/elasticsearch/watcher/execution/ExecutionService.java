@@ -310,7 +310,7 @@ public class ExecutionService extends AbstractComponent {
                 if (started()) {
                     logger.error("failed to execute watch from SchedulerListener [{}]", e, name);
                 } else {
-                    logger.error("failed to execute watch from SchedulerListener [{}] after shutdown", e, name);
+                    logger.debug("failed to execute watch from SchedulerListener [{}] after shutdown", e, name);
                 }
             }
         }

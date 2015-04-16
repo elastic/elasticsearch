@@ -51,7 +51,7 @@ public class RoutingBackwardCompatibilityUponUpgradeTests extends ElasticsearchI
     }
 
     private void test(String name, Class<? extends HashFunction> expectedHashFunction, boolean expectedUseType) throws Exception {
-        Path zippedIndexDir = PathUtils.get(getClass().getResource("/org/elasticsearch/cluster/routing/" + name + ".zip").getPath());
+        Path zippedIndexDir = PathUtils.get(getClass().getResource("/org/elasticsearch/cluster/routing/" + name + ".zip").toURI());
         Settings baseSettings = prepareBackwardsDataDir(zippedIndexDir);
         internalCluster().startNode(ImmutableSettings.builder()
                 .put(baseSettings)

@@ -69,6 +69,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 /**
  * Base testcase for randomized unit testing with Elasticsearch
  */
+@LuceneTestCase.SuppressFileSystems("*")
 public abstract class ElasticsearchTestCase extends ESTestCase {
 
     private static Thread.UncaughtExceptionHandler defaultHandler;
@@ -172,7 +173,8 @@ public abstract class ElasticsearchTestCase extends ESTestCase {
      * non-standard characters.
      */
     public Path getResourcePath(String relativePath) {
-        return PathUtils.get(getClass().getResource(relativePath).getPath());
+        URI uri = URI.create(getClass().getResource(relativePath).toString());
+        return PathUtils.get(uri);
     }
 
     @After

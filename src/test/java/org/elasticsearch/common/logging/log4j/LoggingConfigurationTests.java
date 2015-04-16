@@ -146,7 +146,7 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
 
     private static Path resolveConfigDir() throws Exception {
         URL url = LoggingConfigurationTests.class.getResource("config");
-        return PathUtils.get(url.getPath());
+        return PathUtils.get(url.toURI());
     }
 
     private static String loggingConfiguration(String suffix) {

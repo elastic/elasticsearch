@@ -163,7 +163,7 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
         ImmutableSettings.Builder settings = settingsBuilder();
         settings.put(nodeSettings);
         if (resource != null) {
-            settings.put("path.plugins", PathUtils.get(resource.getPath()).toAbsolutePath());
+            settings.put("path.plugins", PathUtils.get(resource.toURI()).toAbsolutePath());
         }
 
         if (pluginClassNames.length > 0) {

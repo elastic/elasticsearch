@@ -11,26 +11,11 @@ The scripting module uses by default http://groovy.codehaus.org/[groovy]
 scripting language with some extensions. Groovy is used since it is extremely
 fast and very simple to use.
 
-.Groovy dynamic scripting disabled by default from v1.4.3
+.Groovy dynamic scripting off by default from v1.4.3
 [IMPORTANT]
 ===================================================
 
-Elasticsearch versions 1.3.0-1.3.7 and 1.4.0-1.4.2 have a vulnerability in the
-Groovy scripting engine.  The vulnerability allows an attacker to construct
-Groovy scripts that escape the sandbox and execute shell commands as the user
-running the Elasticsearch Java VM.
-
-If you are running a vulnerable version of Elasticsearch, you should either
-upgrade to at least v1.3.8 or v1.4.3, or disable dynamic Groovy scripts by
-adding this setting to the `config/elasticsearch.yml` file in all nodes in the
-cluster:
-
-[source,yaml]
------------------------------------
-script.groovy.sandbox.enabled: false
------------------------------------
-
-This will turn off the Groovy sandbox, thus preventing dynamic Groovy scripts
+Groovy dynamic scripting is off by default, preventing dynamic Groovy scripts
 from being accepted as part of a request or retrieved from the special
 `.scripts` index. You will still be able to use Groovy scripts stored in files
 in the `config/scripts/` directory on every node.

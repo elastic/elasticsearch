@@ -33,11 +33,6 @@ import java.net.URISyntaxException;
  */
 public interface AzureStorageService {
     static public final class Storage {
-        @Deprecated
-        public static final String ACCOUNT_DEPRECATED = "cloud.azure.storage_account";
-        @Deprecated
-        public static final String KEY_DEPRECATED = "cloud.azure.storage_key";
-
         public static final String API_IMPLEMENTATION = "cloud.azure.storage.api.impl";
         public static final String ACCOUNT = "cloud.azure.storage.account";
         public static final String KEY = "cloud.azure.storage.key";

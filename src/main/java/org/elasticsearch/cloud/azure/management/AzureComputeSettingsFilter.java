@@ -36,11 +36,5 @@ public class AzureComputeSettingsFilter extends AbstractComponent {
         settingsFilter.addFilter(KEYSTORE_PASSWORD);
         settingsFilter.addFilter(KEYSTORE_TYPE);
         settingsFilter.addFilter(SUBSCRIPTION_ID);
-
-        // Deprecated Cloud management API settings we need to hide
-        // TODO Remove in 3.0.0
-        settingsFilter.addFilter(KEYSTORE_DEPRECATED);
-        settingsFilter.addFilter(PASSWORD_DEPRECATED);
-        settingsFilter.addFilter(SUBSCRIPTION_ID_DEPRECATED);
     }
 }

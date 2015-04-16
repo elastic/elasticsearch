@@ -54,11 +54,11 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
     @Inject
     public AzureComputeServiceImpl(Settings settings) {
         super(settings);
-        String subscriptionId = settings.get(SUBSCRIPTION_ID, settings.get(SUBSCRIPTION_ID_DEPRECATED));
+        String subscriptionId = settings.get(SUBSCRIPTION_ID);
 
-        serviceName = settings.get(Management.SERVICE_NAME, settings.get(Management.SERVICE_NAME_DEPRECATED));
-        String keystorePath = settings.get(KEYSTORE_PATH, settings.get(KEYSTORE_DEPRECATED));
-        String keystorePassword = settings.get(KEYSTORE_PASSWORD, settings.get(PASSWORD_DEPRECATED));
+        serviceName = settings.get(Management.SERVICE_NAME);
+        String keystorePath = settings.get(KEYSTORE_PATH);
+        String keystorePassword = settings.get(KEYSTORE_PASSWORD);
         String strKeyStoreType = settings.get(KEYSTORE_TYPE, KeyStoreType.pkcs12.name());
         KeyStoreType tmpKeyStoreType = KeyStoreType.pkcs12;
         try {

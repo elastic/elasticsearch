@@ -32,7 +32,6 @@ import org.elasticsearch.repositories.azure.AzureRepositoryModule;
 
 import java.util.Collection;
 
-import static org.elasticsearch.cloud.azure.AzureModule.checkDeprecated;
 import static org.elasticsearch.cloud.azure.AzureModule.isSnapshotReady;
 
 /**
@@ -46,7 +45,6 @@ public class CloudAzurePlugin extends AbstractPlugin {
     public CloudAzurePlugin(Settings settings) {
         this.settings = settings;
         logger.trace("starting azure plugin...");
-        checkDeprecated(settings, logger);
     }
 
     @Override

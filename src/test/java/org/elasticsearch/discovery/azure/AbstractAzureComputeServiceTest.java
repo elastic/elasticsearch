@@ -60,20 +60,11 @@ public abstract class AbstractAzureComputeServiceTest extends ElasticsearchInteg
                 .put("node.mode", "network");
 
         // We add a fake subscription_id to start mock compute service
-        if (rarely()) {
-            // We use sometime deprecated settings in tests
-            builder.put(Management.SUBSCRIPTION_ID_DEPRECATED, "fake")
-                    .put(Discovery.REFRESH_DEPRECATED, "5s")
-                    .put(Management.KEYSTORE_DEPRECATED, "dummy")
-                    .put(Management.PASSWORD_DEPRECATED, "dummy")
-                    .put(Management.SERVICE_NAME_DEPRECATED, "dummy");
-        } else {
-            builder.put(Management.SUBSCRIPTION_ID, "fake")
-                    .put(Discovery.REFRESH, "5s")
-                    .put(Management.KEYSTORE_PATH, "dummy")
-                    .put(Management.KEYSTORE_PASSWORD, "dummy")
-                    .put(Management.SERVICE_NAME, "dummy");
-        }
+        builder.put(Management.SUBSCRIPTION_ID, "fake")
+                .put(Discovery.REFRESH, "5s")
+                .put(Management.KEYSTORE_PATH, "dummy")
+                .put(Management.KEYSTORE_PASSWORD, "dummy")
+                .put(Management.SERVICE_NAME, "dummy");
 
         return builder.build();
     }

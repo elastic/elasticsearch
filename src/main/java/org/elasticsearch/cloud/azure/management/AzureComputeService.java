@@ -27,16 +27,6 @@ import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDeta
 public interface AzureComputeService {
 
     static public final class Management {
-        // Deprecated azure management cloud settings
-        @Deprecated
-        public static final String SUBSCRIPTION_ID_DEPRECATED = "cloud.azure.subscription_id";
-        @Deprecated
-        public static final String SERVICE_NAME_DEPRECATED = "cloud.azure.service_name";
-        @Deprecated
-        public static final String KEYSTORE_DEPRECATED = "cloud.azure.keystore";
-        @Deprecated
-        public static final String PASSWORD_DEPRECATED = "cloud.azure.password";
-
         public static final String API_IMPLEMENTATION = "cloud.azure.management.api.impl";
 
         public static final String SUBSCRIPTION_ID = "cloud.azure.management.subscription.id";
@@ -49,14 +39,6 @@ public interface AzureComputeService {
     }
 
     static public final class Discovery {
-        // Deprecated azure discovery cloud settings
-        @Deprecated
-        public static final String PORT_NAME_DEPRECATED = "cloud.azure.port_name";
-        @Deprecated
-        public static final String HOST_TYPE_DEPRECATED = "cloud.azure.host_type";
-        @Deprecated
-        public static final String REFRESH_DEPRECATED = "cloud.azure.refresh_interval";
-
         public static final String REFRESH = "discovery.azure.refresh_interval";
 
         public static final String HOST_TYPE = "discovery.azure.host.type";

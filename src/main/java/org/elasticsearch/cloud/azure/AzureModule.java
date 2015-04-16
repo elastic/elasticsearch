@@ -21,7 +21,6 @@ package org.elasticsearch.cloud.azure;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.azure.management.AzureComputeService;
-import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
 import org.elasticsearch.cloud.azure.management.AzureComputeServiceImpl;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
@@ -104,17 +103,11 @@ public class AzureModule extends AbstractModule {
             return false;
         }
 
-        if (    // We check new parameters
-                (isPropertyMissing(settings, Management.SUBSCRIPTION_ID) ||
-                        isPropertyMissing(settings, Management.SERVICE_NAME) ||
-                        isPropertyMissing(settings, Management.KEYSTORE_PATH) ||
-                        isPropertyMissing(settings, Management.KEYSTORE_PASSWORD))
-                // We check deprecated
-                && (isPropertyMissing(settings, Management.SUBSCRIPTION_ID_DEPRECATED) ||
-                        isPropertyMissing(settings, Management.SERVICE_NAME_DEPRECATED) ||
-                        isPropertyMissing(settings, Management.KEYSTORE_DEPRECATED) ||
-                        isPropertyMissing(settings, Management.PASSWORD_DEPRECATED))
-                ) {
+        if (isPropertyMissing(settings, Management.SUBSCRIPTION_ID) ||
+                isPropertyMissing(settings, Management.SERVICE_NAME) ||
+                isPropertyMissing(settings, Management.KEYSTORE_PATH) ||
+                isPropertyMissing(settings, Management.KEYSTORE_PASSWORD)
+            ) {
             logger.debug("one or more azure discovery settings are missing. " +
                             "Check elasticsearch.yml file. Should have [{}], [{}], [{}] and [{}].",
                     Management.SUBSCRIPTION_ID,
@@ -140,10 +133,8 @@ public class AzureModule extends AbstractModule {
             return false;
         }
 
-        if ((isPropertyMissing(settings, Storage.ACCOUNT) ||
-                isPropertyMissing(settings, Storage.KEY)) &&
-                (isPropertyMissing(settings, Storage.ACCOUNT_DEPRECATED) ||
-                isPropertyMissing(settings, Storage.KEY_DEPRECATED))) {
+        if (isPropertyMissing(settings, Storage.ACCOUNT) ||
+                isPropertyMissing(settings, Storage.KEY)) {
             logger.debug("azure repository is not set using [{}] and [{}] properties",
                     Storage.ACCOUNT,
                     Storage.KEY);
@@ -154,38 +145,6 @@ public class AzureModule extends AbstractModule {
 
         return true;
    }
-
-    /**
-     * Check if we are using any deprecated settings
-     */
-    public static void checkDeprecatedSettings(Settings settings, String oldParameter, String newParameter, ESLogger logger) {
-        if (!isPropertyMissing(settings, oldParameter)) {
-            logger.warn("using deprecated [{}]. Please change it to [{}] property.",
-                    oldParameter,
-                    newParameter);
-        }
-    }
-
-    /**
-     * Check all deprecated settings
-     * @param settings
-     * @param logger
-     */
-    public static void checkDeprecated(Settings settings, ESLogger logger) {
-        // Cloud services are disabled
-        if (isCloudReady(settings)) {
-            checkDeprecatedSettings(settings, Storage.ACCOUNT_DEPRECATED, Storage.ACCOUNT, logger);
-            checkDeprecatedSettings(settings, Storage.KEY_DEPRECATED, Storage.KEY, logger);
-
-            // TODO Remove in 3.0.0
-            checkDeprecatedSettings(settings, Management.KEYSTORE_DEPRECATED, Management.KEYSTORE_PATH, logger);
-            checkDeprecatedSettings(settings, Management.PASSWORD_DEPRECATED, Management.KEYSTORE_PASSWORD, logger);
-            checkDeprecatedSettings(settings, Management.SERVICE_NAME_DEPRECATED, Management.SERVICE_NAME, logger);
-            checkDeprecatedSettings(settings, Management.SUBSCRIPTION_ID_DEPRECATED, Management.SUBSCRIPTION_ID, logger);
-            checkDeprecatedSettings(settings, Discovery.HOST_TYPE_DEPRECATED, Discovery.HOST_TYPE, logger);
-            checkDeprecatedSettings(settings, Discovery.PORT_NAME_DEPRECATED, Discovery.ENDPOINT_NAME, logger);
-        }
-    }
 
     public static boolean isPropertyMissing(Settings settings, String name) throws ElasticsearchException {
         if (!Strings.hasText(settings.get(name))) {

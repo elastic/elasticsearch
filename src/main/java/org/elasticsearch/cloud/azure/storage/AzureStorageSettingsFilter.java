@@ -34,10 +34,5 @@ public class AzureStorageSettingsFilter extends AbstractComponent {
         // Cloud storage API settings needed to be hidden
         settingsFilter.addFilter(ACCOUNT);
         settingsFilter.addFilter(KEY);
-
-        // Deprecated Cloud storage API settings needed to be hidden
-        // TODO Remove in 3.0.0
-        settingsFilter.addFilter(ACCOUNT_DEPRECATED);
-        settingsFilter.addFilter(KEY_DEPRECATED);
     }
 }

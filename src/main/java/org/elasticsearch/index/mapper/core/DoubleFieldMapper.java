@@ -192,25 +192,11 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     }
 
     @Override
-    public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        double dValue = parseDoubleValue(value);
-        return NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,
-                dValue, dValue, true, true);
-    }
-
-    @Override
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseDoubleValue(lowerTerm),
                 upperTerm == null ? null : parseDoubleValue(upperTerm),
                 includeLower, includeUpper);
-    }
-
-    @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        double dValue = parseDoubleValue(value);
-        return Queries.wrap(NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,
-                dValue, dValue, true, true));
     }
 
     @Override

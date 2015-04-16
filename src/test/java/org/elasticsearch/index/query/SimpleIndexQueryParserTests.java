@@ -464,25 +464,25 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     public void testTermQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(termQuery("age", 34).buildAsBytes()).query();
-        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
-        NumericRangeQuery fieldQuery = (NumericRangeQuery) parsedQuery;
-        assertThat(fieldQuery.getMin().intValue(), equalTo(34));
-        assertThat(fieldQuery.getMax().intValue(), equalTo(34));
-        assertThat(fieldQuery.includesMax(), equalTo(true));
-        assertThat(fieldQuery.includesMin(), equalTo(true));
+        TermQuery fieldQuery = unwrapTermQuery(parsedQuery, true);
+        assertThat(fieldQuery.getTerm().bytes(), equalTo(indexedValueForSearch(34l)));
     }
 
     @Test
     public void testTermQuery() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/term.json");
-        Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
-        NumericRangeQuery fieldQuery = (NumericRangeQuery) parsedQuery;
-        assertThat(fieldQuery.getMin().intValue(), equalTo(34));
-        assertThat(fieldQuery.getMax().intValue(), equalTo(34));
-        assertThat(fieldQuery.includesMax(), equalTo(true));
-        assertThat(fieldQuery.includesMin(), equalTo(true));
+        TermQuery fieldQuery = unwrapTermQuery(queryParser.parse(query).query(), true);
+        assertThat(fieldQuery.getTerm().bytes(), equalTo(indexedValueForSearch(34l)));
+    }
+
+    private static TermQuery unwrapTermQuery(Query q, boolean expectConstantWrapper) {
+        if (expectConstantWrapper) {
+            assertThat(q, instanceOf(ConstantScoreQuery.class));
+            q = ((ConstantScoreQuery) q).getQuery();
+        }
+        assertThat(q, instanceOf(TermQuery.class));
+        return (TermQuery) q;
     }
 
     @Test
@@ -543,14 +543,19 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testTermWithBoostQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
+
         Query parsedQuery = queryParser.parse(termQuery("age", 34).boost(2.0f)).query();
-        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
-        NumericRangeQuery fieldQuery = (NumericRangeQuery) parsedQuery;
-        assertThat(fieldQuery.getMin().intValue(), equalTo(34));
-        assertThat(fieldQuery.getMax().intValue(), equalTo(34));
-        assertThat(fieldQuery.includesMax(), equalTo(true));
-        assertThat(fieldQuery.includesMin(), equalTo(true));
-        assertThat((double) fieldQuery.getBoost(), closeTo(2.0, 0.01));
+        TermQuery fieldQuery = unwrapTermQuery(parsedQuery, true);
+        assertThat(fieldQuery.getTerm().bytes(), equalTo(indexedValueForSearch(34l)));
+        assertThat((double) parsedQuery.getBoost(), closeTo(2.0, 0.01));
+    }
+
+    private BytesRef indexedValueForSearch(long value) {
+        BytesRefBuilder bytesRef = new BytesRefBuilder();
+        NumericUtils.longToPrefixCoded(value, 0, bytesRef); // 0 because of
+                                                            // exact
+                                                            // match
+        return bytesRef.get();
     }
 
     @Test
@@ -558,13 +563,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/term-with-boost.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
-        NumericRangeQuery fieldQuery = (NumericRangeQuery) parsedQuery;
-        assertThat(fieldQuery.getMin().intValue(), equalTo(34));
-        assertThat(fieldQuery.getMax().intValue(), equalTo(34));
-        assertThat(fieldQuery.includesMax(), equalTo(true));
-        assertThat(fieldQuery.includesMin(), equalTo(true));
-        assertThat((double) fieldQuery.getBoost(), closeTo(2.0, 0.01));
+        TermQuery fieldQuery = unwrapTermQuery(parsedQuery, true);
+        assertThat(fieldQuery.getTerm().bytes(), equalTo(indexedValueForSearch(34l)));
+        assertThat((double) parsedQuery.getBoost(), closeTo(2.0, 0.01));
     }
 
     @Test

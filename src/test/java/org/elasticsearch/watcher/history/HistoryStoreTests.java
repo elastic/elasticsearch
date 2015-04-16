@@ -110,6 +110,46 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         assertThat(watchRecord.version(), equalTo(version));
     }
 
+    @Test(expected = HistoryException.class)
+    public void testPut_stopped() {
+        Watch watch = mock(Watch.class);
+        when(watch.name()).thenReturn("_name");
+        when(watch.condition()).thenReturn(new AlwaysTrueCondition(logger));
+        when(watch.input()).thenReturn(null);
+        when(watch.metadata()).thenReturn(null);
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent(new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
+        Wid wid = new Wid("_name", 0, new DateTime(0, DateTimeZone.UTC));
+        WatchRecord watchRecord = new WatchRecord(wid, watch, event);
+
+        historyStore.stop();
+        try {
+            historyStore.put(watchRecord);
+        } finally {
+            historyStore.start();
+        }
+        fail();
+    }
+
+    @Test(expected = HistoryException.class)
+    public void testUpdate_stopped() throws Exception {
+        Watch watch = mock(Watch.class);
+        when(watch.name()).thenReturn("_name");
+        when(watch.condition()).thenReturn(new AlwaysTrueCondition(logger));
+        when(watch.input()).thenReturn(null);
+        when(watch.metadata()).thenReturn(null);
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent(new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
+        Wid wid = new Wid("_name", 0, new DateTime(0, DateTimeZone.UTC));
+        WatchRecord watchRecord = new WatchRecord(wid, watch, event);
+
+        historyStore.stop();
+        try {
+            historyStore.update(watchRecord);
+        } finally {
+            historyStore.start();
+        }
+        fail();
+    }
+
     @Test
     public void testLoadWatchRecords_noPriorHistoryIndices() throws Exception {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("name"));

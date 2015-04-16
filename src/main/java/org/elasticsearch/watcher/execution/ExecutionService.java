@@ -98,7 +98,6 @@ public class ExecutionService extends AbstractComponent {
             historyStore.stop();
             logger.debug("cancelled [{}] queued tasks", cancelledTasks.size());
             logger.debug("stopped execution service");
-
         }
     }
 
@@ -257,12 +256,11 @@ public class ExecutionService extends AbstractComponent {
 
         @Override
         public void run() {
-            logger.info("Running [{}] [{}]", ctx.watch().name(), ctx.id());
             if (!started.get()) {
-                logger.warn("Rejecting execution due to service is not started");
                 logger.debug("can't initiate watch execution as execution service is not started, ignoring it...");
                 return;
             }
+            logger.trace("executing [{}] [{}]", ctx.watch().name(), ctx.id());
             WatchLockService.Lock lock = watchLockService.acquire(ctx.watch().name());
             try {
                 watchRecord.update(WatchRecord.State.CHECKING, null);
@@ -288,7 +286,7 @@ public class ExecutionService extends AbstractComponent {
                 }
             } finally {
                 lock.release();
-                logger.info("Finished [{}] [{}]", ctx.watch().name(), ctx.id());
+                logger.trace("finished [{}] [{}]", ctx.watch().name(), ctx.id());
             }
         }
 

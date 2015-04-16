@@ -61,7 +61,6 @@ public class HistoryStore extends AbstractComponent {
     private final Lock stopLock = readWriteLock.writeLock();
     private final AtomicBoolean started = new AtomicBoolean(false);
 
-
     @Inject
     public HistoryStore(Settings settings, ClientProxy client, TemplateUtils templateUtils, WatchRecord.Parser recordParser) {
         super(settings);
@@ -87,11 +86,11 @@ public class HistoryStore extends AbstractComponent {
     }
 
     public void put(WatchRecord watchRecord) throws HistoryException {
-        putUpdateLock.lock();
         if (!started.get()) {
             throw new HistoryException("unable to persist watch record history store is not ready");
         }
         String index = getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
+        putUpdateLock.lock();
         try {
             IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
                     .source(XContentFactory.jsonBuilder().value(watchRecord))
@@ -106,10 +105,10 @@ public class HistoryStore extends AbstractComponent {
     }
 
     public void update(WatchRecord watchRecord) throws HistoryException {
-        putUpdateLock.lock();
         if (!started.get()) {
             throw new HistoryException("unable to persist watch record history store is not ready");
         }
+        putUpdateLock.lock();
         try {
             BytesReference bytes = XContentFactory.jsonBuilder().value(watchRecord).bytes();
             IndexRequest request = new IndexRequest(getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime()), DOC_TYPE, watchRecord.id().value())

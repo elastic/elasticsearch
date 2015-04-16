@@ -9,9 +9,11 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -52,6 +54,50 @@ public class WatchLockServiceTests extends ElasticsearchTestCase {
         }
         lock1.release();
         lockService.stop();
+    }
+
+    @Test
+    public void testLocking_fair() throws Exception {
+        final WatchLockService lockService = new WatchLockService();
+        lockService.start();
+        final AtomicInteger value = new AtomicInteger(0);
+        List<Thread> threads = new ArrayList<>();
+
+        class FairRunner implements Runnable {
+
+            final int expectedValue;
+
+            FairRunner(int expectedValue) {
+                this.expectedValue = expectedValue;
+            }
+
+            @Override
+            public void run() {
+                WatchLockService.Lock lock = lockService.acquire("_name");
+                try {
+                    int actualValue = value.getAndIncrement();
+                    assertThat(actualValue, equalTo(expectedValue));
+                    Thread.sleep(50);
+                } catch(InterruptedException ie) {
+                } finally {
+                    lock.release();
+                }
+            }
+        }
+
+        for(int i = 0; i < 100; ++i) {
+            FairRunner f = new FairRunner(i);
+            threads.add(new Thread(f));
+        }
+
+        for(Thread t : threads) {
+            t.start();
+            Thread.sleep(10);
+        }
+
+        for(Thread t : threads) {
+            t.join();
+        }
     }
 
 }

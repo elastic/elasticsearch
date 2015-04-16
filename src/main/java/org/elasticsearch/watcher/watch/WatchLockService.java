@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.watch;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.watcher.support.concurrent.FairKeyedLock;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class WatchLockService {
 
-    private final KeyedLock<String> watchLocks = new KeyedLock<>();
+    private final FairKeyedLock<String> watchLocks = new FairKeyedLock<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     public Lock acquire(String name) {
@@ -52,16 +52,16 @@ public class WatchLockService {
         }
     }
 
-    KeyedLock<String> getWatchLocks() {
+    FairKeyedLock<String> getWatchLocks() {
         return watchLocks;
     }
 
     public static class Lock {
 
         private final String name;
-        private final KeyedLock<String> watchLocks;
+        private final FairKeyedLock<String> watchLocks;
 
-        private Lock(String name, KeyedLock<String> watchLocks) {
+        private Lock(String name, FairKeyedLock<String> watchLocks) {
             this.name = name;
             this.watchLocks = watchLocks;
 

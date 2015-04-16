@@ -69,6 +69,8 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperUtils;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -280,10 +282,13 @@ public class PercolatorService extends AbstractComponent {
                         }
 
                         MapperService mapperService = documentIndexService.mapperService();
-                        Tuple<DocumentMapper, Boolean> docMapper = mapperService.documentMapperWithAutoCreate(request.documentType());
-                        doc = docMapper.v1().parse(source(parser).type(request.documentType()).flyweight(true)).setMappingsModified(docMapper);
-                        if (doc.mappingsModified()) {
-                            mappingUpdatedAction.updateMappingOnMaster(request.shardId().getIndex(), docMapper.v1(), documentIndexService.indexUUID());
+                        Tuple<DocumentMapper, Mapping> docMapper = mapperService.documentMapperWithAutoCreate(request.documentType());
+                        doc = docMapper.v1().parse(source(parser).type(request.documentType()).flyweight(true));
+                        if (docMapper.v2() != null) {
+                            doc.addDynamicMappingsUpdate(docMapper.v2());
+                        }
+                        if (doc.dynamicMappingsUpdate() != null) {
+                            mappingUpdatedAction.updateMappingOnMasterSynchronously(request.shardId().getIndex(), documentIndexService.indexUUID(), request.documentType(), doc.dynamicMappingsUpdate());
                         }
                         // the document parsing exists the "doc" object, so we need to set the new current field.
                         currentFieldName = parser.currentName();
@@ -387,7 +392,7 @@ public class PercolatorService extends AbstractComponent {
         try {
             parser = XContentFactory.xContent(fetchedDoc).createParser(fetchedDoc);
             MapperService mapperService = documentIndexService.mapperService();
-            Tuple<DocumentMapper, Boolean> docMapper = mapperService.documentMapperWithAutoCreate(type);
+            Tuple<DocumentMapper, Mapping> docMapper = mapperService.documentMapperWithAutoCreate(type);
             doc = docMapper.v1().parse(source(parser).type(type).flyweight(true));
 
             if (context.highlight() != null) {

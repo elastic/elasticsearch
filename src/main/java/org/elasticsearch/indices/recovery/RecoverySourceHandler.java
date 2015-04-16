@@ -567,7 +567,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
             }
         };
         for (DocumentMapper documentMapper : documentMappersToUpdate) {
-            mappingUpdatedAction.updateMappingOnMaster(indexService.index().getName(), documentMapper, indexService.indexUUID(), listener);
+            mappingUpdatedAction.updateMappingOnMaster(indexService.index().getName(), indexService.indexUUID(), documentMapper.type(), documentMapper.mapping(), listener);
         }
         cancellableThreads.execute(new Interruptable() {
             @Override

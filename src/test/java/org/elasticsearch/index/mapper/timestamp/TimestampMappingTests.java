@@ -141,7 +141,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
         DocumentMapper disabledMapper = parser.parse(disabledMapping);
 
-        enabledMapper.merge(disabledMapper, DocumentMapper.MergeFlags.mergeFlags().simulate(false));
+        enabledMapper.merge(disabledMapper.mapping(), DocumentMapper.MergeFlags.mergeFlags().simulate(false));
 
         assertThat(enabledMapper.timestampFieldMapper().enabled(), is(false));
     }
@@ -502,7 +502,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "eager").field("format", "array").endObject().field("store", "yes").endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping), DocumentMapper.MergeFlags.mergeFlags().simulate(false));
+        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping).mapping(), DocumentMapper.MergeFlags.mergeFlags().simulate(false));
         assertThat(mergeResult.conflicts().length, equalTo(0));
         assertThat(docMapper.timestampFieldMapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.EAGER));
         assertThat(docMapper.timestampFieldMapper().fieldDataType().getFormat(indexSettings), equalTo("array"));
@@ -517,8 +517,6 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .field("path", "foo")
                 .field("default", "1970-01-01")
                 .startObject("fielddata").field("format", "doc_values").endObject()
-                .endObject()
-                .startObject("properties")
                 .endObject()
                 .endObject().endObject().string();
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
@@ -578,7 +576,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
+        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping).mapping(), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
         String[] expectedConflicts = {"mapper [_timestamp] has different index values", "mapper [_timestamp] has different store values", "Cannot update default in _timestamp value. Value is 1970-01-01 now encountering 1970-01-02", "Cannot update path in _timestamp value. Value is foo path in merged mapping is bar", "mapper [_timestamp] has different tokenize values"};
 
         for (String conflict : mergeResult.conflicts()) {
@@ -612,7 +610,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
+        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping).mapping(), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
         List<String> expectedConflicts = new ArrayList<>();
         expectedConflicts.add("mapper [_timestamp] has different index values");
         expectedConflicts.add("mapper [_timestamp] has different tokenize values");
@@ -673,7 +671,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         DocumentMapper docMapper = parser.parse(mapping1);
         docMapper.refreshSource();
         docMapper = parser.parse(docMapper.mappingSource().string());
-        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping2), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
+        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping2).mapping(), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
         assertThat(mergeResult.conflicts().length, equalTo(conflict == null ? 0:1));
         if (conflict != null) {
             assertThat(mergeResult.conflicts()[0], containsString(conflict));

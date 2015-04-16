@@ -525,7 +525,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     class NotifyTimeout implements Runnable {
         final TimeoutClusterStateListener listener;
         final TimeValue timeout;
-        ScheduledFuture future;
+        volatile ScheduledFuture future;
 
         NotifyTimeout(TimeoutClusterStateListener listener, TimeValue timeout) {
             this.listener = listener;
@@ -538,7 +538,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
         @Override
         public void run() {
-            if (future.isCancelled()) {
+            if (future != null && future.isCancelled()) {
                 return;
             }
             if (lifecycle.stoppedOrClosed()) {

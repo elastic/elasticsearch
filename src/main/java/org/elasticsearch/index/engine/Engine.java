@@ -430,13 +430,13 @@ public abstract class Engine implements Closeable {
      * Optimizes to 1 segment
      */
     public void forceMerge(boolean flush) {
-        forceMerge(flush, 1, false, false);
+        forceMerge(flush, 1, false, false, false);
     }
 
     /**
      * Triggers a forced merge on this engine
      */
-    public abstract void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade) throws EngineException;
+    public abstract void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade, boolean upgradeOnlyAncientSegments) throws EngineException;
 
     /**
      * Snapshots the index and returns a handle to it. Will always try and "commit" the

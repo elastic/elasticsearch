@@ -702,7 +702,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (logger.isTraceEnabled()) {
             logger.trace("optimize with {}", optimize);
         }
-        engine().forceMerge(optimize.flush(), optimize.maxNumSegments(), optimize.onlyExpungeDeletes(), optimize.upgrade());
+        engine().forceMerge(optimize.flush(), optimize.maxNumSegments(), optimize.onlyExpungeDeletes(),
+                            optimize.upgrade(), optimize.upgradeOnlyAncientSegments());
     }
 
     public SnapshotIndexCommit snapshotIndex() throws EngineException {

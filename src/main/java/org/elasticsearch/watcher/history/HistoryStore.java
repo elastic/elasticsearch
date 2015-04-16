@@ -11,6 +11,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.support.TemplateUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.cluster.ClusterState;
@@ -127,10 +128,15 @@ public class HistoryStore extends AbstractComponent {
                 while (response.getHits().hits().length != 0) {
                     for (SearchHit sh : response.getHits()) {
                         String id = sh.getId();
-                        WatchRecord record = recordParser.parse(id, sh.version(), sh.getSourceRef());
-                        assert record.state() == recordState;
-                        logger.debug("loaded watch record [{}/{}/{}]", sh.index(), sh.type(), sh.id());
-                        records.add(record);
+                        try {
+                            WatchRecord record = recordParser.parse(id, sh.version(), sh.getSourceRef());
+                            assert record.state() == recordState;
+                            logger.debug("loaded watch record [{}/{}/{}]", sh.index(), sh.type(), sh.id());
+                            records.add(record);
+                        } catch (WatcherException we) {
+                            logger.error("while loading records, failed to parse watch record [{}]", we, id);
+                            throw we;
+                        }
                     }
                     response = client.searchScroll(response.getScrollId(), scrollTimeout);
                 }

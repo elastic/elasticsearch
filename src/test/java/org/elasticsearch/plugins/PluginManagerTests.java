@@ -521,8 +521,8 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
      * @throws NullPointerException if {@code resourceName} does not point to a valid resource.
      */
     private String getPluginUrlForResource(String resourceName) {
-        Path resourcePath = PathUtils.get(PluginManagerTests.class.getResource(resourceName).getPath());
+        URI uri = URI.create(PluginManagerTests.class.getResource(resourceName).toString());
 
-        return "file://" + resourcePath.toString();
+        return "file://" + uri.getPath();
     }
 }

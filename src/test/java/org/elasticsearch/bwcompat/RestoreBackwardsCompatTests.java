@@ -95,7 +95,7 @@ public class RestoreBackwardsCompatTests extends AbstractSnapshotTests {
 
     public static List<String> repoVersions() throws Exception {
         List<String> repoVersions = newArrayList();
-        Path repoFiles = PathUtils.get(RestoreBackwardsCompatTests.class.getResource(".").getPath());
+        Path repoFiles = PathUtils.get(RestoreBackwardsCompatTests.class.getResource(".").toURI());
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(repoFiles, "repo-*.zip")) {
             for (Path entry : stream) {
                 String fileName = entry.getFileName().toString();

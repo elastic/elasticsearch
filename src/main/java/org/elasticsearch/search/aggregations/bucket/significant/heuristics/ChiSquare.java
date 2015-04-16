@@ -68,7 +68,7 @@ public class ChiSquare extends NXYSignificanceHeuristic {
      * see "Information Retrieval", Manning et al., Eq. 13.19
      */
     @Override
-    public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
+    public double getScore(Object term, long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
         Frequencies frequencies = computeNxys(subsetFreq, subsetSize, supersetFreq, supersetSize, "ChiSquare");
 
         // here we check if the term appears more often in subset than in background without subset.

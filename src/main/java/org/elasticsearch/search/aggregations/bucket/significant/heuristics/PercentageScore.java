@@ -59,7 +59,7 @@ public class PercentageScore extends SignificanceHeuristic {
      * of all occurrences of a term are found in the sample. 
      */
     @Override
-    public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
+    public double getScore(Object term, long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
         checkFrequencyValidity(subsetFreq, subsetSize, supersetFreq, supersetSize, "PercentageScore");
         if (supersetFreq == 0) {
             // avoid a divide by zero issue

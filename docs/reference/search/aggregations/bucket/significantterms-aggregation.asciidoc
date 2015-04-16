@@ -369,6 +369,7 @@ Parameters need to be set as follows:
 Available parameters in the script are
 
 [horizontal]
+`_term`:: The term being scored (this can be either a java String or a Long depending on the choice of field)
 `_subset_freq`:: Number of documents the term appears in in the subset.
 `_superset_freq`:: Number of documents the term appears in in the superset.
 `_subset_size`:: Number of documents in the subset.

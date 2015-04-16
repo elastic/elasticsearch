@@ -70,7 +70,7 @@ public class MutualInformation extends NXYSignificanceHeuristic {
      * see "Information Retrieval", Manning et al., Eq. 13.17
      */
     @Override
-    public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
+    public double getScore(Object term, long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
         Frequencies frequencies = computeNxys(subsetFreq, subsetSize, supersetFreq, supersetSize, "MutualInformation");
 
         double score = (getMITerm(frequencies.N00, frequencies.N0_, frequencies.N_0, frequencies.N) +

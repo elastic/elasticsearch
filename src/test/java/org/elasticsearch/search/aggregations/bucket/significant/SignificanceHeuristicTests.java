@@ -30,7 +30,17 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.*;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.PercentageScore;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ScriptHeuristic;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicBuilder;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -208,35 +218,35 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
 
     void testBackgroundAssertions(SignificanceHeuristic heuristicIsSuperset, SignificanceHeuristic heuristicNotSuperset) {
         try {
-            heuristicIsSuperset.getScore(2, 3, 1, 4);
+            heuristicIsSuperset.getScore(null, 2, 3, 1, 4);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("subsetFreq > supersetFreq"));
         }
         try {
-            heuristicIsSuperset.getScore(1, 4, 2, 3);
+            heuristicIsSuperset.getScore(null, 1, 4, 2, 3);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("subsetSize > supersetSize"));
         }
         try {
-            heuristicIsSuperset.getScore(2, 1, 3, 4);
+            heuristicIsSuperset.getScore(null, 2, 1, 3, 4);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("subsetFreq > subsetSize"));
         }
         try {
-            heuristicIsSuperset.getScore(1, 2, 4, 3);
+            heuristicIsSuperset.getScore(null, 1, 2, 4, 3);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("supersetFreq > supersetSize"));
         }
         try {
-            heuristicIsSuperset.getScore(1, 3, 4, 4);
+            heuristicIsSuperset.getScore(null, 1, 3, 4, 4);
             fail();
         } catch (ElasticsearchIllegalArgumentException assertionError) {
             assertNotNull(assertionError.getMessage());
@@ -246,21 +256,21 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
             int idx = randomInt(3);
             long[] values = {1, 2, 3, 4};
             values[idx] *= -1;
-            heuristicIsSuperset.getScore(values[0], values[1], values[2], values[3]);
+            heuristicIsSuperset.getScore(null, values[0], values[1], values[2], values[3]);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("Frequencies of subset and superset must be positive"));
         }
         try {
-            heuristicNotSuperset.getScore(2, 1, 3, 4);
+            heuristicNotSuperset.getScore(null, 2, 1, 3, 4);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("subsetFreq > subsetSize"));
         }
         try {
-            heuristicNotSuperset.getScore(1, 2, 4, 3);
+            heuristicNotSuperset.getScore(null, 1, 2, 4, 3);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
@@ -270,7 +280,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
             int idx = randomInt(3);
             long[] values = {1, 2, 3, 4};
             values[idx] *= -1;
-            heuristicNotSuperset.getScore(values[0], values[1], values[2], values[3]);
+            heuristicNotSuperset.getScore(null, values[0], values[1], values[2], values[3]);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
@@ -283,21 +293,21 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
             int idx = randomInt(3);
             long[] values = {1, 2, 3, 4};
             values[idx] *= -1;
-            heuristic.getScore(values[0], values[1], values[2], values[3]);
+            heuristic.getScore(null, values[0], values[1], values[2], values[3]);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("Frequencies of subset and superset must be positive"));
         }
         try {
-            heuristic.getScore(1, 2, 4, 3);
+            heuristic.getScore(null, 1, 2, 4, 3);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("supersetFreq > supersetSize"));
         }
         try {
-            heuristic.getScore(2, 1, 3, 4);
+            heuristic.getScore(null, 2, 1, 3, 4);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
@@ -325,11 +335,11 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
 
     public void basicScoreProperties(SignificanceHeuristic heuristic, boolean test0) {
 
-        assertThat(heuristic.getScore(1, 1, 1, 3), greaterThan(0.0));
-        assertThat(heuristic.getScore(1, 1, 2, 3), lessThan(heuristic.getScore(1, 1, 1, 3)));
-        assertThat(heuristic.getScore(1, 1, 3, 4), lessThan(heuristic.getScore(1, 1, 2, 4)));
+        assertThat(heuristic.getScore(null, 1, 1, 1, 3), greaterThan(0.0));
+        assertThat(heuristic.getScore(null, 1, 1, 2, 3), lessThan(heuristic.getScore(null, 1, 1, 1, 3)));
+        assertThat(heuristic.getScore(null, 1, 1, 3, 4), lessThan(heuristic.getScore(null, 1, 1, 2, 4)));
         if (test0) {
-            assertThat(heuristic.getScore(0, 1, 2, 3), equalTo(0.0));
+            assertThat(heuristic.getScore(null, 0, 1, 2, 3), equalTo(0.0));
         }
 
         double score = 0.0;
@@ -338,7 +348,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
             long b = randomLong();
             long c = randomLong();
             long d = randomLong();
-            score = heuristic.getScore(a, b, c, d);
+            score = heuristic.getScore(null, a, b, c, d);
         } catch (ElasticsearchIllegalArgumentException e) {
         }
         assertThat(score, greaterThanOrEqualTo(0.0));
@@ -347,13 +357,13 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
     @Test
     public void scoreMutual() throws Exception {
         SignificanceHeuristic heuristic = new MutualInformation(true, true);
-        assertThat(heuristic.getScore(1, 1, 1, 3), greaterThan(0.0));
-        assertThat(heuristic.getScore(1, 1, 2, 3), lessThan(heuristic.getScore(1, 1, 1, 3)));
-        assertThat(heuristic.getScore(2, 2, 2, 4), equalTo(1.0));
-        assertThat(heuristic.getScore(0, 2, 2, 4), equalTo(1.0));
-        assertThat(heuristic.getScore(2, 2, 4, 4), equalTo(0.0));
-        assertThat(heuristic.getScore(1, 2, 2, 4), equalTo(0.0));
-        assertThat(heuristic.getScore(3, 6, 9, 18), equalTo(0.0));
+        assertThat(heuristic.getScore(null, 1, 1, 1, 3), greaterThan(0.0));
+        assertThat(heuristic.getScore(null, 1, 1, 2, 3), lessThan(heuristic.getScore(null, 1, 1, 1, 3)));
+        assertThat(heuristic.getScore(null, 2, 2, 2, 4), equalTo(1.0));
+        assertThat(heuristic.getScore(null, 0, 2, 2, 4), equalTo(1.0));
+        assertThat(heuristic.getScore(null, 2, 2, 4, 4), equalTo(0.0));
+        assertThat(heuristic.getScore(null, 1, 2, 2, 4), equalTo(0.0));
+        assertThat(heuristic.getScore(null, 3, 6, 9, 18), equalTo(0.0));
 
         double score = 0.0;
         try {
@@ -361,22 +371,22 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
             long b = randomLong();
             long c = randomLong();
             long d = randomLong();
-            score = heuristic.getScore(a, b, c, d);
+            score = heuristic.getScore(null, a, b, c, d);
         } catch (ElasticsearchIllegalArgumentException e) {
         }
         assertThat(score, lessThanOrEqualTo(1.0));
         assertThat(score, greaterThanOrEqualTo(0.0));
         heuristic = new MutualInformation(false, true);
-        assertThat(heuristic.getScore(0, 1, 2, 3), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(heuristic.getScore(null, 0, 1, 2, 3), equalTo(Double.NEGATIVE_INFINITY));
 
         heuristic = new MutualInformation(true, false);
-        score = heuristic.getScore(2, 3, 1, 4);
+        score = heuristic.getScore(null, 2, 3, 1, 4);
         assertThat(score, greaterThanOrEqualTo(0.0));
         assertThat(score, lessThanOrEqualTo(1.0));
-        score = heuristic.getScore(1, 4, 2, 3);
+        score = heuristic.getScore(null, 1, 4, 2, 3);
         assertThat(score, greaterThanOrEqualTo(0.0));
         assertThat(score, lessThanOrEqualTo(1.0));
-        score = heuristic.getScore(1, 3, 4, 4);
+        score = heuristic.getScore(null, 1, 3, 4, 4);
         assertThat(score, greaterThanOrEqualTo(0.0));
         assertThat(score, lessThanOrEqualTo(1.0));
     }
@@ -387,14 +397,14 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         //term is only in the subset, not at all in the other set but that is because the other set is empty.
         // this should actually not happen because only terms that are in the subset are considered now,
         // however, in this case the score should be 0 because a term that does not exist cannot be relevant...
-        assertThat(gnd.getScore(0, randomIntBetween(1, 2), 0, randomIntBetween(2,3)), equalTo(0.0));
+        assertThat(gnd.getScore(null, 0, randomIntBetween(1, 2), 0, randomIntBetween(2, 3)), equalTo(0.0));
         // the terms do not co-occur at all - should be 0
-        assertThat(gnd.getScore(0, randomIntBetween(1, 2), randomIntBetween(2, 3), randomIntBetween(5,6)), equalTo(0.0));
+        assertThat(gnd.getScore(null, 0, randomIntBetween(1, 2), randomIntBetween(2, 3), randomIntBetween(5, 6)), equalTo(0.0));
         // comparison between two terms that do not exist - probably not relevant
-        assertThat(gnd.getScore(0, 0, 0, randomIntBetween(1,2)), equalTo(0.0));
+        assertThat(gnd.getScore(null, 0, 0, 0, randomIntBetween(1, 2)), equalTo(0.0));
         // terms co-occur perfectly - should be 1
-        assertThat(gnd.getScore(1, 1, 1, 1), equalTo(1.0));
+        assertThat(gnd.getScore(null, 1, 1, 1, 1), equalTo(1.0));
         gnd = new GND(false);
-        assertThat(gnd.getScore(0, 0, 0, 0), equalTo(0.0));
+        assertThat(gnd.getScore(null, 0, 0, 0, 0), equalTo(0.0));
     }
 }

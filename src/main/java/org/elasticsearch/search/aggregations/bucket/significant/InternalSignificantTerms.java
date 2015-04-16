@@ -88,7 +88,7 @@ public abstract class InternalSignificantTerms extends InternalMultiBucketAggreg
         }
 
         public void updateScore(SignificanceHeuristic significanceHeuristic) {
-            score = significanceHeuristic.getScore(subsetDf, subsetSize, supersetDf, supersetSize);
+            score = significanceHeuristic.getScore(getKey(), subsetDf, subsetSize, supersetDf, supersetSize);
         }
 
         @Override

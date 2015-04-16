@@ -42,7 +42,16 @@ import org.elasticsearch.search.aggregations.bucket.significant.SignificantStrin
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.*;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ScriptHeuristic;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicBuilder;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificantTermsHeuristicModule;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.TransportSignificantTermsHeuristicModule;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
@@ -50,7 +59,12 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -61,7 +75,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
@@ -200,6 +214,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         }
 
         /**
+         * @param term   The term to be scored
          * @param subsetFreq   The frequency of the term in the selected sample
          * @param subsetSize   The size of the selected sample (typically number of docs)
          * @param supersetFreq The frequency of the term in the superset from which the sample was taken
@@ -207,7 +222,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
          * @return a "significance" score
          */
         @Override
-        public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
+        public double getScore(Object term, long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
             return subsetFreq / subsetSize > supersetFreq / supersetSize ? 2.0 : 1.0;
         }
 
@@ -523,6 +538,71 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         }
     }
 
+    @Test
+    public void testNumericTermAccessFromScriptingEngine() throws ExecutionException, InterruptedException, IOException {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(ImmutableSettings.builder().put("index.number_of_shards", 1)));
+        index("test", "doc", "1", "{\"field\":1}");
+        index("test", "doc", "11", "{\"field\":1}");
+        index("test", "doc", "2", "{\"field\":2}");
+        index("test", "doc", "22", "{\"field\":2}");
+        index("test", "doc", "3", "{\"field\":2}");
+        index("test", "doc", "33", "{\"field\":2}");
+        ScriptHeuristic.ScriptHeuristicBuilder scriptHeuristicBuilder = new ScriptHeuristic.ScriptHeuristicBuilder();
+        // Script calculates score using actual numeric value of the term
+        // (should be a Long here)
+        scriptHeuristicBuilder.setScript("return _term");
+        ensureYellow();
+        refresh();
+        SearchResponse response = client()
+                .prepareSearch("test")
+                .addAggregation(
+                        new TermsBuilder("numbers").field("field").subAggregation(
+                                new SignificantTermsBuilder("mySignificantTerms").field("field").executionHint(randomExecutionHint())
+                                        .significanceHeuristic(scriptHeuristicBuilder).minDocCount(1).shardSize(2).size(2))).execute()
+                .actionGet();
+        assertSearchResponse(response);
+        assertThat(((Terms) response.getAggregations().get("numbers")).getBuckets().size(), equalTo(2));
+        for (Terms.Bucket classBucket : ((Terms) response.getAggregations().get("numbers")).getBuckets()) {
+            assertThat(((SignificantTerms) classBucket.getAggregations().get("mySignificantTerms")).getBuckets().size(), equalTo(1));
+            for (SignificantTerms.Bucket bucket : ((SignificantTerms) classBucket.getAggregations().get("mySignificantTerms")).getBuckets()) {
+                assertThat(bucket.getSignificanceScore(), equalTo(Double.parseDouble(bucket.getKeyAsString())));
+            }
+        }
+    }
+
+    @Test
+    public void testStringAccessFromScriptingEngine() throws ExecutionException, InterruptedException, IOException {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(ImmutableSettings.builder().put("index.number_of_shards", 1)));
+        index("test", "doc", "1", "{\"field\":\"one\"}");
+        index("test", "doc", "11", "{\"field\":\"one\"}");
+        index("test", "doc", "2", "{\"field\":\"three\"}");
+        index("test", "doc", "22", "{\"field\":\"three\"}");
+        index("test", "doc", "3", "{\"field\":\"three\"}");
+        index("test", "doc", "33", "{\"field\":\"three\"}");
+        ScriptHeuristic.ScriptHeuristicBuilder scriptHeuristicBuilder = new ScriptHeuristic.ScriptHeuristicBuilder();
+        // Script calculates score using string length of the term
+        scriptHeuristicBuilder.setScript("return _term.length()");
+        ensureYellow();
+        refresh();
+        SearchResponse response = client()
+                .prepareSearch("test")
+                .addAggregation(
+                        new TermsBuilder("numbers").field("field").subAggregation(
+                                new SignificantTermsBuilder("mySignificantTerms").field("field").executionHint(randomExecutionHint())
+                                        .significanceHeuristic(scriptHeuristicBuilder).minDocCount(1).shardSize(2).size(2))).execute()
+                .actionGet();
+        assertSearchResponse(response);
+        assertThat(((Terms) response.getAggregations().get("numbers")).getBuckets().size(), equalTo(2));
+        for (Terms.Bucket classBucket : ((Terms) response.getAggregations().get("numbers")).getBuckets()) {
+            assertThat(((SignificantTerms) classBucket.getAggregations().get("mySignificantTerms")).getBuckets().size(), equalTo(1));
+            for (SignificantTerms.Bucket bucket : ((SignificantTerms) classBucket.getAggregations().get("mySignificantTerms")).getBuckets()) {
+                assertThat(bucket.getSignificanceScore(), equalTo((double) bucket.getKeyAsString().length()));
+            }
+        }
+    }
+
     private ScriptHeuristic.ScriptHeuristicBuilder getScriptSignificanceHeuristicBuilder() throws IOException {
         Map<String, Object> params = null;
         String script = null;
@@ -581,6 +661,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
                 }
                 break;
             }
+
         }
         ScriptHeuristic.ScriptHeuristicBuilder builder = new ScriptHeuristic.ScriptHeuristicBuilder().setScript(script).setLang(lang).setParams(params).setScriptId(scriptId).setScriptFile(scriptFile);
 

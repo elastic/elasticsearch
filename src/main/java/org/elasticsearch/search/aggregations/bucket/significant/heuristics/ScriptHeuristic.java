@@ -30,7 +30,10 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParsingException;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptParameterParser;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
@@ -93,6 +96,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     /**
      * Calculates score with a script
      *
+     * @param term   The term to be scored
      * @param subsetFreq   The frequency of the term in the selected sample
      * @param subsetSize   The size of the selected sample (typically number of docs)
      * @param supersetFreq The frequency of the term in the superset from which the sample was taken
@@ -100,7 +104,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
      * @return a "significance" score
      */
     @Override
-    public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
+    public double getScore(Object term, long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
         if (script == null) {
             //In tests, wehn calling assertSearchResponse(..) the response is streamed one additional time with an arbitrary version, see assertVersionSerializable(..).
             // Now, for version before 1.5.0 the score is computed after streaming the response but for scripts the script does not exists yet.
@@ -109,6 +113,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             ESLoggerFactory.getLogger("script heuristic").warn("cannot compute score - script has not been initialized yet.");
             return 0;
         }
+        script.setNextVar("_term", term);
         subsetSizeHolder.value = subsetSize;
         supersetSizeHolder.value = supersetSize;
         subsetDfHolder.value = subsetFreq;

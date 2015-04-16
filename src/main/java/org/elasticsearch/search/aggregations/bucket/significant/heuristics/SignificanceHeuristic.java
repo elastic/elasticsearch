@@ -28,13 +28,14 @@ import java.io.IOException;
 
 public abstract class SignificanceHeuristic {
     /**
+     * @param term   The term to be scored
      * @param subsetFreq   The frequency of the term in the selected sample
      * @param subsetSize   The size of the selected sample (typically number of docs)
      * @param supersetFreq The frequency of the term in the superset from which the sample was taken
      * @param supersetSize The size of the superset from which the sample was taken  (typically number of docs)
      * @return a "significance" score
      */
-    public abstract double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize);
+    public abstract double getScore(Object term, long subsetFreq, long subsetSize, long supersetFreq, long supersetSize);
 
     abstract public void writeTo(StreamOutput out) throws IOException;
 

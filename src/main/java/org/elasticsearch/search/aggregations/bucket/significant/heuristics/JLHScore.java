@@ -21,7 +21,6 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -61,7 +60,7 @@ public class JLHScore extends SignificanceHeuristic {
      * of the significant terms feature.
      */
     @Override
-    public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
+    public double getScore(Object term, long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
         checkFrequencyValidity(subsetFreq, subsetSize, supersetFreq, supersetSize, "JLHScore");
         if ((subsetSize == 0) || (supersetSize == 0)) {
             // avoid any divide by zero issues

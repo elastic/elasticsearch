@@ -1,0 +1,3 @@
+[[search-aggregations-reducer]]
+
+include::reducer/derivative.asciidoc[]

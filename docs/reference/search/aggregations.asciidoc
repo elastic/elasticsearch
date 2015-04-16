@@ -227,3 +227,6 @@ Then that piece of metadata will be returned in place for our `titles` terms agg
 include::aggregations/metrics.asciidoc[]
 
 include::aggregations/bucket.asciidoc[]
+
+include::aggregations/reducer.asciidoc[]
+

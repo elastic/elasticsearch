@@ -27,6 +27,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.IOUtils;
@@ -1931,7 +1932,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         assertTrue(Files.exists(dataDir));
         Path[] list = FileSystemUtils.files(dataDir);
         if (list.length != 1) {
-            throw new IllegalStateException("Backwards index must contain exactly one cluster");
+            throw new IllegalStateException("Backwards index must contain exactly one cluster\n" + StringUtils.join(list, "\n"));
         }
         Path src = list[0];
         Path dest = dataDir.resolve(internalCluster().getClusterName());

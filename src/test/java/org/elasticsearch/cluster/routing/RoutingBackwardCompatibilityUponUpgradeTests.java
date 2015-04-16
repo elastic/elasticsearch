@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -38,6 +39,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
+@LuceneTestCase.SuppressFileSystems("*") // extra files break the single data cluster expectation when unzipping the static index
 public class RoutingBackwardCompatibilityUponUpgradeTests extends ElasticsearchIntegrationTest {
 
     public void testDefaultRouting() throws Exception {
@@ -49,7 +51,7 @@ public class RoutingBackwardCompatibilityUponUpgradeTests extends ElasticsearchI
     }
 
     private void test(String name, Class<? extends HashFunction> expectedHashFunction, boolean expectedUseType) throws Exception {
-        Path zippedIndexDir = PathUtils.get(getClass().getResource("/org/elasticsearch/cluster/routing/" + name + ".zip").toURI());
+        Path zippedIndexDir = PathUtils.get(getClass().getResource("/org/elasticsearch/cluster/routing/" + name + ".zip").getPath());
         Settings baseSettings = prepareBackwardsDataDir(zippedIndexDir);
         internalCluster().startNode(ImmutableSettings.builder()
                 .put(baseSettings)

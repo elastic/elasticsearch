@@ -21,16 +21,16 @@ package org.elasticsearch.mlt;
 
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.*;
 import org.apache.lucene.queries.mlt.MoreLikeThis;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.lucene.search.XMoreLikeThis;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 import org.junit.Test;
 
@@ -104,6 +104,47 @@ public class XMoreLikeThisTests extends ElasticsearchLuceneTestCase {
             generatedStrings[i] = String.valueOf(from + i);
         }
         return generatedStrings;
+    }
+
+    @Test
+    public void testAllUniqueValues() throws Exception {
+        int numValues = 1 + random().nextInt(20);
+        Directory dir = newDirectory();
+        
+        // index one document with all unique terms
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(new WhitespaceAnalyzer()));
+        FieldType type = new FieldType(TextField.TYPE_STORED);
+        type.setStoreTermVectors(true);
+        type.freeze();
+        Document doc = new Document();
+        for (int i = 0; i < numValues; i++) {
+            doc.add(new Field("text", "tag_" + i, type));
+        }
+        writer.addDocument(doc);
+        writer.commit();
+        writer.close();
+        
+        // get the docID of this document
+        IndexSearcher s = new IndexSearcher(DirectoryReader.open(dir));
+        int docID = s.search(new MatchAllDocsQuery(), 1).scoreDocs[0].doc;
+        
+        // setup MLT query
+        IndexReader reader = s.getIndexReader();
+        XMoreLikeThis mlt = new XMoreLikeThis(reader);
+        mlt.setAnalyzer(new MockAnalyzer(random(), MockTokenizer.WHITESPACE, false));
+        mlt.setMaxQueryTerms(numValues);
+        mlt.setMinDocFreq(1);
+        mlt.setMinTermFreq(1 + random().nextInt(10)); // ensure min_term_freq > 1
+        mlt.setFieldNames(new String[]{"text"});
+
+        // perform MLT query and check all tags are indeed selected
+        BooleanQuery query = (BooleanQuery) mlt.like(reader.getTermVectors(docID));
+        List<BooleanClause> clauses = query.clauses();
+        assertEquals("Expected" + numValues + "clauses only!", numValues, clauses.size());
+
+        // clean up
+        reader.close();
+        dir.close();
     }
 
 }

@@ -74,12 +74,13 @@ final class TermVectorsWriter {
             boolean positions = flags.contains(Flag.Positions) && fieldTermVector.hasPositions();
             boolean offsets = flags.contains(Flag.Offsets) && fieldTermVector.hasOffsets();
             boolean payloads = flags.contains(Flag.Payloads) && fieldTermVector.hasPayloads();
+            boolean hasFreqs = topLevelTerms.hasFreqs();
 
             long termsSize = fieldTermVector.size();
             if (hasScores) {
                 termsSize = Math.min(termsSize, termVectorsFilter.size(field));
             }
-            startField(field, termsSize, positions, offsets, payloads);
+            startField(field, termsSize, positions, offsets, payloads, hasFreqs);
 
             if (flags.contains(Flag.FieldStatistics)) {
                 if (dfs != null) {
@@ -87,8 +88,6 @@ final class TermVectorsWriter {
                 } else {
                     writeFieldStatistics(topLevelTerms);
                 }
-            } else { // write document level stats
-                writeFieldStatistics(fieldTermVector);
             }
             TermsEnum iterator = fieldTermVector.iterator();
             final boolean useDocsAndPos = positions || offsets || payloads;
@@ -110,8 +109,6 @@ final class TermVectorsWriter {
                     } else {
                         writeTermStatistics(topLevelIterator);
                     }
-                } else { // write document level stats
-                    writeTermStatistics(iterator);
                 }
                 if (useDocsAndPos) {
                     // given we have pos or offsets
@@ -214,7 +211,7 @@ final class TermVectorsWriter {
         }
     }
 
-    private void startField(String fieldName, long termsSize, boolean writePositions, boolean writeOffsets, boolean writePayloads)
+    private void startField(String fieldName, long termsSize, boolean writePositions, boolean writeOffsets, boolean writePayloads, boolean hasFreqs)
             throws IOException {
         fields.add(fieldName);
         fieldOffset.add(output.position());
@@ -223,6 +220,7 @@ final class TermVectorsWriter {
         output.writeBoolean(writePositions);
         output.writeBoolean(writeOffsets);
         output.writeBoolean(writePayloads);
+        output.writeBoolean(hasFreqs);
     }
 
     private void startTerm(BytesRef term) throws IOException {

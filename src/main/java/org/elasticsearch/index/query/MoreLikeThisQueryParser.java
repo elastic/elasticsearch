@@ -322,7 +322,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 .positions(false)
                 .offsets(false)
                 .payloads(false)
-                .fieldStatistics(false)
+                .fieldStatistics(true)
                 .termStatistics(false);
     }
 

@@ -875,6 +875,7 @@ public final class XMoreLikeThis {
             }
 
             PostingsEnum docs = termsEnum.postings(null, null);
+            docs.nextDoc();
             final int freq = docs.freq();
 
             // increment frequency

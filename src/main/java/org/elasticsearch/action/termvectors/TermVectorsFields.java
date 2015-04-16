@@ -188,13 +188,14 @@ public final class TermVectorsFields extends Fields {
         private final long readOffset;
 
         private long numTerms;
+        private boolean hasFreqs;
         private boolean hasPositions;
         private boolean hasOffsets;
         private boolean hasPayloads;
         private long sumTotalTermFreq;
         private long sumDocFreq;
         private int docCount;
-
+        
         public TermVector(BytesReference termVectors, long readOffset) throws IOException {
             this.perFieldTermVectorInput = new BytesStreamInput(termVectors);
             this.readOffset = readOffset;
@@ -211,10 +212,11 @@ public final class TermVectorsFields extends Fields {
             this.hasPositions = perFieldTermVectorInput.readBoolean();
             this.hasOffsets = perFieldTermVectorInput.readBoolean();
             this.hasPayloads = perFieldTermVectorInput.readBoolean();
+            this.hasFreqs = perFieldTermVectorInput.readBoolean();
             // read the field statistics
-            this.sumTotalTermFreq = readPotentiallyNegativeVLong(perFieldTermVectorInput);
-            this.sumDocFreq = readPotentiallyNegativeVLong(perFieldTermVectorInput);
-            this.docCount = readPotentiallyNegativeVInt(perFieldTermVectorInput);
+            this.sumTotalTermFreq = hasFieldStatistic ? readPotentiallyNegativeVLong(perFieldTermVectorInput) : -1;
+            this.sumDocFreq = hasFieldStatistic ? readPotentiallyNegativeVLong(perFieldTermVectorInput) : -1;
+            this.docCount = hasFieldStatistic ? readPotentiallyNegativeVInt(perFieldTermVectorInput) : -1;
         }
 
         @Override
@@ -243,8 +245,10 @@ public final class TermVectorsFields extends Fields {
                         // ...then the value.
                         perFieldTermVectorInput.readBytes(spare.bytes(), 0, termVectorSize);
                         spare.setLength(termVectorSize);
-                        docFreq = readPotentiallyNegativeVInt(perFieldTermVectorInput);
-                        totalTermFrequency = readPotentiallyNegativeVLong(perFieldTermVectorInput);
+                        if (hasTermStatistic) {
+                            docFreq = readPotentiallyNegativeVInt(perFieldTermVectorInput);
+                            totalTermFrequency = readPotentiallyNegativeVLong(perFieldTermVectorInput);
+                        }
 
                         freq = readPotentiallyNegativeVInt(perFieldTermVectorInput);
                         // grow the arrays to read the values. this is just
@@ -366,7 +370,7 @@ public final class TermVectorsFields extends Fields {
 
         @Override
         public boolean hasFreqs() {
-            return true;
+            return hasFreqs;
         }
 
         @Override

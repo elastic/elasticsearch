@@ -48,7 +48,7 @@ public class IndexTemplateFileLoadingTests extends ElasticsearchIntegrationTest 
         settingsBuilder.put(super.nodeSettings(nodeOrdinal));
 
         try {
-            Path directory = newTempDirPath(LifecycleScope.SUITE);
+            Path directory = newTempDirPath();
             settingsBuilder.put("path.conf", directory.toAbsolutePath());
 
             Path templatesDir = directory.resolve("templates");

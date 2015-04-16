@@ -118,7 +118,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     void setupCluster() throws Exception {
         ListenableFuture<List<String>> replicas = internalCluster().startNodesAsync(1); // for replicas
 
-        Path baseTempDir = newTempDirPath(LifecycleScope.SUITE);
+        Path baseTempDir = newTempDirPath();
         // start single data path node
         ImmutableSettings.Builder nodeSettings = ImmutableSettings.builder()
             .put("path.data", baseTempDir.resolve("single-path").toAbsolutePath())

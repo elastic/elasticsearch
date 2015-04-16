@@ -45,6 +45,7 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -437,7 +438,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         {
             MappingMetaData.Timestamp timestamp = new MappingMetaData.Timestamp(true, null,
                     TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT, null, null);
-            MappingMetaData expected = new MappingMetaData("type", new CompressedString("{}".getBytes(UTF8)),
+            MappingMetaData expected = new MappingMetaData("type", new CompressedString("{}".getBytes(StandardCharsets.UTF_8)),
                     new MappingMetaData.Id(null), new MappingMetaData.Routing(false, null), timestamp, false);
 
             BytesStreamOutput out = new BytesStreamOutput();
@@ -454,7 +455,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         {
             MappingMetaData.Timestamp timestamp = new MappingMetaData.Timestamp(true, null,
                     TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT, "now", null);
-            MappingMetaData expected = new MappingMetaData("type", new CompressedString("{}".getBytes(UTF8)),
+            MappingMetaData expected = new MappingMetaData("type", new CompressedString("{}".getBytes(StandardCharsets.UTF_8)),
                     new MappingMetaData.Id(null), new MappingMetaData.Routing(false, null), timestamp, false);
 
             BytesStreamOutput out = new BytesStreamOutput();
@@ -471,7 +472,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         {
             MappingMetaData.Timestamp timestamp = new MappingMetaData.Timestamp(true, null,
                     TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT, "now", false);
-            MappingMetaData expected = new MappingMetaData("type", new CompressedString("{}".getBytes(UTF8)),
+            MappingMetaData expected = new MappingMetaData("type", new CompressedString("{}".getBytes(StandardCharsets.UTF_8)),
                     new MappingMetaData.Id(null), new MappingMetaData.Routing(false, null), timestamp, false);
 
             BytesStreamOutput out = new BytesStreamOutput();

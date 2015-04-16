@@ -26,13 +26,13 @@ import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.google.common.collect.Lists;
 
-import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.rest.client.RestException;
@@ -58,7 +58,7 @@ import java.util.*;
 //tests distribution disabled for now since it causes reporting problems,
 // due to the non unique suite name
 //@ReplicateOnEachVm
-@AbstractRandomizedTest.Rest
+@ESTestCase.Rest
 @ClusterScope(randomDynamicTemplates = false)
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // timeout the suite after 40min and fail the test.
 public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {

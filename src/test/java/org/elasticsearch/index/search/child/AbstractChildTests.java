@@ -53,21 +53,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 
 @Ignore
-@LuceneTestCase.SuppressCodecs(value = {"Lucene40", "Lucene3x"})
 public abstract class AbstractChildTests extends ElasticsearchSingleNodeLuceneTestCase {
-
-    // TODO: Parent/child does not work with the query cache
-    private static final QueryCache DEFAULT_QUERY_CACHE = IndexSearcher.getDefaultQueryCache();
-
-    @Before
-    public void disableQueryCache() {
-        IndexSearcher.setDefaultQueryCache(null);
-    }
-
-    @After
-    public void restoreQueryCache() {
-        IndexSearcher.setDefaultQueryCache(DEFAULT_QUERY_CACHE);
-    }
 
     /**
      * The name of the field within the child type that stores a score to use in test queries.

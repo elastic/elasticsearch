@@ -99,7 +99,7 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
         // Restart the single node
         internalCluster().fullRestart();
         // node needs time to start recovery and discover the translog corruption
-        sleep(1000);
+        Thread.sleep(1000);
         enableTranslogFlush("test");
 
         try {

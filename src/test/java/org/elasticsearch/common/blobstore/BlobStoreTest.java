@@ -140,7 +140,7 @@ public class BlobStoreTest extends ElasticsearchTestCase {
     }
 
     protected BlobStore newBlobStore() throws IOException {
-        Path tempDir = newTempDirPath(LifecycleScope.TEST);
+        Path tempDir = newTempDirPath();
         Settings settings = randomBoolean() ? ImmutableSettings.EMPTY : ImmutableSettings.builder().put("buffer_size", new ByteSizeValue(randomIntBetween(1, 100), ByteSizeUnit.KB)).build();
         FsBlobStore store = new FsBlobStore(settings, tempDir);
         return store;

@@ -41,7 +41,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -89,7 +90,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogSizeMatcher;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.test.DummyShardLock;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
@@ -115,8 +116,9 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@LuceneTestCase.SuppressFileSystems("*") // mock FS causes translog issues recovering sometimes because of their use of globs, see LUCENE-6424
-public class InternalEngineTests extends ElasticsearchLuceneTestCase {
+// TODO: this guy isn't ready for mock filesystems yet
+@SuppressFileSystems("*")
+public class InternalEngineTests extends ESTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 

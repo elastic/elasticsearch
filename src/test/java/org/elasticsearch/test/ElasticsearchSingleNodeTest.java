@@ -121,7 +121,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
     private static Node newNode() {
         Node build = NodeBuilder.nodeBuilder().local(true).data(true).settings(ImmutableSettings.builder()
             .put(ClusterName.SETTING, clusterName())
-            .put("path.home", newTempDirPath(LifecycleScope.SUITE))
+            .put("path.home", createTempDir())
             .put("node.name", nodeName())
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)

@@ -21,6 +21,7 @@ package org.elasticsearch.index.search.child;
 import com.carrotsearch.hppc.FloatArrayList;
 import com.carrotsearch.hppc.IntIntOpenHashMap;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -61,7 +62,6 @@ public class ParentQueryTests extends AbstractChildTests {
 
     @BeforeClass
     public static void before() throws IOException {
-        forceDefaultCodec();
         SearchContext.setCurrent(createSearchContext("test", "parent", "child"));
     }
 

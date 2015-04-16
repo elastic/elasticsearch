@@ -32,7 +32,7 @@ import org.junit.Ignore;
  * {@link ElasticsearchLuceneTestCase}.
  */
 @Ignore
-public abstract class ElasticsearchSingleNodeLuceneTestCase extends ElasticsearchLuceneTestCase {
+public abstract class ElasticsearchSingleNodeLuceneTestCase extends ESTestCase {
 
     @After
     public void cleanup() {

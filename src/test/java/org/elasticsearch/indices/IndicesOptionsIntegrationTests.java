@@ -329,7 +329,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         waitForRelocation();
 
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", newTempDir())).get();
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", createTempDir())).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
         client().admin().cluster().prepareCreateSnapshot("dummy-repo", "snap1").setWaitForCompletion(true).get();
 
@@ -486,7 +486,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         waitForRelocation();
 
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", newTempDir())).get();
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", createTempDir())).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
         client().admin().cluster().prepareCreateSnapshot("dummy-repo", "snap1").setWaitForCompletion(true).get();
 

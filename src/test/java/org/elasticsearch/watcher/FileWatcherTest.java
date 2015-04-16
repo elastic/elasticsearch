@@ -96,7 +96,7 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
     @Test
     public void testSimpleFileOperations() throws IOException {
-        Path tempDir = newTempDirPath(LifecycleScope.TEST);
+        Path tempDir = newTempDirPath();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
         Path testFile = tempDir.resolve("test.txt");
         touch(testFile);
@@ -125,7 +125,7 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
     @Test
     public void testSimpleDirectoryOperations() throws IOException {
-        Path tempDir = newTempDirPath(LifecycleScope.TEST);
+        Path tempDir = newTempDirPath();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
         Path testDir = tempDir.resolve("test-dir");
         Files.createDirectories(testDir);
@@ -215,7 +215,7 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
     @Test
     public void testNestedDirectoryOperations() throws IOException {
-        Path tempDir = newTempDirPath(LifecycleScope.TEST);
+        Path tempDir = newTempDirPath();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
         Path testDir = tempDir.resolve("test-dir");
         Files.createDirectories(testDir);
@@ -281,7 +281,7 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
     @Test
     public void testFileReplacingDirectory() throws IOException {
-        Path tempDir = newTempDirPath(LifecycleScope.TEST);
+        Path tempDir = newTempDirPath();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
         Path testDir = tempDir.resolve("test-dir");
         Files.createDirectories(testDir);
@@ -328,7 +328,7 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
     @Test
     public void testEmptyDirectory() throws IOException {
-        Path tempDir = newTempDirPath(LifecycleScope.TEST);
+        Path tempDir = newTempDirPath();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
         Path testDir = tempDir.resolve("test-dir");
         Files.createDirectories(testDir);
@@ -351,7 +351,7 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
     @Test
     public void testNoDirectoryOnInit() throws IOException {
-        Path tempDir = newTempDirPath(LifecycleScope.TEST);
+        Path tempDir = newTempDirPath();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
         Path testDir = tempDir.resolve("test-dir");
 
@@ -375,7 +375,7 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
     @Test
     public void testNoFileOnInit() throws IOException {
-        Path tempDir = newTempDirPath(LifecycleScope.TEST);
+        Path tempDir = newTempDirPath();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
         Path testFile = tempDir.resolve("testfile.txt");
 

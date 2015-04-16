@@ -103,10 +103,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         boolean enabled = false;
         assert enabled = true;
         ASSERTIONS_ENABLED = enabled;
-        if (Boolean.parseBoolean(Strings.hasLength(TESTS_SECURITY_MANAGER) ? TESTS_SECURITY_MANAGER : "true") && JAVA_SECURTY_POLICY != null) {
-            System.setSecurityManager(new SecurityManager());
-        }
-
+        SecurityHack.ensureInitialized();
     }
 
     @After

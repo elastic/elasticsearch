@@ -25,7 +25,7 @@ public class ExecuteWatchRequest extends MasterNodeOperationRequest<ExecuteWatch
     private String id;
     private boolean ignoreCondition = true;
     private boolean ignoreThrottle = false;
-    private boolean recordInHistory = false;
+    private boolean recordExecution = false;
     private Map<String, Object> alternativeInput = null;
     private Map<String, Object> triggerData = null;
     private Set<String> simulatedActionIds = new HashSet<>();
@@ -85,15 +85,15 @@ public class ExecuteWatchRequest extends MasterNodeOperationRequest<ExecuteWatch
     /**
      * @return Should this execution be recorded in the history index
      */
-    public boolean isRecordInHistory() {
-        return recordInHistory;
+    public boolean isRecordExecution() {
+        return recordExecution;
     }
 
     /**
-     * @param recordInHistory Sets if this execution be recorded in the history index
+     * @param recordExecution Sets if this execution be recorded in the history index
      */
-    public void setRecordInHistory(boolean recordInHistory) {
-        this.recordInHistory = recordInHistory;
+    public void setRecordExecution(boolean recordExecution) {
+        this.recordExecution = recordExecution;
     }
 
     /**
@@ -162,7 +162,7 @@ public class ExecuteWatchRequest extends MasterNodeOperationRequest<ExecuteWatch
         id = in.readString();
         ignoreCondition = in.readBoolean();
         ignoreThrottle = in.readBoolean();
-        recordInHistory = in.readBoolean();
+        recordExecution = in.readBoolean();
         if (in.readBoolean()){
             alternativeInput = in.readMap();
         }
@@ -182,7 +182,7 @@ public class ExecuteWatchRequest extends MasterNodeOperationRequest<ExecuteWatch
         out.writeString(id);
         out.writeBoolean(ignoreCondition);
         out.writeBoolean(ignoreThrottle);
-        out.writeBoolean(recordInHistory);
+        out.writeBoolean(recordExecution);
         out.writeBoolean(alternativeInput != null);
         if (alternativeInput != null) {
             out.writeMap(alternativeInput);

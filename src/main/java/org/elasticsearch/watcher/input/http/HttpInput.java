@@ -84,7 +84,7 @@ public class HttpInput extends Input<HttpInput.Result> {
             for (String extractKey : extractKeys) {
                 builder.value(extractKey);
             }
-            builder.endObject();
+            builder.endArray();
         }
         return builder.endObject();
     }

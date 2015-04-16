@@ -108,7 +108,7 @@ public class SearchInput extends Input<SearchInput.Result> {
             for (String extractKey : extractKeys) {
                 builder.value(extractKey);
             }
-            builder.endObject();
+            builder.endArray();
         }
         builder.endObject();
         return builder;

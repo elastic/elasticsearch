@@ -115,6 +115,7 @@ public class ExecutionService extends AbstractComponent {
 
     public WatchRecord execute(WatchExecutionContext ctx) throws IOException {
         WatchRecord watchRecord = new WatchRecord(ctx.id(), ctx.watch(), ctx.triggerEvent());
+
         WatchLockService.Lock lock = watchLockService.acquire(ctx.watch().name());
         try {
             WatchExecution execution = executeInner(ctx);
@@ -122,9 +123,10 @@ public class ExecutionService extends AbstractComponent {
         } finally {
             lock.release();
         }
-        if (ctx.recordInHistory()) {
+        if (ctx.recordExecution()) {
             historyStore.put(watchRecord);
         }
+        watchStore.updateStatus(ctx.watch());
         return watchRecord;
     }
 
@@ -155,7 +157,7 @@ public class ExecutionService extends AbstractComponent {
         }
         TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, clock.now(), event);
         WatchRecord watchRecord = new WatchRecord(ctx.id(), watch, event);
-        if (ctx.recordInHistory()) {
+        if (ctx.recordExecution()) {
             logger.debug("saving watch record [{}] for watch [{}]", watchRecord.id(), watch.name());
             historyStore.put(watchRecord);
         }
@@ -198,7 +200,6 @@ public class ExecutionService extends AbstractComponent {
             }
         }
         return ctx.finish();
-
     }
 
     void executeRecords(Collection<WatchRecord> records) {
@@ -267,15 +268,16 @@ public class ExecutionService extends AbstractComponent {
                 logger.debug("checking watch [{}]", watchRecord.name());
                 WatchExecution execution = executeInner(ctx);
                 watchRecord.seal(execution);
-                if (ctx.recordInHistory()) {
+                if (ctx.recordExecution()) {
                     historyStore.update(watchRecord);
                 }
+                watchStore.updateStatus(ctx.watch());
             } catch (Exception e) {
                 if (started()) {
                     logger.warn("failed to execute watch [{}] [{}]", e, watchRecord.name(), ctx.id());
                     try {
                         watchRecord.update(WatchRecord.State.FAILED, e.getMessage());
-                        if (ctx.recordInHistory()) {
+                        if (ctx.recordExecution()) {
                             historyStore.update(watchRecord);
                         }
                     } catch (Exception e2) {

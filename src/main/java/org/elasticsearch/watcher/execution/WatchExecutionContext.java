@@ -53,7 +53,7 @@ public abstract class WatchExecutionContext {
     /**
      * @return true if this execution should be recorded in the .watch_history index
      */
-    public abstract boolean recordInHistory();
+    public abstract boolean recordExecution();
 
     public Wid id() {
         return id;
@@ -85,8 +85,11 @@ public abstract class WatchExecutionContext {
     }
 
     public void onConditionResult(Condition.Result conditionResult) {
-        watch.status().onCheck(conditionResult.met(), executionTime);
         this.conditionResult = conditionResult;
+        if (recordExecution()) {
+            watch.status().onCheck(conditionResult.met(), executionTime);
+        }
+
     }
 
     public Condition.Result conditionResult() {
@@ -95,10 +98,12 @@ public abstract class WatchExecutionContext {
 
     public void onThrottleResult(Throttler.Result throttleResult) {
         this.throttleResult = throttleResult;
-        if (throttleResult.throttle()) {
-            watch.status().onThrottle(executionTime, throttleResult.reason());
-        } else {
-            watch.status().onExecution(executionTime);
+        if (recordExecution()) {
+            if (throttleResult.throttle()) {
+                watch.status().onThrottle(executionTime, throttleResult.reason());
+            } else {
+                watch.status().onExecution(executionTime);
+            }
         }
     }
 

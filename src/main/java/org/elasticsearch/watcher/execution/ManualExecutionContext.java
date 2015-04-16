@@ -24,12 +24,12 @@ import java.util.Set;
 public class ManualExecutionContext extends WatchExecutionContext {
 
     private final Predicate<String> simulateActionPredicate;
-    private final boolean recordInHistory;
+    private final boolean recordExecution;
 
     ManualExecutionContext(Watch watch, DateTime executionTime, ManualTriggerEvent triggerEvent,
                            Input.Result inputResult, Condition.Result conditionResult,
                            Throttler.Result throttlerResult, Predicate<String> simulateActionPredicate,
-                           boolean recordInHistory) {
+                           boolean recordExecution) {
         super(watch, executionTime, triggerEvent);
         if (inputResult != null) {
             onInputResult(inputResult);
@@ -41,7 +41,7 @@ public class ManualExecutionContext extends WatchExecutionContext {
             onThrottleResult(throttlerResult);
         }
         this.simulateActionPredicate = simulateActionPredicate;
-        this.recordInHistory = recordInHistory;
+        this.recordExecution = recordExecution;
     }
 
     @Override
@@ -50,8 +50,8 @@ public class ManualExecutionContext extends WatchExecutionContext {
     }
 
     @Override
-    public final boolean recordInHistory() {
-        return recordInHistory;
+    public final boolean recordExecution() {
+        return recordExecution;
     }
 
     public static Builder builder(Watch watch) {
@@ -63,7 +63,7 @@ public class ManualExecutionContext extends WatchExecutionContext {
 
         private final Watch watch;
         protected DateTime executionTime;
-        private boolean recordInHistory = false;
+        private boolean recordExecution = false;
         private Predicate<String> simulateActionPredicate = Predicates.alwaysFalse();
         private Input.Result inputResult;
         private Condition.Result conditionResult;
@@ -79,8 +79,8 @@ public class ManualExecutionContext extends WatchExecutionContext {
             return this;
         }
 
-        public Builder recordInHistory(boolean recordInHistory) {
-            this.recordInHistory = recordInHistory;
+        public Builder recordExecution(boolean recordExecution) {
+            this.recordExecution = recordExecution;
             return this;
         }
 
@@ -114,6 +114,7 @@ public class ManualExecutionContext extends WatchExecutionContext {
             return this;
         }
 
+
         public ManualExecutionContext build() {
             if (executionTime == null) {
                 executionTime = DateTime.now(DateTimeZone.UTC);
@@ -121,7 +122,7 @@ public class ManualExecutionContext extends WatchExecutionContext {
             if (triggerEvent == null) {
                 triggerEvent = new ManualTriggerEvent(executionTime, new HashMap<String, Object>());
             }
-            return new ManualExecutionContext(watch, executionTime, triggerEvent, inputResult, conditionResult, throttlerResult, simulateActionPredicate, recordInHistory);
+            return new ManualExecutionContext(watch, executionTime, triggerEvent, inputResult, conditionResult, throttlerResult, simulateActionPredicate, recordExecution);
         }
     }
 

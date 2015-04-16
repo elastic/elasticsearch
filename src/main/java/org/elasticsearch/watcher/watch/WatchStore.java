@@ -149,11 +149,13 @@ public class WatchStore extends AbstractComponent {
     /**
      * Updates and persists the status of the given watch
      */
-    void updateStatus(Watch watch) throws IOException {
+    public void updateStatus(Watch watch) throws IOException {
         // at the moment we store the status together with the watch,
         // so we just need to update the watch itself
         // TODO: consider storing the status in a different documment (watch_status doc) (must smaller docs... faster for frequent updates)
-        update(watch);
+        if (watch.status().dirty()) {
+            update(watch);
+        }
     }
 
     /**
@@ -165,6 +167,7 @@ public class WatchStore extends AbstractComponent {
         BytesReference source = JsonXContent.contentBuilder().value(watch).bytes();
         IndexResponse response = client.index(createIndexRequest(watch.name(), source));
         watch.status().version(response.getVersion());
+        watch.status().dirty(false);
         // Don't need to update the watches, since we are working on an instance from it.
     }
 

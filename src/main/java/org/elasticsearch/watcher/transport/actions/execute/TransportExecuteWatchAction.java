@@ -99,7 +99,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
             if (request.isIgnoreThrottle()) {
                 ctxBuilder.withThrottle(Throttler.Result.NO);
             }
-            ctxBuilder.recordInHistory(request.isRecordInHistory());
+            ctxBuilder.recordExecution(request.isRecordExecution());
 
             WatchRecord record = executionService.execute(ctxBuilder.build());
             XContentBuilder builder = XContentFactory.jsonBuilder();

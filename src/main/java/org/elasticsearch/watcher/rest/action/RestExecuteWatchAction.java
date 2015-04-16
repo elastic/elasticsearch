@@ -27,7 +27,7 @@ import java.io.IOException;
  */
 public class RestExecuteWatchAction extends WatcherRestHandler {
 
-    static ParseField RECORD_IN_HISTORY_FIELD = new ParseField("record_in_history");
+    static ParseField RECORD_EXECUTION_FIELD = new ParseField("record_execution");
     static ParseField SIMULATED_ACTIONS_FIELD = new ParseField("simulated_actions");
     static ParseField ALTERNATIVE_INPUT_FIELD = new ParseField("alternative_input");
     static ParseField IGNORE_CONDITION_FIELD = new ParseField("ignore_condition");
@@ -78,8 +78,8 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
                         executeWatchRequestBuilder.setIgnoreCondition(parser.booleanValue());
                     } else if (IGNORE_THROTTLE_FIELD.match(currentFieldName)) {
                         executeWatchRequestBuilder.setIgnoreThrottle(parser.booleanValue());
-                    } else if (RECORD_IN_HISTORY_FIELD.match(currentFieldName)) {
-                        executeWatchRequestBuilder.setRecordInHistory(parser.booleanValue());
+                    } else if (RECORD_EXECUTION_FIELD.match(currentFieldName)) {
+                        executeWatchRequestBuilder.setRecordExecution(parser.booleanValue());
                     } else {
                         throw new ParseException("invalid watch execution request, unexpected boolean value field [" + currentFieldName + "]");
                     }

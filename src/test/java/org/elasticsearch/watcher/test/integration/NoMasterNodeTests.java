@@ -178,8 +178,4 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
         ensureWatcherStarted(false);
     }
 
-    private WatchService watchService() {
-        return getInstanceFromMaster(WatchService.class);
-    }
-
 }

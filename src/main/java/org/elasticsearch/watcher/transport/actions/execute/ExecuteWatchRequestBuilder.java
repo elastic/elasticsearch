@@ -49,10 +49,10 @@ public class ExecuteWatchRequestBuilder extends MasterNodeOperationRequestBuilde
     }
 
     /**
-     * @param recordInHistory Sets if this execution be recorded in the history index
+     * @param recordExecution Sets if this execution be recorded in the history index and reflected in the watch
      */
-    public ExecuteWatchRequestBuilder setRecordInHistory(boolean recordInHistory) {
-        request.setRecordInHistory(recordInHistory);
+    public ExecuteWatchRequestBuilder setRecordExecution(boolean recordExecution) {
+        request.setRecordExecution(recordExecution);
         return this;
     }
 

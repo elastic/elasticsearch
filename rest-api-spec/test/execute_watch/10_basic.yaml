@@ -68,8 +68,8 @@
             "trigger_data" : {
               "scheduled_time" : "now"
             },
-            "record_in_history" : true
-            }
+            "record_execution" : true
+          }
   - match: { "watch_id": "my_exe_watch" }
   - match: { "watch_execution.condition_result.always_true": {} }
   - match: { "state": "executed" }

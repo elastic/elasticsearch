@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.execution;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.watcher.actions.logging.LoggingAction;
@@ -44,9 +43,8 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
     public void testExecuteWatch() throws Exception {
         ensureWatcherStarted();
         boolean ignoreCondition = randomBoolean();
-        boolean persistRecord = randomBoolean();
+        boolean recordExecution = randomBoolean();
         boolean conditionAlwaysTrue = randomBoolean();
-        boolean storeWatch = randomBoolean();
         String actionIdToSimulate = randomFrom("_all", "log", null);
 
         LoggingAction.Builder loggingAction = LoggingAction.builder(new Template("foobar"));
@@ -56,22 +54,26 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
                 .condition(conditionAlwaysTrue ? alwaysTrueCondition() : alwaysFalseCondition())
                 .addAction("log", loggingAction);
 
-        if (storeWatch) {
-            PutWatchResponse putWatchResponse = watcherClient().putWatch(new PutWatchRequest("testrun", testWatchBuilder)).actionGet();
+        ManualExecutionContext.Builder ctxBuilder;
+        Watch parsedWatch = null;
+        if (recordExecution) {
+            PutWatchResponse putWatchResponse = watcherClient().putWatch(new PutWatchRequest("testwatch", testWatchBuilder)).actionGet();
             assertThat(putWatchResponse.getVersion(), greaterThan(0L));
             refresh();
-            assertThat(watcherClient().getWatch(new GetWatchRequest("testrun")).actionGet().isFound(), equalTo(true));
+            assertThat(watcherClient().getWatch(new GetWatchRequest("testwatch")).actionGet().isFound(), equalTo(true));
+
+            ctxBuilder = ManualExecutionContext.builder(watchService().getWatch("testwatch")); //If we are persisting the state we need to use the exact watch that is in memory
+        } else {
+            parsedWatch = watchParser().parse("testwatch", false, testWatchBuilder.buildAsBytes(XContentType.JSON));
+            ctxBuilder = ManualExecutionContext.builder(parsedWatch);
         }
 
-        Watch testWatch = watchParser().parse("testwatch", false, testWatchBuilder.buildAsBytes(XContentType.JSON));
-
-        ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(testWatch);
 
         if (ignoreCondition) {
             ctxBuilder.withCondition(AlwaysTrueCondition.RESULT);
         }
 
-        ctxBuilder.recordInHistory(persistRecord);
+        ctxBuilder.recordExecution(recordExecution);
 
         if (actionIdToSimulate != null) {
             if ("_all".equals(actionIdToSimulate)) {
@@ -89,7 +91,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
 
         refresh();
         long newRecordCount = client().count(new CountRequest(HistoryStore.INDEX_PREFIX + "*")).actionGet().getCount();
-        long expectedCount = oldRecordCount + (persistRecord ? 1 : 0);
+        long expectedCount = oldRecordCount + (recordExecution ? 1 : 0);
         assertThat("the expected count of history records should be [" + expectedCount + "]", newRecordCount, equalTo(expectedCount));
 
         if (ignoreCondition) {
@@ -106,5 +108,20 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
         if ((ignoreCondition || conditionAlwaysTrue) && actionIdToSimulate != null ) {
             assertThat("The action should have run simulated", watchRecord.execution().actionsResults().get("log").action(), instanceOf(LoggingAction.Result.Simulated.class));
         }
+
+        Watch testWatch = watchService().getWatch("testwatch");
+        if (recordExecution) {
+            refresh();
+            Watch persistedWatch = watchParser().parse("testwatch", true, watcherClient().getWatch(new GetWatchRequest("testwatch")).actionGet().getSource());
+            if (ignoreCondition || conditionAlwaysTrue) {
+                assertThat(testWatch.status().ackStatus().state(), equalTo(Watch.Status.AckStatus.State.ACKABLE));
+                assertThat(persistedWatch.status().ackStatus().state(), equalTo(Watch.Status.AckStatus.State.ACKABLE));
+            } else {
+                assertThat(testWatch.status().ackStatus().state(), equalTo(Watch.Status.AckStatus.State.AWAITS_EXECUTION));
+            }
+        } else {
+            assertThat(parsedWatch.status().ackStatus().state(), equalTo(Watch.Status.AckStatus.State.AWAITS_EXECUTION));
+        }
+
     }
 }

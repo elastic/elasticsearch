@@ -23,8 +23,7 @@ public class TriggeredExecutionContext extends WatchExecutionContext {
     }
 
     @Override
-    final public boolean recordInHistory() {
+    final public boolean recordExecution() {
         return true;
     }
-
 }

@@ -202,25 +202,11 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     }
 
     @Override
-    public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        float fValue = parseValue(value);
-        return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
-                fValue, fValue, true, true);
-    }
-
-    @Override
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseValue(lowerTerm),
                 upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
-    }
-
-    @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        float fValue = parseValue(value);
-        return Queries.wrap(NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
-                fValue, fValue, true, true));
     }
 
     @Override

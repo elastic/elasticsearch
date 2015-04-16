@@ -297,13 +297,6 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 true, true);
     }
 
-    @Override
-    public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        long lValue = parseToMilliseconds(value);
-        return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
-                lValue, lValue, true, true);
-    }
-
     public long parseToMilliseconds(Object value) {
         return parseToMilliseconds(value, false, null, dateMathParser);
     }
@@ -321,13 +314,6 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             dateParser = forcedDateParser;
         }
         return dateParser.parse(value, now(), inclusive, zone);
-    }
-
-    @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        final long lValue = parseToMilliseconds(value);
-        return Queries.wrap(NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
-                lValue, lValue, true, true));
     }
 
     @Override

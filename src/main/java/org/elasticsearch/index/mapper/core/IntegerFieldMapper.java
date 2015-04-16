@@ -196,20 +196,6 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     }
 
     @Override
-    public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        int iValue = parseValue(value);
-        return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
-                iValue, iValue, true, true);
-    }
-
-    @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        int iValue = parseValue(value);
-        return Queries.wrap(NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
-                iValue, iValue, true, true));
-    }
-
-    @Override
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseValue(lowerTerm),

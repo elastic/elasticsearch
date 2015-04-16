@@ -202,25 +202,11 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
     }
 
     @Override
-    public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        int iValue = parseValueAsInt(value);
-        return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
-                iValue, iValue, true, true);
-    }
-
-    @Override
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseValueAsInt(lowerTerm),
                 upperTerm == null ? null : parseValueAsInt(upperTerm),
                 includeLower, includeUpper);
-    }
-
-    @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        int iValue = parseValueAsInt(value);
-        return Queries.wrap(NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
-                iValue, iValue, true, true));
     }
 
     @Override

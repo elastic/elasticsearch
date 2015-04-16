@@ -375,11 +375,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                             .endObject();
                 }
                 if (randomBoolean()) {
-                    mappings.startObject(AllFieldMapper.NAME)
-                            .field("auto_boost", true)
-                        .endObject();
-                }
-                if (randomBoolean()) {
                     mappings.startObject(SourceFieldMapper.NAME)
                             .field("compress", randomBoolean())
                             .endObject();
@@ -973,7 +968,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 .health(Requests.clusterHealthRequest(indices).timeout(timeout).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info("ensureGreen timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
-            assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));
+            fail("timed out waiting for green state");
         }
         assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         logger.debug("indices {} are green", indices.length == 0 ? "[_all]" : indices);

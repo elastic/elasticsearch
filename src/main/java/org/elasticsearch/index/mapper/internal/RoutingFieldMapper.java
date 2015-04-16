@@ -182,10 +182,11 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public Mapper parse(ParseContext context) throws IOException {
         // no need ot parse here, we either get the routing in the sourceToParse
         // or we don't have routing, if we get it in sourceToParse, we process it in preParse
         // which will always be called
+        return null;
     }
 
     @Override

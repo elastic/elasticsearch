@@ -22,11 +22,29 @@ is lost, the request will continue in the background, and
 any new requests will block until the previous upgrade is complete.
 
 [float]
+[[upgrade-parameters]]
+==== Request Parameters
+
+The `upgrade` API accepts the following request parameters:
+
+[horizontal]
+`only_ancient_segments`:: If true, only very old segments (from a
+previous Lucene major release) will be upgraded.  While this will do
+the minimal work to ensure the next major release of Elasticsearch can
+read the segments, it's dangerous because it can leave other very old
+segments in sub-optimal formats.  Defaults to `false`.
+
+[float]
 === Check upgrade status
 
 Use a `GET` request to monitor how much of an index is upgraded.  This
-can also be used prior to starting an upgrade to identify which indices
-you want to upgrade at the same time.
+can also be used prior to starting an upgrade to identify which
+indices you want to upgrade at the same time.
+
+The `ancient` byte values that are returned indicate total bytes of
+segments whose version is extremely old (Lucene major version is
+different from the current version), showing how much upgrading is
+necessary when you run with `only_ancient_segments=true`.
 
 [source,sh]
 --------------------------------------------------
@@ -41,6 +59,8 @@ curl 'http://localhost:9200/twitter/_upgrade?pretty&human'
       "size_in_bytes": "21000000000",
       "size_to_upgrade": "10gb",
       "size_to_upgrade_in_bytes": "10000000000"
+      "size_to_upgrade_ancient": "1gb",
+      "size_to_upgrade_ancient_in_bytes": "1000000000"
    }
 }
 --------------------------------------------------

@@ -43,6 +43,7 @@ import java.util.Set;
 /**
  * Simple class that ensures that all subclasses concrete of ElasticsearchTestCase end with either Test | Tests
  */
+@LuceneTestCase.SuppressFileSystems("*") // nocommit: ignore rules aren't working for some reason with mockfs
 public class NamingConventionTests extends ElasticsearchTestCase {
 
     // see https://github.com/elasticsearch/elasticsearch/issues/9945
@@ -54,7 +55,7 @@ public class NamingConventionTests extends ElasticsearchTestCase {
         String[] packages = {"org.elasticsearch", "org.apache.lucene"};
         for (final String packageName : packages) {
             final String path = "/" + packageName.replace('.', '/');
-            final Path startPath = PathUtils.get(NamingConventionTests.class.getResource(path).toURI());
+            final Path startPath = PathUtils.get(NamingConventionTests.class.getResource(path).getPath());
             final Set<Path> ignore = Sets.newHashSet(PathUtils.get("/org/elasticsearch/stresstest"), PathUtils.get("/org/elasticsearch/benchmark/stress"));
             Files.walkFileTree(startPath, new FileVisitor<Path>() {
                 private Path pkgPrefix = PathUtils.get(path).getParent();

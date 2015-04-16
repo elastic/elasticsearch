@@ -130,7 +130,7 @@ public class Log4jESLoggerTests extends ElasticsearchTestCase {
 
     private static Path resolveConfigDir() throws Exception {
         URL url = Log4jESLoggerTests.class.getResource("config");
-        return PathUtils.get(url.toURI());
+        return PathUtils.get(url.getPath());
     }
 
     private static class TestAppender extends AppenderSkeleton {

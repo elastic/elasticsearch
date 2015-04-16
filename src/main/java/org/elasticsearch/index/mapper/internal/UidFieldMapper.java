@@ -167,8 +167,9 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public Mapper parse(ParseContext context) throws IOException {
         // nothing to do here, we either do it in post parse, or in pre parse.
+        return null;
     }
 
     @Override

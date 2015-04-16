@@ -166,8 +166,8 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
-
+    public Mapper parse(ParseContext context) throws IOException {
+        return null;
     }
 
     @Override

@@ -25,7 +25,6 @@ import org.elasticsearch.cloud.azure.AzureServiceDisableException;
 import org.elasticsearch.cloud.azure.AzureServiceRemoteException;
 import org.elasticsearch.cloud.azure.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
-import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -112,11 +111,9 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
         this.networkService = networkService;
         this.version = version;
 
-        this.refreshInterval = settings.getAsTime(Discovery.REFRESH, settings.getAsTime(Discovery.REFRESH_DEPRECATED,
-                TimeValue.timeValueSeconds(0)));
+        this.refreshInterval = settings.getAsTime(Discovery.REFRESH, TimeValue.timeValueSeconds(0));
 
-        String strHostType = settings.get(Discovery.HOST_TYPE, settings.get(Discovery.HOST_TYPE_DEPRECATED,
-                HostType.PRIVATE_IP.name())).toUpperCase();
+        String strHostType = settings.get(Discovery.HOST_TYPE, HostType.PRIVATE_IP.name()).toUpperCase();
         HostType tmpHostType = HostType.fromString(strHostType);
         if (tmpHostType == null) {
             logger.warn("wrong value for [{}]: [{}]. falling back to [{}]...", Discovery.HOST_TYPE,
@@ -124,21 +121,11 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
             tmpHostType = HostType.PRIVATE_IP;
         }
         this.hostType = tmpHostType;
-
-        // TODO Remove in 3.0.0
-        String portName = settings.get(Discovery.PORT_NAME_DEPRECATED);
-        if (portName != null) {
-            logger.warn("setting [{}] has been deprecated. please replace with [{}].", Discovery.PORT_NAME_DEPRECATED,
-                    Discovery.ENDPOINT_NAME);
-            this.publicEndpointName = portName;
-        } else {
-            this.publicEndpointName = settings.get(Discovery.ENDPOINT_NAME, "elasticsearch");
-        }
+        this.publicEndpointName = settings.get(Discovery.ENDPOINT_NAME, "elasticsearch");
 
         // Deployment name could be set with discovery.azure.deployment.name
         // Default to cloud.azure.management.cloud.service.name
-        this.deploymentName = settings.get(Discovery.DEPLOYMENT_NAME,
-                settings.get(Management.SERVICE_NAME, settings.get(Management.SERVICE_NAME_DEPRECATED)));
+        this.deploymentName = settings.get(Discovery.DEPLOYMENT_NAME);
 
         // Reading deployment_slot
         String strDeployment = settings.get(Discovery.DEPLOYMENT_SLOT, Deployment.PRODUCTION.deployment);

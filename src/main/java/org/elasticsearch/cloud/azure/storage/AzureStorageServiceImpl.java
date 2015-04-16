@@ -54,8 +54,8 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
     public AzureStorageServiceImpl(Settings settings) {
         super(settings);
         // We try to load storage API settings from `cloud.azure.`
-        account = settings.get(ACCOUNT, settings.get(ACCOUNT_DEPRECATED));
-        key = settings.get(KEY, settings.get(KEY_DEPRECATED));
+        account = settings.get(ACCOUNT);
+        key = settings.get(KEY);
         blob = "http://" + account + ".blob.core.windows.net/";
 
         try {

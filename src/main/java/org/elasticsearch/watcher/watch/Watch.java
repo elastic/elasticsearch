@@ -44,11 +44,15 @@ import org.elasticsearch.watcher.trigger.TriggerService;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.watcher.support.WatcherDateUtils.*;
 
 public class Watch implements TriggerEngine.Job, ToXContent {
+
+    private final static TimeValue DEFAULT_THROTTLE_PERIOD = new TimeValue(5, TimeUnit.SECONDS);
+    private final static String DEFAULT_THROTTLE_PERIOD_SETTING = "watcher.throttle.period.default_period";
 
     private final String name;
     private final Trigger trigger;
@@ -193,6 +197,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
 
         private final Input defaultInput;
         private final Condition defaultCondition;
+        private final TimeValue defaultThrottleTimePeriod;
 
         @Inject
         public Parser(Settings settings, LicenseService licenseService, ConditionRegistry conditionRegistry, TriggerService triggerService,
@@ -210,6 +215,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
 
             this.defaultInput = new NoneInput(logger);
             this.defaultCondition = new AlwaysTrueCondition(logger);
+            this.defaultThrottleTimePeriod = settings.getAsTime(DEFAULT_THROTTLE_PERIOD_SETTING, DEFAULT_THROTTLE_PERIOD);
         }
 
         public Watch parse(String name, boolean includeStatus, BytesReference source) {
@@ -231,7 +237,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             Transform transform = null;
             Map<String, Object> metatdata = null;
             Status status = null;
-            TimeValue throttlePeriod = null;
+            TimeValue throttlePeriod = defaultThrottleTimePeriod;
 
             String currentFieldName = null;
             XContentParser.Token token = null;

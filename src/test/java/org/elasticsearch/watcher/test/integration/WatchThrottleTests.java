@@ -47,7 +47,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
 
     @Test
-    public void testAckThrottle() throws Exception {
+    public void test_AckThrottle() throws Exception {
         WatcherClient watcherClient = watcherClient();
         IndexResponse eventIndexResponse = indexTestDoc();
 
@@ -58,7 +58,8 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
                         .input(searchInput(matchAllRequest().indices("events")))
                         .condition(scriptCondition("ctx.payload.hits.total > 0"))
                         .transform(searchTransform(matchAllRequest().indices("events")))
-                        .addAction("_id", indexAction("actions", "action")))
+                        .addAction("_id", indexAction("actions", "action"))
+                        .throttlePeriod(new TimeValue(0, TimeUnit.SECONDS)))
                 .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
@@ -108,6 +109,7 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
                 matchQuery(WatchRecord.Parser.STATE_FIELD.getPreferredName(), WatchRecord.State.THROTTLED.id()));
         assertThat(throttledCount, greaterThan(0L));
     }
+
 
     public IndexResponse indexTestDoc() {
         createIndex("actions", "events");
@@ -190,6 +192,7 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
         }
     }
 
+
     @Test
     @Repeat(iterations = 2)
     public void test_ack_with_restart() throws Exception {
@@ -255,4 +258,53 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
         long countAfterPostAckFires = docCount("actions", "action", matchAllQuery());
         assertThat(countAfterPostAckFires, equalTo(countAfterAck));
     }
+
+        @Test @Repeat(iterations = 10)
+        public void test_default_TimeThrottle() throws Exception {
+            WatcherClient watcherClient = watcherClient();
+            indexTestDoc();
+
+            PutWatchResponse putWatchResponse = watcherClient.preparePutWatch()
+                    .setId("_name")
+                    .setSource(watchBuilder()
+                            .trigger(schedule(interval("1s")))
+                            .input(searchInput(matchAllRequest().indices("events")))
+                            .condition(scriptCondition("ctx.payload.hits.total > 0"))
+                            .transform(searchTransform(matchAllRequest().indices("events")))
+                            .addAction("_id", indexAction("actions", "action")))
+                    .get();
+            assertThat(putWatchResponse.isCreated(), is(true));
+
+            if (timeWarped()) {
+                timeWarp().clock().setTime(DateTime.now(DateTimeZone.UTC));
+
+                timeWarp().scheduler().trigger("_name");
+                refresh();
+
+                // the first fire should work
+                long actionsCount = docCount("actions", "action", matchAllQuery());
+                assertThat(actionsCount, is(1L));
+
+                timeWarp().clock().fastForwardSeconds(2);
+                timeWarp().scheduler().trigger("_name");
+                refresh();
+
+                // the last fire should have been throttled, so number of actions shouldn't change
+                actionsCount = docCount("actions", "action", matchAllQuery());
+                assertThat(actionsCount, is(1L));
+
+                timeWarp().clock().fastForwardSeconds(10);
+                timeWarp().scheduler().trigger("_name");
+                refresh();
+
+                // the last fire occurred passed the throttle period, so a new action should have been added
+                actionsCount = docCount("actions", "action", matchAllQuery());
+                assertThat(actionsCount, is(2L));
+
+                long throttledCount = docCount(HistoryStore.INDEX_PREFIX + "*", null,
+                        matchQuery(WatchRecord.Parser.STATE_FIELD.getPreferredName(), WatchRecord.State.THROTTLED.id()));
+                assertThat(throttledCount, is(1L));
+            }
+        }
+
 }

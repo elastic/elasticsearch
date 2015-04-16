@@ -73,6 +73,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
+@LuceneTestCase.SuppressFileSystems("*") // nocommit: lots of checks on number of files in a dir here, but suppressing ExtraFS doesn't seem to work?
 public class MetaDataStateFormatTest extends ElasticsearchTestCase {
 
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
@@ -58,6 +59,7 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 @ClusterScope(numDataNodes = 0, scope = Scope.TEST)
 @Slow
+@LuceneTestCase.SuppressFileSystems("*") // nocommit: no idea...
 public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
 
     @Test

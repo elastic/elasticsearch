@@ -69,7 +69,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 /**
  * Base testcase for randomized unit testing with Elasticsearch
  */
-@LuceneTestCase.SuppressFileSystems("*") // we aren't ready for this yet.
 public abstract class ElasticsearchTestCase extends ESTestCase {
 
     private static Thread.UncaughtExceptionHandler defaultHandler;
@@ -173,8 +172,7 @@ public abstract class ElasticsearchTestCase extends ESTestCase {
      * non-standard characters.
      */
     public Path getResourcePath(String relativePath) {
-        URI uri = URI.create(getClass().getResource(relativePath).toString());
-        return PathUtils.get(uri);
+        return PathUtils.get(getClass().getResource(relativePath).getPath());
     }
 
     @After
@@ -486,7 +484,7 @@ public abstract class ElasticsearchTestCase extends ESTestCase {
         }
         CompatibilityVersion annotation = clazz.getAnnotation(CompatibilityVersion.class);
         if (annotation != null) {
-            return  Version.smallest(Version.fromId(annotation.version()), compatibilityVersion(clazz.getSuperclass()));
+            return Version.smallest(Version.fromId(annotation.version()), compatibilityVersion(clazz.getSuperclass()));
         }
         return compatibilityVersion(clazz.getSuperclass());
     }

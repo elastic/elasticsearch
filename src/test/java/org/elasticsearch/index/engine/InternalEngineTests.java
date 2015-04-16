@@ -82,6 +82,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
@@ -1646,6 +1647,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     }
 
     // #10312
+    @Ignore("We can re-enable this if LUCENE-6381 is backported to a 4.10.x release")
     @Test
     public void testDeletesAloneCanTriggerRefresh() throws Exception {
         // Tiny indexing buffer:

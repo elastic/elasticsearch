@@ -11,7 +11,9 @@ import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.watcher.support.ThreadPoolSettingsBuilder;
@@ -23,6 +25,7 @@ import org.quartz.impl.StdSchedulerFactory;
 import org.quartz.simpl.SimpleJobFactory;
 
 import java.util.*;
+import java.util.concurrent.RejectedExecutionHandler;
 
 /**
  *
@@ -159,7 +162,19 @@ public class QuartzScheduleTriggerEngine extends ScheduleTriggerEngine {
     protected void notifyListeners(String name, JobExecutionContext ctx) {
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(new DateTime(ctx.getFireTime()), new DateTime(ctx.getScheduledFireTime()));
         for (Listener listener : listeners) {
-            executor.execute(new ListenerRunnable(listener, name, event));
+            try {
+                executor.execute(new ListenerRunnable(listener, name, event));
+            } catch (EsRejectedExecutionException e) {
+                if (logger.isDebugEnabled()) {
+                    RejectedExecutionHandler rejectedExecutionHandler = executor.getRejectedExecutionHandler();
+                    long rejected = -1;
+                    if (rejectedExecutionHandler instanceof XRejectedExecutionHandler) {
+                        rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();
+                    }
+                    int queueCapacity = executor.getQueue().size();
+                    logger.debug("can't execute trigger on the [" + THREAD_POOL_NAME + "] thread pool, rejected tasks [" + rejected + "] queue capacity [" + queueCapacity +"]");
+                }
+            }
         }
     }
 

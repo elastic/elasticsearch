@@ -15,7 +15,9 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.support.ThreadPoolSettingsBuilder;
 import org.elasticsearch.watcher.support.clock.Clock;
@@ -24,6 +26,7 @@ import org.elasticsearch.watcher.trigger.schedule.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -118,7 +121,19 @@ public class HashWheelScheduleTriggerEngine extends ScheduleTriggerEngine {
         logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", name, new DateTime(triggeredTime), new DateTime(scheduledTime));
         final ScheduleTriggerEvent event = new ScheduleTriggerEvent(new DateTime(triggeredTime), new DateTime(scheduledTime));
         for (Listener listener : listeners) {
-            executor.execute(new ListenerRunnable(listener, name, event));
+            try {
+                executor.execute(new ListenerRunnable(listener, name, event));
+            } catch (EsRejectedExecutionException e) {
+                if (logger.isDebugEnabled()) {
+                    RejectedExecutionHandler rejectedExecutionHandler = executor.getRejectedExecutionHandler();
+                    long rejected = -1;
+                    if (rejectedExecutionHandler instanceof XRejectedExecutionHandler) {
+                        rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();
+                    }
+                    int queueCapacity = executor.getQueue().size();
+                    logger.debug("can't execute trigger on the [" + THREAD_POOL_NAME + "] thread pool, rejected tasks [" + rejected + "] queue capacity [" + queueCapacity +"]");
+                }
+            }
         }
     }
 

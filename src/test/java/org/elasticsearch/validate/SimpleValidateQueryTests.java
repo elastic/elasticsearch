@@ -18,6 +18,11 @@
  */
 package org.elasticsearch.validate;
 
+import org.apache.lucene.index.Term;
+
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.NumericUtils;
 import com.google.common.base.Charsets;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
@@ -46,7 +51,9 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
@@ -86,6 +93,12 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
         }
         return filter;
     }
+    
+    private String indexedValueForSearchAsString(int value) {
+        BytesRefBuilder bytesRef = new BytesRefBuilder();
+        NumericUtils.intToPrefixCoded(value, 0, bytesRef); // 0 because of exact match
+        return Term.toString(bytesRef.get());
+    }    
 
     @Test
     public void explainValidateQuery() throws Exception {
@@ -134,14 +147,14 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
                         FilterBuilders.termFilter("bar", "2"),
                         FilterBuilders.termFilter("baz", "3")
                 )
-        ), equalTo("filtered(filtered(foo:1)->" + filter("bar:[2 TO 2]") + " " + filter("baz:3") + ")->" + typeFilter));
+        ), equalTo("filtered(filtered(foo:1)->" + filter("bar:"+indexedValueForSearchAsString(2)) + " " + filter("baz:3") + ")->" + typeFilter));
 
         assertExplanation(QueryBuilders.filteredQuery(
                 QueryBuilders.termQuery("foo", "1"),
                 FilterBuilders.orFilter(
                         FilterBuilders.termFilter("bar", "2")
                 )
-        ), equalTo("filtered(filtered(foo:1)->" + filter("bar:[2 TO 2]") + ")->" + typeFilter));
+        ), equalTo("filtered(filtered(foo:1)->" + filter("bar:"+indexedValueForSearchAsString(2)) + ")->" + typeFilter));
 
         assertExplanation(QueryBuilders.filteredQuery(
                 QueryBuilders.matchAllQuery(),
@@ -179,7 +192,7 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
                         FilterBuilders.termFilter("bar", "2"),
                         FilterBuilders.termFilter("baz", "3")
                 )
-        ), equalTo("filtered(filtered(foo:1)->+" + filter("bar:[2 TO 2]") + " +" + filter("baz:3") + ")->" + typeFilter));
+        ), equalTo("filtered(filtered(foo:1)->+" + filter("bar:"+indexedValueForSearchAsString(2)) + " +" + filter("baz:3") + ")->" + typeFilter));
 
         assertExplanation(QueryBuilders.constantScoreQuery(FilterBuilders.termsFilter("foo", "1", "2", "3")),
                 equalTo("filtered(ConstantScore(" + filter("foo:1 foo:2 foo:3") + "))->" + typeFilter));

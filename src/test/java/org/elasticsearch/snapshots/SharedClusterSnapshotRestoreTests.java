@@ -81,7 +81,6 @@ import static org.hamcrest.Matchers.*;
 public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
     @Test
-    @TestLogging("action.count:TRACE")
     public void basicWorkFlowTest() throws Exception {
         Client client = client();
 
@@ -149,6 +148,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
+        ensureGreen();
         for (int i=0; i<5; i++) {
             assertHitCount(client.prepareCount("test-idx-1").get(), 100L);
             assertHitCount(client.prepareCount("test-idx-2").get(), 100L);
@@ -162,6 +162,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-2").execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
+        ensureGreen();
         for (int i=0; i<5; i++) {
             assertHitCount(client.prepareCount("test-idx-1").get(), 100L);
         }

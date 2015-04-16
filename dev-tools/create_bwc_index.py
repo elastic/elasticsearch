@@ -19,10 +19,14 @@ import glob
 import logging
 import os
 import random
+import shutil
 import subprocess
 import sys
 import tempfile
 import time
+
+DEFAULT_TRANSPORT_TCP_PORT = 9300
+DEFAULT_HTTP_TCP_PORT = 9200
 
 if sys.version_info[0] < 3:
   print('%s must use python 3.x (for the ES python client)' % sys.argv[0])
@@ -126,14 +130,17 @@ def build_version(version_tuple):
 def build_tuple(version_string):
   return [int(x) for x in version_string.split('.')]
 
-def start_node(version, release_dir, data_dir, tcp_port, http_port):
-  logging.info('Starting node from %s on port %s/%s' % (release_dir, tcp_port, http_port))
+def start_node(version, release_dir, data_dir, tcp_port=DEFAULT_TRANSPORT_TCP_PORT, http_port=DEFAULT_HTTP_TCP_PORT, cluster_name=None):
+  logging.info('Starting node from %s on port %s/%s, data_dir %s' % (release_dir, tcp_port, http_port, data_dir))
+  if cluster_name is None:
+    cluster_name = 'bwc_index_' + version
+    
   cmd = [
     os.path.join(release_dir, 'bin/elasticsearch'),
     '-Des.path.data=%s' % data_dir,
     '-Des.path.logs=logs',
-    '-Des.cluster.name=bwc_index_' + version,  
-    '-Des.network.host=localhost', 
+    '-Des.cluster.name=%s' % cluster_name,
+    '-Des.network.host=localhost',
     '-Des.discovery.zen.ping.multicast.enabled=false',
     '-Des.transport.tcp.port=%s' % tcp_port,
     '-Des.http.port=%s' % http_port
@@ -142,7 +149,7 @@ def start_node(version, release_dir, data_dir, tcp_port, http_port):
     cmd.append('-f') # version before 1.0 start in background automatically
   return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-def create_client(http_port, timeout=30):
+def create_client(http_port=DEFAULT_HTTP_TCP_PORT, timeout=30):
   logging.info('Waiting for node to startup')
   for _ in range(0, timeout):
     # TODO: ask Honza if there is a better way to do this?
@@ -158,8 +165,6 @@ def create_client(http_port, timeout=30):
 
 def generate_index(client, version, index_name):
   client.indices.delete(index=index_name, ignore=404)
-  num_shards = random.randint(1, 10)
-  num_replicas = random.randint(0, 1)
   logging.info('Create single shard test index')
 
   mappings = {}
@@ -224,6 +229,11 @@ def generate_index(client, version, index_name):
           'type': 'long',
           'doc_values_format': 'Lucene42'
         }
+      }
+    }
+    mappings['auto_boost'] = {
+      '_all': {
+        'auto_boost': True
       }
     }
 
@@ -295,7 +305,7 @@ def compress(tmp_dir, output_dir, zipfile, directory):
   zipfile = os.path.join(abs_output_dir, zipfile)
   if os.path.exists(zipfile):
     os.remove(zipfile)
-  logging.info('Compressing index into %s', zipfile)
+  logging.info('Compressing index into %s, tmpDir %s', zipfile, tmp_dir)
   olddir = os.getcwd()
   os.chdir(tmp_dir)
   subprocess.check_call('zip -r %s %s' % (zipfile, directory), shell=True)
@@ -313,9 +323,9 @@ def parse_config():
                       help='The directory containing elasticsearch releases')
   parser.add_argument('--output-dir', '-o', default='src/test/resources/org/elasticsearch/bwcompat',
                       help='The directory to write the zipped index into')
-  parser.add_argument('--tcp-port', default=9300, type=int,
+  parser.add_argument('--tcp-port', default=DEFAULT_TRANSPORT_TCP_PORT, type=int,
                       help='The port to use as the minimum port for TCP communication')
-  parser.add_argument('--http-port', default=9200, type=int,
+  parser.add_argument('--http-port', default=DEFAULT_HTTP_TCP_PORT, type=int,
                       help='The port to use as the minimum port for HTTP communication')
   cfg = parser.parse_args()
 
@@ -334,13 +344,16 @@ def create_bwc_index(cfg, version):
   logging.info('--> Creating bwc index for %s' % version)
   release_dir = os.path.join(cfg.releases_dir, 'elasticsearch-%s' % version)
   if not os.path.exists(release_dir):
-    parser.error('ES version %s does not exist in %s' % (version, cfg.releases_dir)) 
+    raise RuntimeError('ES version %s does not exist in %s' % (version, cfg.releases_dir))
   snapshot_supported = not (version.startswith('0.') or version == '1.0.0.Beta1')
   tmp_dir = tempfile.mkdtemp()
+
   data_dir = os.path.join(tmp_dir, 'data')
   repo_dir = os.path.join(tmp_dir, 'repo')
   logging.info('Temp data dir: %s' % data_dir)
   logging.info('Temp repo dir: %s' % repo_dir)
+
+  node = None
 
   try:
     node = start_node(version, release_dir, data_dir, cfg.tcp_port, cfg.http_port)
@@ -354,16 +367,26 @@ def create_bwc_index(cfg, version):
     # this after the snapshot, because it calls flush.  Otherwise the index
     # will already have the deletions applied on upgrade.
     delete_by_query(client, version, index_name, 'doc')
-    
-  finally:
-    if 'node' in vars():
-      logging.info('Shutting down node with pid %d', node.pid)
-      node.terminate()
-      time.sleep(1) # some nodes take time to terminate
-  compress_index(version, tmp_dir, cfg.output_dir)
-  if snapshot_supported:
-    compress_repo(version, tmp_dir, cfg.output_dir)
 
+    shutdown_node(node)
+    node = None
+
+    compress_index(version, tmp_dir, cfg.output_dir)
+    if snapshot_supported:
+      compress_repo(version, tmp_dir, cfg.output_dir)
+  finally:
+
+    if node is not None:
+      # This only happens if we've hit an exception:
+      shutdown_node(node)
+      
+    shutil.rmtree(tmp_dir)
+
+def shutdown_node(node):
+  logging.info('Shutting down node with pid %d', node.pid)
+  node.terminate()
+  node.wait()
+    
 def main():
   logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s', level=logging.INFO,
                       datefmt='%Y-%m-%d %I:%M:%S %p')

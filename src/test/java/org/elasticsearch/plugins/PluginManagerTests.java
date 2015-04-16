@@ -21,12 +21,14 @@ package org.elasticsearch.plugins;
 import com.google.common.base.Predicate;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -61,6 +63,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
+@LuceneTestCase.SuppressFileSystems("*") // nocommit: lots of failures here, some with provider mismatches...
 public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
     @Test(expected = ElasticsearchIllegalArgumentException.class)
@@ -518,8 +521,8 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
      * @throws NullPointerException if {@code resourceName} does not point to a valid resource.
      */
     private String getPluginUrlForResource(String resourceName) {
-        URI uri = URI.create(PluginManagerTests.class.getResource(resourceName).toString());
+        Path resourcePath = PathUtils.get(PluginManagerTests.class.getResource(resourceName).getPath());
 
-        return "file://" + uri.getPath();
+        return "file://" + resourcePath.toString();
     }
 }

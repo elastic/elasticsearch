@@ -78,6 +78,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @LuceneTestCase.SuppressCodecs({"Lucene3x", "MockFixedIntBlock", "MockVariableIntBlock", "MockSep", "MockRandom", "Lucene40", "Lucene41", "Appending", "Lucene42", "Lucene45", "Lucene46", "Lucene49"})
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0)
+@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegrationTest {
     // TODO: test for proper exception on unsupported indexes (maybe via separate test?)
     // We have a 0.20.6.zip etc for this.

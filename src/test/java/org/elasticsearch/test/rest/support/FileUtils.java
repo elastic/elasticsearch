@@ -107,7 +107,7 @@ public final class FileUtils {
             }
         }
 
-        return PathUtils.get(URI.create(resource.toString()));
+        return PathUtils.get(resource.getPath());
     }
 
     private static URL findResource(String path, String optionalFileSuffix) {

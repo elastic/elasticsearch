@@ -18,9 +18,8 @@
  */
 package org.elasticsearch.watcher;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
-
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -33,11 +32,14 @@ import java.nio.file.StandardOpenOption;
 import java.util.List;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  *
  */
+@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class FileWatcherTest extends ElasticsearchTestCase {
 
     private class RecordingChangeListener extends FileChangesListener {

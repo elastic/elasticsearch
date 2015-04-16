@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.translog;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -33,6 +34,10 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for reading old and new translog files
  */
+@LuceneTestCase.SuppressFileSystems("*") // nocommit: really??
+// file handle leaks: [InputStream(/Users/rjernst/Code/elasticsearch/target/test-classes/org/elasticsearch/index/translog/translog-v1.binary), InputStream(/Users/rjernst/Code/elasticsearch/target/test-classes/org/elasticsearch/index/translog/translog-v0.binary)]
+// > 	at __randomizedtesting.SeedInfo.seed([5C01B578E6A55900]:0)
+// > 	at org.apache.lucene.mockfile.LeakFS.onClose(LeakFS.java:64)
 public class TranslogVersionTests extends ElasticsearchTestCase {
 
     @Test

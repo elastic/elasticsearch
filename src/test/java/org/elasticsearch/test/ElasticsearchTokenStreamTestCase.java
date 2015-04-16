@@ -24,6 +24,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
@@ -43,6 +44,10 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
  */
 public abstract class ElasticsearchTokenStreamTestCase extends BaseTokenStreamTestCase {
 
+    static {
+        SecurityHack.ensureInitialized();
+    }
+    
     public static Version randomVersion() {
         return ElasticsearchTestCase.randomVersion(random());
     }

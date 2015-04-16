@@ -25,6 +25,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
@@ -47,6 +48,10 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 @SuppressFileSystems("*") // we aren't ready for this yet.
 public abstract class ElasticsearchLuceneTestCase extends LuceneTestCase {
 
+    static {
+        SecurityHack.ensureInitialized();
+    }
+    
     private static final Codec DEFAULT_CODEC = Codec.getDefault();
 
     /**

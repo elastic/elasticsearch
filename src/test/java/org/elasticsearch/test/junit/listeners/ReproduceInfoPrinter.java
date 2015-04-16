@@ -21,10 +21,11 @@ package org.elasticsearch.test.junit.listeners;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
 import com.carrotsearch.randomizedtesting.TraceFormatting;
-import org.apache.lucene.util.AbstractRandomizedTest;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.junit.internal.AssumptionViolatedException;
@@ -151,7 +152,7 @@ public class ReproduceInfoPrinter extends RunListener {
             }
             appendOpt("tests.locale", Locale.getDefault().toString());
             appendOpt("tests.timezone", TimeZone.getDefault().getID());
-            appendOpt(AbstractRandomizedTest.SYSPROP_PROCESSORS, Integer.toString(AbstractRandomizedTest.TESTS_PROCESSORS));
+            appendOpt(ESTestCase.SYSPROP_PROCESSORS, Integer.toString(ESTestCase.TESTS_PROCESSORS));
             return this;
         }
 

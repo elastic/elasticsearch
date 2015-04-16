@@ -20,6 +20,7 @@
 package org.elasticsearch.common.io;
 
 import com.google.common.base.Charsets;
+
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Assert;
 import org.junit.Before;
@@ -27,6 +28,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -153,7 +155,7 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
             Assert.assertThat("file [" + file + "] should not exist.", Files.exists(file), is(false));
         } else {
             assertFileExists(file);
-            String fileContent = new String(Files.readAllBytes(file), UTF8);
+            String fileContent = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
             // trim the string content to prevent different handling on windows vs. unix and CR chars...
             Assert.assertThat(fileContent.trim(), equalTo(expected.trim()));
         }

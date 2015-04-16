@@ -36,6 +36,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -51,7 +52,7 @@ public class CodecTests extends ElasticsearchSingleNodeLuceneTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        forceDefaultCodec(); // we test against default codec so never get a random one here!
+        Codec.setDefault(TestUtil.getDefaultCodec()); // we test against default codec so never get a random one here!
     }
 
     @Test

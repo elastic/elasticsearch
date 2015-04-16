@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test;
 
-import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -82,7 +81,7 @@ import static org.hamcrest.Matchers.is;
  *
  */
 // the transportClientRatio is tricky here since we don't fully control the cluster nodes
-@AbstractRandomizedTest.Backwards
+@ESTestCase.Backwards
 @ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 0, maxNumDataNodes = 2, scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0.0)
 @Ignore
 public abstract class ElasticsearchBackwardsCompatIntegrationTest extends ElasticsearchIntegrationTest {

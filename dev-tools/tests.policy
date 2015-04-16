@@ -90,6 +90,21 @@ grant {
   // needed to get file descriptor statistics
   permission java.lang.RuntimePermission "accessClassInPackage.sun.management";
 
+  // somehow completely out of control... static leaks galore!!!!!!
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.util.calendar";
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect.generics.repository";
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect.generics.tree";
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect.generics.factory";
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect.generics.scope";
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect.generics.reflectiveObjects";
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect.annotation";
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.net.www.protocol.file";
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.invoke.util";
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.net.www.protocol.jar";
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.nio.cs";
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.nio.fs";
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.util.locale";
+
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.RuntimePermission "getStackTrace";
 

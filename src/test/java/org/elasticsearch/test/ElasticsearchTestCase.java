@@ -18,18 +18,13 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
-import com.carrotsearch.randomizedtesting.RandomizedTest;
-import com.carrotsearch.randomizedtesting.annotations.*;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.lucene.store.MockDirectoryWrapper;
-import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.TimeUnits;
-import org.apache.lucene.uninverting.UninvertingReader;
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -47,7 +42,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
-import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.search.MockSearchService;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,7 +57,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.net.URI;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -76,20 +69,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 /**
  * Base testcase for randomized unit testing with Elasticsearch
  */
-@ThreadLeakScope(Scope.SUITE)
-@ThreadLeakLingering(linger = 5000) // 5 sec lingering
-@TimeoutSuite(millis = 20 * TimeUnits.MINUTE) // timeout the suite after 20min and fail the test.
-@Listeners(LoggingListener.class)
 @LuceneTestCase.SuppressFileSystems("*") // we aren't ready for this yet.
-public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
+public abstract class ElasticsearchTestCase extends ESTestCase {
 
     private static Thread.UncaughtExceptionHandler defaultHandler;
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
-
-    public static final String TESTS_SECURITY_MANAGER = System.getProperty("tests.security.manager");
-
-    public static final String JAVA_SECURTY_POLICY = System.getProperty("java.security.policy");
 
     /**
      * Property that allows to adapt the tests behaviour to older features/bugs based on the input version
@@ -98,19 +83,8 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     private static final Version GLOABL_COMPATIBILITY_VERSION = Version.fromString(compatibilityVersionProperty());
 
-    public static final boolean ASSERTIONS_ENABLED;
     static {
-        boolean enabled = false;
-        assert enabled = true;
-        ASSERTIONS_ENABLED = enabled;
         SecurityHack.ensureInitialized();
-    }
-
-    @After
-    public void ensureNoFieldCacheUse() {
-        // field cache should NEVER get loaded.
-        String[] entries = UninvertingReader.getUninvertedStats();
-        assertEquals("fieldcache must never be used, got=" + Arrays.toString(entries), 0, entries.length);
     }
 
     /**
@@ -264,7 +238,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     }
 
     public static boolean maybeDocValues() {
-        return randomBoolean();
+        return random().nextBoolean();
     }
 
     private static final List<Version> SORTED_VERSIONS;
@@ -310,7 +284,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
      * @return a random {@link Version} from all available versions
      */
     public static Version randomVersion() {
-        return randomVersion(getRandom());
+        return randomVersion(random());
     }
     
     /**
@@ -344,7 +318,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
      *         <code>maxVersion</code> (inclusive)
      */
     public static Version randomVersionBetween(Version minVersion, Version maxVersion) {
-        return randomVersionBetween(getRandom(), minVersion, maxVersion);
+        return randomVersionBetween(random(), minVersion, maxVersion);
     }
 
     /**
@@ -461,17 +435,13 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         }
     }
 
-    public static <T> T randomFrom(T... values) {
-        return RandomizedTest.randomFrom(values);
-    }
-
     public static String[] generateRandomStringArray(int maxArraySize, int maxStringSize, boolean allowNull) {
-        if (allowNull && randomBoolean()) {
+        if (allowNull && random().nextBoolean()) {
             return null;
         }
-        String[] array = new String[randomInt(maxArraySize)]; // allow empty arrays
+        String[] array = new String[random().nextInt(maxArraySize)]; // allow empty arrays
         for (int i = 0; i < array.length; i++) {
-            array[i] = randomAsciiOfLength(maxStringSize);
+            array[i] = RandomStrings.randomAsciiOfLength(random(), maxStringSize);
         }
         return array;
     }
@@ -549,30 +519,24 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     /**
      * Returns a temporary file
+     * @throws IOException 
      */
-    public Path newTempFilePath() {
-        return newTempFile().toPath();
+    public Path newTempFilePath() throws IOException {
+        return createTempFile();
     }
     
     /**
      * Returns a temporary directory
      */
     public Path newTempDirPath() {
-        return newTempDir().toPath();
-    }
-    
-    /**
-     * Returns a temporary directory
-     */
-    public static Path newTempDirPath(LifecycleScope scope) {
-        return newTempDir(scope).toPath();
+        return createTempDir();
     }
 
     /**
      * Returns a random number of temporary paths.
      */
     public String[] tmpPaths() {
-        final int numPaths = randomIntBetween(1, 3);
+        final int numPaths = TestUtil.nextInt(random(), 1, 3);
         final String[] absPaths = new String[numPaths];
         for (int i = 0; i < numPaths; i++) {
             absPaths[i] = newTempDirPath().toAbsolutePath().toString();

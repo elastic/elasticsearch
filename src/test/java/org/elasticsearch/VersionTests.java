@@ -139,7 +139,7 @@ public class VersionTests extends ElasticsearchTestCase {
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion();
             String stringVersion = version.toString();
-            if (version.snapshot() == false && randomBoolean()) {
+            if (version.snapshot() == false && random().nextBoolean()) {
                 version = new Version(version.id, true, version.luceneVersion);
             }
             Version parsedVersion = Version.fromString(version.toString());

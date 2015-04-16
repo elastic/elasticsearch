@@ -65,7 +65,6 @@ public class ChildrenQueryTests extends AbstractChildTests {
 
     @BeforeClass
     public static void before() throws IOException {
-        forceDefaultCodec();
         SearchContext.setCurrent(createSearchContext("test", "parent", "child"));
     }
 

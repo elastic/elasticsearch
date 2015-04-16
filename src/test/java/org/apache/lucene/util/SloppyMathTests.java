@@ -63,8 +63,8 @@ public class SloppyMathTests extends ElasticsearchTestCase {
             for (int i = 0; i < 100; i++) {
                 // crop pole areas, sine we now there the function
                 // is not accurate around lat(89°, 90°) and lat(-90°, -89°)
-                final double lat2 = Math.max(-89.0, Math.min(+89.0, lat1 + (randomDouble() - 0.5) * 2 * deltaDeg[test]));
-                final double lon2 = lon1 + (randomDouble() - 0.5) * 2 * deltaDeg[test];
+                final double lat2 = Math.max(-89.0, Math.min(+89.0, lat1 + (random().nextDouble() - 0.5) * 2 * deltaDeg[test]));
+                final double lon2 = lon1 + (random().nextDouble() - 0.5) * 2 * deltaDeg[test];
 
                 final double accurate = GeoDistance.ARC.calculate(lat1, lon1, lat2, lon2, unit);
                 final double dist = GeoDistance.SLOPPY_ARC.calculate(lat1, lon1, lat2, lon2, unit);
@@ -83,10 +83,10 @@ public class SloppyMathTests extends ElasticsearchTestCase {
     private static final double randomLatitude() {
         // crop pole areas, sine we now there the function
         // is not accurate around lat(89°, 90°) and lat(-90°, -89°)
-        return (getRandom().nextDouble() - 0.5) * 178.0;
+        return (random().nextDouble() - 0.5) * 178.0;
     }
 
     private static final double randomLongitude() {
-        return (getRandom().nextDouble() - 0.5) * 360.0;
+        return (random().nextDouble() - 0.5) * 360.0;
     }
 }

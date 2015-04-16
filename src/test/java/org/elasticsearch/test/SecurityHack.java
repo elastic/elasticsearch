@@ -20,6 +20,7 @@
 package org.elasticsearch.test;
 
 import org.apache.lucene.util.TestSecurityManager;
+
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 
 /** 
@@ -32,7 +33,9 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAs
 class SecurityHack {
 
     static {
-        if (systemPropertyAsBoolean("tests.security.manager", true)) {
+        // for IDEs, we check that security.policy is set
+        if (systemPropertyAsBoolean("tests.security.manager", true) && 
+                System.getProperty("java.security.policy") != null) {
             System.setSecurityManager(new TestSecurityManager());
         }
     }

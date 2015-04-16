@@ -40,7 +40,6 @@ public class TopChildrenQueryTests extends AbstractChildTests {
 
     @BeforeClass
     public static void before() throws IOException {
-        forceDefaultCodec();
         SearchContext.setCurrent(ChildrenConstantScoreQueryTests.createSearchContext("test", "parent", "child"));
     }
 

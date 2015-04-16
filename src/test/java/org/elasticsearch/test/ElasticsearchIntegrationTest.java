@@ -29,7 +29,6 @@ import com.google.common.collect.Lists;
 
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.store.StoreRateLimiting;
-import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
@@ -229,7 +228,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * </p>
  */
 @Ignore
-@AbstractRandomizedTest.Integration
+@ESTestCase.Integration
 public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase {
 
     /** node names of the corresponding clusters will start with these prefixes */
@@ -657,47 +656,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         } finally {
             if (!success) {
                 // if we failed here that means that something broke horribly so we should clear all clusters
-                afterTestRule.forceFailure();
+                // TODO: just let the exception happen, WTF is all this horseshit
+                // afterTestRule.forceFailure();
             }
         }
-    }
-
-    @Override
-    protected final AfterTestRule.Task afterTestTask() {
-        return new AfterTestRule.Task() {
-            @Override
-            public void onTestFailed () {
-                //we can't clear clusters after failure when using suite scoped tests, as we would need to call again
-                //initializeSuiteScope but that is static and can only be called from beforeClass
-                if (runTestScopeLifecycle()) {
-                    // If there was a problem during the afterTest, we clear all clusters.
-                    // We do the same in case we just had a test failure to make sure subsequent
-                    // tests get a new / clean cluster
-                    try {
-                        clearClusters();
-                    } catch (IOException e) {
-                        throw new RuntimeException("unable to clear clusters", e);
-                    }
-                    afterTestFailed();
-                    currentCluster = null;
-                }
-            }
-
-            @Override
-            public void onTestFinished () {
-                if (runTestScopeLifecycle()) {
-                    if (currentCluster != null) {
-                        // this can be null if the test fails due to static initialization ie. missing parameter on the cmd
-                        try {
-                            currentCluster.afterTest();
-                        } catch (IOException e) {
-                            throw new RuntimeException("error during afterTest", e);
-                        }
-                        currentCluster = null;
-                    }
-                }
-            }
-        };
     }
 
     /**
@@ -808,7 +770,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
         // 30% of the time
         if (randomInt(9) < 3) {
-            final Path dataPath = newTempDirPath(LifecycleScope.SUITE);
+            final Path dataPath = newTempDirPath();
             logger.info("using custom data_path for index: [{}]", dataPath);
             builder.put(IndexMetaData.SETTING_DATA_PATH, dataPath);
         }
@@ -1742,7 +1704,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             maxNumDataNodes = getMaxNumDataNodes();
         }
 
-        return new InternalTestCluster(seed, newTempDirPath(nodeDirScope), minNumDataNodes, maxNumDataNodes,
+        return new InternalTestCluster(seed, newTempDirPath(), minNumDataNodes, maxNumDataNodes,
                 clusterName(scope.name(), Integer.toString(CHILD_JVM_ID), seed), settingsSource, getNumClientNodes(),
                 InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, CHILD_JVM_ID, nodePrefix);
     }
@@ -1919,6 +1881,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             clearClusters();
         }
         SUITE_SEED = null;
+        currentCluster = null;
     }
 
     private static void initializeSuiteScope() throws Exception {

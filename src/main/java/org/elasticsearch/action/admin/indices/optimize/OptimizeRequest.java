@@ -44,12 +44,14 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         public static final boolean ONLY_EXPUNGE_DELETES = false;
         public static final boolean FLUSH = true;
         public static final boolean UPGRADE = false;
+        public static final boolean UPGRADE_ONLY_ANCIENT_SEGMENTS = false;
     }
     
     private int maxNumSegments = Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;
     private boolean upgrade = Defaults.UPGRADE;
+    private boolean upgradeOnlyAncientSegments = Defaults.UPGRADE_ONLY_ANCIENT_SEGMENTS;
 
     /**
      * Constructs an optimization request over one or more indices.
@@ -156,6 +158,11 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         flush = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
             upgrade = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_1_6_0)) {
+                upgradeOnlyAncientSegments = in.readBoolean();
+            } else {
+                upgradeOnlyAncientSegments = false;
+            }
         }
     }
 
@@ -169,7 +176,26 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         out.writeBoolean(flush);
         if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
             out.writeBoolean(upgrade);
+            if (out.getVersion().onOrAfter(Version.V_1_6_0)) {
+                out.writeBoolean(upgradeOnlyAncientSegments);
+            }
         }
+    }
+
+    /**
+     * Should the merge upgrade only the ancient (older major version of Lucene) segments?
+     * Defaults to <tt>false</tt>.
+     */
+    public boolean upgradeOnlyAncientSegments() {
+        return upgradeOnlyAncientSegments;
+    }
+
+    /**
+     * See {@link #upgradeOnlyAncientSegments()}
+     */
+    public OptimizeRequest upgradeOnlyAncientSegments(boolean upgradeOnlyAncientSegments) {
+        this.upgradeOnlyAncientSegments = upgradeOnlyAncientSegments;
+        return this;
     }
 
     @Override
@@ -179,6 +205,7 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
                 ", onlyExpungeDeletes=" + onlyExpungeDeletes +
                 ", flush=" + flush +
                 ", upgrade=" + upgrade +
+                ", upgradeOnlyAncientSegments=" + upgradeOnlyAncientSegments +
                 '}';
     }
 }

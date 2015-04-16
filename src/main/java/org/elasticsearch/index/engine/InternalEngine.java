@@ -603,7 +603,7 @@ public class InternalEngine extends Engine {
             }
         }
         /*
-         * Unfortunately the lock order is important here. We have to acquire the readlock fist otherwise
+         * Unfortunately the lock order is important here. We have to acquire the readlock first otherwise
          * if we are flushing at the end of the recovery while holding the write lock we can deadlock if:
          *  Thread 1: flushes via API and gets the flush lock but blocks on the readlock since Thread 2 has the writeLock
          *  Thread 2: flushes at the end of the recovery holding the writeLock and blocks on the flushLock owned by Thread 1
@@ -751,7 +751,8 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void forceMerge(final boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, final boolean upgrade) throws EngineException {
+    public void forceMerge(final boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
+                           final boolean upgrade, final boolean upgradeOnlyAncientSegments) throws EngineException {
         /*
          * We do NOT acquire the readlock here since we are waiting on the merges to finish
          * that's fine since the IW.rollback should stop all the threads and trigger an IOException
@@ -769,8 +770,8 @@ public class InternalEngine extends Engine {
         try {
             ensureOpen();
             if (upgrade) {
-                logger.info("starting segment upgrade");
-                mp.setUpgradeInProgress(true);
+                logger.info("starting segment upgrade upgradeOnlyAncientSegments={}", upgradeOnlyAncientSegments);
+                mp.setUpgradeInProgress(true, upgradeOnlyAncientSegments);
             }
             store.incRef(); // increment the ref just to ensure nobody closes the store while we optimize
             try {
@@ -798,7 +799,7 @@ public class InternalEngine extends Engine {
             throw ex;
         } finally {
             try {
-                mp.setUpgradeInProgress(false); // reset it just to make sure we reset it in a case of an error
+                mp.setUpgradeInProgress(false, false); // reset it just to make sure we reset it in a case of an error
             } finally {
                 optimizeLock.unlock();
             }
@@ -1083,9 +1084,9 @@ public class InternalEngine extends Engine {
         store.incRef();
         try {
             if (Lucene.upgradeLucene3xSegmentsMetadata(store.directory())) {
-                logger.debug("upgraded pending 3.x segments on startup");
+                logger.debug("upgraded current 3.x segments file on startup");
             } else {
-                logger.debug("no 3.x segments needed upgrading");
+                logger.debug("segments file is already after 3.x; not upgrading");
             }
         } finally {
             store.decRef();

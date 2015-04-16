@@ -38,6 +38,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -73,12 +74,10 @@ public class RestUpgradeAction extends BaseRestHandler {
             public RestResponse buildResponse(IndicesSegmentResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 
-                // TODO: getIndices().values() is what IndecesSegmentsResponse uses, but this will produce different orders with jdk8?
+                // TODO: getIndices().values() is what IndicesSegmentsResponse uses, but this will produce different orders with jdk8?
                 for (IndexSegments indexSegments : response.getIndices().values()) {
-                    Tuple<Long, Long> summary = calculateUpgradeStatus(indexSegments);
                     builder.startObject(indexSegments.getIndex());
-                    builder.byteSizeField(SIZE_IN_BYTES, SIZE, summary.v1());
-                    builder.byteSizeField(SIZE_TO_UPGRADE_IN_BYTES, SIZE_TO_UPGRADE, summary.v2());
+                    buildUpgradeStatus(indexSegments, builder);
                     builder.endObject();
                 }
                 
@@ -92,6 +91,7 @@ public class RestUpgradeAction extends BaseRestHandler {
         OptimizeRequest optimizeReq = new OptimizeRequest(Strings.splitStringByCommaToArray(request.param("index")));
         optimizeReq.flush(true);
         optimizeReq.upgrade(true);
+        optimizeReq.upgradeOnlyAncientSegments(request.paramAsBoolean("only_ancient_segments", false));
         optimizeReq.maxNumSegments(Integer.MAX_VALUE); // we just want to upgrade the segments, not actually optimize to a single segment
         client.admin().indices().optimize(optimizeReq, new RestBuilderListener<OptimizeResponse>(channel) {
             @Override
@@ -104,15 +104,18 @@ public class RestUpgradeAction extends BaseRestHandler {
         });
     }
     
-    Tuple<Long, Long> calculateUpgradeStatus(IndexSegments indexSegments) {
+    void buildUpgradeStatus(IndexSegments indexSegments, XContentBuilder builder) throws IOException {
         long total_bytes = 0;
         long to_upgrade_bytes = 0;
+        long to_upgrade_bytes_ancient = 0;
         for (IndexShardSegments shard : indexSegments) {
             for (ShardSegments segs : shard.getShards()) {
                 for (Segment seg : segs.getSegments()) {
                     total_bytes += seg.sizeInBytes;
-                    if (seg.version.major != Version.CURRENT.luceneVersion.major ||
-                        seg.version.minor != Version.CURRENT.luceneVersion.minor) {
+                    if (seg.version.major != Version.CURRENT.luceneVersion.major) {
+                        to_upgrade_bytes_ancient += seg.sizeInBytes;
+                        to_upgrade_bytes += seg.sizeInBytes;
+                    } else if (seg.version.minor != Version.CURRENT.luceneVersion.minor) {
                         // TODO: this comparison is bogus! it would cause us to upgrade even with the same format
                         // instead, we should check if the codec has changed
                         to_upgrade_bytes += seg.sizeInBytes;
@@ -120,11 +123,16 @@ public class RestUpgradeAction extends BaseRestHandler {
                 }
             }
         }
-        return new Tuple<>(total_bytes, to_upgrade_bytes);
+
+        builder.byteSizeField(SIZE_IN_BYTES, SIZE, total_bytes);
+        builder.byteSizeField(SIZE_TO_UPGRADE_IN_BYTES, SIZE_TO_UPGRADE, to_upgrade_bytes);
+        builder.byteSizeField(SIZE_TO_UPGRADE_ANCIENT_IN_BYTES, SIZE_TO_UPGRADE_ANCIENT, to_upgrade_bytes_ancient);
     }
 
     static final XContentBuilderString SIZE = new XContentBuilderString("size");
     static final XContentBuilderString SIZE_IN_BYTES = new XContentBuilderString("size_in_bytes");
     static final XContentBuilderString SIZE_TO_UPGRADE = new XContentBuilderString("size_to_upgrade");
+    static final XContentBuilderString SIZE_TO_UPGRADE_ANCIENT = new XContentBuilderString("size_to_upgrade_ancient");
     static final XContentBuilderString SIZE_TO_UPGRADE_IN_BYTES = new XContentBuilderString("size_to_upgrade_in_bytes");
+    static final XContentBuilderString SIZE_TO_UPGRADE_ANCIENT_IN_BYTES = new XContentBuilderString("size_to_upgrade_ancient_in_bytes");
 }

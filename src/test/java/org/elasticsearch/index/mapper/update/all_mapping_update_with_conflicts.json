@@ -1,7 +1,6 @@
 {
   "type": {
     "_all": {
-      "auto_boost": false,
       "store": false,
       "enabled": false,
       "store_term_vectors": false,

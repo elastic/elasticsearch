@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -33,6 +34,7 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedString;
@@ -70,6 +72,7 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -438,10 +441,11 @@ public class DocumentMapper implements ToXContent {
         ParseContext.InternalParseContext context = cache.get();
 
         if (source.type() != null && !source.type().equals(this.type)) {
-            throw new MapperParsingException("Type mismatch, provide type [" + source.type() + "] but mapper is of type [" + this.type + "]", context.mappingsModified());
+            throw new MapperParsingException("Type mismatch, provide type [" + source.type() + "] but mapper is of type [" + this.type + "]");
         }
         source.type(this.type);
 
+        boolean mappingsModified = false;
         XContentParser parser = source.parser();
         try {
             if (parser == null) {
@@ -456,7 +460,7 @@ public class DocumentMapper implements ToXContent {
             int countDownTokens = 0;
             XContentParser.Token token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new MapperParsingException("Malformed content, must start with an object", context.mappingsModified());
+                throw new MapperParsingException("Malformed content, must start with an object");
             }
             boolean emptyDoc = false;
             token = parser.nextToken();
@@ -464,7 +468,7 @@ public class DocumentMapper implements ToXContent {
                 // empty doc, we can handle it...
                 emptyDoc = true;
             } else if (token != XContentParser.Token.FIELD_NAME) {
-                throw new MapperParsingException("Malformed content, after first object, either the type field or the actual properties should exist", context.mappingsModified());
+                throw new MapperParsingException("Malformed content, after first object, either the type field or the actual properties should exist");
             }
 
             for (RootMapper rootMapper : rootMappersOrdered) {
@@ -472,7 +476,31 @@ public class DocumentMapper implements ToXContent {
             }
 
             if (!emptyDoc) {
-                rootObjectMapper.parse(context);
+                Mapper update = rootObjectMapper.parse(context);
+                for (RootObjectMapper mapper : context.updates()) {
+                    if (update == null) {
+                        update = mapper;
+                    } else {
+                        MapperUtils.merge(update, mapper);
+                    }
+                }
+                if (update != null) {
+                    // TODO: validate the mapping update on the master node
+                    // lock to avoid concurrency issues with mapping updates coming from the API
+                    synchronized(this) {
+                        // simulate on the first time to check if the mapping update is applicable
+                        MergeContext mergeContext = newMmergeContext(new MergeFlags().simulate(true));
+                        rootObjectMapper.merge(update, mergeContext);
+                        if (mergeContext.hasConflicts()) {
+                            throw new MapperParsingException("Could not apply generated dynamic mappings: " + Arrays.toString(mergeContext.buildConflicts()));
+                        } else {
+                            // then apply it for real
+                            mappingsModified = true;
+                            mergeContext = newMmergeContext(new MergeFlags().simulate(false));
+                            rootObjectMapper.merge(update, mergeContext);
+                        }
+                    }
+                }
             }
 
             for (int i = 0; i < countDownTokens; i++) {
@@ -490,10 +518,10 @@ public class DocumentMapper implements ToXContent {
 
             // Throw a more meaningful message if the document is empty.
             if (source.source() != null && source.source().length() == 0) {
-                throw new MapperParsingException("failed to parse, document is empty", context.mappingsModified());
+                throw new MapperParsingException("failed to parse, document is empty");
             }
 
-            throw new MapperParsingException("failed to parse", e, context.mappingsModified());
+            throw new MapperParsingException("failed to parse", e);
         } finally {
             // only close the parser when its not provided externally
             if (source.parser() == null && parser != null) {
@@ -521,7 +549,7 @@ public class DocumentMapper implements ToXContent {
         }
 
         ParsedDocument doc = new ParsedDocument(context.uid(), context.version(), context.id(), context.type(), source.routing(), source.timestamp(), source.ttl(), context.docs(),
-                context.source(), context.mappingsModified()).parent(source.parent());
+                context.source(), mappingsModified).parent(source.parent());
         // reset the context to free up memory
         context.reset(null, null, null, null);
         return doc;
@@ -637,8 +665,41 @@ public class DocumentMapper implements ToXContent {
         rootObjectMapper.traverse(listener);
     }
 
+    private MergeContext newMmergeContext(MergeFlags mergeFlags) {
+        return new MergeContext(mergeFlags) {
+
+            List<String> conflicts = new ArrayList<>();
+
+            @Override
+            public void addFieldMappers(List<FieldMapper<?>> fieldMappers) {
+                DocumentMapper.this.addFieldMappers(fieldMappers);
+            }
+
+            @Override
+            public void addObjectMappers(Collection<ObjectMapper> objectMappers) {
+                DocumentMapper.this.addObjectMappers(objectMappers);
+            }
+
+            @Override
+            public void addConflict(String mergeFailure) {
+                conflicts.add(mergeFailure);
+            }
+
+            @Override
+            public boolean hasConflicts() {
+                return conflicts.isEmpty() == false;
+            }
+
+            @Override
+            public String[] buildConflicts() {
+                return conflicts.toArray(Strings.EMPTY_ARRAY);
+            }
+
+        };
+    }
+
     public synchronized MergeResult merge(DocumentMapper mergeWith, MergeFlags mergeFlags) {
-        MergeContext mergeContext = new MergeContext(this, mergeFlags);
+        final MergeContext mergeContext = newMmergeContext(mergeFlags);
         assert rootMappers.size() == mergeWith.rootMappers.size();
 
         rootObjectMapper.merge(mergeWith.rootObjectMapper, mergeContext);

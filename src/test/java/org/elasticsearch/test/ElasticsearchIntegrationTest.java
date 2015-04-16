@@ -373,11 +373,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                             .endObject();
                 }
                 if (randomBoolean()) {
-                    mappings.startObject(AllFieldMapper.NAME)
-                            .field("auto_boost", true)
-                        .endObject();
-                }
-                if (randomBoolean()) {
                     mappings.startObject(SourceFieldMapper.NAME)
                             .field("compress", randomBoolean())
                             .endObject();

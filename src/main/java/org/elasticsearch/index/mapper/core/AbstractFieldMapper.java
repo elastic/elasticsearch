@@ -44,6 +44,7 @@ import org.apache.lucene.search.TermRangeFilter;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -70,6 +71,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.FieldDataTermsFilter;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
@@ -81,7 +83,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.TreeMap;
 
 /**
@@ -434,7 +435,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public Mapper parse(ParseContext context) throws IOException {
         final List<Field> fields = new ArrayList<>(2);
         try {
             parseCreateField(context, fields);
@@ -447,12 +448,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                 }
             }
         } catch (Exception e) {
-            throw new MapperParsingException("failed to parse [" + names.fullName() + "]", e, context.mappingsModified());
+            throw new MapperParsingException("failed to parse [" + names.fullName() + "]", e);
         }
         multiFields.parse(this, context);
         if (copyTo != null) {
             copyTo.parse(context);
         }
+        return null;
     }
 
     /**
@@ -968,7 +970,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
             // first add all field mappers
             if (newFieldMappers != null) {
-                mergeContext.docMapper().addFieldMappers(newFieldMappers);
+                mergeContext.addFieldMappers(newFieldMappers);
             }
             // now publish mappers
             if (newMappersBuilder != null) {
@@ -1089,54 +1091,41 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                 // The path of the dest field might be completely different from the current one so we need to reset it
                 context = context.overridePath(new ContentPath(0));
 
+                ObjectMapper mapper = context.root();
+                String objectPath = "";
+                String fieldPath = field;
                 int posDot = field.lastIndexOf('.');
                 if (posDot > 0) {
-                    // Compound name
-                    String objectPath = field.substring(0, posDot);
-                    String fieldPath = field.substring(posDot + 1);
-                    ObjectMapper mapper = context.docMapper().objectMappers().get(objectPath);
-                    if (mapper == null) {
-                        //TODO: Create an object dynamically?
-                        throw new MapperParsingException("attempt to copy value to non-existing object [" + field + "]", context.mappingsModified());
-                    }
-
+                    objectPath = field.substring(0, posDot);
                     context.path().add(objectPath);
-
-                    // We might be in dynamically created field already, so need to clean withinNewMapper flag
-                    // and then restore it, so we wouldn't miss new mappers created from copy_to fields
-                    boolean origWithinNewMapper = context.isWithinNewMapper();
-                    context.clearWithinNewMapper();
-
-                    try {
-                        mapper.parseDynamicValue(context, fieldPath, context.parser().currentToken());
-                    } finally {
-                        if (origWithinNewMapper) {
-                            context.setWithinNewMapper();
-                        } else {
-                            context.clearWithinNewMapper();
-                        }
-                    }
-
-                } else {
-                    // We might be in dynamically created field already, so need to clean withinNewMapper flag
-                    // and then restore it, so we wouldn't miss new mappers created from copy_to fields
-                    boolean origWithinNewMapper = context.isWithinNewMapper();
-                    context.clearWithinNewMapper();
-                    try {
-                        context.docMapper().root().parseDynamicValue(context, field, context.parser().currentToken());
-                    } finally {
-                        if (origWithinNewMapper) {
-                            context.setWithinNewMapper();
-                        } else {
-                            context.clearWithinNewMapper();
-                        }
-                    }
-
+                    mapper = context.docMapper().objectMappers().get(objectPath);
+                    fieldPath = field.substring(posDot + 1);
                 }
+                if (mapper == null) {
+                    //TODO: Create an object dynamically?
+                    throw new MapperParsingException("attempt to copy value to non-existing object [" + field + "]");
+                }
+                ObjectMapper update = mapper.parseDynamicValue(context, fieldPath, context.parser().currentToken());
+                assert update != null; // we are parsing a dynamic value so we necessarily created a new mapping
+
+                // propagate the update to the root
+                while (objectPath.length() > 0) {
+                    String parentPath = "";
+                    ObjectMapper parent = context.root();
+                    posDot = objectPath.lastIndexOf('.');
+                    if (posDot > 0) {
+                        parentPath = objectPath.substring(0, posDot);
+                        parent = context.docMapper().objectMappers().get(parentPath);
+                    }
+                    if (parent == null) {
+                        throw new ElasticsearchIllegalStateException("[" + objectPath + "] has no parent for path [" + parentPath + "]");
+                    }
+                    update = parent.mappingUpdate(update);
+                    objectPath = parentPath;
+                }
+                context.addRootObjectUpdate((RootObjectMapper) update);
             }
         }
-
-
     }
 
     /**

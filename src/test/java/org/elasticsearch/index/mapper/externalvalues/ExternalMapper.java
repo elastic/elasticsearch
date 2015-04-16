@@ -185,7 +185,7 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public Mapper parse(ParseContext context) throws IOException {
         byte[] bytes = "Hello world".getBytes(Charset.defaultCharset());
         binMapper.parse(context.createExternalValueContext(bytes));
 
@@ -210,6 +210,7 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
         if (copyTo != null) {
             copyTo.parse(context);
         }
+        return null;
     }
 
     @Override

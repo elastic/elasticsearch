@@ -137,7 +137,7 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
                         .condition(scriptCondition("ctx.payload.hits.total > 0"))
                         .transform(searchTransform(matchAllRequest().indices("events")))
                         .addAction("_id", indexAction("actions", "action"))
-                        .throttlePeriod(TimeValue.timeValueSeconds(10)))
+                        .throttlePeriod(TimeValue.timeValueSeconds(30)))
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));
 
@@ -159,7 +159,7 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
             actionsCount = docCount("actions", "action", matchAllQuery());
             assertThat(actionsCount, is(1L));
 
-            timeWarp().clock().fastForwardSeconds(10);
+            timeWarp().clock().fastForwardSeconds(30);
             timeWarp().scheduler().trigger("_name");
             refresh();
 
@@ -172,23 +172,30 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
             assertThat(throttledCount, is(1L));
 
         } else {
-
-            Thread.sleep(TimeUnit.SECONDS.toMillis(2));
-            refresh();
-
-            // the first fire should work so we should have a single action in the actions index
-            long actionsCount = docCount("actions", "action", matchAllQuery());
-            assertThat(actionsCount, is(1L));
-
             Thread.sleep(TimeUnit.SECONDS.toMillis(5));
-
+            // the first fire should work so we should have a single action in the actions index
+            assertBusy(new Runnable() {
+                @Override
+                public void run() {
+                    refresh();
+                    long actionsCount = docCount("actions", "action", matchAllQuery());
+                    assertThat(actionsCount, is(1L));
+                }
+            }, 5, TimeUnit.SECONDS);
+            Thread.sleep(TimeUnit.SECONDS.toMillis(5));
             // we should still be within the throttling period... so the number of actions shouldn't change
-            actionsCount = docCount("actions", "action", matchAllQuery());
-            assertThat(actionsCount, is(1L));
+            assertBusy(new Runnable() {
+                @Override
+                public void run() {
+                    refresh();
+                    long actionsCount = docCount("actions", "action", matchAllQuery());
+                    assertThat(actionsCount, is(1L));
 
-            long throttledCount = docCount(HistoryStore.INDEX_PREFIX + "*", null,
-                    matchQuery(WatchRecord.Parser.STATE_FIELD.getPreferredName(), WatchRecord.State.THROTTLED.id()));
-            assertThat(throttledCount, greaterThanOrEqualTo(1L));
+                    long throttledCount = docCount(HistoryStore.INDEX_PREFIX + "*", null,
+                            matchQuery(WatchRecord.Parser.STATE_FIELD.getPreferredName(), WatchRecord.State.THROTTLED.id()));
+                    assertThat(throttledCount, greaterThanOrEqualTo(1L));
+                }
+            }, 5, TimeUnit.SECONDS);
         }
     }
 

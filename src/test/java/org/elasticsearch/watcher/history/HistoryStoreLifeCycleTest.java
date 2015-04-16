@@ -37,7 +37,7 @@ public class HistoryStoreLifeCycleTest extends AbstractWatcherIntegrationTests {
         WatchRecord[] watchRecords = new WatchRecord[randomIntBetween(1, 50)];
         for (int i = 0; i < watchRecords.length; i++) {
             DateTime dateTime = new DateTime(i, DateTimeZone.UTC);
-            ScheduleTriggerEvent event = new ScheduleTriggerEvent(dateTime, dateTime);
+            ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.name(), dateTime, dateTime);
             Wid wid = new Wid("record_" + i, randomLong(), DateTime.now(UTC));
             watchRecords[i] = new WatchRecord(wid, watch, event);
             historyStore.put(watchRecords[i]);

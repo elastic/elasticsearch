@@ -15,7 +15,6 @@ import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.auth.BasicAuth;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
@@ -85,7 +84,6 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
         client().prepareIndex("idx", "type").setSource("field", "value").get();
         refresh();
 
-        ScriptServiceProxy sc = scriptService();
         InetSocketAddress address = internalTestCluster().httpAddresses()[0];
         XContentBuilder body = jsonBuilder().prettyPrint().startObject()
                     .field("query").value(termQuery("field", "value"))
@@ -99,7 +97,7 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
 
         watcherClient.preparePutWatch("_name1")
                 .setSource(watchBuilder()
-                        .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
+                        .trigger(schedule(interval(10, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(httpInput(requestBuilder).extractKeys("hits.total"))
                         .condition(scriptCondition("ctx.payload.hits.total == 1")))
                 .get();
@@ -107,7 +105,7 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
         // in this watcher the condition will fail, because max_score isn't extracted, only total:
         watcherClient.preparePutWatch("_name2")
                 .setSource(watchBuilder()
-                        .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
+                        .trigger(schedule(interval(10, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(httpInput(requestBuilder).extractKeys("hits.total"))
                         .condition(scriptCondition("ctx.payload.hits.max_score >= 0")))
                 .get();
@@ -116,6 +114,8 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
             timeWarp().scheduler().trigger("_name1");
             timeWarp().scheduler().trigger("_name2");
             refresh();
+        } else {
+            Thread.sleep(10000);
         }
 
         assertWatchWithMinimumPerformedActionsCount("_name1", 1, false);

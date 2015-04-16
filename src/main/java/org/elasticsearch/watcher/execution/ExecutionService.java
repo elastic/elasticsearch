@@ -6,12 +6,15 @@
 package org.elasticsearch.watcher.execution;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.watcher.WatcherException;
@@ -24,9 +27,7 @@ import org.elasticsearch.watcher.support.Callback;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.transform.Transform;
-import org.elasticsearch.watcher.trigger.TriggerEngine;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
-import org.elasticsearch.watcher.trigger.TriggerService;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchExecution;
 import org.elasticsearch.watcher.watch.WatchLockService;
@@ -35,6 +36,7 @@ import org.elasticsearch.watcher.watch.WatchStore;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -54,16 +56,14 @@ public class ExecutionService extends AbstractComponent {
     private final AtomicInteger initializationRetries = new AtomicInteger();
 
     @Inject
-    public ExecutionService(Settings settings, HistoryStore historyStore, WatchExecutor executor,
-                            WatchStore watchStore, WatchLockService watchLockService, TriggerService triggerService,
-                            ClusterService clusterService, Clock clock) {
+    public ExecutionService(Settings settings, HistoryStore historyStore, WatchExecutor executor, WatchStore watchStore,
+                            WatchLockService watchLockService, ClusterService clusterService, Clock clock) {
         super(settings);
         this.historyStore = historyStore;
         this.executor = executor;
         this.watchStore = watchStore;
         this.watchLockService = watchLockService;
         this.clusterService = clusterService;
-        triggerService.register(new SchedulerListener());
         this.clock = clock;
     }
 
@@ -113,6 +113,100 @@ public class ExecutionService extends AbstractComponent {
         return executor.largestPoolSize();
     }
 
+    public void processEventsAsync(Iterable<TriggerEvent> events) throws WatcherException {
+        if (!started.get()) {
+            throw new ElasticsearchIllegalStateException("not started");
+        }
+        final LinkedList<WatchRecord> records = new LinkedList<>();
+        final LinkedList<TriggeredExecutionContext> contexts = new LinkedList<>();
+
+        DateTime now = clock.now();
+        for (TriggerEvent event : events) {
+            Watch watch = watchStore.get(event.jobName());
+            if (watch == null) {
+                logger.warn("unable to find watch [{}] in the watch store, perhaps it has been deleted", event.jobName());
+                continue;
+            }
+            TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, now, event);
+            contexts.add(ctx);
+            records.add(new WatchRecord(ctx.id(), watch, event));
+        }
+
+        logger.debug("saving watch records [{}]", records.size());
+        if (records.size() == 1) {
+            final WatchRecord watchRecord = records.getFirst();
+            final TriggeredExecutionContext ctx = contexts.getFirst();
+            historyStore.putAsync(watchRecord, new ActionListener<Boolean>() {
+                @Override
+                public void onResponse(Boolean aBoolean) {
+                    executeAsync(ctx, watchRecord);
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (cause instanceof EsRejectedExecutionException) {
+                        logger.debug("Failed to store watch record {} due to overloaded threadpool: {}", watchRecord, ExceptionsHelper.detailedMessage(e));
+                    } else {
+                        logger.warn("Failed to store watch record: {}", e, watchRecord);
+                    }
+                }
+            });
+        } else {
+            historyStore.bulkAsync(records, new ActionListener<List<Integer>>() {
+                @Override
+                public void onResponse(List<Integer> successFullSlots) {
+                    for (Integer slot : successFullSlots) {
+                        executeAsync(contexts.get(slot), records.get(slot));
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (cause instanceof EsRejectedExecutionException) {
+                        logger.debug("Failed to store watch records due to overloaded threadpool: {}", ExceptionsHelper.detailedMessage(e));
+                    } else {
+                        logger.warn("Failed to store watch records", e);
+                    }
+                }
+            });
+        }
+    }
+
+    public void processEventsSync(Iterable<TriggerEvent> events) throws WatcherException {
+        if (!started.get()) {
+            throw new ElasticsearchIllegalStateException("not started");
+        }
+        final LinkedList<WatchRecord> records = new LinkedList<>();
+        final LinkedList<TriggeredExecutionContext> contexts = new LinkedList<>();
+
+        DateTime now = clock.now();
+        for (TriggerEvent event : events) {
+            Watch watch = watchStore.get(event.jobName());
+            if (watch == null) {
+                logger.warn("unable to find watch [{}] in the watch store, perhaps it has been deleted", event.jobName());
+                continue;
+            }
+            TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, now, event);
+            contexts.add(ctx);
+            records.add(new WatchRecord(ctx.id(), watch, event));
+        }
+
+        logger.debug("saving watch records [{}]", records.size());
+        if (records.size() == 1) {
+            final WatchRecord watchRecord = records.getFirst();
+            final TriggeredExecutionContext ctx = contexts.getFirst();
+            historyStore.put(watchRecord);
+            executeAsync(ctx, watchRecord);
+        } else {
+            List<Integer> slots = historyStore.bulk(records);
+            for (Integer slot : slots) {
+                executeAsync(contexts.get(slot), records.get(slot));
+            }
+        }
+    }
+
     public WatchRecord execute(WatchExecutionContext ctx) throws IOException {
         WatchRecord watchRecord = new WatchRecord(ctx.id(), ctx.watch(), ctx.triggerEvent());
 
@@ -149,21 +243,6 @@ public class ExecutionService extends AbstractComponent {
             historyStore.update(watchRecord);
         }
     }
-
-
-    private void executeWatch(Watch watch, TriggerEvent event) throws WatcherException {
-        if (!started.get()) {
-            throw new ElasticsearchIllegalStateException("not started");
-        }
-        TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, clock.now(), event);
-        WatchRecord watchRecord = new WatchRecord(ctx.id(), watch, event);
-        if (ctx.recordExecution()) {
-            logger.debug("saving watch record [{}] for watch [{}]", watchRecord.id(), watch.name());
-            historyStore.put(watchRecord);
-        }
-        executeAsync(ctx, watchRecord);
-    }
-
 
     WatchExecution executeInner(WatchExecutionContext ctx) throws IOException {
         Watch watch = ctx.watch();
@@ -274,14 +353,15 @@ public class ExecutionService extends AbstractComponent {
                 watchStore.updateStatus(ctx.watch());
             } catch (Exception e) {
                 if (started()) {
-                    logger.warn("failed to execute watch [{}] [{}]", e, watchRecord.name(), ctx.id());
+                    String detailedMessage = ExceptionsHelper.detailedMessage(e);
+                    logger.warn("failed to execute watch [{}] [{}], failure [{}]", watchRecord.name(), ctx.id(), detailedMessage);
                     try {
-                        watchRecord.update(WatchRecord.State.FAILED, e.getMessage());
+                        watchRecord.update(WatchRecord.State.FAILED, detailedMessage);
                         if (ctx.recordExecution()) {
                             historyStore.update(watchRecord);
                         }
                     } catch (Exception e2) {
-                        logger.error("failed to update watch record [{}] failure [{}] for [{}] [{}]", e2, watchRecord, ctx.watch().name(), ctx.id(), e.getMessage());
+                        logger.error("failed to update watch record [{}], failure [{}], original failure [{}]", watchRecord, ExceptionsHelper.detailedMessage(e2), detailedMessage);
                     }
                 } else {
                     logger.debug("failed to execute watch [{}] after shutdown", e, watchRecord);
@@ -292,29 +372,5 @@ public class ExecutionService extends AbstractComponent {
             }
         }
 
-    }
-
-    private class SchedulerListener implements TriggerEngine.Listener {
-
-        @Override
-        public void triggered(String name, TriggerEvent event) {
-            if (!started.get()) {
-                throw new ElasticsearchIllegalStateException("not started");
-            }
-            Watch watch = watchStore.get(name);
-            if (watch == null) {
-                logger.warn("unable to find watch [{}] in the watch store, perhaps it has been deleted", name);
-                return;
-            }
-            try {
-                ExecutionService.this.executeWatch(watch, event);
-            } catch (Exception e) {
-                if (started()) {
-                    logger.error("failed to execute watch from SchedulerListener [{}]", e, name);
-                } else {
-                    logger.debug("failed to execute watch from SchedulerListener [{}] after shutdown", e, name);
-                }
-            }
-        }
     }
 }

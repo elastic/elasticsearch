@@ -6,8 +6,11 @@
 package org.elasticsearch.watcher.support.init.proxy;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -56,6 +59,21 @@ public class ClientProxy implements InitializingService.Initializable {
 
     public IndexResponse index(IndexRequest request) {
         return client.index(preProcess(request)).actionGet();
+    }
+
+    public BulkResponse bulk(BulkRequest request) {
+        request.listenerThreaded(true);
+        return client.bulk(request).actionGet();
+    }
+
+    public void indexAsync(IndexRequest request, ActionListener<IndexResponse> listener) {
+        request.listenerThreaded(true);
+        client.index(request, listener);
+    }
+
+    public void bulkAsync(BulkRequest request, ActionListener<BulkResponse> listener) {
+        request.listenerThreaded(true);
+        client.bulk(request, listener);
     }
 
     public ActionFuture<DeleteResponse> delete(DeleteRequest request) {

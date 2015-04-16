@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.trigger.schedule.engine;
 
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -16,9 +17,12 @@ import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.support.ThreadPoolSettingsBuilder;
 import org.elasticsearch.watcher.support.clock.Clock;
+import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.*;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -40,7 +44,7 @@ public class SimpleTickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         }
         int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
         return new ThreadPoolSettingsBuilder.Fixed(THREAD_POOL_NAME)
-                .size(availableProcessors)
+                .size(availableProcessors * 2)
                 .queueSize(1000)
                 .build();
     }
@@ -93,20 +97,27 @@ public class SimpleTickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
     void checkJobs() {
         long triggeredTime = clock.millis();
+        List<TriggerEvent> events = new ArrayList<>();
         for (ActiveSchedule schedule : schedules.values()) {
             long scheduledTime = schedule.check(triggeredTime);
             if (scheduledTime > 0) {
-                notifyListeners(schedule.name, triggeredTime, scheduledTime);
+                logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", schedule.name, new DateTime(triggeredTime), new DateTime(scheduledTime));
+                events.add(new ScheduleTriggerEvent(schedule.name, new DateTime(triggeredTime), new DateTime(scheduledTime)));
+                if (events.size() >= 1000) {
+                    notifyListeners(ImmutableList.copyOf(events));
+                    events.clear();
+                }
             }
+        }
+        if (events.size() > 0) {
+            notifyListeners(events);
         }
     }
 
-    protected void notifyListeners(String name, long triggeredTime, long scheduledTime) {
-        logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", name, new DateTime(triggeredTime), new DateTime(scheduledTime));
-        final ScheduleTriggerEvent event = new ScheduleTriggerEvent(new DateTime(triggeredTime), new DateTime(scheduledTime));
+    protected void notifyListeners(List<TriggerEvent> events) {
         for (Listener listener : listeners) {
             try {
-                executor.execute(new ListenerRunnable(listener, name, event));
+                executor.execute(new ListenerRunnable(listener, events));
             } catch (EsRejectedExecutionException e) {
                 if (logger.isDebugEnabled()) {
                     RejectedExecutionHandler rejectedExecutionHandler = executor.getRejectedExecutionHandler();
@@ -156,18 +167,16 @@ public class SimpleTickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     static class ListenerRunnable implements Runnable {
 
         private final Listener listener;
-        private final String jobName;
-        private final ScheduleTriggerEvent event;
+        private final List<TriggerEvent> events;
 
-        public ListenerRunnable(Listener listener, String jobName, ScheduleTriggerEvent event) {
+        public ListenerRunnable(Listener listener, List<TriggerEvent> events) {
             this.listener = listener;
-            this.jobName = jobName;
-            this.event = event;
+            this.events = events;
         }
 
         @Override
         public void run() {
-            listener.triggered(jobName, event);
+            listener.triggered(events);
         }
     }
 
@@ -192,7 +201,7 @@ public class SimpleTickerScheduleTriggerEngine extends ScheduleTriggerEngine {
                 logger.trace("checking jobs [{}]", DateTime.now());
                 checkJobs();
                 try {
-                    sleep(1000);
+                    sleep(500);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }

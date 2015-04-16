@@ -91,6 +91,8 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
+        String scheduleImplName = scheduleEngine().name().toLowerCase(Locale.ROOT);
+        logger.info("using schedule engine [" + scheduleImplName + "]");
         return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("scroll.size", randomIntBetween(1, 100))
@@ -99,7 +101,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
                                 (shieldEnabled ? ShieldPlugin.class.getName() + "," : "") +
                                 licensePluginClass().getName())
                 .put(ShieldSettings.settings(shieldEnabled))
-                .put("watcher.trigger.schedule.engine", scheduleEngine().name().toLowerCase(Locale.ROOT))
+                .put("watcher.trigger.schedule.engine", scheduleImplName)
                 .build();
     }
 

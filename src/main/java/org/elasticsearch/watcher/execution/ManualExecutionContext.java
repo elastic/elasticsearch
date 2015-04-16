@@ -121,7 +121,7 @@ public class ManualExecutionContext extends WatchExecutionContext {
                 executionTime = DateTime.now(DateTimeZone.UTC);
             }
             if (triggerEvent == null) {
-                triggerEvent = new ManualTriggerEvent(executionTime, new HashMap<String, Object>());
+                triggerEvent = new ManualTriggerEvent(watch.name(), executionTime, new HashMap<String, Object>());
             }
             return new ManualExecutionContext(watch, executionTime, triggerEvent, inputResult, conditionResult, throttlerResult, simulateActionPredicate, recordExecution);
         }

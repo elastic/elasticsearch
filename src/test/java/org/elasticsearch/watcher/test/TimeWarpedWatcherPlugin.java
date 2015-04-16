@@ -11,6 +11,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.WatcherPlugin;
 import org.elasticsearch.watcher.execution.ExecutionModule;
+import org.elasticsearch.watcher.execution.SyncTriggerListener;
 import org.elasticsearch.watcher.execution.WatchExecutor;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.support.clock.ClockMock;
@@ -101,7 +102,7 @@ public class TimeWarpedWatcherPlugin extends WatcherPlugin {
         public static class MockExecutionModule extends ExecutionModule {
 
             public MockExecutionModule() {
-                super(SameThreadExecutor.class);
+                super(SameThreadExecutor.class, SyncTriggerListener.class);
             }
 
             public static class SameThreadExecutor implements WatchExecutor {

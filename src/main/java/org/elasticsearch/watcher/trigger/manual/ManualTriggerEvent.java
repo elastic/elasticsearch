@@ -25,8 +25,8 @@ public class ManualTriggerEvent extends TriggerEvent {
 
     private final Map<String, Object> triggerData;
 
-    public ManualTriggerEvent(DateTime triggeredTime, Map<String, Object> triggerData) {
-        super(triggeredTime);
+    public ManualTriggerEvent(String jobName, DateTime triggeredTime, Map<String, Object> triggerData) {
+        super(jobName, triggeredTime);
         data.putAll(triggerData);
         this.triggerData = triggerData;
     }
@@ -39,12 +39,14 @@ public class ManualTriggerEvent extends TriggerEvent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject()
+                .field(JOB_NAME_FIELD.getPreferredName(), jobName())
                 .field(TRIGGERED_TIME_FIELD.getPreferredName(), WatcherDateUtils.formatDate(triggeredTime))
                 .field(TRIGGER_DATA_FIELD.getPreferredName(), triggerData)
                 .endObject();
     }
 
     public static ManualTriggerEvent parse(String context, XContentParser parser) throws IOException {
+        String jobName = null;
         DateTime triggeredTime = null;
         Map<String, Object> triggerData = new HashMap<>();
         String currentFieldName = null;
@@ -54,7 +56,9 @@ public class ManualTriggerEvent extends TriggerEvent {
                 currentFieldName = parser.currentName();
             } else {
                 if (token == XContentParser.Token.VALUE_STRING) {
-                    if (TRIGGERED_TIME_FIELD.match(currentFieldName)) {
+                    if (JOB_NAME_FIELD.match(currentFieldName)) {
+                        jobName = parser.text();
+                    } else if (TRIGGERED_TIME_FIELD.match(currentFieldName)) {
                         triggeredTime = WatcherDateUtils.parseDate(parser.text());
                     } else {
                         throw new ParseException("could not parse trigger event for [" + context + "]. unknown string value field [" + currentFieldName + "]");
@@ -73,7 +77,7 @@ public class ManualTriggerEvent extends TriggerEvent {
 
         // should never be, it's fully controlled internally (not coming from the user)
         assert triggeredTime != null;
-        return new ManualTriggerEvent(triggeredTime, triggerData);
+        return new ManualTriggerEvent(jobName, triggeredTime, triggerData);
     }
 
     public static class ParseException extends WatcherException {

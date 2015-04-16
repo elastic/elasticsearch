@@ -6,25 +6,29 @@
 package org.elasticsearch.watcher.execution;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.watcher.trigger.TriggerEngine;
 
 /**
  */
 public class ExecutionModule extends AbstractModule {
 
     private final Class<? extends WatchExecutor> executorClass;
+    private final Class<? extends TriggerEngine.Listener> triggerEngineListenerClass;
 
     public ExecutionModule() {
-        this(InternalWatchExecutor.class);
+        this(InternalWatchExecutor.class, AsyncTriggerListener.class);
     }
 
-    protected ExecutionModule(Class<? extends WatchExecutor> executorClass) {
+    protected ExecutionModule(Class<? extends WatchExecutor> executorClass, Class<? extends TriggerEngine.Listener> triggerEngineListenerClass) {
         this.executorClass = executorClass;
+        this.triggerEngineListenerClass = triggerEngineListenerClass;
     }
 
     @Override
     protected void configure() {
         bind(ExecutionService.class).asEagerSingleton();
         bind(executorClass).asEagerSingleton();
+        bind(triggerEngineListenerClass).asEagerSingleton();
         bind(WatchExecutor.class).to(executorClass);
     }
 }

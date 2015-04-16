@@ -32,7 +32,7 @@ public class VariablesTests extends ElasticsearchTestCase {
         DateTime executionTime = triggeredTime.plusMillis(50);
         Payload payload = new Payload.Simple(ImmutableMap.<String, Object>builder().put("payload_key", "payload_value").build());
         Map<String, Object> metatdata = ImmutableMap.<String, Object>builder().put("metadata_key", "metadata_value").build();
-        TriggerEvent event = new ScheduleTriggerEvent(triggeredTime, scheduledTime);
+        TriggerEvent event = new ScheduleTriggerEvent("_watch_id", triggeredTime, scheduledTime);
         WatchExecutionContext wec = WatcherTestUtils.mockExecutionContextBuilder("_watch_id")
                 .executionTime(executionTime)
                 .triggerEvent(event)

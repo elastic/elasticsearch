@@ -37,7 +37,7 @@ public class IntervalSchedule implements Schedule {
         if (time <= startTime) {
             return startTime;
         }
-        // advancing the time in 1 ns (we're looking for the time **after**)
+        // advancing the time in 1 ms (we're looking for the time **after**)
         time += 1;
         long delta = time - startTime;
         return startTime + (delta / interval.millis + 1) * interval.millis;

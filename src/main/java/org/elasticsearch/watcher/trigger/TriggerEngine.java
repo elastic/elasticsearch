@@ -43,7 +43,8 @@ public interface TriggerEngine<T extends Trigger, E extends TriggerEvent> {
 
     public static interface Listener {
 
-        void triggered(String jobName, TriggerEvent event);
+        void triggered(Iterable<TriggerEvent> events);
+
     }
 
     public static interface Job {

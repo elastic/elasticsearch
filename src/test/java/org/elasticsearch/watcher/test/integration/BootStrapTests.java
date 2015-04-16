@@ -105,7 +105,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
         assertThat(indexResponse.isCreated(), is(true));
 
         DateTime now = DateTime.now(UTC);
-        ScheduleTriggerEvent event = new ScheduleTriggerEvent(now, now);
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.name(), now, now);
         Wid wid = new Wid("_record", randomLong(), DateTime.now(UTC));
         WatchRecord watchRecord = new WatchRecord(wid, watch, event);
         String actionHistoryIndex = HistoryStore.getHistoryIndexNameForTime(now);
@@ -164,7 +164,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                 PutWatchResponse putWatchResponse = watcherClient().preparePutWatch(watch.name()).setSource(jsonBuilder.bytes()).get();
                 assertThat(putWatchResponse.isCreated(), is(true));
 
-                ScheduleTriggerEvent event = new ScheduleTriggerEvent(historyIndexDate, historyIndexDate);
+                ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.name(), historyIndexDate, historyIndexDate);
                 Wid wid = new Wid("record_" + i, randomLong(), DateTime.now(UTC));
                 WatchRecord watchRecord = new WatchRecord(wid, watch, event);
 

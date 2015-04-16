@@ -5,8 +5,12 @@
  */
 package org.elasticsearch.watcher.history;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -101,6 +105,94 @@ public class HistoryStore extends AbstractComponent {
             throw new HistoryException("failed to persist watch record [" + watchRecord + "]", e);
         } finally {
             putUpdateLock.unlock();
+        }
+    }
+
+    public void putAsync(final WatchRecord watchRecord, final ActionListener<Boolean> listener) throws HistoryException {
+        String index = getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
+        try {
+            IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
+                    .source(XContentFactory.jsonBuilder().value(watchRecord))
+                    .opType(IndexRequest.OpType.CREATE);
+            client.indexAsync(request, new ActionListener<IndexResponse>() {
+                @Override
+                public void onResponse(IndexResponse response) {
+                    watchRecord.version(response.getVersion());
+                    listener.onResponse(true);
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    listener.onFailure(e);
+                }
+            });
+        } catch (IOException e) {
+            throw new HistoryException("failed to persist watch record [" + watchRecord + "]", e);
+        }
+    }
+
+    public void bulkAsync(final List<WatchRecord> records, final ActionListener<List<Integer>> listener) throws HistoryException {
+        try {
+            BulkRequest request = new BulkRequest();
+            for (WatchRecord record : records) {
+                String index = getHistoryIndexNameForTime(record.triggerEvent().triggeredTime());
+                IndexRequest indexRequest = new IndexRequest(index, DOC_TYPE, record.id().value());
+                indexRequest.source(XContentFactory.jsonBuilder().value(record));
+                indexRequest.opType(IndexRequest.OpType.CREATE);
+                request.add(indexRequest);
+            }
+            client.bulkAsync(request, new ActionListener<BulkResponse>() {
+                @Override
+                public void onResponse(BulkResponse response) {
+                    List<Integer> successFullSlots = new ArrayList<Integer>();
+                    for (int i = 0; i < response.getItems().length; i++) {
+                        BulkItemResponse itemResponse = response.getItems()[i];
+                        if (itemResponse.isFailed()) {
+                            logger.error("could store watch record with id [" + itemResponse.getId() + "], because failed [" + itemResponse.getFailureMessage() + "]");
+                        } else {
+                            IndexResponse indexResponse = itemResponse.getResponse();
+                            records.get(i).version(indexResponse.getVersion());
+                            successFullSlots.add(i);
+                        }
+                    }
+                    listener.onResponse(successFullSlots);
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    listener.onFailure(e);
+                }
+            });
+        } catch (IOException e) {
+            throw new HistoryException("failed to persist watch records", e);
+        }
+    }
+
+    public List<Integer> bulk(final List<WatchRecord> records) throws HistoryException {
+        try {
+            BulkRequest request = new BulkRequest();
+            for (WatchRecord record : records) {
+                String index = getHistoryIndexNameForTime(record.triggerEvent().triggeredTime());
+                IndexRequest indexRequest = new IndexRequest(index, DOC_TYPE, record.id().value());
+                indexRequest.source(XContentFactory.jsonBuilder().value(record));
+                indexRequest.opType(IndexRequest.OpType.CREATE);
+                request.add(indexRequest);
+            }
+            BulkResponse response = client.bulk(request);
+            List<Integer> successFullSlots = new ArrayList<>();
+            for (int i = 0; i < response.getItems().length; i++) {
+                BulkItemResponse itemResponse = response.getItems()[i];
+                if (itemResponse.isFailed()) {
+                    logger.error("could store watch record with id [" + itemResponse.getId() + "], because failed [" + itemResponse.getFailureMessage() + "]");
+                } else {
+                    IndexResponse indexResponse = itemResponse.getResponse();
+                    records.get(i).version(indexResponse.getVersion());
+                    successFullSlots.add(i);
+                }
+            }
+            return successFullSlots;
+        } catch (IOException e) {
+            throw new HistoryException("failed to persist watch records", e);
         }
     }
 

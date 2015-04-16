@@ -74,15 +74,18 @@ public class QuartzScheduleEngineTests extends ElasticsearchTestCase {
         }
         final BitSet bits = new BitSet(count);
         engine.register(new TriggerEngine.Listener() {
+
             @Override
-            public void triggered(String jobName, TriggerEvent event) {
-                int index = Integer.parseInt(jobName);
-                if (!bits.get(index)) {
-                    logger.info("job [" + index + "] first fire: " + new DateTime());
-                    bits.set(index);
-                } else {
-                    latch.countDown();
-                    logger.info("job [" + index + "] second fire: " + new DateTime());
+            public void triggered(Iterable<TriggerEvent> events) {
+                for (TriggerEvent event : events) {
+                    int index = Integer.parseInt(event.jobName());
+                    if (!bits.get(index)) {
+                        logger.info("job [" + index + "] first fire: " + new DateTime());
+                        bits.set(index);
+                    } else {
+                        latch.countDown();
+                        logger.info("job [" + index + "] second fire: " + new DateTime());
+                    }
                 }
             }
         });
@@ -100,11 +103,14 @@ public class QuartzScheduleEngineTests extends ElasticsearchTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         engine.start(Collections.<TriggerEngine.Job>emptySet());
         engine.register(new TriggerEngine.Listener() {
+
             @Override
-            public void triggered(String jobName, TriggerEvent event) {
-                assertThat(jobName, is(name));
-                logger.info("triggered job on [{}]", new DateTime());
-                latch.countDown();
+            public void triggered(Iterable<TriggerEvent> events) {
+                for (TriggerEvent event : events) {
+                    assertThat(event.jobName(), is(name));
+                    logger.info("triggered job on [{}]", new DateTime());
+                    latch.countDown();
+                }
             }
         });
         DateTime now = new DateTime(DateTimeZone.UTC);
@@ -131,11 +137,14 @@ public class QuartzScheduleEngineTests extends ElasticsearchTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         engine.start(Collections.<TriggerEngine.Job>emptySet());
         engine.register(new TriggerEngine.Listener() {
+
             @Override
-            public void triggered(String jobName, TriggerEvent event) {
-                assertThat(jobName, is(name));
-                logger.info("triggered job on [{}]", new DateTime());
-                latch.countDown();
+            public void triggered(Iterable<TriggerEvent> events) {
+                for (TriggerEvent event : events) {
+                    assertThat(event.jobName(), is(name));
+                    logger.info("triggered job on [{}]", new DateTime());
+                    latch.countDown();
+                }
             }
         });
         DateTime now = new DateTime(DateTimeZone.UTC);
@@ -164,11 +173,14 @@ public class QuartzScheduleEngineTests extends ElasticsearchTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         engine.start(Collections.<TriggerEngine.Job>emptySet());
         engine.register(new TriggerEngine.Listener() {
+
             @Override
-            public void triggered(String jobName, TriggerEvent event) {
-                assertThat(jobName, is(name));
-                logger.info("triggered job on [{}]", new DateTime());
-                latch.countDown();
+            public void triggered(Iterable<TriggerEvent> events) {
+                for (TriggerEvent event : events) {
+                    assertThat(event.jobName(), is(name));
+                    logger.info("triggered job on [{}]", new DateTime());
+                    latch.countDown();
+                }
             }
         });
         DateTime now = new DateTime(DateTimeZone.UTC);

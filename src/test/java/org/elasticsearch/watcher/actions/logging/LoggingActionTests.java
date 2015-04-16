@@ -81,7 +81,7 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         when(engine.render(template, expectedModel)).thenReturn(text);
 
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContextBuilder("_watch_id")
-                .time(now)
+                .time("_watch_id", now)
                 .buildMock();
 
         LoggingAction.Result result = executable.execute("_id", ctx, new Payload.Simple());

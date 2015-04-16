@@ -109,7 +109,7 @@ public final class WatcherTestUtils {
     public static WatchExecutionContext mockExecutionContext(String watchId, DateTime time, Payload payload) {
         return mockExecutionContextBuilder(watchId)
                 .payload(payload)
-                .time(time)
+                .time(watchId, time)
                 .buildMock();
     }
 

@@ -114,7 +114,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);
 
         Watch watch = createWatch("test_watch", client, account);
-        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(), new ScheduleTriggerEvent(new DateTime(), new DateTime()));
+        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(), new ScheduleTriggerEvent(watch.name(), new DateTime(), new DateTime()));
 
         WebhookAction.Result actionResult = executable.execute("_id", ctx, new Payload.Simple());
         scenario.assertResult(actionResult);
@@ -362,7 +362,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
 
         String watchName = "test_url_encode" + randomAsciiOfLength(10);
         Watch watch = createWatch(watchName, mock(ClientProxy.class), "account1");
-        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(), new ScheduleTriggerEvent(new DateTime(), new DateTime()));
+        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(), new ScheduleTriggerEvent(watchName, new DateTime(), new DateTime()));
         WebhookAction.Result result = webhookAction.execute("_id", ctx, new Payload.Simple());
         assertThat(result, Matchers.instanceOf(WebhookAction.Result.Executed.class));
     }

@@ -110,7 +110,7 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
 
         SearchTransform transform = new SearchTransform(logger, scriptService(), ClientProxy.of(client()), request);
 
-        ScheduleTriggerEvent event = new ScheduleTriggerEvent(parseDate("2015-01-04T00:00:00"), parseDate("2015-01-01T00:00:00"));
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_name", parseDate("2015-01-04T00:00:00"), parseDate("2015-01-01T00:00:00"));
         WatchExecutionContext ctx = mockExecutionContext("_name", parseDate("2015-01-04T00:00:00"), event, EMPTY_PAYLOAD);
 
         Payload payload = simplePayload("value", "val_3");

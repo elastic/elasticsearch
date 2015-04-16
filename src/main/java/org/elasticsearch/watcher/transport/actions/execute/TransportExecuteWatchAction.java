@@ -89,7 +89,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
                 }
             }
             if (request.getTriggerData() != null) {
-                ctxBuilder.triggerEvent(new ManualTriggerEvent(executionTime, request.getTriggerData()));
+                ctxBuilder.triggerEvent(new ManualTriggerEvent(watch.name(), executionTime, request.getTriggerData()));
             }
             if (request.getAlternativeInput() != null) {
                 ctxBuilder.withInput(new SimpleInput.Result(new Payload.Simple(request.getAlternativeInput())));

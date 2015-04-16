@@ -130,9 +130,9 @@ public class TriggerService extends AbstractComponent {
         }
 
         @Override
-        public void triggered(String jobName, TriggerEvent event) {
+        public void triggered(Iterable<TriggerEvent> events) {
             for (TriggerEngine.Listener listener : listeners) {
-                listener.triggered(jobName, event);
+                listener.triggered(events);
             }
         }
     }

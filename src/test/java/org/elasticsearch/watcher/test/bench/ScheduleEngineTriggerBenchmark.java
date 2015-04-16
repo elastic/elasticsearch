@@ -12,10 +12,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
-import org.elasticsearch.watcher.trigger.schedule.Schedule;
-import org.elasticsearch.watcher.trigger.schedule.ScheduleRegistry;
-import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
-import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEngine;
+import org.elasticsearch.watcher.trigger.TriggerEvent;
+import org.elasticsearch.watcher.trigger.schedule.*;
 import org.elasticsearch.watcher.trigger.schedule.engine.*;
 import org.quartz.JobExecutionContext;
 
@@ -102,9 +100,12 @@ public class ScheduleEngineTriggerBenchmark {
                     scheduler = new SimpleTickerScheduleTriggerEngine(settings, SystemClock.INSTANCE, scheduleRegistry, threadPool) {
 
                         @Override
-                        protected void notifyListeners(String name, long triggeredTime, long scheduledTime) {
+                        protected void notifyListeners(List<TriggerEvent> events) {
                             if (running.get()) {
-                                measure(total, triggerMetric, tooEarlyMetric, triggeredTime, scheduledTime);
+                                for (TriggerEvent event : events) {
+                                    ScheduleTriggerEvent scheduleTriggerEvent = (ScheduleTriggerEvent) event;
+                                    measure(total, triggerMetric, tooEarlyMetric, event.triggeredTime().getMillis(), scheduleTriggerEvent.scheduledTime().getMillis());
+                                }
                             }
                         }
                     };
@@ -113,9 +114,12 @@ public class ScheduleEngineTriggerBenchmark {
                     scheduler = new TimerTickerScheduleTriggerEngine(settings, SystemClock.INSTANCE, scheduleRegistry, threadPool) {
 
                         @Override
-                        protected void notifyListeners(String name, long triggeredTime, long scheduledTime) {
+                        protected void notifyListeners(List<TriggerEvent> events) {
                             if (running.get()) {
-                                measure(total, triggerMetric, tooEarlyMetric, triggeredTime, scheduledTime);
+                                for (TriggerEvent event : events) {
+                                    ScheduleTriggerEvent scheduleTriggerEvent = (ScheduleTriggerEvent) event;
+                                    measure(total, triggerMetric, tooEarlyMetric, event.triggeredTime().getMillis(), scheduleTriggerEvent.scheduledTime().getMillis());
+                                }
                             }
                         }
                     };

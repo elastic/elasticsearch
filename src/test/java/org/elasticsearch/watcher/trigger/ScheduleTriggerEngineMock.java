@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.trigger;
 
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
@@ -81,9 +82,9 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
         for (int i = 0; i < times; i++) {
             DateTime now = clock.now();
             logger.debug("firing [" + jobName + "] at [" + now + "]");
-            ScheduleTriggerEvent event = new ScheduleTriggerEvent(now, now);
+            ScheduleTriggerEvent event = new ScheduleTriggerEvent(jobName, now, now);
             for (Listener listener : listeners) {
-                listener.triggered(jobName, event);
+                listener.triggered(ImmutableList.<TriggerEvent>of(event));
             }
             if (interval != null)  {
                 if (clock instanceof ClockMock) {

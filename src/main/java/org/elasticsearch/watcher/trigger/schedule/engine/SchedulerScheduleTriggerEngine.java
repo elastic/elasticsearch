@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.trigger.schedule.engine;
 
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.support.ThreadPoolSettingsBuilder;
 import org.elasticsearch.watcher.support.clock.Clock;
+import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.*;
 
 import java.util.ArrayList;
@@ -40,7 +42,7 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
         }
         int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
         return new ThreadPoolSettingsBuilder.Fixed(THREAD_POOL_NAME)
-                .size(availableProcessors)
+                .size(availableProcessors * 2)
                 .queueSize(1000)
                 .build();
     }
@@ -106,10 +108,10 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
     protected void notifyListeners(String name, long triggeredTime, long scheduledTime) {
         logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", name, new DateTime(triggeredTime), new DateTime(scheduledTime));
-        final ScheduleTriggerEvent event = new ScheduleTriggerEvent(new DateTime(triggeredTime), new DateTime(scheduledTime));
+        final ScheduleTriggerEvent event = new ScheduleTriggerEvent(name, new DateTime(triggeredTime), new DateTime(scheduledTime));
         for (Listener listener : listeners) {
             try {
-                executor.execute(new ListenerRunnable(listener, name, event));
+                executor.execute(new ListenerRunnable(listener, event));
             } catch (EsRejectedExecutionException e) {
                 if (logger.isDebugEnabled()) {
                     RejectedExecutionHandler rejectedExecutionHandler = executor.getRejectedExecutionHandler();
@@ -169,18 +171,16 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
     static class ListenerRunnable implements Runnable {
 
         private final Listener listener;
-        private final String jobName;
         private final ScheduleTriggerEvent event;
 
-        public ListenerRunnable(Listener listener, String jobName, ScheduleTriggerEvent event) {
+        public ListenerRunnable(Listener listener, ScheduleTriggerEvent event) {
             this.listener = listener;
-            this.jobName = jobName;
             this.event = event;
         }
 
         @Override
         public void run() {
-            listener.triggered(jobName, event);
+            listener.triggered(ImmutableList.<TriggerEvent>of(event));
         }
     }
 

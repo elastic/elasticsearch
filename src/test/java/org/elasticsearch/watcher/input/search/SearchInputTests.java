@@ -81,7 +81,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                         null,
                         new Watch.Status()),
                 new DateTime(0, DateTimeZone.UTC),
-                new ScheduleTriggerEvent(new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC)));
+                new ScheduleTriggerEvent("test-watch", new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC)));
         SearchInput.Result result = searchInput.execute(ctx);
 
         assertThat((Integer) XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
@@ -119,7 +119,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                         null,
                         new Watch.Status()),
                 new DateTime(0, DateTimeZone.UTC),
-                new ScheduleTriggerEvent(new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC)));
+                new ScheduleTriggerEvent("test-watch", new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC)));
         SearchInput.Result result = searchInput.execute(ctx);
 
         assertThat((Integer) XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));

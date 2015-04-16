@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.trigger.schedule.engine;
 
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.DateTimeZone;
@@ -18,6 +19,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.watcher.support.ThreadPoolSettingsBuilder;
 import org.elasticsearch.watcher.support.clock.Clock;
+import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.TriggerException;
 import org.elasticsearch.watcher.trigger.schedule.*;
 import org.quartz.*;
@@ -43,7 +45,7 @@ public class QuartzScheduleTriggerEngine extends ScheduleTriggerEngine {
         }
         int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
         return new ThreadPoolSettingsBuilder.Fixed(THREAD_POOL_NAME)
-                .size(availableProcessors)
+                .size(availableProcessors * 2)
                 .queueSize(1000)
                 .build();
     }
@@ -160,10 +162,10 @@ public class QuartzScheduleTriggerEngine extends ScheduleTriggerEngine {
     }
 
     protected void notifyListeners(String name, JobExecutionContext ctx) {
-        ScheduleTriggerEvent event = new ScheduleTriggerEvent(new DateTime(ctx.getFireTime()), new DateTime(ctx.getScheduledFireTime()));
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent(name, new DateTime(ctx.getFireTime()), new DateTime(ctx.getScheduledFireTime()));
         for (Listener listener : listeners) {
             try {
-                executor.execute(new ListenerRunnable(listener, name, event));
+                executor.execute(new ListenerRunnable(listener, event));
             } catch (EsRejectedExecutionException e) {
                 if (logger.isDebugEnabled()) {
                     RejectedExecutionHandler rejectedExecutionHandler = executor.getRejectedExecutionHandler();
@@ -181,18 +183,16 @@ public class QuartzScheduleTriggerEngine extends ScheduleTriggerEngine {
     static class ListenerRunnable implements Runnable {
 
         private final Listener listener;
-        private final String jobName;
         private final ScheduleTriggerEvent event;
 
-        public ListenerRunnable(Listener listener, String jobName, ScheduleTriggerEvent event) {
+        public ListenerRunnable(Listener listener, ScheduleTriggerEvent event) {
             this.listener = listener;
-            this.jobName = jobName;
             this.event = event;
         }
 
         @Override
         public void run() {
-            listener.triggered(jobName, event);
+            listener.triggered(ImmutableList.<TriggerEvent>of(event));
         }
     }
 

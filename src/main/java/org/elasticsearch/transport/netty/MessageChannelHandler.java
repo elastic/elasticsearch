@@ -113,9 +113,11 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             String action = handleRequest(ctx.getChannel(), wrappedStream, requestId, version);
             if (buffer.readerIndex() != expectedIndexReader) {
                 if (buffer.readerIndex() < expectedIndexReader) {
-                    logger.warn("Message not fully read (request) for [{}] and action [{}], resetting", requestId, action);
+                    logger.warn("Message not fully read (request) for requestId [{}], action [{}], readerIndex [{}] vs expected [{}]; resetting",
+                                requestId, action, buffer.readerIndex(), expectedIndexReader);
                 } else {
-                    logger.warn("Message read past expected size (request) for [{}] and action [{}], resetting", requestId, action);
+                    logger.warn("Message read past expected size (request) for requestId=[{}], action [{}], readerIndex [{}] vs expected [{}]; resetting",
+                                requestId, action, buffer.readerIndex(), expectedIndexReader);
                 }
                 buffer.readerIndex(expectedIndexReader);
             }

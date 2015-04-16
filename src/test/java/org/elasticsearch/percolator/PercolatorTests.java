@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.percolator;
 
-import com.google.common.base.Predicate;
-
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -32,9 +30,9 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
@@ -1329,7 +1327,9 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                     .setSortByScore(true)
                     .setSize(size)
                     .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                    .setPercolateQuery(QueryBuilders.functionScoreQuery(matchQuery("field1", value), scriptFunction("doc['level'].value")))
+                    .setPercolateQuery(
+                            QueryBuilders.functionScoreQuery(matchQuery("field1", value), scriptFunction("doc['level'].value")).boostMode(
+                                    CombineFunction.REPLACE))
                     .execute().actionGet();
 
             assertMatchCount(response, levels.size());

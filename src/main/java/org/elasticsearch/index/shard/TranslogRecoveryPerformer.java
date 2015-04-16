@@ -26,14 +26,17 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IgnoreOnRecoveryEngineException;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperUtils;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.translog.Translog;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
 
@@ -47,7 +50,7 @@ public class TranslogRecoveryPerformer {
     private final IndexAliasesService indexAliasesService;
     private final IndexCache indexCache;
     private final MapperAnalyzer mapperAnalyzer;
-    private final Set<String> recoveredTypes = new HashSet<>();
+    private final Map<String, Mapping> recoveredTypes = new HashMap<>();
 
     protected TranslogRecoveryPerformer(MapperService mapperService, MapperAnalyzer mapperAnalyzer, IndexQueryParserService queryParserService, IndexAliasesService indexAliasesService, IndexCache indexCache) {
         this.mapperService = mapperService;
@@ -57,7 +60,7 @@ public class TranslogRecoveryPerformer {
         this.mapperAnalyzer = mapperAnalyzer;
     }
 
-    protected Tuple<DocumentMapper, Boolean> docMapper(String type) {
+    protected Tuple<DocumentMapper, Mapping> docMapper(String type) {
         return mapperService.documentMapperWithAutoCreate(type); // protected for testing
     }
 
@@ -72,6 +75,15 @@ public class TranslogRecoveryPerformer {
             numOps++;
         }
         return numOps;
+    }
+
+    private void addMappingUpdate(String type, Mapping update) {
+        Mapping currentUpdate = recoveredTypes.get(type);
+        if (currentUpdate == null) {
+            recoveredTypes.put(type, update);
+        } else {
+            MapperUtils.merge(currentUpdate, update);
+        }
     }
 
     /**
@@ -89,8 +101,8 @@ public class TranslogRecoveryPerformer {
                             create.version(), create.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, true, false);
                     mapperAnalyzer.setType(create.type()); // this is a PITA - once mappings are per index not per type this can go away an we can just simply move this to the engine eventually :)
                     engine.create(engineCreate);
-                    if (engineCreate.parsedDoc().mappingsModified()) {
-                        recoveredTypes.add(engineCreate.type());
+                    if (engineCreate.parsedDoc().dynamicMappingsUpdate() != null) {
+                        addMappingUpdate(engineCreate.type(), engineCreate.parsedDoc().dynamicMappingsUpdate());
                     }
                     break;
                 case SAVE:
@@ -100,8 +112,8 @@ public class TranslogRecoveryPerformer {
                             index.version(), index.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, true);
                     mapperAnalyzer.setType(index.type());
                     engine.index(engineIndex);
-                    if (engineIndex.parsedDoc().mappingsModified()) {
-                        recoveredTypes.add(engineIndex.type());
+                    if (engineIndex.parsedDoc().dynamicMappingsUpdate() != null) {
+                        addMappingUpdate(engineIndex.type(), engineIndex.parsedDoc().dynamicMappingsUpdate());
                     }
                     break;
                 case DELETE:
@@ -150,7 +162,7 @@ public class TranslogRecoveryPerformer {
     /**
      * Returns the recovered types modifying the mapping during the recovery
      */
-    public Set<String> getRecoveredTypes() {
+    public Map<String, Mapping> getRecoveredTypes() {
         return recoveredTypes;
     }
 }

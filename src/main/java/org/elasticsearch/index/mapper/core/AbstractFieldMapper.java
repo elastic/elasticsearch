@@ -1112,7 +1112,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                     update = parent.mappingUpdate(update);
                     objectPath = parentPath;
                 }
-                context.addRootObjectUpdate((RootObjectMapper) update);
+                context.addDynamicMappingsUpdate((RootObjectMapper) update);
             }
         }
     }

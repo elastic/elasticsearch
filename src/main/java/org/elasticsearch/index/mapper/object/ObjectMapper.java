@@ -502,6 +502,10 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
         return this.dynamic == null ? Dynamic.TRUE : this.dynamic;
     }
 
+    public void setDynamic(Dynamic dynamic) {
+        this.dynamic = dynamic;
+    }
+
     protected boolean allowValue() {
         return true;
     }
@@ -1045,13 +1049,16 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
             }
         }
 
-        if (!mappers.isEmpty()) {
-            builder.startObject("properties");
-            for (Mapper mapper : sortedMappers) {
-                if (!(mapper instanceof InternalMapper)) {
-                    mapper.toXContent(builder, params);
+        int count = 0;
+        for (Mapper mapper : sortedMappers) {
+            if (!(mapper instanceof InternalMapper)) {
+                if (count++ == 0) {
+                    builder.startObject("properties");
                 }
+                mapper.toXContent(builder, params);
             }
+        }
+        if (count > 0) {
             builder.endObject();
         }
         builder.endObject();

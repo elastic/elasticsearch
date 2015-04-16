@@ -311,7 +311,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .field("orientation", "cw").endObject().endObject().endObject().endObject().string();
         DocumentMapper stage2 = parser.parse(stage2Mapping);
 
-        DocumentMapper.MergeResult mergeResult = stage1.merge(stage2, mergeFlags().simulate(false));
+        DocumentMapper.MergeResult mergeResult = stage1.merge(stage2.mapping(), mergeFlags().simulate(false));
         // check correct conflicts
         assertThat(mergeResult.hasConflicts(), equalTo(true));
         assertThat(mergeResult.conflicts().length, equalTo(3));
@@ -338,7 +338,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .startObject("properties").startObject("shape").field("type", "geo_shape").field("precision", "1m")
                 .field("distance_error_pct", 0.001).field("orientation", "cw").endObject().endObject().endObject().endObject().string();
         stage2 = parser.parse(stage2Mapping);
-        mergeResult = stage1.merge(stage2, mergeFlags().simulate(false));
+        mergeResult = stage1.merge(stage2.mapping(), mergeFlags().simulate(false));
 
         // verify mapping changes, and ensure no failures
         assertThat(mergeResult.hasConflicts(), equalTo(false));

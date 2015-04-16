@@ -73,6 +73,9 @@ public abstract class BaseQueryBuilder implements QueryBuilder {
         return parseContext.indexQueryParserService().queryParser(parserName()).parse(parseContext);
     }
 
+    /**
+     * @return the name of the parser class the default toQuery() method delegates to
+     */
     protected abstract String parserName();
 
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;

@@ -285,7 +285,11 @@ public class QueryParseContext {
         innerHitsContext.addInnerHitDefinition(name, context);
     }
 
-    public QueryBuilder toQueryBuilder() throws IOException {
+    /**
+     * @return a new QueryBuilder based on the current state of the parser
+     * @throws IOException
+     */
+    public QueryBuilder parseInnerQueryBuilder() throws IOException {
         // move to START object
         XContentParser.Token token;
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
@@ -317,15 +321,23 @@ public class QueryParseContext {
         return result;
     }
 
+    /**
+     * @deprecated replaced by calls to parseInnerQueryBuilder() and checkCachable() for the resulting queries
+     */
     @Nullable
+    @Deprecated
     public Query parseInnerQuery() throws IOException, QueryParsingException {
-        QueryBuilder builder = toQueryBuilder();
+        QueryBuilder builder = parseInnerQueryBuilder();
 
         Query result = builder.toQuery(this);
         checkCachable(result);
         return result;
     }
 
+    /**
+     * Checks if the given lucene query should be cached or wrapped, sets flags in this QueryParseContext accordingly
+     * @param query
+     */
     public void checkCachable(Query query) {
         if (query instanceof NoCacheQuery) {
             propagateNoCache = true;

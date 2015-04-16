@@ -23,19 +23,15 @@ import org.apache.lucene.search.Query;
 
 import java.io.IOException;
 
+/**
+ * This class with method impl is an intermediate step in the refactoring.
+ * Method should be should be overwritten for all queries that already implement the toQuery/fromXContent split correctly.
+ * To be removed once all queries are refactored.
+ */
 public abstract class BaseQueryParser implements QueryParser {
 
-    public abstract String[] names();
-
-    public abstract Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException;
-
-    /**
-     * this method impl is an intermediate step in the refactoring that should be overwritten
-     * by all queries that already implement the toQuery/fromXContent split correctly
-     * To be removed once all queries are refactored
-     */
     public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
-            Query query = parse(parseContext);
-            return new QueryWrappingQueryBuilder(query);
+        Query query = parse(parseContext);
+        return new QueryWrappingQueryBuilder(query);
     }
 }

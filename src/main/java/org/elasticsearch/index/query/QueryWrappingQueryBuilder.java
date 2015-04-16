@@ -29,7 +29,7 @@ import java.io.IOException;
  * Can be removed after query refactoring is done.
  */
 public class QueryWrappingQueryBuilder extends BaseQueryBuilder {
-    
+
     private Query query;
 
     public QueryWrappingQueryBuilder(Query query) {
@@ -46,4 +46,8 @@ public class QueryWrappingQueryBuilder extends BaseQueryBuilder {
         return this.query;
     }
 
+    final protected String parserName() {
+        // this should not be called since we overwrite BaseQueryBuilder#toQuery() in this class
+        return null;
+    }
 }

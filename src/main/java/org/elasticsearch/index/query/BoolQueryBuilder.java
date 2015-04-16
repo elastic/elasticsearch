@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -186,8 +185,7 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
         }
     }
 
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        return parseContext.indexQueryParserService().queryParser(BoolQueryParser.NAME).parse(parseContext);
+    final protected String parserName() {
+        return BoolQueryParser.NAME;
     }
-
 }

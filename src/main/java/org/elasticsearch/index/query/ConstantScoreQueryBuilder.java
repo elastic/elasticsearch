@@ -87,8 +87,7 @@ public class ConstantScoreQueryBuilder extends BaseQueryBuilder implements Boost
         builder.endObject();
     }
 
-    @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        return new ConstantScoreQueryParser().parse(parseContext);
+    final protected String parserName() {
+        return ConstantScoreQueryParser.NAME;
     }
 }

@@ -69,7 +69,11 @@ public abstract class BaseQueryBuilder implements QueryBuilder {
         return builder;
     }
 
-    public abstract Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException;
+    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
+        return parseContext.indexQueryParserService().queryParser(parserName()).parse(parseContext);
+    }
+
+    protected abstract String parserName();
 
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -129,8 +128,7 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
         builder.endObject();
     }
 
-    @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        return new FuzzyQueryParser().parse(parseContext);
+    final protected String parserName() {
+        return FuzzyQueryParser.NAME;
     }
 }

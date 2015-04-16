@@ -286,7 +286,7 @@ public class QueryParseContext {
     }
 
     public QueryBuilder toQueryBuilder() throws IOException {
-     // move to START object
+        // move to START object
         XContentParser.Token token;
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             token = parser.nextToken();
@@ -332,9 +332,12 @@ public class QueryParseContext {
         }
         if (CustomQueryWrappingFilter.shouldUseCustomQueryWrappingFilter(query)) {
             requireCustomQueryWrappingFilter = true;
-            // If later on, either directly or indirectly this query gets wrapped in a query filter it must never
-            // get cached even if a filter higher up the chain is configured to do this. This will happen, because
-            // the result filter will be instance of NoCacheFilter (CustomQueryWrappingFilter) which will in
+            // If later on, either directly or indirectly this query gets
+            // wrapped in a query filter it must never
+            // get cached even if a filter higher up the chain is configured to
+            // do this. This will happen, because
+            // the result filter will be instance of NoCacheFilter
+            // (CustomQueryWrappingFilter) which will in
             // #executeFilterParser() set propagateNoCache to true.
         }
     }

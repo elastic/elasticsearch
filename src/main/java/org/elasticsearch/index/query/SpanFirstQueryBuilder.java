@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -72,7 +71,7 @@ public class SpanFirstQueryBuilder extends BaseQueryBuilder implements SpanQuery
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        return new SpanFirstQueryParser().parse(parseContext);
+    protected String parserName() {
+        return SpanFirstQueryParser.NAME;
     }
 }

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.ScriptService;
@@ -80,7 +79,7 @@ public class TemplateQueryBuilder extends BaseQueryBuilder {
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        return parseContext.indexQueryParserService().queryParser(TemplateQueryParser.NAME).parse(parseContext);
+    protected String parserName() {
+        return TemplateQueryParser.NAME;
     }
 }

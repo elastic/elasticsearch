@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -105,8 +104,7 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements BoostableQueryB
         builder.endObject();
     }
 
-    @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        return new IdsQueryParser().parse(parseContext);
+    final protected String parserName() {
+        return IdsQueryParser.NAME;
     }
 }

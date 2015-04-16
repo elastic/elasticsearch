@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -116,7 +115,7 @@ public class TopChildrenQueryBuilder extends BaseQueryBuilder implements Boostab
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        return new TopChildrenQueryParser().parse(parseContext);
+    protected String parserName() {
+        return TopChildrenQueryParser.NAME;
     }
 }

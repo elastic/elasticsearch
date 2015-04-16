@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -122,7 +121,7 @@ public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBu
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        return new SpanNotQueryParser().parse(parseContext);
+    protected String parserName() {
+        return SpanNotQueryParser.NAME;
     }
 }

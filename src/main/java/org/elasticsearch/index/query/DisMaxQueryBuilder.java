@@ -101,8 +101,7 @@ public class DisMaxQueryBuilder extends BaseQueryBuilder implements BoostableQue
         builder.endObject();
     }
 
-    @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        return new DisMaxQueryParser().parse(parseContext);
+    final protected String parserName() {
+        return DisMaxQueryParser.NAME;
     }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -108,7 +107,7 @@ public class WildcardQueryBuilder extends BaseQueryBuilder implements MultiTermQ
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        return new WildcardQueryParser().parse(parseContext);
+    protected String parserName() {
+        return WildcardQueryParser.NAME;
     }
 }

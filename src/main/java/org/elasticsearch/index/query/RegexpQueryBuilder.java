@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -127,7 +126,7 @@ public class RegexpQueryBuilder extends BaseQueryBuilder implements BoostableQue
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        return new RegexpQueryParser().parse(parseContext);
+    protected String parserName() {
+        return RegexpQueryParser.NAME;
     }
 }

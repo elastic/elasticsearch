@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -65,8 +64,7 @@ public class MatchAllQueryBuilder extends BaseQueryBuilder implements BoostableQ
         builder.endObject();
     }
 
-    @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        return new MatchAllQueryParser().parse(parseContext);
+    final protected String parserName() {
+        return MatchAllQueryParser.NAME;
     }
 }

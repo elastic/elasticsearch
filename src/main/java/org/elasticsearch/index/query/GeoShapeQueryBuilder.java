@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -165,8 +164,7 @@ public class GeoShapeQueryBuilder extends BaseQueryBuilder implements BoostableQ
         builder.endObject();
     }
 
-    @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        return new GeoShapeQueryParser().parse(parseContext);
+    final protected String parserName() {
+        return GeoShapeQueryParser.NAME;
     }
 }

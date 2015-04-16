@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -86,8 +85,7 @@ public class IndicesQueryBuilder extends BaseQueryBuilder {
         builder.endObject();
     }
 
-    @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        return parseContext.indexQueryParserService().queryParser(IndicesQueryParser.NAME).parse(parseContext);
+    final protected String parserName() {
+        return IndicesQueryParser.NAME;
     }
 }

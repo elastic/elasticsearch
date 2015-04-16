@@ -28,14 +28,21 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 
 /**
- * Base interface for all classes producing lucene queries. 
+ * Base interface for all classes producing lucene queries.
  * Supports conversion to BytesReference and creation of lucene Query objects.
  */
-public interface QueryBuilder extends ToXContent { 
+public interface QueryBuilder extends ToXContent {
 
     BytesReference buildAsBytes() throws ElasticsearchException;
 
     BytesReference buildAsBytes(XContentType contentType) throws ElasticsearchException;
 
+    /**
+     * Create a new lucene query from this QueryBuilder.
+     * @param parseContext
+     * @return
+     * @throws QueryParsingException
+     * @throws IOException
+     */
     Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException;
 }

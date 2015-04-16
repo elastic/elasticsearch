@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -44,7 +43,7 @@ public class SpanMultiTermQueryBuilder extends BaseQueryBuilder implements SpanQ
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
-        return new SpanMultiTermQueryParser().parse(parseContext);
+    protected String parserName() {
+        return SpanMultiTermQueryParser.NAME;
     }
 }

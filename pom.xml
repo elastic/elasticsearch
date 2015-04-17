@@ -68,6 +68,12 @@
             <name>Lucene Snapshots</name>
             <url>https://download.elastic.co/lucenesnapshots/1674278</url>
         </repository>
+        <!-- TODO: nuke this after a while, its for latest randomizedtesting -->
+        <repository>
+            <id>oss-sonatype</id>
+            <name>Temporarily Situation</name>
+            <url>http://oss.sonatype.org/content/repositories/releases</url>
+        </repository>
     </repositories>
 
     <dependencies>
@@ -80,7 +86,7 @@
         <dependency>
             <groupId>com.carrotsearch.randomizedtesting</groupId>
             <artifactId>randomizedtesting-runner</artifactId>
-            <version>2.1.13</version>
+            <version>2.1.14</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -501,7 +507,7 @@
             <plugin>
                 <groupId>com.carrotsearch.randomizedtesting</groupId>
                 <artifactId>junit4-maven-plugin</artifactId>
-                <version>2.1.13</version>
+                <version>2.1.14</version>
                 <executions>
                     <execution>
                         <id>tests</id>
@@ -513,6 +519,7 @@
                             <heartbeat>20</heartbeat>
                             <jvmOutputAction>pipe,warn</jvmOutputAction>
                             <leaveTemporary>true</leaveTemporary>
+                            <ifNoTests>fail</ifNoTests>
                             <listeners>
                                 <report-ant-xml mavenExtensions="true"
                                                 dir="${project.build.directory}/surefire-reports"/>

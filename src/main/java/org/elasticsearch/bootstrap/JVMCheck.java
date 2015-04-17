@@ -68,7 +68,7 @@ public class JVMCheck {
             if (workAround != null) {
                 sb.append(System.lineSeparator());
                 sb.append("If you absolutely cannot upgrade, please add ").append(workAround);
-                sb.append(" to the JVM_OPTS environment variable.");
+                sb.append(" to the JAVA_OPTS environment variable.");
                 sb.append(System.lineSeparator());
                 sb.append("Upgrading is preferred, this workaround will result in degraded performance.");
             }

@@ -66,6 +66,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 public abstract class Engine implements Closeable {
 
+    public static final String SYNC_COMMIT_ID = "sync_id";
+
     protected final ShardId shardId;
     protected final ESLogger logger;
     protected final EngineConfig engineConfig;
@@ -203,6 +205,15 @@ public abstract class Engine implements Closeable {
     public abstract void delete(Delete delete) throws EngineException;
 
     public abstract void delete(DeleteByQuery delete) throws EngineException;
+
+    /**
+     * Attempts to do a special commit where the given syncID is put into the commit data. The attempt
+     * succeeds if there are not pending writes in lucene and the current point is equal to the expected one.
+     * @param syncId id of this sync
+     * @param expectedCommitId the expected value of
+     * @return true if the sync commit was made, false o.w.
+     */
+    public abstract boolean syncCommitIfNoPendingChanges(String syncId, byte[] expectedCommitId) throws EngineException;
 
     final protected GetResult getFromSearcher(Get get) throws EngineException {
         final Searcher searcher = acquireSearcher("get");
@@ -415,16 +426,19 @@ public abstract class Engine implements Closeable {
      * @param force if <code>true</code> a lucene commit is executed even if no changes need to be committed.
      * @param waitIfOngoing if <code>true</code> this call will block until all currently running flushes have finished.
      *                      Otherwise this call will return without blocking.
+     * @return the commit Id for the resulting commit
      */
-    public abstract void flush(boolean force, boolean waitIfOngoing) throws EngineException;
+    public abstract byte[] flush(boolean force, boolean waitIfOngoing) throws EngineException;
 
     /**
      * Flushes the state of the engine including the transaction log, clearing memory and persisting
      * documents in the lucene index to disk including a potentially heavy and durable fsync operation.
      * This operation is not going to block if another flush operation is currently running and won't write
      * a lucene commit if nothing needs to be committed.
+     *
+     * @return the commit Id for the resulting commit
      */
-    public abstract void flush() throws EngineException;
+    public abstract byte[] flush() throws EngineException;
 
     /**
      * Optimizes to 1 segment

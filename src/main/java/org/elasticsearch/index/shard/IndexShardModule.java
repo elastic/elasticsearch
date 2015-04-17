@@ -65,6 +65,7 @@ public class IndexShardModule extends AbstractModule {
 
         bind(EngineFactory.class).to(settings.getAsClass(ENGINE_FACTORY, DEFAULT_ENGINE_FACTORY_CLASS, ENGINE_PREFIX, ENGINE_SUFFIX));
         bind(ShardIndexWarmerService.class).asEagerSingleton();
+        bind(SyncCommitService.class).asEagerSingleton();
     }
 
 }

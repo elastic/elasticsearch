@@ -78,3 +78,8 @@ Advance settings include:
     # see http://en.wikipedia.org/wiki/Zero-width_joiner
     \\u200D => ALPHANUM
 --------------------------------------------------
+
+Note that the Standard Tokenizer already splits the string when it
+encouters a `-` character. To have `catenate_*` and `preserve_original`
+parameters work as in the above examples it requires to use another 
+Tokenizer like the Withespace Tokenizer.

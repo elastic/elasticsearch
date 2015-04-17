@@ -160,11 +160,6 @@ public class ChildrenQuery extends Query {
     }
 
     @Override
-    public void extractTerms(Set<Term> terms) {
-        rewrittenChildQuery.extractTerms(terms);
-    }
-
-    @Override
     public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
         SearchContext sc = SearchContext.current();
         assert rewrittenChildQuery != null;
@@ -260,6 +255,10 @@ public class ChildrenQuery extends Query {
             this.collector = collector;
             this.minChildren = minChildren;
             this.maxChildren = maxChildren;
+        }
+
+        @Override
+        public void extractTerms(Set<Term> terms) {
         }
 
         @Override

@@ -37,6 +37,7 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
         ReproduceInfoPrinter.class
 })
 @TimeoutSuite(millis = TimeUnits.HOUR)
+@LuceneTestCase.SuppressReproduceLine
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 /**
  * Basic test case for token streams. the assertion methods in this class will

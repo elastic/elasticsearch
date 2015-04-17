@@ -39,7 +39,7 @@ public class StaticIndexBackwardCompatibilityTest extends ElasticsearchIntegrati
 
     public void loadIndex(String index, Object... settings) throws Exception {
         logger.info("Checking static index " + index);
-        Settings nodeSettings = prepareBackwardsDataDir(Paths.get(getClass().getResource(index + ".zip").toURI()), settings);
+        Settings nodeSettings = prepareBackwardsDataDir(getDataPath(index + ".zip"), settings);
         internalCluster().startNode(nodeSettings);
         ensureGreen(index);
         assertIndexSanity(index);

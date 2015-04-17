@@ -76,7 +76,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -99,7 +98,6 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
-import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.internal.SizeFieldMapper;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
@@ -148,7 +146,6 @@ import java.net.InetSocketAddress;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1925,7 +1922,19 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             TestUtil.unzip(stream, indexDir);
         }
         assertTrue(Files.exists(dataDir));
-        Path[] list = FileSystemUtils.files(dataDir);
+
+        // list clusters in the datapath, ignoring anything from extrasfs
+        final Path[] list;
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dataDir)) {
+            List<Path> dirs = new ArrayList<>();
+            for (Path p : stream) {
+                if (!p.getFileName().toString().startsWith("extra")) {
+                    dirs.add(p);
+                }
+            }
+            list = dirs.toArray(new Path[0]);
+        }
+
         if (list.length != 1) {
             throw new IllegalStateException("Backwards index must contain exactly one cluster\n" + StringUtils.join(list, "\n"));
         }

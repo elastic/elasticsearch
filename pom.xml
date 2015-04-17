@@ -150,6 +150,12 @@
         </dependency>
 
         <dependency>
+            <groupId>com.googlecode.owasp-java-html-sanitizer</groupId>
+            <artifactId>owasp-java-html-sanitizer</artifactId>
+            <version>r239</version>
+        </dependency>
+
+        <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-core</artifactId>
             <version>${lucene.version}</version>
@@ -328,6 +334,7 @@
                     <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
                     <artifactSet>
                         <includes>
+			    <include>com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer</include>
                             <include>org.quartz-scheduler:quartz</include>
                             <include>org.slf4j:slf4j-api</include>
                             <include>org.slf4j:slf4j-nop</include>

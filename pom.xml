@@ -1644,6 +1644,7 @@
                     <version>2.9</version>
                     <configuration>
                         <buildOutputDirectory>eclipse-build</buildOutputDirectory>
+                        <downloadSources>true</downloadSources>
                     </configuration>
                 </plugin>
             </plugins>

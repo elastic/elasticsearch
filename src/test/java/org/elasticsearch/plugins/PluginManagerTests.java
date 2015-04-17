@@ -63,7 +63,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
-@LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: clean up this test to allow extra files
+@LuceneTestCase.SuppressFileSystems("*") // TODO: clean up this test to allow extra files
+// TODO: jimfs is really broken here (throws wrong exception from detection method).
+// if its in your classpath, then do not use plugins!!!!!!
 public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
     @Test(expected = ElasticsearchIllegalArgumentException.class)

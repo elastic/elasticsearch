@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
 
 @ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numDataNodes=0, numClientNodes = 1, transportClientRatio = 0)
-public class PluginServiceTests extends ElasticsearchIntegrationTest {
+public class PluginServiceTests extends PluginTestCase {
 
     @Test
     public void testPluginLoadingFromClassName() throws URISyntaxException {
@@ -53,7 +53,7 @@ public class PluginServiceTests extends ElasticsearchIntegrationTest {
                                 .put("plugin.types", InSettingsPlugin.class.getName())
                             .build();
 
-        SimpleNodesInfoTests.startNodeWithPlugins(settings, "/org/elasticsearch/plugins/loading/");
+        startNodeWithPlugins(settings, "/org/elasticsearch/plugins/loading/");
 
         Plugin plugin = getPlugin("in-settings-plugin");
         assertNotNull("InSettingsPlugin (defined below in this class) must be loaded", plugin);

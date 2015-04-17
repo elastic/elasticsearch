@@ -19,7 +19,6 @@
 
 package org.elasticsearch.bwcompat;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.util.concurrent.ListenableFuture;
 
 import org.apache.lucene.index.IndexWriter;
@@ -31,7 +30,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -52,22 +50,19 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Modifier;
-import java.net.URL;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
-import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
@@ -83,15 +78,14 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     // TODO: test for proper exception on unsupported indexes (maybe via separate test?)
     // We have a 0.20.6.zip etc for this.
 
-    static List<String> indexes;
+    List<String> indexes;
     static Path singleDataPath;
     static Path[] multiDataPath;
 
-    @BeforeClass
-    public static void initIndexesList() throws Exception {
+    @Before
+    public void initIndexesList() throws Exception {
         indexes = new ArrayList<>();
-        URL dirUrl = OldIndexBackwardsCompatibilityTests.class.getResource(".");
-        Path dir = PathUtils.get(dirUrl.toURI());
+        Path dir = getResourcePath(".");
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "index-*.zip")) {
             for (Path path : stream) {
                 indexes.add(path.getFileName().toString());
@@ -102,7 +96,6 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
 
     @AfterClass
     public static void tearDownStatics() {
-        indexes = null;
         singleDataPath = null;
         multiDataPath = null;
     }
@@ -160,7 +153,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         String indexName = indexFile.replace(".zip", "").toLowerCase(Locale.ROOT);
 
         // decompress the index
-        Path backwardsIndex = PathUtils.get(getClass().getResource(indexFile).toURI());
+        Path backwardsIndex = getResourcePath(indexFile);
         try (InputStream stream = Files.newInputStream(backwardsIndex)) {
             TestUtil.unzip(stream, unzipDir);
         }

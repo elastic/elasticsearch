@@ -123,8 +123,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.index.mapper.SourceToParse.source;
-
 /**
  *
  */
@@ -684,6 +682,12 @@ public class IndexShard extends AbstractIndexShardComponent {
         return completionStats;
     }
 
+    public boolean syncCommitIfNoPendingChanges(String syncId, byte[] expectedCommitId) {
+        verifyStartedOrRecovering();
+        logger.trace("tryimg to sync commit. sync id [{}]. expected commit id [{}]]", syncId, expectedCommitId);
+        return engine().syncCommitIfNoPendingChanges(syncId, expectedCommitId);
+    }
+
     public void flush(FlushRequest request) throws ElasticsearchException {
         // we allows flush while recovering, since we allow for operations to happen
         // while recovering, and we want to keep the translog at bay (up to deletes, which
@@ -703,7 +707,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             logger.trace("optimize with {}", optimize);
         }
         engine().forceMerge(optimize.flush(), optimize.maxNumSegments(), optimize.onlyExpungeDeletes(),
-                            optimize.upgrade(), optimize.upgradeOnlyAncientSegments());
+                optimize.upgrade(), optimize.upgradeOnlyAncientSegments());
     }
 
     public SnapshotIndexCommit snapshotIndex() throws EngineException {

@@ -103,7 +103,7 @@ public class InternalEngine extends Engine {
     private final AtomicLong translogIdGenerator = new AtomicLong();
     private final AtomicBoolean versionMapRefreshPending = new AtomicBoolean();
 
-    private SegmentInfos lastCommittedSegmentInfos;
+    private volatile SegmentInfos lastCommittedSegmentInfos;
 
     private final IndexThrottle throttle;
 
@@ -597,16 +597,53 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void flush() throws EngineException {
-        flush(true, false, false);
+    public boolean syncCommitIfNoPendingChanges(String syncId, byte[] expectedCommitId) throws EngineException {
+        // best effort attempt before we aquire locks
+        ensureOpen();
+        if (indexWriter.hasUncommittedChanges()) {
+            logger.trace("can't sync commit [{}]. have pending changes", syncId);
+            return false;
+        }
+        if (Arrays.equals(expectedCommitId, lastCommittedSegmentInfos.getId()) == false) {
+            logger.trace("can't sync commit [{}]. current commit id is not equal to expected.", syncId);
+            return false;
+        }
+        try (ReleasableLock lock = writeLock.acquire()) {
+            ensureOpen();
+            if (indexWriter.hasUncommittedChanges()) {
+                logger.trace("can't sync commit [{}]. have pending changes", syncId);
+                return false;
+            }
+            if (Arrays.equals(expectedCommitId, lastCommittedSegmentInfos.getId()) == false) {
+                logger.trace("can't sync commit [{}]. current commit id is not equal to expected.", syncId);
+                return false;
+            }
+            logger.trace("starting sync commit [{}]", syncId);
+            long translogId = translog.currentId();
+            Map<String, String> commitData = new HashMap<>(2);
+            commitData.put(SYNC_COMMIT_ID, syncId);
+            commitData.put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId));
+            indexWriter.setCommitData(commitData);
+            commitIndexWriter(indexWriter);
+            logger.debug("successfully sync committed. sync id [{}].", syncId);
+            return true;
+        } catch (IOException ex) {
+            maybeFailEngine("sync commit", ex);
+            throw new EngineException(shardId, "failed to sync commit", ex);
+        }
     }
 
     @Override
-    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        flush(true, force, waitIfOngoing);
+    public byte[] flush() throws EngineException {
+        return flush(true, false, false);
     }
 
-    private void flush(boolean commitTranslog, boolean force, boolean waitIfOngoing) throws EngineException {
+    @Override
+    public byte[] flush(boolean force, boolean waitIfOngoing) throws EngineException {
+        return flush(true, force, waitIfOngoing);
+    }
+
+    private byte[] flush(boolean commitTranslog, boolean force, boolean waitIfOngoing) throws EngineException {
         ensureOpen();
         if (commitTranslog) {
             // check outside the lock as well so we can check without blocking on the write lock
@@ -614,6 +651,7 @@ public class InternalEngine extends Engine {
                 throw new FlushNotAllowedEngineException(shardId, "recovery is in progress, flush with committing translog is not allowed");
             }
         }
+        final byte[] newCommitId;
         /*
          * Unfortunately the lock order is important here. We have to acquire the readlock first otherwise
          * if we are flushing at the end of the recovery while holding the write lock we can deadlock if:
@@ -704,6 +742,7 @@ public class InternalEngine extends Engine {
                 } finally {
                     store.decRef();
                 }
+                newCommitId = lastCommittedSegmentInfos.getId();
             } catch (FlushFailedEngineException ex) {
                 maybeFailEngine("flush", ex);
                 throw ex;
@@ -716,6 +755,7 @@ public class InternalEngine extends Engine {
         if (engineConfig.isEnableGcDeletes()) {
             pruneDeletedTombstones();
         }
+        return newCommitId;
     }
 
     private void pruneDeletedTombstones() {

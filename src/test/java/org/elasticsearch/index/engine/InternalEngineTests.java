@@ -28,12 +28,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexDeletionPolicy;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LiveIndexWriterConfig;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -102,18 +97,13 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomDouble;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
 import static org.elasticsearch.test.ElasticsearchTestCase.terminate;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 @LuceneTestCase.SuppressFileSystems("*") // mock FS causes translog issues recovering sometimes because of their use of globs, see LUCENE-6424
 public class InternalEngineTests extends ElasticsearchLuceneTestCase {
@@ -679,6 +669,22 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         searchResult.close();
+    }
+
+    public void testSyncCommit() throws IOException {
+        final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
+        engine.create(new Engine.Create(null, newUid("1"), doc));
+        byte[] commitID = engine.flush();
+        assertThat(commitID, equalTo(store.readLastCommittedSegmentsInfo().getId()));
+        byte[] fakeId = commitID.clone();
+        fakeId[0] = (byte) ~fakeId[0];
+        assertFalse("should fail to sync commit with wrong id (but no docs)", engine.syncCommitIfNoPendingChanges(syncId + "1", fakeId));
+        engine.create(new Engine.Create(null, newUid("2"), doc));
+        assertFalse("should fail to sync commit with right id but pending doc", engine.syncCommitIfNoPendingChanges(syncId + "2", commitID));
+        commitID = engine.flush();
+        assertTrue("should succeed to sync commit with right id and no pending doc", engine.syncCommitIfNoPendingChanges(syncId, commitID));
+        assertThat(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncId));
     }
 
     @Test

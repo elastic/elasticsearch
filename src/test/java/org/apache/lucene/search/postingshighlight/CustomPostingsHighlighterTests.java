@@ -33,6 +33,7 @@ import org.elasticsearch.search.highlight.HighlightUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.*;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -79,7 +80,7 @@ public class CustomPostingsHighlighterTests extends ESTestCase {
         IndexSearcher searcher = newSearcher(ir);
 
         Query query = new TermQuery(new Term("body", "highlighting"));
-        BytesRef[] queryTerms = filterTerms(extractTerms(query), "body", true);
+        BytesRef[] queryTerms = filterTerms(extractTerms(searcher, query), "body", true);
 
         TopDocs topDocs = searcher.search(query, null, 10, Sort.INDEXORDER);
         assertThat(topDocs.totalHits, equalTo(1));
@@ -174,7 +175,7 @@ public class CustomPostingsHighlighterTests extends ESTestCase {
 
         IndexSearcher searcher = newSearcher(ir);
         Query query = new TermQuery(new Term("body", "highlighting"));
-        BytesRef[] queryTerms = filterTerms(extractTerms(query), "body", true);
+        BytesRef[] queryTerms = filterTerms(extractTerms(searcher, query), "body", true);
 
         TopDocs topDocs = searcher.search(query, null, 10, Sort.INDEXORDER);
         assertThat(topDocs.totalHits, equalTo(1));
@@ -289,7 +290,7 @@ public class CustomPostingsHighlighterTests extends ESTestCase {
 
         IndexSearcher searcher = newSearcher(ir);
         Query query = new TermQuery(new Term("body", "highlighting"));
-        BytesRef[] queryTerms = filterTerms(extractTerms(query), "body", true);
+        BytesRef[] queryTerms = filterTerms(extractTerms(searcher, query), "body", true);
 
         TopDocs topDocs = searcher.search(query, null, 10, Sort.INDEXORDER);
         assertThat(topDocs.totalHits, equalTo(1));
@@ -376,9 +377,8 @@ public class CustomPostingsHighlighterTests extends ESTestCase {
         iw.close();
 
         Query query = new TermQuery(new Term("none", "highlighting"));
-        SortedSet<Term> queryTerms = extractTerms(query);
-
         IndexSearcher searcher = newSearcher(ir);
+        SortedSet<Term> queryTerms = extractTerms(searcher, query);
         TopDocs topDocs = searcher.search(query, null, 10, Sort.INDEXORDER);
         assertThat(topDocs.totalHits, equalTo(1));
         int docId = topDocs.scoreDocs[0].doc;
@@ -432,9 +432,9 @@ public class CustomPostingsHighlighterTests extends ESTestCase {
         iw.close();
 
         Query query = new TermQuery(new Term("none", "highlighting"));
-        SortedSet<Term> queryTerms = extractTerms(query);
 
         IndexSearcher searcher = newSearcher(ir);
+        SortedSet<Term> queryTerms = extractTerms(searcher, query);
         TopDocs topDocs = searcher.search(query, null, 10, Sort.INDEXORDER);
         assertThat(topDocs.totalHits, equalTo(1));
         int docId = topDocs.scoreDocs[0].doc;
@@ -458,9 +458,13 @@ public class CustomPostingsHighlighterTests extends ESTestCase {
         dir.close();
     }
 
-    private static SortedSet<Term> extractTerms(Query query) {
+    private static SortedSet<Term> extractTerms(IndexSearcher searcher, Query query) throws IOException {
+        return extractTerms(searcher.createNormalizedWeight(query, false));
+    }
+
+    private static SortedSet<Term> extractTerms(Weight weight) {
         SortedSet<Term> queryTerms = new TreeSet<>();
-        query.extractTerms(queryTerms);
+        weight.extractTerms(queryTerms);
         return queryTerms;
     }
 

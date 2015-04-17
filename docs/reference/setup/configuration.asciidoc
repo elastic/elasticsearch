@@ -208,6 +208,17 @@ node:
   name: <NAME OF YOUR NODE>
 --------------------------------------------------
 
+The hostname of the machine is provided in the environment
+variable `HOSTNAME`. If on your machine you only run a
+single elasticsearch node for that cluster, you can set
+the node name to the hostname using the `${...}` notation:
+
+[source,yaml]
+--------------------------------------------------
+node:
+  name: ${HOSTNAME}
+--------------------------------------------------
+
 Internally, all settings are collapsed into "namespaced" settings. For
 example, the above gets collapsed into `node.name`. This means that
 its easy to support other configuration formats, for example,

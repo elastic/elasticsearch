@@ -111,11 +111,6 @@ public class TopChildrenQuery extends Query {
     }
 
     @Override
-    public void extractTerms(Set<Term> terms) {
-        rewrittenChildQuery.extractTerms(terms);
-    }
-
-    @Override
     public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
         ObjectObjectOpenHashMap<Object, ParentDoc[]> parentDocs = new ObjectObjectOpenHashMap<>();
         SearchContext searchContext = SearchContext.current();
@@ -303,6 +298,10 @@ public class TopChildrenQuery extends Query {
             super(query);
             this.queryWeight = queryWeight;
             this.parentDocs = parentDocs;
+        }
+
+        @Override
+        public void extractTerms(Set<Term> terms) {
         }
 
         @Override

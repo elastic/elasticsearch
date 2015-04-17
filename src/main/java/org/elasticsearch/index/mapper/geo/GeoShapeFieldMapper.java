@@ -26,9 +26,11 @@ import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.TermQueryPrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
+import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.SpatialStrategy;
@@ -157,7 +159,13 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
             if (Names.TREE_GEOHASH.equals(tree)) {
                 prefixTree = new GeohashPrefixTree(ShapeBuilder.SPATIAL_CONTEXT, getLevels(treeLevels, precisionInMeters, Defaults.GEOHASH_LEVELS, true));
             } else if (Names.TREE_QUADTREE.equals(tree)) {
-                prefixTree = new QuadPrefixTree(ShapeBuilder.SPATIAL_CONTEXT, getLevels(treeLevels, precisionInMeters, Defaults.QUADTREE_LEVELS, false));
+                if (context.indexCreatedVersion().before(Version.V_1_6_0)) {
+                    prefixTree = new QuadPrefixTree(ShapeBuilder.SPATIAL_CONTEXT, getLevels(treeLevels, precisionInMeters, Defaults
+                            .QUADTREE_LEVELS, false));
+                } else {
+                    prefixTree = new PackedQuadPrefixTree(ShapeBuilder.SPATIAL_CONTEXT, getLevels(treeLevels, precisionInMeters, Defaults
+                            .QUADTREE_LEVELS, false));
+                }
             } else {
                 throw new ElasticsearchIllegalArgumentException("Unknown prefix tree type [" + tree + "]");
             }
@@ -220,6 +228,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         super(names, 1, fieldType, false, null, null, null, null, null, indexSettings, multiFields, copyTo);
         this.recursiveStrategy = new RecursivePrefixTreeStrategy(tree, names.indexName());
         this.recursiveStrategy.setDistErrPct(distanceErrorPct);
+        this.recursiveStrategy.setPruneLeafyBranches(false);
         this.termStrategy = new TermQueryPrefixTreeStrategy(tree, names.indexName());
         this.termStrategy.setDistErrPct(distanceErrorPct);
         this.defaultStrategy = resolveStrategy(defaultStrategyName);

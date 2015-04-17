@@ -81,9 +81,6 @@ import static org.hamcrest.Matchers.*;
 /**
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-@LuceneTestCase.SuppressFileSystems("*") // nocommit: "not all files were deleted during snapshot cancellation"
-// possibly something messed up with comparison somewhere...
-// org.elasticsearch.common.settings.NoClassSettingsException: failed to load class with value [mock]; tried [mock, org.elasticsearch.repositories.MockRepositoryModule, org.elasticsearch.repositories.mock.MockRepositoryModule, org.elasticsearch.repositories.mock.MockRepositoryModule]
 public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
     @Test

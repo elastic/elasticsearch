@@ -22,7 +22,6 @@ package org.elasticsearch.index.store;
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Lists;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -59,7 +58,6 @@ import static org.hamcrest.Matchers.notNullValue;
  * Integration test for corrupted translog files
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope= ElasticsearchIntegrationTest.Scope.SUITE, numDataNodes = 0)
-@LuceneTestCase.SuppressFileSystems("*") // nocommit: corrupting the translog doesn't find a file to corrupt, path building/comparison seems broken
 public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
 
     @Override

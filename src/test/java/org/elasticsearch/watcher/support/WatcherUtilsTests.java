@@ -20,7 +20,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.watcher.input.search.SearchInput;
+import org.elasticsearch.watcher.input.search.ExecutableSearchInput;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -121,7 +121,7 @@ public class WatcherUtilsTests extends ElasticsearchTestCase {
         builder = WatcherUtils.writeSearchRequest(expectedRequest, builder, ToXContent.EMPTY_PARAMS);
         XContentParser parser = XContentHelper.createParser(builder.bytes());
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-        SearchRequest result = WatcherUtils.readSearchRequest(parser, SearchInput.DEFAULT_SEARCH_TYPE);
+        SearchRequest result = WatcherUtils.readSearchRequest(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE);
 
         assertThat(result.indices(), arrayContainingInAnyOrder(expectedRequest.indices()));
         assertThat(result.types(), arrayContainingInAnyOrder(expectedRequest.types()));
@@ -212,7 +212,7 @@ public class WatcherUtilsTests extends ElasticsearchTestCase {
 
         XContentParser parser = XContentHelper.createParser(builder.bytes());
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-        SearchRequest result = WatcherUtils.readSearchRequest(parser, SearchInput.DEFAULT_SEARCH_TYPE);
+        SearchRequest result = WatcherUtils.readSearchRequest(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE);
 
         assertThat(result.indices(), arrayContainingInAnyOrder(indices));
         assertThat(result.types(), arrayContainingInAnyOrder(types));

@@ -25,12 +25,12 @@ import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.watcher.actions.ActionRegistry;
 import org.elasticsearch.watcher.actions.ExecutableActions;
-import org.elasticsearch.watcher.condition.ExecutableCondition;
 import org.elasticsearch.watcher.condition.ConditionRegistry;
+import org.elasticsearch.watcher.condition.ExecutableCondition;
 import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
-import org.elasticsearch.watcher.input.Input;
+import org.elasticsearch.watcher.input.ExecutableInput;
 import org.elasticsearch.watcher.input.InputRegistry;
-import org.elasticsearch.watcher.input.NoneInput;
+import org.elasticsearch.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.throttle.Throttler;
@@ -56,7 +56,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
 
     private final String name;
     private final Trigger trigger;
-    private final Input input;
+    private final ExecutableInput input;
     private final ExecutableCondition condition;
     private final ExecutableActions actions;
     private final Throttler throttler;
@@ -71,7 +71,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
 
     private final transient AtomicLong nonceCounter = new AtomicLong();
 
-    public Watch(String name, Clock clock, LicenseService licenseService, Trigger trigger, Input input, ExecutableCondition condition, @Nullable Transform transform,
+    public Watch(String name, Clock clock, LicenseService licenseService, Trigger trigger, ExecutableInput input, ExecutableCondition condition, @Nullable Transform transform,
                  ExecutableActions actions, @Nullable Map<String, Object> metadata, @Nullable TimeValue throttlePeriod, @Nullable Status status) {
         this.name = name;
         this.trigger = trigger;
@@ -93,7 +93,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         return trigger;
     }
 
-    public Input input() { return input;}
+    public ExecutableInput input() { return input;}
 
     public ExecutableCondition condition() {
         return condition;
@@ -195,7 +195,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         private final InputRegistry inputRegistry;
         private final Clock clock;
 
-        private final Input defaultInput;
+        private final ExecutableInput defaultInput;
         private final ExecutableCondition defaultCondition;
         private final TimeValue defaultThrottleTimePeriod;
 
@@ -213,7 +213,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             this.inputRegistry = inputRegistry;
             this.clock = clock;
 
-            this.defaultInput = new NoneInput(logger);
+            this.defaultInput = new ExecutableNoneInput(logger);
             this.defaultCondition = new ExecutableAlwaysCondition(logger);
             this.defaultThrottleTimePeriod = settings.getAsTime(DEFAULT_THROTTLE_PERIOD_SETTING, DEFAULT_THROTTLE_PERIOD);
         }
@@ -231,7 +231,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
 
         public Watch parse(String id, boolean includeStatus, XContentParser parser) throws IOException {
             Trigger trigger = null;
-            Input input = defaultInput;
+            ExecutableInput input = defaultInput;
             ExecutableCondition condition = defaultCondition;
             ExecutableActions actions = null;
             Transform transform = null;
@@ -250,7 +250,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                     if (TRIGGER_FIELD.match(currentFieldName)) {
                         trigger = triggerService.parseTrigger(id, parser);
                     } else if (INPUT_FIELD.match(currentFieldName)) {
-                        input = inputRegistry.parse(parser);
+                        input = inputRegistry.parse(id, parser);
                     } else if (CONDITION_FIELD.match(currentFieldName)) {
                         condition = conditionRegistry.parseExecutable(id, parser);
                     } else if (ACTIONS_FIELD.match(currentFieldName)) {

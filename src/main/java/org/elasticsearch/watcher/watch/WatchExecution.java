@@ -128,7 +128,7 @@ public class WatchExecution implements ToXContent {
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (INPUT_RESULT_FIELD.match(currentFieldName)) {
-                        inputResult = inputRegistry.parseResult(parser);
+                        inputResult = inputRegistry.parseResult(wid.watchId(), parser);
                     } else if (CONDITION_RESULT_FIELD.match(currentFieldName)) {
                         conditionResult = conditionRegistry.parseResult(wid.watchId(), parser);
                     } else if (Transform.Parser.TRANSFORM_RESULT_FIELD.match(currentFieldName)) {

@@ -21,6 +21,7 @@ import org.elasticsearch.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
+import org.elasticsearch.watcher.input.search.ExecutableSearchInput;
 import org.elasticsearch.watcher.input.search.SearchInput;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.clock.SystemClock;
@@ -88,7 +89,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                 SystemClock.INSTANCE,
                 licenseService(),
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? 2035")), //Set this into the future so we don't get any extra runs
-                new SearchInput(logger, scriptService(), ClientProxy.of(client()), searchRequest, null),
+                new ExecutableSearchInput(new SearchInput(searchRequest, null), logger, scriptService(), ClientProxy.of(client())),
                 new ExecutableScriptCondition(new ScriptCondition(new Script("return true")), logger, scriptService()),
                 new SearchTransform(logger, scriptService(), ClientProxy.of(client()), searchRequest),
                 new ExecutableActions(new ArrayList<ActionWrapper>()),
@@ -150,8 +151,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                         SystemClock.INSTANCE,
                         licenseService(),
                         new ScheduleTrigger(new CronSchedule("0/5 * * * * ? 2035")), //Set a cron schedule far into the future so this watch is never scheduled
-                        new SearchInput(logger, scriptService(), ClientProxy.of(client()),
-                                searchRequest, null),
+                        new ExecutableSearchInput(new SearchInput(searchRequest, null), logger, scriptService(), ClientProxy.of(client())),
                         new ExecutableScriptCondition(new ScriptCondition(new Script("return true")), logger, scriptService()),
                         new SearchTransform(logger, scriptService(), ClientProxy.of(client()), searchRequest),
                         new ExecutableActions(new ArrayList<ActionWrapper>()),

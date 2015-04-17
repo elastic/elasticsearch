@@ -18,7 +18,7 @@ import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.watcher.input.Input;
-import org.elasticsearch.watcher.input.NoneInput;
+import org.elasticsearch.watcher.input.none.NoneInput;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.watch.Watch;
@@ -33,7 +33,7 @@ import java.util.Map;
 public class WatchSourceBuilder implements ToXContent {
 
     private Trigger.SourceBuilder trigger;
-    private Input.SourceBuilder input = NoneInput.SourceBuilder.INSTANCE;
+    private Input input = NoneInput.INSTANCE;
     private Condition condition = AlwaysCondition.INSTANCE;
     private Transform.SourceBuilder transform = null;
     private Map<String, TransformedAction> actions = new HashMap<>();
@@ -45,7 +45,11 @@ public class WatchSourceBuilder implements ToXContent {
         return this;
     }
 
-    public WatchSourceBuilder input(Input.SourceBuilder input) {
+    public WatchSourceBuilder input(Input.Builder input) {
+        return input(input.build());
+    }
+
+    public WatchSourceBuilder input(Input input) {
         this.input = input;
         return this;
     }

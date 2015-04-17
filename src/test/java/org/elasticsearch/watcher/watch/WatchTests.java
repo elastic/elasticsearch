@@ -43,10 +43,16 @@ import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.watcher.condition.script.ExecutableScriptCondition;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.watcher.condition.script.ScriptConditionFactory;
-import org.elasticsearch.watcher.input.Input;
+import org.elasticsearch.watcher.input.ExecutableInput;
+import org.elasticsearch.watcher.input.InputBuilders;
+import org.elasticsearch.watcher.input.InputFactory;
 import org.elasticsearch.watcher.input.InputRegistry;
+import org.elasticsearch.watcher.input.search.ExecutableSearchInput;
 import org.elasticsearch.watcher.input.search.SearchInput;
+import org.elasticsearch.watcher.input.search.SearchInputFactory;
+import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
+import org.elasticsearch.watcher.input.simple.SimpleInputFactory;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.WatcherUtils;
@@ -76,6 +82,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 
+import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.matchAllRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -113,7 +120,7 @@ public class WatchTests extends ElasticsearchTestCase {
         TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(ImmutableSettings.EMPTY, scheduleRegistry);
         TriggerService triggerService = new TriggerService(ImmutableSettings.EMPTY, ImmutableSet.of(triggerEngine));
 
-        Input input = randomInput();
+        ExecutableInput input = randomInput();
         InputRegistry inputRegistry = registry(input);
 
         ExecutableCondition condition = randomCondition();
@@ -201,24 +208,26 @@ public class WatchTests extends ElasticsearchTestCase {
         }
     }
 
-    private Input randomInput() {
+    private ExecutableInput randomInput() {
         String type = randomFrom(SearchInput.TYPE, SimpleInput.TYPE);
         switch (type) {
             case SearchInput.TYPE:
-                return new SearchInput(logger, scriptService, client, WatcherTestUtils.newInputSearchRequest("idx"), null);
+                SearchInput searchInput = searchInput(WatcherTestUtils.newInputSearchRequest("idx")).build();
+                return new ExecutableSearchInput(searchInput, logger, scriptService, client);
             default:
-                return new SimpleInput(logger, new Payload.Simple(ImmutableMap.<String, Object>builder().put("_key", "_val").build()));
+                SimpleInput simpleInput = InputBuilders.simpleInput(ImmutableMap.<String, Object>builder().put("_key", "_val")).build();
+                return new ExecutableSimpleInput(simpleInput, logger);
         }
     }
 
-    private InputRegistry registry(Input input) {
-        ImmutableMap.Builder<String, Input.Parser> parsers = ImmutableMap.builder();
+    private InputRegistry registry(ExecutableInput input) {
+        ImmutableMap.Builder<String, InputFactory> parsers = ImmutableMap.builder();
         switch (input.type()) {
             case SearchInput.TYPE:
-                parsers.put(SearchInput.TYPE, new SearchInput.Parser(settings, scriptService, client));
+                parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, scriptService, client));
                 return new InputRegistry(parsers.build());
             default:
-                parsers.put(SimpleInput.TYPE, new SimpleInput.Parser(settings));
+                parsers.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
                 return new InputRegistry(parsers.build());
         }
     }

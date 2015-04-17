@@ -17,11 +17,11 @@ import java.util.Map;
  */
 public class InputRegistry {
 
-    private final ImmutableMap<String, Input.Parser> parsers;
+    private final ImmutableMap<String, InputFactory> factories;
 
     @Inject
-    public InputRegistry(Map<String, Input.Parser> parsers) {
-        this.parsers = ImmutableMap.copyOf(parsers);
+    public InputRegistry(Map<String, InputFactory> factories) {
+        this.factories = ImmutableMap.copyOf(factories);
     }
 
     /**
@@ -31,37 +31,39 @@ public class InputRegistry {
      * @return          A new input instance from the parser
      * @throws java.io.IOException
      */
-    public Input parse(XContentParser parser) throws IOException {
+    public ExecutableInput parse(String watchId, XContentParser parser) throws IOException {
         String type = null;
+
         XContentParser.Token token;
-        Input input = null;
+        ExecutableInput input = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT && type != null) {
-                Input.Parser inputParser = parsers.get(type);
-                if (inputParser == null) {
-                    throw new InputException("unknown input type [" + type + "]");
+                InputFactory factory = factories.get(type);
+                if (factory == null) {
+                    throw new InputException("could not parse input for watch [{}]. unknown input type [{}]", watchId, type);
                 }
-                input = inputParser.parse(parser);
+                input = factory.parseExecutable(watchId, parser);
             }
         }
         return input;
     }
 
-    public Input.Result parseResult(XContentParser parser) throws IOException {
+    public Input.Result parseResult(String watchId, XContentParser parser) throws IOException {
         String type = null;
+
         XContentParser.Token token;
         Input.Result inputResult = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT && type != null) {
-                Input.Parser inputParser = parsers.get(type);
-                if (inputParser == null) {
-                    throw new InputException("unknown input type [" + type + "]");
+                InputFactory factory = factories.get(type);
+                if (factory == null) {
+                    throw new InputException("could not parse input result for watch [{}]. unknown input type [{}]", watchId, type);
                 }
-                inputResult = inputParser.parseResult(parser);
+                inputResult = factory.parseResult(watchId, parser);
             }
         }
         return inputResult;

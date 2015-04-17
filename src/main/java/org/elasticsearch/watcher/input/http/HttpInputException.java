@@ -3,20 +3,20 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.input;
+package org.elasticsearch.watcher.input.http;
 
-import org.elasticsearch.watcher.WatcherException;
+import org.elasticsearch.watcher.input.InputException;
 
 /**
  *
  */
-public class InputException extends WatcherException {
+public class HttpInputException extends InputException {
 
-    public InputException(String msg, Object... args) {
+    public HttpInputException(String msg, Object... args) {
         super(msg, args);
     }
 
-    public InputException(String msg, Throwable cause, Object... args) {
+    public HttpInputException(String msg, Throwable cause, Object... args) {
         super(msg, cause, args);
     }
 }

@@ -13,15 +13,15 @@
             "schedule" : { "cron" : "0 0/1 * * * ?" }
             },
             "input" : {
-            "search" : {
-              "request" : {
-                "indices" : [ "logstash*" ],
-                "body" : {
-                  "query" : {
-                    "filtered": {
-                      "query": {
-                        "match": {
-                          "response": 404
+              "search" : {
+                "request" : {
+                  "indices" : [ "logstash*" ],
+                  "body" : {
+                    "query" : {
+                      "filtered": {
+                        "query": {
+                          "match": {
+                            "response": 404
                           }
                         },
                         "filter": {

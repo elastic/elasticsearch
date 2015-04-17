@@ -124,7 +124,7 @@ public class WatcherBenchmark {
                         .trigger(schedule(interval("5s")))
                         .input(searchInput(new SearchRequest()
                                         .source(new SearchSourceBuilder()))
-                                        .addExtractKey("hits.total")
+                                        .extractKeys("hits.total")
                         )
                         .condition(scriptCondition("1 == 1"))
                         .addAction("_id", indexAction("index", "type")));

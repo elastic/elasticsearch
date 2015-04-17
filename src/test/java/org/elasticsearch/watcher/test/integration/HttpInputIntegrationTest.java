@@ -100,7 +100,7 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
         watcherClient.preparePutWatch("_name1")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(httpInput(requestBuilder).addExtractKey("hits.total"))
+                        .input(httpInput(requestBuilder).extractKeys("hits.total"))
                         .condition(scriptCondition("ctx.payload.hits.total == 1")))
                 .get();
 
@@ -108,7 +108,7 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
         watcherClient.preparePutWatch("_name2")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(httpInput(requestBuilder).addExtractKey("hits.total"))
+                        .input(httpInput(requestBuilder).extractKeys("hits.total"))
                         .condition(scriptCondition("ctx.payload.hits.max_score >= 0")))
                 .get();
 

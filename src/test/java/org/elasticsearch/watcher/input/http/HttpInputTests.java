@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.input.http;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -21,8 +20,8 @@ import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputBuilders;
+import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.clock.ClockMock;
@@ -55,7 +54,7 @@ import static org.mockito.Mockito.when;
 public class HttpInputTests extends ElasticsearchTestCase {
 
     private HttpClient httpClient;
-    private HttpInput.Parser httpParser;
+    private HttpInputFactory httpParser;
     private TemplateEngine templateEngine;
 
     @Before
@@ -63,7 +62,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
         httpClient = mock(HttpClient.class);
         templateEngine = mock(TemplateEngine.class);
         HttpAuthRegistry registry = new HttpAuthRegistry(ImmutableMap.<String, HttpAuth.Parser>of("basic", new BasicAuth.Parser()));
-        httpParser = new HttpInput.Parser(ImmutableSettings.EMPTY, httpClient, new HttpRequest.Parser(registry), new HttpRequestTemplate.Parser(registry), templateEngine);
+        httpParser = new HttpInputFactory(ImmutableSettings.EMPTY, httpClient, templateEngine, new HttpRequest.Parser(registry), new HttpRequestTemplate.Parser(registry));
     }
 
     @Test
@@ -73,7 +72,8 @@ public class HttpInputTests extends ElasticsearchTestCase {
         HttpRequestTemplate.Builder request = HttpRequestTemplate.builder(host, port)
                 .method(HttpMethod.POST)
                 .body("_body");
-        HttpInput input = new HttpInput(logger, httpClient, request.build(), null, templateEngine);
+        HttpInput httpInput = InputBuilders.httpInput(request.build()).build();
+        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
 
         HttpResponse response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(UTF8));
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
@@ -84,7 +84,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
                 new ClockMock(),
                 mock(LicenseService.class),
                 new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
-                new SimpleInput(logger, new Payload.Simple()),
+                new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
                 new ExecutableAlwaysCondition(logger),
                 null,
                 new ExecutableActions(new ArrayList<ActionWrapper>()),
@@ -99,7 +99,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
         assertThat(result.payload().data(), equalTo(MapBuilder.<String, Object>newMapBuilder().put("key", "value").map()));
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test //@Repeat(iterations = 20)
     public void testParser() throws Exception {
         final HttpMethod httpMethod = rarely() ? null : randomFrom(HttpMethod.values());
         Scheme scheme = randomFrom(Scheme.HTTP, Scheme.HTTPS, null);
@@ -125,27 +125,27 @@ public class HttpInputTests extends ElasticsearchTestCase {
             requestBuilder.putHeaders(headers);
         }
 
-        XContentParser parser = XContentHelper.createParser(jsonBuilder().value(InputBuilders.httpInput(requestBuilder)).bytes());
+        XContentParser parser = XContentHelper.createParser(jsonBuilder().value(InputBuilders.httpInput(requestBuilder).build()).bytes());
         parser.nextToken();
-        HttpInput result = httpParser.parse(parser);
+        HttpInput result = httpParser.parseInput("_id", parser);
 
         assertThat(result.type(), equalTo(HttpInput.TYPE));
-        assertThat(result.getRequestTemplate().scheme(), equalTo(scheme != null ? scheme : Scheme.HTTP)); // http is the default
-        assertThat(result.getRequestTemplate().method(), equalTo(httpMethod != null ? httpMethod : HttpMethod.GET)); // get is the default
-        assertThat(result.getRequestTemplate().host(), equalTo(host));
-        assertThat(result.getRequestTemplate().port(), equalTo(port));
-        assertThat(result.getRequestTemplate().path(), is(new Template(path)));
+        assertThat(result.getRequest().scheme(), equalTo(scheme != null ? scheme : Scheme.HTTP)); // http is the default
+        assertThat(result.getRequest().method(), equalTo(httpMethod != null ? httpMethod : HttpMethod.GET)); // get is the default
+        assertThat(result.getRequest().host(), equalTo(host));
+        assertThat(result.getRequest().port(), equalTo(port));
+        assertThat(result.getRequest().path(), is(new Template(path)));
         if (params != null) {
-            assertThat(result.getRequestTemplate().params(), hasEntry(is("a"), is(new Template("b"))));
+            assertThat(result.getRequest().params(), hasEntry(is("a"), is(new Template("b"))));
         }
         if (headers != null) {
-            assertThat(result.getRequestTemplate().headers(), hasEntry(is("c"), is(new Template("d"))));
+            assertThat(result.getRequest().headers(), hasEntry(is("c"), is(new Template("d"))));
         }
-        assertThat(result.getRequestTemplate().auth(), equalTo(auth));
+        assertThat(result.getRequest().auth(), equalTo(auth));
         if (body != null) {
-            assertThat(result.getRequestTemplate().body(), is(new Template(body)));
+            assertThat(result.getRequest().body(), is(new Template(body)));
         } else {
-            assertThat(result.getRequestTemplate().body(), nullValue());
+            assertThat(result.getRequest().body(), nullValue());
         }
     }
 
@@ -159,7 +159,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
                 .endObject();
         XContentParser parser = XContentHelper.createParser(builder.bytes());
         parser.nextToken();
-        httpParser.parse(parser);
+        httpParser.parseInput("_id", parser);
     }
 
     @Test
@@ -176,23 +176,23 @@ public class HttpInputTests extends ElasticsearchTestCase {
         Map<String, Object> payload = MapBuilder.<String, Object>newMapBuilder().put("x", "y").map();
 
         XContentBuilder builder = jsonBuilder().startObject();
-        builder.field(HttpInput.Parser.HTTP_STATUS_FIELD.getPreferredName(), 123);
-        builder.field(HttpInput.Parser.REQUEST_FIELD.getPreferredName(), request);
-        builder.field(Input.Result.PAYLOAD_FIELD.getPreferredName(), payload);
+        builder.field(HttpInput.Field.HTTP_STATUS.getPreferredName(), 123);
+        builder.field(HttpInput.Field.SENT_REQUEST.getPreferredName(), request);
+        builder.field(HttpInput.Field.PAYLOAD.getPreferredName(), payload);
         builder.endObject();
 
         XContentParser parser = XContentHelper.createParser(builder.bytes());
         parser.nextToken();
-        HttpInput.Result result = httpParser.parseResult(parser);
+        HttpInput.Result result = httpParser.parseResult("_id", parser);
         assertThat(result.type(), equalTo(HttpInput.TYPE));
         assertThat(result.payload().data(), equalTo(payload));
         assertThat(result.statusCode(), equalTo(123));
-        assertThat(result.request().method().method(), equalTo("GET"));
-        assertThat(result.request().headers().size(), equalTo(headers.size()));
-        assertThat(result.request().headers(), hasEntry("a", (Object) "b"));
-        assertThat(result.request().host(), equalTo("_host"));
-        assertThat(result.request().port(), equalTo(123));
-        assertThat(result.request().body(), equalTo("_body"));
+        assertThat(result.sentRequest().method().method(), equalTo("GET"));
+        assertThat(result.sentRequest().headers().size(), equalTo(headers.size()));
+        assertThat(result.sentRequest().headers(), hasEntry("a", (Object) "b"));
+        assertThat(result.sentRequest().host(), equalTo("_host"));
+        assertThat(result.sentRequest().port(), equalTo(123));
+        assertThat(result.sentRequest().body(), equalTo("_body"));
     }
 
 }

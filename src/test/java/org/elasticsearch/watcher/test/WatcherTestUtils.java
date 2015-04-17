@@ -29,7 +29,8 @@ import org.elasticsearch.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.watcher.condition.script.ExecutableScriptCondition;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.input.search.SearchInput;
+import org.elasticsearch.watcher.input.search.ExecutableSearchInput;
+import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.Script;
@@ -74,7 +75,7 @@ public final class WatcherTestUtils {
     public static SearchRequest newInputSearchRequest(String... indices) {
         SearchRequest request = new SearchRequest(indices);
         request.indicesOptions(WatcherUtils.DEFAULT_INDICES_OPTIONS);
-        request.searchType(SearchInput.DEFAULT_SEARCH_TYPE);
+        request.searchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE);
         return request;
     }
 
@@ -131,7 +132,7 @@ public final class WatcherTestUtils {
         SearchRequest conditionRequest = newInputSearchRequest("my-condition-index").source(searchSource().query(matchAllQuery()));
         SearchRequest transformRequest = newInputSearchRequest("my-payload-index").source(searchSource().query(matchAllQuery()));
         transformRequest.searchType(SearchTransform.DEFAULT_SEARCH_TYPE);
-        conditionRequest.searchType(SearchInput.DEFAULT_SEARCH_TYPE);
+        conditionRequest.searchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE);
 
         List<ActionWrapper> actions = new ArrayList<>();
 
@@ -178,7 +179,7 @@ public final class WatcherTestUtils {
                 SystemClock.INSTANCE,
                 licenseService,
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
-                new SimpleInput(logger, new Payload.Simple(inputData)),
+                new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(inputData)), logger),
                 new ExecutableScriptCondition(new ScriptCondition(new Script("return true")), logger, scriptService),
                 new SearchTransform(logger, scriptService, client, transformRequest),
                 new ExecutableActions(actions),

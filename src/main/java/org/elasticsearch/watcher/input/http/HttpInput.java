@@ -5,50 +5,34 @@
  */
 package org.elasticsearch.watcher.input.http;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.input.Input;
-import org.elasticsearch.watcher.input.InputException;
-import org.elasticsearch.watcher.support.Variables;
-import org.elasticsearch.watcher.support.XContentFilterKeysUtils;
-import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpRequest;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
-import org.elasticsearch.watcher.support.http.HttpResponse;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.watch.Payload;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 /**
+ *
  */
-public class HttpInput extends Input<HttpInput.Result> {
+public class HttpInput implements Input {
 
     public static final String TYPE = "http";
 
-    private final HttpClient client;
-    private final Set<String> extractKeys;
-    private final HttpRequestTemplate requestTemplate;
-    private final TemplateEngine templateEngine;
+    private final HttpRequestTemplate request;
+    private final @Nullable Set<String> extractKeys;
 
-    public HttpInput(ESLogger logger, HttpClient client, HttpRequestTemplate requestTemplate, Set<String> extractKeys, TemplateEngine templateEngine) {
-        super(logger);
-        this.requestTemplate = requestTemplate;
-        this.client = client;
+    public HttpInput(HttpRequestTemplate request, @Nullable Set<String> extractKeys) {
+        this.request = request;
         this.extractKeys = extractKeys;
-        this.templateEngine = templateEngine;
     }
 
     @Override
@@ -56,217 +40,169 @@ public class HttpInput extends Input<HttpInput.Result> {
         return TYPE;
     }
 
-    @Override
-    public Result execute(WatchExecutionContext ctx) throws IOException {
-        Map<String, Object> model = Variables.createCtxModel(ctx, null);
-        HttpRequest request = requestTemplate.render(templateEngine, model);
+    public HttpRequestTemplate getRequest() {
+        return request;
+    }
 
-        HttpResponse response = client.execute(request);
-        Payload payload;
-        if (extractKeys != null) {
-            XContentParser parser = XContentHelper.createParser(response.body());
-            Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(extractKeys, parser);
-            payload = new Payload.Simple(filteredKeys);
-        } else {
-            Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(response.body(), true);
-            payload = new Payload.Simple(result.v2());
-        }
-        return new Result(payload, request, response.status());
+    public Set<String> getExtractKeys() {
+        return extractKeys;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Parser.REQUEST_FIELD.getPreferredName());
-        builder = requestTemplate.toXContent(builder, params);
+        builder.field(Field.REQUEST.getPreferredName(), request);
         if (extractKeys != null) {
-            builder.startArray(Parser.EXTRACT_FIELD.getPreferredName());
-            for (String extractKey : extractKeys) {
-                builder.value(extractKey);
+            builder.field(Field.EXTRACT.getPreferredName(), extractKeys);
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    public static HttpInput parse(String watchId, XContentParser parser, HttpRequestTemplate.Parser requestParser) throws IOException {
+        Set<String> extract = null;
+        HttpRequestTemplate request = null;
+
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (Field.REQUEST.match(currentFieldName)) {
+                try {
+                    request = requestParser.parse(parser);
+                } catch (HttpRequestTemplate.ParseException pe) {
+                    throw new HttpInputException("could not parse [{}] input for watch [{}]. failed to parse http request template", pe, TYPE, watchId);
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (Field.EXTRACT.getPreferredName().equals(currentFieldName)) {
+                    extract = new HashSet<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (token == XContentParser.Token.VALUE_STRING) {
+                            extract.add(parser.text());
+                        } else {
+                            throw new HttpInputException("could not parse [{}] input for watch [{}]. expected a string value as an [{}] item but found [{}] instead", TYPE, watchId, currentFieldName, token);
+                        }
+                    }
+                } else {
+                    throw new HttpInputException("could not parse [{}] input for watch [{}]. unexpected array field [{}]", TYPE, watchId, currentFieldName);
+                }
+            } else {
+                throw new HttpInputException("could not parse [{}] input for watch [{}]. unexpected token [{}]", TYPE, watchId, token);
             }
-            builder.endArray();
         }
-        return builder.endObject();
+
+        if (request == null) {
+            throw new HttpInputException("could not parse [{}] input for watch [{}]. missing require [{}] field", TYPE, watchId, Field.REQUEST.getPreferredName());
+        }
+
+        return new HttpInput(request, extract);
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        HttpInput httpInput = (HttpInput) o;
-
-        if (!requestTemplate.equals(httpInput.requestTemplate)) return false;
-
-        return true;
+    public static Builder builder(HttpRequestTemplate httpRequest) {
+        return new Builder(httpRequest);
     }
 
-    @Override
-    public int hashCode() {
-        return requestTemplate.hashCode();
-    }
+    public static class Result extends Input.Result {
 
-    HttpRequestTemplate getRequestTemplate() {
-        return requestTemplate;
-    }
+        private final HttpRequest sentRequest;
+        private final int httpStatus;
 
-    public final static class Result extends Input.Result {
-
-        private final HttpRequest request;
-        private final int statusCode;
-
-        public Result(Payload payload, HttpRequest request, int statusCode) {
+        public Result(Payload payload, HttpRequest sentRequest, int httpStatus) {
             super(TYPE, payload);
-            this.request = request;
-            this.statusCode = statusCode;
+            this.sentRequest =sentRequest;
+            this.httpStatus = httpStatus;
         }
+
+        public HttpRequest sentRequest() {
+            return sentRequest;
+        }
+
+        public int statusCode() {
+            return httpStatus;
+        }
+
         @Override
         protected XContentBuilder toXContentBody(XContentBuilder builder, Params params) throws IOException {
-            builder.field(Parser.HTTP_STATUS_FIELD.getPreferredName(), statusCode);
-            builder.field(Parser.REQUEST_FIELD.getPreferredName(), request);
-            return builder;
+            return builder.field(Field.SENT_REQUEST.getPreferredName(), sentRequest)
+                    .field(Field.HTTP_STATUS.getPreferredName(), httpStatus);
         }
 
-        HttpRequest request() {
-            return request;
-        }
-
-        int statusCode() {
-            return statusCode;
-        }
-    }
-
-    public final static class Parser extends AbstractComponent implements Input.Parser<Result, HttpInput> {
-
-        public static final ParseField REQUEST_FIELD = new ParseField("request");
-        public static final ParseField EXTRACT_FIELD = new ParseField("extract");
-        public static final ParseField HTTP_STATUS_FIELD = new ParseField("http_status");
-
-        private final HttpClient client;
-        private final HttpRequest.Parser requestParser;
-        private final HttpRequestTemplate.Parser requestTemplateParser;
-        private final TemplateEngine templateEngine;
-
-        @Inject
-        public Parser(Settings settings, HttpClient client, HttpRequest.Parser requestParser, HttpRequestTemplate.Parser requestTemplateParser, TemplateEngine templateEngine) {
-            super(settings);
-            this.client = client;
-            this.requestParser = requestParser;
-            this.requestTemplateParser = requestTemplateParser;
-            this.templateEngine = templateEngine;
-        }
-
-        @Override
-        public String type() {
-            return TYPE;
-        }
-
-        @Override
-        public HttpInput parse(XContentParser parser) throws IOException {
-            Set<String> extract = null;
-            HttpRequestTemplate request = null;
-
-            String currentFieldName = null;
-            for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
-                switch (token) {
-                    case FIELD_NAME:
-                        currentFieldName = parser.currentName();
-                        break;
-                    case START_OBJECT:
-                        if (REQUEST_FIELD.getPreferredName().equals(currentFieldName)) {
-                            request = requestTemplateParser.parse(parser);
-                        } else {
-                            throw new InputException("could not parse [http] input. unexpected field [" + currentFieldName + "]");
-                        }
-                        break;
-                    case START_ARRAY:
-                        if (EXTRACT_FIELD.getPreferredName().equals(currentFieldName)) {
-                            extract = new HashSet<>();
-                            for (XContentParser.Token arrayToken = parser.nextToken(); arrayToken != XContentParser.Token.END_ARRAY; arrayToken = parser.nextToken()) {
-                                if (arrayToken == XContentParser.Token.VALUE_STRING) {
-                                    extract.add(parser.text());
-                                }
-                            }
-                        } else {
-                            throw new InputException("could not parse [http] input. unexpected field [" + currentFieldName + "]");
-                        }
-                        break;
-                    default:
-                        throw new InputException("could not parse [http] input. unexpected token [" + token + "]");
-
-                }
-            }
-
-            if (request == null) {
-                throw new InputException("could not parse [http] input. http request is missing or null.");
-            }
-
-            return new HttpInput(logger, client, request, extract, templateEngine);
-        }
-
-        @Override
-        public Result parseResult(XContentParser parser) throws IOException {
+        public static Result parse(String watchId, XContentParser parser, HttpRequest.Parser requestParser) throws IOException {
+            HttpRequest sentRequest = null;
             Payload payload = null;
-            HttpRequest request = null;
-            int statusCode = -1;
+            int httpStatus = -1;
 
             XContentParser.Token token;
             String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
+                } else if (Field.SENT_REQUEST.match(currentFieldName)) {
+                    try {
+                        sentRequest = requestParser.parse(parser);
+                    } catch (HttpRequest.Parser.ParseException pe) {
+                        throw new HttpInputException("could not parse [{}] input result for watch [{}]. failed parsing [{}] field", pe, TYPE, watchId, Field.SENT_REQUEST.getPreferredName());
+                    }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (Input.Result.PAYLOAD_FIELD.match(currentFieldName)) {
+                    if (Field.PAYLOAD.match(currentFieldName)) {
                         payload = new Payload.XContent(parser);
-                    } else if (REQUEST_FIELD.match(currentFieldName)) {
-                        request = requestParser.parse(parser);
+                    } else {
+                        throw new HttpInputException("could not parse [{}] input result for watch [{}]. unexpected object field [{}]", TYPE, watchId, currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                    if (HTTP_STATUS_FIELD.match(currentFieldName)) {
-                        statusCode = parser.intValue();
+                    if (Field.HTTP_STATUS.match(currentFieldName)) {
+                        httpStatus = parser.intValue();
+                    } else {
+                        throw new HttpInputException("could not parse [{}] input result for watch [{}]. unexpected numeric field [{}]", TYPE, watchId, currentFieldName);
                     }
+                } else {
+                    throw new HttpInputException("could not parse [{}] input result for watch [{}]. unexpected token [{}]", TYPE, watchId, token);
                 }
             }
-            return new Result(payload, request, statusCode);
-        }
 
+            if (sentRequest == null) {
+                throw new HttpInputException("could not parse [{}] input result for watch [{}]. missing required [{}] field", TYPE, watchId, Field.SENT_REQUEST.getPreferredName());
+            }
+
+            if (httpStatus < 0) {
+                throw new HttpInputException("could not parse [{}] input result for watch [{}]. missing required [{}] field", TYPE, watchId, Field.HTTP_STATUS.getPreferredName());
+            }
+
+            return new HttpInput.Result(payload, sentRequest, httpStatus);
+        }
     }
 
-    public final static class SourceBuilder implements Input.SourceBuilder {
+    public static class Builder implements Input.Builder<HttpInput> {
 
-        private HttpRequestTemplate request;
-        private Set<String> extractKeys;
+        private final HttpRequestTemplate request;
+        private final ImmutableSet.Builder<String> extractKeys = ImmutableSet.builder();
 
-        public SourceBuilder(HttpRequestTemplate request) {
+        private Builder(HttpRequestTemplate request) {
             this.request = request;
         }
 
-        public SourceBuilder addExtractKey(String key) {
-            if (extractKeys == null) {
-                extractKeys = new HashSet<>();
-            }
-            extractKeys.add(key);
+        public Builder extractKeys(Collection<String> keys) {
+            extractKeys.addAll(keys);
+            return this;
+        }
+
+        public Builder extractKeys(String... keys) {
+            extractKeys.add(keys);
             return this;
         }
 
         @Override
-        public String type() {
-            return TYPE;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            if (extractKeys != null) {
-                builder.startArray(Parser.EXTRACT_FIELD.getPreferredName());
-                for (String extractKey : extractKeys) {
-                    builder.value(extractKey);
-                }
-                builder.endArray();
-            }
-            builder.field(Parser.REQUEST_FIELD.getPreferredName(), request);
-            return builder.endObject();
+        public HttpInput build() {
+            ImmutableSet<String> keys = extractKeys.build();
+            return new HttpInput(request, keys.isEmpty() ? null : keys);
         }
     }
 
+    interface Field extends Input.Field {
+        ParseField REQUEST = new ParseField("request");
+        ParseField SENT_REQUEST = new ParseField("sent_request");
+        ParseField EXTRACT = new ParseField("extract");
+        ParseField HTTP_STATUS = new ParseField("http_status");
+    }
 }

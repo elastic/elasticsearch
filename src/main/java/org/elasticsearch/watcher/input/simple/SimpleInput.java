@@ -5,32 +5,23 @@
  */
 package org.elasticsearch.watcher.input.simple;
 
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.input.Input;
-import org.elasticsearch.watcher.input.InputException;
 import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.execution.WatchExecutionContext;
 
 import java.io.IOException;
-import java.util.Map;
-import java.util.Objects;
 
 /**
- * This class just defines a simple xcontent map as an input
+ *
  */
-public class SimpleInput extends Input<SimpleInput.Result> {
+public class SimpleInput implements Input {
 
     public static final String TYPE = "simple";
 
     private final Payload payload;
 
-    public SimpleInput(ESLogger logger, Payload payload) {
-        super(logger);
+    public SimpleInput(Payload payload) {
         this.payload = payload;
     }
 
@@ -39,36 +30,40 @@ public class SimpleInput extends Input<SimpleInput.Result> {
         return TYPE;
     }
 
-    @Override
-    public Result execute(WatchExecutionContext ctx) throws IOException {
-        return new Result(payload);
+    public Payload getPayload() {
+        return payload;
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return payload.toXContent(builder, params);
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        SimpleInput that = (SimpleInput) o;
+
+        return payload.equals(that.payload);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(payload);
+        return payload.hashCode();
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        final SimpleInput other = (SimpleInput) obj;
-        return Objects.equals(this.payload.data(), other.payload.data());
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.value(payload);
     }
 
-    @Override
-    public String toString() {
-        return payload.toString();
+    public static SimpleInput parse(String watchId, XContentParser parser) throws IOException {
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+            throw new SimpleInputException("could not parse [{}] input for watch [{}]. expected an object but found [{}] instead", TYPE, watchId, parser.currentToken());
+        }
+        Payload payload = new Payload.Simple(parser.map());
+        return new SimpleInput(payload);
+    }
+
+    public static Builder builder(Payload payload) {
+        return new Builder(payload);
     }
 
     public static class Result extends Input.Result {
@@ -81,31 +76,8 @@ public class SimpleInput extends Input<SimpleInput.Result> {
         protected XContentBuilder toXContentBody(XContentBuilder builder, Params params) throws IOException {
             return builder;
         }
-    }
 
-    public static class Parser extends AbstractComponent implements Input.Parser<Result,SimpleInput> {
-
-        @Inject
-        public Parser(Settings settings) {
-            super(settings);
-        }
-
-        @Override
-        public String type() {
-            return TYPE;
-        }
-
-        @Override
-        public SimpleInput parse(XContentParser parser) throws IOException {
-            if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-                throw new InputException("could not parse simple input. expected an object but found [" + parser.currentToken() + "]");
-            }
-            Payload payload = new Payload.Simple(parser.map());
-            return new SimpleInput(logger, payload);
-        }
-
-        @Override
-        public Result parseResult(XContentParser parser) throws IOException {
+        public static Result parse(String watchId, XContentParser parser) throws IOException {
             Payload payload = null;
 
             String currentFieldName = null;
@@ -114,44 +86,33 @@ public class SimpleInput extends Input<SimpleInput.Result> {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
-                    if (Input.Result.PAYLOAD_FIELD.match(currentFieldName)) {
+                    if (Field.PAYLOAD.match(currentFieldName)) {
                         payload = new Payload.XContent(parser);
                     } else {
-                        throw new InputException("unable to parse [" + TYPE + "] input result. unexpected field [" + currentFieldName + "]");
+                        throw new SimpleInputException("could not parse [{}] input result for watch [{}]. unexpected field [{}]", TYPE, watchId, currentFieldName);
                     }
                 }
             }
 
             if (payload == null) {
-                throw new InputException("unable to parse [" + TYPE + "] input result [payload] is a required field");
+                throw new SimpleInputException("could not parse [{}] input result for watch [{}]. missing required [{}] field", TYPE, watchId, Field.PAYLOAD.getPreferredName());
             }
 
             return new Result(payload);
         }
     }
 
-    public static class SourceBuilder implements Input.SourceBuilder {
+    public static class Builder implements Input.Builder<SimpleInput> {
 
-        private Map<String, Object> data;
+        private final Payload payload;
 
-        public SourceBuilder(Map<String, Object> data) {
-            this.data = data;
-        }
-
-        public Input.SourceBuilder put(String key, Object value) {
-            data.put(key, value);
-            return this;
+        private Builder(Payload payload) {
+            this.payload = payload;
         }
 
         @Override
-        public String type() {
-            return TYPE;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.map(data);
-
+        public SimpleInput build() {
+            return new SimpleInput(payload);
         }
     }
 }

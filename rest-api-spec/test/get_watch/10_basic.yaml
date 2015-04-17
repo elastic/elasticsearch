@@ -27,15 +27,16 @@
               "always_true": {}
             },
             "actions": [
-            {
-              "test_index": {
-                "index": {
-                  "index": "test",
-                  "type": "test2"
+              {
+                "test_index": {
+                  "index": {
+                    "index": "test",
+                    "type": "test2"
+                  }
                 }
               }
-            } ]
-            }
+            ]
+          }
   - match: { _id: "my_watch" }
   - match: { created: true }
 

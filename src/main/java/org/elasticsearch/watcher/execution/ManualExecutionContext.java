@@ -11,6 +11,7 @@ import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.watcher.condition.Condition;
+import org.elasticsearch.watcher.input.ExecutableInput;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.trigger.manual.ManualTriggerEvent;

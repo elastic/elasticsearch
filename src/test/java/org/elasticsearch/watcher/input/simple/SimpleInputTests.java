@@ -7,8 +7,10 @@ package org.elasticsearch.watcher.input.simple;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.input.Input;
+import org.elasticsearch.watcher.input.InputFactory;
+import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.watcher.input.ExecutableInput;
 import org.elasticsearch.watcher.input.InputException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,7 +34,7 @@ public class SimpleInputTests extends ElasticsearchTestCase {
         Map<String, Object> data = new HashMap<>();
         data.put("foo", "bar");
         data.put("baz", new ArrayList<String>() );
-        Input staticInput = new SimpleInput(logger, new Payload.Simple(data));
+        ExecutableInput staticInput = new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(data)), logger);
 
         Input.Result staticResult = staticInput.execute(null);
         assertEquals(staticResult.payload().data().get("foo"), "bar");
@@ -48,10 +50,10 @@ public class SimpleInputTests extends ElasticsearchTestCase {
         data.put("baz", new ArrayList<String>());
 
         XContentBuilder jsonBuilder = jsonBuilder().value(data);
-        Input.Parser parser = new SimpleInput.Parser(ImmutableSettings.builder().build());
+        InputFactory parser = new SimpleInputFactory(ImmutableSettings.builder().build());
         XContentParser xContentParser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
         xContentParser.nextToken();
-        Input input = parser.parse(xContentParser);
+        ExecutableInput input = parser.parseExecutable("_id", xContentParser);
         assertEquals(input.type(), SimpleInput.TYPE);
 
 
@@ -67,10 +69,10 @@ public class SimpleInputTests extends ElasticsearchTestCase {
 
         XContentBuilder jsonBuilder = jsonBuilder().value("just a string");
 
-        Input.Parser parser = new SimpleInput.Parser(ImmutableSettings.builder().build());
+        InputFactory parser = new SimpleInputFactory(ImmutableSettings.builder().build());
         XContentParser xContentParser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
         xContentParser.nextToken();
-        parser.parse(xContentParser);
+        parser.parseInput("_id", xContentParser);
         fail("[simple] input parse should fail with an InputException for an empty json object");
     }
 
@@ -82,11 +84,11 @@ public class SimpleInputTests extends ElasticsearchTestCase {
 
         XContentBuilder jsonBuilder = jsonBuilder();
         jsonBuilder.startObject();
-        jsonBuilder.field(Input.Result.PAYLOAD_FIELD.getPreferredName(), data);
+        jsonBuilder.field(SimpleInput.Field.PAYLOAD.getPreferredName(), data);
         jsonBuilder.endObject();
 
-        Input.Parser parser = new SimpleInput.Parser(ImmutableSettings.builder().build());
-        Input.Result staticResult  = parser.parseResult(XContentFactory.xContent(jsonBuilder.bytes()).createParser(jsonBuilder.bytes()));
+        SimpleInputFactory parser = new SimpleInputFactory(ImmutableSettings.builder().build());
+        SimpleInput.Result staticResult  = parser.parseResult("_id", XContentFactory.xContent(jsonBuilder.bytes()).createParser(jsonBuilder.bytes()));
         assertEquals(staticResult.type(), SimpleInput.TYPE);
 
         assertEquals(staticResult.payload().data().get("foo"), "bar");
@@ -100,8 +102,8 @@ public class SimpleInputTests extends ElasticsearchTestCase {
         jsonBuilder.startObject();
         jsonBuilder.endObject();
 
-        Input.Parser parser = new SimpleInput.Parser(ImmutableSettings.builder().build());
-        parser.parseResult(XContentFactory.xContent(jsonBuilder.bytes()).createParser(jsonBuilder.bytes()));
+        InputFactory parser = new SimpleInputFactory(ImmutableSettings.builder().build());
+        parser.parseResult("_id", XContentFactory.xContent(jsonBuilder.bytes()).createParser(jsonBuilder.bytes()));
         fail("[simple] input result parse should fail with an InputException for an empty json object");
     }
 

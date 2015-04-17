@@ -18,6 +18,7 @@ import org.elasticsearch.watcher.condition.ExecutableCondition;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.watcher.condition.never.NeverCondition;
 import org.elasticsearch.watcher.history.HistoryStore;
+import org.elasticsearch.watcher.input.ExecutableInput;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.support.clock.ClockMock;
@@ -41,7 +42,7 @@ import static org.mockito.Mockito.*;
 public class ExecutionServiceTests extends ElasticsearchTestCase {
 
     private Payload payload;
-    private Input input;
+    private ExecutableInput input;
     private Input.Result inputResult;
 
     private ExecutionService executionService;
@@ -49,7 +50,7 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
     @Before
     public void init() throws Exception {
         payload = mock(Payload.class);
-        input = mock(Input.class);
+        input = mock(ExecutableInput.class);
         inputResult = mock(Input.Result.class);
         when(inputResult.payload()).thenReturn(payload);
         when(input.execute(any(WatchExecutionContext.class))).thenReturn(inputResult);

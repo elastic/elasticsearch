@@ -22,7 +22,7 @@ import org.elasticsearch.watcher.actions.ActionRegistry;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.ConditionRegistry;
 import org.elasticsearch.watcher.execution.Wid;
-import org.elasticsearch.watcher.input.Input;
+import org.elasticsearch.watcher.input.ExecutableInput;
 import org.elasticsearch.watcher.input.InputRegistry;
 import org.elasticsearch.watcher.transform.TransformRegistry;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
@@ -40,7 +40,7 @@ public class WatchRecord implements ToXContent {
     private Wid id;
     private String name;
     private TriggerEvent triggerEvent;
-    private Input input;
+    private ExecutableInput input;
     private Condition condition;
     private State state;
     private WatchExecution execution;
@@ -79,7 +79,7 @@ public class WatchRecord implements ToXContent {
         return name;
     }
 
-    public Input input() { return input; }
+    public ExecutableInput input() { return input; }
 
     public Condition condition() {
         return condition;
@@ -248,7 +248,7 @@ public class WatchRecord implements ToXContent {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (Watch.Parser.INPUT_FIELD.match(currentFieldName)) {
-                        record.input = inputRegistry.parse(parser);
+                        record.input = inputRegistry.parse(id, parser);
                     } else if (Watch.Parser.CONDITION_FIELD.match(currentFieldName)) {
                         record.condition = conditionRegistry.parseCondition(id, parser);
                     } else if (METADATA_FIELD.match(currentFieldName)) {

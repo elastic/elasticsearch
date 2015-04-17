@@ -25,7 +25,6 @@ import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.watcher.trigger.schedule.Schedules;
 import org.elasticsearch.watcher.watch.WatchStore;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.Map;
@@ -284,14 +283,14 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         watcherClient.preparePutWatch("_name1")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(searchInput(searchRequest).addExtractKey("hits.total"))
+                        .input(searchInput(searchRequest).extractKeys("hits.total"))
                         .condition(scriptCondition("ctx.payload.hits.total == 1")))
                 .get();
         // in this watcher the condition will fail, because max_score isn't extracted, only total:
         watcherClient.preparePutWatch("_name2")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(searchInput(searchRequest).addExtractKey("hits.total"))
+                        .input(searchInput(searchRequest).extractKeys("hits.total"))
                         .condition(scriptCondition("ctx.payload.hits.max_score >= 0")))
                 .get();
 

@@ -40,7 +40,7 @@ import static org.elasticsearch.index.query.QueryParserUtils.ensureNotDeleteByQu
 /**
  *
  */
-public class TopChildrenQueryParser extends BaseQueryParser {
+public class TopChildrenQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "top_children";
 

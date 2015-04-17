@@ -24,14 +24,14 @@ import org.apache.lucene.search.Query;
 import java.io.IOException;
 
 /**
- * Class used during the query parsers refactoring.
- * All query parsers that have a refactored "toXContent" method can be changed to extend this instead of {@link BaseQueryParser}.
- * Keeps old {@link QueryParser#parse(QueryParseContext)} method as a stub delegating to
- * {@link QueryParser#fromXContent(QueryParseContext)} and {@link QueryBuilder#toQuery(QueryParseContext)}}
+ * This class with method impl is an intermediate step in the refactoring.
+ * Method should be should be overwritten for all queries that already implement the toQuery/fromXContent split correctly.
+ * To be removed once all queries are refactored.
  */
-public abstract class FutureBaseQueryParser implements QueryParser {
+public abstract class BaseQueryParserTemp implements QueryParser {
 
-    public final Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
-        return fromXContent(parseContext).toQuery(parseContext);
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        Query query = parse(parseContext);
+        return new QueryWrappingQueryBuilder(query);
     }
 }

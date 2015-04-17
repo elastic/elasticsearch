@@ -48,6 +48,6 @@ public class QueryWrappingQueryBuilder extends BaseQueryBuilder {
 
     final protected String parserName() {
         // this should not be called since we overwrite BaseQueryBuilder#toQuery() in this class
-        return null;
+        throw new UnsupportedOperationException();
     }
 }

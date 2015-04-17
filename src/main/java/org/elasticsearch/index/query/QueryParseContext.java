@@ -338,7 +338,7 @@ public class QueryParseContext {
      * Checks if the given lucene query should be cached or wrapped, sets flags in this QueryParseContext accordingly
      * @param query
      */
-    public void checkCachable(Query query) {
+    void checkCachable(Query query) {
         if (query instanceof NoCacheQuery) {
             propagateNoCache = true;
         }

@@ -35,7 +35,7 @@ import java.util.Collection;
 
 /**
  */
-public class IndicesQueryParser extends BaseQueryParser {
+public class IndicesQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "indices";
 

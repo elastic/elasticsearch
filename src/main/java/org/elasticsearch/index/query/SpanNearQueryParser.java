@@ -34,7 +34,7 @@ import static com.google.common.collect.Lists.newArrayList;
 /**
  *
  */
-public class SpanNearQueryParser extends BaseQueryParser {
+public class SpanNearQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "span_near";
 

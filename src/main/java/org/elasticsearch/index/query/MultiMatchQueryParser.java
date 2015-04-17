@@ -37,7 +37,7 @@ import java.util.Map;
 /**
  * Same as {@link MatchQueryParser} but has support for multiple fields.
  */
-public class MultiMatchQueryParser extends BaseQueryParser {
+public class MultiMatchQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "multi_match";
 

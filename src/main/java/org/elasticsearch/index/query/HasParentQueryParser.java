@@ -45,7 +45,7 @@ import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryParserUtils.ensureNotDeleteByQuery;
 
-public class HasParentQueryParser extends BaseQueryParser {
+public class HasParentQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "has_parent";
 

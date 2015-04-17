@@ -36,7 +36,7 @@ import java.io.IOException;
 /**
  *
  */
-public class RangeQueryParser extends BaseQueryParser {
+public class RangeQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "range";
 

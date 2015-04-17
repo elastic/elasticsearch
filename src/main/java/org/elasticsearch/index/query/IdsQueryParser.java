@@ -40,7 +40,7 @@ import java.util.List;
 /**
  *
  */
-public class IdsQueryParser extends BaseQueryParser {
+public class IdsQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "ids";
 

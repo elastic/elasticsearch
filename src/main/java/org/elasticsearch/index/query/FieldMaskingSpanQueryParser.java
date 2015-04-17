@@ -32,7 +32,7 @@ import java.io.IOException;
 /**
  *
  */
-public class FieldMaskingSpanQueryParser extends BaseQueryParser {
+public class FieldMaskingSpanQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "field_masking_span";
 

@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  *
  */
-public class SpanNotQueryParser extends BaseQueryParser {
+public class SpanNotQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "span_not";
 

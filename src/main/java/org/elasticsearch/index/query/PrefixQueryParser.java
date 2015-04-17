@@ -34,7 +34,7 @@ import java.io.IOException;
 /**
  *
  */
-public class PrefixQueryParser extends BaseQueryParser {
+public class PrefixQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "prefix";
 

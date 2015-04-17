@@ -37,7 +37,7 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
 /**
  *
  */
-public class BoolQueryParser extends BaseQueryParser {
+public class BoolQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "bool";
 

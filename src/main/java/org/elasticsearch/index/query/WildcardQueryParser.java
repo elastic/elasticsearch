@@ -33,7 +33,7 @@ import java.io.IOException;
 /**
  *
  */
-public class WildcardQueryParser extends BaseQueryParser {
+public class WildcardQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "wildcard";
 

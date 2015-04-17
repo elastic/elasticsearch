@@ -54,7 +54,7 @@ import static org.elasticsearch.index.mapper.Uid.createUidAsBytes;
 /**
  *
  */
-public class MoreLikeThisQueryParser extends BaseQueryParser {
+public class MoreLikeThisQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "mlt";
     private MoreLikeThisFetchService fetchService = null;

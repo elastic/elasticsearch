@@ -42,7 +42,7 @@ import org.elasticsearch.index.search.shape.ShapeFetchService;
 
 import java.io.IOException;
 
-public class GeoShapeQueryParser extends BaseQueryParser {
+public class GeoShapeQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "geo_shape";
 

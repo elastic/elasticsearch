@@ -525,7 +525,19 @@
                                         showStatusFailure="true"
                                         showStatusIgnored="true"
                                         showSuiteSummary="true"
-                                        timestamps="false"/>
+                                        timestamps="false">
+                                  <filtertrace>
+                                     <!-- custom filters: we carefully only omit test infra noise here -->
+                                     <containsstring contains=".SlaveMain." />
+                                     <containsregex pattern="^(\s+at )(org\.junit\.)" />
+                                     <!-- also includes anonymous classes inside these two: -->
+                                     <containsregex pattern="^(\s+at )(com\.carrotsearch\.randomizedtesting.RandomizedRunner)" />
+                                     <containsregex pattern="^(\s+at )(com\.carrotsearch\.randomizedtesting.ThreadLeakControl)" />
+                                     <containsregex pattern="^(\s+at )(com\.carrotsearch\.randomizedtesting.rules\.)" />
+                                     <containsregex pattern="^(\s+at )(org\.apache\.lucene.util\.TestRule)" />
+                                     <containsregex pattern="^(\s+at )(org\.apache\.lucene.util\.AbstractBeforeAfterRule)" />
+                                  </filtertrace>
+                                </report-text>
                                 <report-execution-times historyLength="20" file="${basedir}/${execution.hint.file}"/>
                             </listeners>
                             <assertions>

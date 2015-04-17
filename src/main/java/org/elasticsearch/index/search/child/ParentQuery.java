@@ -108,11 +108,6 @@ public class ParentQuery extends Query {
     }
 
     @Override
-    public void extractTerms(Set<Term> terms) {
-        rewrittenParentQuery.extractTerms(terms);
-    }
-
-    @Override
     public Query clone() {
         ParentQuery q = (ParentQuery) super.clone();
         q.originalParentQuery = originalParentQuery.clone();
@@ -229,6 +224,10 @@ public class ParentQuery extends Query {
             this.parentIdxs = collector.parentIdxs;
             this.scores = collector.scores;
             this.globalIfd = globalIfd;
+        }
+
+        @Override
+        public void extractTerms(Set<Term> terms) {
         }
 
         @Override

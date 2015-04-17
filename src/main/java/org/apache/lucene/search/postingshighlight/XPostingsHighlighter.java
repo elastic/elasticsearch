@@ -62,10 +62,12 @@ public class XPostingsHighlighter {
     // unnecessary.
 
     /** for rewriting: we don't want slow processing from MTQs */
-    private static final IndexReader EMPTY_INDEXREADER;
+    private static final IndexSearcher EMPTY_INDEXSEARCHER;
     static {
       try {
-        EMPTY_INDEXREADER = new MultiReader();
+        IndexReader emptyReader = new MultiReader();
+        EMPTY_INDEXSEARCHER = new IndexSearcher(emptyReader);
+        EMPTY_INDEXSEARCHER.setQueryCache(null);
       } catch (IOException bogus) {
         throw new RuntimeException(bogus);
       }
@@ -291,12 +293,10 @@ public class XPostingsHighlighter {
         if (fieldsIn.length != maxPassagesIn.length) {
             throw new IllegalArgumentException("invalid number of maxPassagesIn");
         }
-        final IndexReader reader = searcher.getIndexReader();
-        query = rewrite(query);
         SortedSet<Term> queryTerms = new TreeSet<>();
-        query.extractTerms(queryTerms);
+        EMPTY_INDEXSEARCHER.createNormalizedWeight(query, false).extractTerms(queryTerms);
 
-        IndexReaderContext readerContext = reader.getContext();
+        IndexReaderContext readerContext = searcher.getIndexReader().getContext();
         List<LeafReaderContext> leaves = readerContext.leaves();
 
         // Make our own copies because we sort in-place:
@@ -713,19 +713,6 @@ public class XPostingsHighlighter {
         @Override
         public long cost() { return 0; }
     };
-
-    /**
-     * we rewrite against an empty indexreader: as we don't want things like
-     * rangeQueries that don't summarize the document
-     */
-    private static Query rewrite(Query original) throws IOException {
-        Query query = original;
-        for (Query rewrittenQuery = query.rewrite(EMPTY_INDEXREADER); rewrittenQuery != query;
-             rewrittenQuery = query.rewrite(EMPTY_INDEXREADER)) {
-            query = rewrittenQuery;
-        }
-        return query;
-    }
 
     private static class LimitedStoredFieldVisitor extends StoredFieldVisitor {
         private final String fields[];

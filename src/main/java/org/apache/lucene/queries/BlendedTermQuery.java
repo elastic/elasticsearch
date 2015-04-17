@@ -19,15 +19,24 @@
 package org.apache.lucene.queries;
 
 import com.google.common.primitives.Ints;
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.*;
+
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermContext;
+import org.apache.lucene.index.TermState;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.InPlaceMergeSorter;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Set;
 
 /**
  * BlendedTermQuery can be used to unify term statistics across
@@ -81,7 +90,7 @@ public abstract class BlendedTermQuery extends Query {
 
     protected abstract Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc);
 
-    protected void blend(TermContext[] contexts, int maxDoc, IndexReader reader) throws IOException {
+    protected void blend(final TermContext[] contexts, int maxDoc, IndexReader reader) throws IOException {
         if (contexts.length <= 1) {
             return;
         }
@@ -113,15 +122,23 @@ public abstract class BlendedTermQuery extends Query {
             return; // we are done that term doesn't exist at all
         }
         long sumTTF = minSumTTF == -1 ? -1 : 0;
-        final TermContext[] tieBreak = new TermContext[contexts.length];
-        System.arraycopy(contexts, 0, tieBreak, 0, contexts.length);
-        ArrayUtil.timSort(tieBreak, new Comparator<TermContext>() {
+        final int[] tieBreak = new int[contexts.length];
+        for (int i = 0; i < tieBreak.length; ++i) {
+            tieBreak[i] = i;
+        }
+        new InPlaceMergeSorter() {
             @Override
-            public int compare(TermContext o1, TermContext o2) {
-                return Ints.compare(o2.docFreq(), o1.docFreq());
+            protected void swap(int i, int j) {
+                final int tmp = tieBreak[i];
+                tieBreak[i] = tieBreak[j];
+                tieBreak[j] = tmp;
             }
-        });
-        int prev = tieBreak[0].docFreq();
+            @Override
+            protected int compare(int i, int j) {
+                return Ints.compare(contexts[tieBreak[j]].docFreq(), contexts[tieBreak[i]].docFreq());
+            }
+        }.sort(0, tieBreak.length);
+        int prev = contexts[tieBreak[0]].docFreq();
         int actualDf = Math.min(maxDoc, max);
         assert actualDf >=0 : "DF must be >= 0";
 
@@ -129,7 +146,8 @@ public abstract class BlendedTermQuery extends Query {
         // here we try to add a little bias towards
         // the more popular (more frequent) fields
         // that acts as a tie breaker
-        for (TermContext ctx : tieBreak) {
+        for (int i : tieBreak) {
+            TermContext ctx = contexts[i];
             if (ctx.docFreq() == 0) {
                 break;
             }
@@ -137,7 +155,7 @@ public abstract class BlendedTermQuery extends Query {
             if (prev > current) {
                 actualDf++;
             }
-            ctx.setDocFreq(Math.min(maxDoc, actualDf));
+            contexts[i] = ctx = adjustDF(ctx, Math.min(maxDoc, actualDf));
             prev = current;
             if (sumTTF >= 0 && ctx.totalTermFreq() >= 0) {
                 sumTTF += ctx.totalTermFreq();
@@ -183,17 +201,38 @@ public abstract class BlendedTermQuery extends Query {
         return newTermContext;
     }
 
+    private static TermContext adjustDF(TermContext ctx, int newDocFreq) {
+        // Use a value of ttf that is consistent with the doc freq (ie. gte)
+        long newTTF;
+        if (ctx.totalTermFreq() < 0) {
+            newTTF = -1;
+        } else {
+            newTTF = Math.max(ctx.totalTermFreq(), newDocFreq);
+        }
+        List<LeafReaderContext> leaves = ctx.topReaderContext.leaves();
+        final int len;
+        if (leaves == null) {
+            len = 1;
+        } else {
+            len = leaves.size();
+        }
+        TermContext newCtx = new TermContext(ctx.topReaderContext);
+        for (int i = 0; i < len; ++i) {
+            TermState termState = ctx.get(i);
+            if (termState == null) {
+                continue;
+            }
+            newCtx.register(termState, i, newDocFreq, newTTF);
+            newDocFreq = 0;
+            newTTF = 0;
+        }
+        return newCtx;
+    }
+
     @Override
     public String toString(String field) {
         return "blended(terms: " + Arrays.toString(terms) + ")";
 
-    }
-
-    @Override
-    public void extractTerms(Set<Term> terms) {
-        for (Term term : this.terms) {
-            terms.add(term);
-        }
     }
 
     private volatile Term[] equalTerms = null;

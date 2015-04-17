@@ -86,11 +86,6 @@ public class FunctionScoreQuery extends Query {
     }
 
     @Override
-    public void extractTerms(Set<Term> terms) {
-        subQuery.extractTerms(terms);
-    }
-
-    @Override
     public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
         // TODO: needsScores
         // if we don't need scores, just return the underlying weight?
@@ -105,6 +100,11 @@ public class FunctionScoreQuery extends Query {
         public CustomBoostFactorWeight(Query parent, Weight subQueryWeight) throws IOException {
             super(parent);
             this.subQueryWeight = subQueryWeight;
+        }
+
+        @Override
+        public void extractTerms(Set<Term> terms) {
+            subQueryWeight.extractTerms(terms);
         }
 
         @Override

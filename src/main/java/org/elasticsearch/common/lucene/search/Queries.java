@@ -48,7 +48,7 @@ public class Queries {
 
     /** Return a query that matches no document. */
     public static Query newMatchNoDocsQuery() {
-        return new MatchNoDocsQuery();
+        return new BooleanQuery();
     }
 
     public static boolean isNegativeQuery(Query q) {

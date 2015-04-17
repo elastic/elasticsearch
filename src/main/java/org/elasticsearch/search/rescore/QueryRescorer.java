@@ -20,8 +20,13 @@
 package org.elasticsearch.search.rescore;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.ComplexExplanation;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -307,7 +312,11 @@ public final class QueryRescorer implements Rescorer {
 
     @Override
     public void extractTerms(SearchContext context, RescoreSearchContext rescoreContext, Set<Term> termsSet) {
-        ((QueryRescoreContext) rescoreContext).query().extractTerms(termsSet);
+        try {
+            context.searcher().createNormalizedWeight(((QueryRescoreContext) rescoreContext).query(), false).extractTerms(termsSet);
+        } catch (IOException e) {
+            throw new ElasticsearchIllegalStateException("Failed to extract terms", e);
+        }
     }
 
 }

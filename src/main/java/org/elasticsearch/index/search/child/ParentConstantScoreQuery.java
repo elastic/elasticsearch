@@ -67,11 +67,6 @@ public class ParentConstantScoreQuery extends Query {
     }
 
     @Override
-    public void extractTerms(Set<Term> terms) {
-        rewrittenParentQuery.extractTerms(terms);
-    }
-
-    @Override
     public Query clone() {
         ParentConstantScoreQuery q = (ParentConstantScoreQuery) super.clone();
         q.originalParentQuery = originalParentQuery.clone();
@@ -163,6 +158,10 @@ public class ParentConstantScoreQuery extends Query {
             this.globalIfd = globalIfd;
             this.childrenFilter = childrenFilter;
             this.parentOrds = collector.parentOrds;
+        }
+
+        @Override
+        public void extractTerms(Set<Term> terms) {
         }
 
         @Override

@@ -47,7 +47,6 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @ClusterScope(numDataNodes =0, scope= Scope.TEST)
-@SuppressFileSystems("*") // nocommit: no idea what is happening here...
 public class QuorumGatewayTests extends ElasticsearchIntegrationTest {
 
     @Override

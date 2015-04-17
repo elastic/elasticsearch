@@ -43,7 +43,6 @@ import java.util.Set;
 /**
  * Simple class that ensures that all subclasses concrete of ElasticsearchTestCase end with either Test | Tests
  */
-@LuceneTestCase.SuppressFileSystems("*") // nocommit: ignore rules aren't working for some reason with mockfs
 public class NamingConventionTests extends ElasticsearchTestCase {
 
     // see https://github.com/elasticsearch/elasticsearch/issues/9945

@@ -163,7 +163,6 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "FilterPath equality?") // nocommit: mockfs causes FilterPaths here, but the equality doesnt seem to work 
     public void testAppend() {
         assertEquals(FileSystemUtils.append(PathUtils.get("/foo/bar"), PathUtils.get("/hello/world/this_is/awesome"), 0),
             PathUtils.get("/foo/bar/hello/world/this_is/awesome"));

@@ -53,7 +53,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 @Slow
-@LuceneTestCase.SuppressFileSystems("*") // nocommit: no idea...no exceptions, just 0 results from searches
 public class GatewayIndexStateTests extends ElasticsearchIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(GatewayIndexStateTests.class);

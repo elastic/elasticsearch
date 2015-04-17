@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.collect.Iterators;
 
 import org.apache.lucene.codecs.CodecUtil;
@@ -73,7 +72,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-@LuceneTestCase.SuppressFileSystems("*") // nocommit: lots of checks on number of files in a dir here, but suppressing ExtraFS doesn't seem to work?
+@LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to work with ExtrasFS
 public class MetaDataStateFormatTest extends ElasticsearchTestCase {
 
 

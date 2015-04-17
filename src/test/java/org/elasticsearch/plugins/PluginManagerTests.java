@@ -63,7 +63,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
-@LuceneTestCase.SuppressFileSystems("*") // nocommit: lots of failures here, some with provider mismatches...
+@LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: clean up this test to allow extra files
 public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
     @Test(expected = ElasticsearchIllegalArgumentException.class)

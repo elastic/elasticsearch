@@ -47,7 +47,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-@LuceneTestCase.SuppressFileSystems("*") // nocommit: equality of paths with mockfs doesn't seem to work right, the got/expected are printed exactly the same...
+@LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
 public class NodeEnvironmentTests extends ElasticsearchTestCase {
 
     private final Settings idxSettings = ImmutableSettings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).build();

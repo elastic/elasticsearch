@@ -49,16 +49,12 @@ public class SitePluginTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        try {
-            Path pluginDir = Paths.get(SitePluginTests.class.getResource("/org/elasticsearch/plugins").toURI());
-            return settingsBuilder()
-                    .put(super.nodeSettings(nodeOrdinal))
-                    .put("path.plugins", pluginDir.toAbsolutePath())
-                    .put("force.http.enabled", true)
-                    .build();
-        } catch (URISyntaxException ex) {
-            throw new RuntimeException(ex);
-        }
+        Path pluginDir = getResourcePath("/org/elasticsearch/plugins");
+        return settingsBuilder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("path.plugins", pluginDir.toAbsolutePath())
+                .put("force.http.enabled", true)
+                .build();
     }
 
     public HttpRequestBuilder httpClient() {

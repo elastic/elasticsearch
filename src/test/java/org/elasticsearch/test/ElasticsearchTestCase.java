@@ -56,7 +56,9 @@ import java.lang.annotation.Target;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -69,7 +71,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 /**
  * Base testcase for randomized unit testing with Elasticsearch
  */
-@LuceneTestCase.SuppressFileSystems("*")
 public abstract class ElasticsearchTestCase extends ESTestCase {
 
     private static Thread.UncaughtExceptionHandler defaultHandler;
@@ -173,8 +174,11 @@ public abstract class ElasticsearchTestCase extends ESTestCase {
      * non-standard characters.
      */
     public Path getResourcePath(String relativePath) {
-        URI uri = URI.create(getClass().getResource(relativePath).toString());
-        return PathUtils.get(uri);
+        try {
+            return getDataPath(relativePath);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @After

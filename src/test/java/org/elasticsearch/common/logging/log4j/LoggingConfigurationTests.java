@@ -56,7 +56,7 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
     public void testResolveMultipleConfigs() throws Exception {
         String level = Log4jESLoggerFactory.getLogger("test").getLevel();
         try {
-            Path configDir = resolveConfigDir();
+            Path configDir = getResourcePath("config");
             Settings settings = ImmutableSettings.builder()
                     .put("path.conf", configDir.toAbsolutePath())
                     .build();
@@ -142,11 +142,6 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
 
         Settings logSettings = builder.build();
         assertThat(logSettings.get("yml"), Matchers.nullValue());
-    }
-
-    private static Path resolveConfigDir() throws Exception {
-        URL url = LoggingConfigurationTests.class.getResource("config");
-        return PathUtils.get(url.toURI());
     }
 
     private static String loggingConfiguration(String suffix) {

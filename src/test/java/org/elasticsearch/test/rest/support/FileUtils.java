@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.PathUtils;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileSystems;
@@ -107,7 +108,11 @@ public final class FileUtils {
             }
         }
 
-        return PathUtils.get(URI.create(resource.toString()));
+        try {
+            return PathUtils.get(resource.toURI());
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static URL findResource(String path, String optionalFileSuffix) {

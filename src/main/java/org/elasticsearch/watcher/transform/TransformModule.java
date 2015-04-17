@@ -28,6 +28,10 @@ public class TransformModule extends AbstractModule {
         MapBinder<String, Transform.Parser> mbinder = MapBinder.newMapBinder(binder(), String.class, Transform.Parser.class);
         bind(SearchTransform.Parser.class).asEagerSingleton();
         mbinder.addBinding(SearchTransform.TYPE).to(SearchTransform.Parser.class);
+        bind(ScriptTransform.Parser.class).asEagerSingleton();
+        mbinder.addBinding(ScriptTransform.TYPE).to(ScriptTransform.Parser.class);
+        bind(ChainTransform.Parser.class).asEagerSingleton();
+        mbinder.addBinding(ChainTransform.TYPE).to(ChainTransform.Parser.class);
 
         for (Map.Entry<String, Class<? extends Transform.Parser>> entry : parsers.entrySet()) {
             bind(entry.getValue()).asEagerSingleton();

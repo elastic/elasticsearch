@@ -33,8 +33,10 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -271,13 +273,9 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         return true;
     }
 
-    /**
-     * Numeric field level query are basically range queries with same value and included. That's the recommended
-     * way to execute it.
-     */
     @Override
-    public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        return rangeQuery(value, value, true, true, context);
+    public final Query termQuery(Object value, @Nullable QueryParseContext context) {
+        return new TermQuery(new Term(names.indexName(), indexedValueForSearch(value)));
     }
 
     /**

@@ -20,6 +20,7 @@ package org.elasticsearch.search.highlight;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
@@ -31,6 +32,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoringRewrite;
 import org.apache.lucene.search.TopTermsRewrite;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.postingshighlight.CustomPassageFormatter;
 import org.apache.lucene.search.postingshighlight.CustomPostingsHighlighter;
@@ -84,11 +86,11 @@ public class PostingsHighlighter implements Highlighter {
             Query query;
             try {
                 query = rewrite(highlighterContext, hitContext.topLevelReader());
+                SortedSet<Term> queryTerms = extractTerms(context.searcher().createNormalizedWeight(query, false));
+                hitContext.cache().put(CACHE_KEY, new HighlighterEntry(queryTerms));
             } catch (IOException e) {
                 throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
             }
-            SortedSet<Term> queryTerms = extractTerms(query);
-            hitContext.cache().put(CACHE_KEY, new HighlighterEntry(queryTerms));
         }
 
         HighlighterEntry highlighterEntry = (HighlighterEntry) hitContext.cache().get(CACHE_KEY);
@@ -220,9 +222,9 @@ public class PostingsHighlighter implements Highlighter {
         return rewriteMethod instanceof TopTermsRewrite || rewriteMethod instanceof ScoringRewrite;
     }
 
-    private static SortedSet<Term> extractTerms(Query query) {
+    private static SortedSet<Term> extractTerms(Weight weight) {
         SortedSet<Term> queryTerms = new TreeSet<>();
-        query.extractTerms(queryTerms);
+        weight.extractTerms(queryTerms);
         return queryTerms;
     }
 

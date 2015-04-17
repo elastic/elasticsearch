@@ -86,13 +86,6 @@ public class ChildrenConstantScoreQuery extends Query {
     }
 
     @Override
-    public void extractTerms(Set<Term> terms) {
-        if (rewrittenChildQuery != null) {
-            rewrittenChildQuery.extractTerms(terms);
-        }
-    }
-
-    @Override
     public Query clone() {
         ChildrenConstantScoreQuery q = (ChildrenConstantScoreQuery) super.clone();
         q.originalChildQuery = originalChildQuery.clone();
@@ -200,6 +193,10 @@ public class ChildrenConstantScoreQuery extends Query {
             this.shortCircuitFilter = shortCircuitFilter;
             this.collector = collector;
             this.remaining = remaining;
+        }
+
+        @Override
+        public void extractTerms(Set<Term> terms) {
         }
 
         @Override

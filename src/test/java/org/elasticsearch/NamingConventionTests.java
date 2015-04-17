@@ -55,7 +55,7 @@ public class NamingConventionTests extends ElasticsearchTestCase {
         String[] packages = {"org.elasticsearch", "org.apache.lucene"};
         for (final String packageName : packages) {
             final String path = "/" + packageName.replace('.', '/');
-            final Path startPath = getResourcePath(path);
+            final Path startPath = getDataPath(path);
             final Set<Path> ignore = Sets.newHashSet(PathUtils.get("/org/elasticsearch/stresstest"), PathUtils.get("/org/elasticsearch/benchmark/stress"));
             Files.walkFileTree(startPath, new FileVisitor<Path>() {
                 private Path pkgPrefix = PathUtils.get(path).getParent();

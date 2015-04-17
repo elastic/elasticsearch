@@ -55,7 +55,7 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
         // We first copy sources test files from src/test/resources
         // Because after when the test runs, src files are moved to their destination
-        final Path path = getResourcePath("/org/elasticsearch/common/io/copyappend");
+        final Path path = getDataPath("/org/elasticsearch/common/io/copyappend");
         FileSystemUtils.copyDirectoryRecursively(path, src);
     }
 

@@ -56,7 +56,7 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
     public void testResolveMultipleConfigs() throws Exception {
         String level = Log4jESLoggerFactory.getLogger("test").getLevel();
         try {
-            Path configDir = getResourcePath("config");
+            Path configDir = getDataPath("config");
             Settings settings = ImmutableSettings.builder()
                     .put("path.conf", configDir.toAbsolutePath())
                     .build();

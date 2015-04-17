@@ -258,6 +258,8 @@ public final class FileSystemUtils {
             Files.walkFileTree(source, new TreeCopier(source, destination, true));
         }
     }
+    
+    // TODO: note that this will fail if source and target are on different NIO.2 filesystems.
 
     static class TreeCopier extends SimpleFileVisitor<Path> {
         private final Path source;

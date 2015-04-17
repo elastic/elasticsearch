@@ -52,7 +52,7 @@ public class Log4jESLoggerTests extends ElasticsearchTestCase {
         super.setUp();
         this.testLevel = Log4jESLoggerFactory.getLogger("test").getLevel();
         LogConfigurator.reset();
-        Path configDir = getResourcePath("config");
+        Path configDir = getDataPath("config");
         // Need to set custom path.conf so we can use a custom logging.yml file for the test
         Settings settings = ImmutableSettings.builder()
                 .put("path.conf", configDir.toAbsolutePath())

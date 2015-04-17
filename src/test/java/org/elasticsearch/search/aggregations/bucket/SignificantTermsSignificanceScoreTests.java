@@ -79,7 +79,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("plugin.types", CustomSignificanceHeuristicPlugin.class.getName())
-                .put("path.conf", this.getResourcePath("config"))
+                .put("path.conf", this.getDataPath("config"))
                 .build();
     }
 

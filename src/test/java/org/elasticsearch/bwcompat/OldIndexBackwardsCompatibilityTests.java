@@ -85,7 +85,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     @Before
     public void initIndexesList() throws Exception {
         indexes = new ArrayList<>();
-        Path dir = getResourcePath(".");
+        Path dir = getDataPath(".");
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "index-*.zip")) {
             for (Path path : stream) {
                 indexes.add(path.getFileName().toString());
@@ -153,7 +153,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         String indexName = indexFile.replace(".zip", "").toLowerCase(Locale.ROOT);
 
         // decompress the index
-        Path backwardsIndex = getResourcePath(indexFile);
+        Path backwardsIndex = getDataPath(indexFile);
         try (InputStream stream = Files.newInputStream(backwardsIndex)) {
             TestUtil.unzip(stream, unzipDir);
         }

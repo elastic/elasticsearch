@@ -57,6 +57,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
@@ -173,11 +175,15 @@ public abstract class ElasticsearchTestCase extends ESTestCase {
      * return URL encoded paths if the parent path contains spaces or other
      * non-standard characters.
      */
-    public Path getResourcePath(String relativePath) {
+    @Override
+    public Path getDataPath(String relativePath) {
+        // we override LTC behavior here: wrap even resources with mockfilesystems, 
+        // because some code is buggy when it comes to multiple nio.2 filesystems
+        // (e.g. FileSystemUtils, and likely some tests)
         try {
-            return getDataPath(relativePath);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+            return PathUtils.get(getClass().getResource(relativePath).toURI());
+        } catch (Exception e) {
+            throw new RuntimeException("resource not found: " + relativePath, e);
         }
     }
 

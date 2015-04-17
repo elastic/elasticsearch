@@ -49,7 +49,7 @@ public class SitePluginTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Path pluginDir = getResourcePath("/org/elasticsearch/plugins");
+        Path pluginDir = getDataPath("/org/elasticsearch/plugins");
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("path.plugins", pluginDir.toAbsolutePath())

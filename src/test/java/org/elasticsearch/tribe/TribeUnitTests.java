@@ -86,7 +86,7 @@ public class TribeUnitTests extends ElasticsearchTestCase {
 
     @Test
     public void testThatTribeClientsIgnoreGlobalConfig() throws Exception {
-        Path pathConf = getResourcePath("elasticsearch.yml").getParent();
+        Path pathConf = getDataPath("elasticsearch.yml").getParent();
         Settings settings = ImmutableSettings.builder().put("config.ignore_system_properties", true).put("path.conf", pathConf).build();
         assertTribeNodeSuccesfullyCreated(settings);
     }

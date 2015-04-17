@@ -22,6 +22,7 @@ package org.elasticsearch.common.io;
 import com.google.common.base.Charsets;
 
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -31,7 +32,6 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
@@ -41,6 +41,7 @@ import static org.hamcrest.CoreMatchers.is;
 /**
  * Unit tests for {@link org.elasticsearch.common.io.FileSystemUtils}.
  */
+@SuppressFileSystems("WindowsFS") // tries to move away open file handles
 public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
     private Path src;

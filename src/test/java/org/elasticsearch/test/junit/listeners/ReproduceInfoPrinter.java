@@ -50,12 +50,12 @@ public class ReproduceInfoPrinter extends RunListener {
 
     @Override
     public void testStarted(Description description) throws Exception {
-        logger.info("Test {} started", description.getDisplayName());
+        logger.trace("Test {} started", description.getDisplayName());
     }
 
     @Override
     public void testFinished(Description description) throws Exception {
-        logger.info("Test {} finished", description.getDisplayName());
+        logger.trace("Test {} finished", description.getDisplayName());
     }
 
     @Override
@@ -65,10 +65,8 @@ public class ReproduceInfoPrinter extends RunListener {
             return;
         }
 
-        final Description d = failure.getDescription();
         final StringBuilder b = new StringBuilder();
-        b.append("FAILURE  : ").append(d.getDisplayName()).append("\n");
-        b.append("REPRODUCE WITH  : mvn test -Pdev");
+        b.append("REPRODUCE WITH: mvn test -Pdev");
         MavenMessageBuilder mavenMessageBuilder = new MavenMessageBuilder(b);
         mavenMessageBuilder.appendAllOpts(failure.getDescription());
 
@@ -77,13 +75,7 @@ public class ReproduceInfoPrinter extends RunListener {
             mavenMessageBuilder.appendRestTestsProperties();
         }
 
-        b.append("\n");
-        b.append("Throwable:\n");
-        if (failure.getException() != null) {
-            traces().formatThrowable(b, failure.getException());
-        }
-
-        logger.error(b.toString());
+        System.err.println(b.toString());
     }
 
     protected TraceFormatting traces() {

@@ -23,7 +23,9 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 /**
  * The type of replication to perform.
+ * @deprecated will be removed in 2.0.0. See https://github.com/elastic/elasticsearch/pull/10171
  */
+@Deprecated
 public enum ReplicationType {
     /**
      * Sync replication, wait till all replicas have performed the operation.

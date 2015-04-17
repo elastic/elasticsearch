@@ -165,7 +165,9 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
 
     /**
      * Sets the replication type.
+     * @deprecated will be removed in 2.0.0. See https://github.com/elastic/elasticsearch/pull/10171
      */
+    @Deprecated
     public UpdateRequestBuilder setReplicationType(ReplicationType replicationType) {
         request.replicationType(replicationType);
         return this;

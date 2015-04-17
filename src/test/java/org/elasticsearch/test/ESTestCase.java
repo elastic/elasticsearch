@@ -76,8 +76,7 @@ import java.util.TimeZone;
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 @Ignore
 @SuppressCodecs({"SimpleText", "Memory", "CheapBastard", "Direct"}) // slow ones
-// LUCENE-6432
-//@LuceneTestCase.SuppressReproduceLine
+@LuceneTestCase.SuppressReproduceLine
 public abstract class ESTestCase extends LuceneTestCase {
     static {
         SecurityHack.ensureInitialized();

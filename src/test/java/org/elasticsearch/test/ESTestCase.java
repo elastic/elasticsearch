@@ -96,12 +96,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
     
-    @Before
-    public void disableQueryCache() {
-        // TODO: Parent/child and other things does not work with the query cache
-        IndexSearcher.setDefaultQueryCache(null);
-    }
-    
     @AfterClass
     public static void restoreFileSystem() {
         try {
@@ -115,6 +109,24 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
     
+    @BeforeClass
+    public static void setUpProcessors() {
+        int numCpu = TestUtil.nextInt(random(), 1, 4);
+        System.setProperty(EsExecutors.DEFAULT_SYSPROP, Integer.toString(numCpu));
+        assertEquals(numCpu, EsExecutors.boundedNumberOfProcessors(ImmutableSettings.EMPTY));
+    }
+
+    @AfterClass
+    public static void restoreProcessors() {
+        System.clearProperty(EsExecutors.DEFAULT_SYSPROP);
+    }
+
+    @Before
+    public void disableQueryCache() {
+        // TODO: Parent/child and other things does not work with the query cache
+        IndexSearcher.setDefaultQueryCache(null);
+    }
+
     @After
     public void ensureNoFieldCacheUse() {
         // field cache should NEVER get loaded.
@@ -197,25 +209,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static final String SYSPROP_FAILFAST = "tests.failfast";
 
     public static final String SYSPROP_INTEGRATION = "tests.integration";
-
-    public static final String SYSPROP_PROCESSORS = "tests.processors";
-
-    // -----------------------------------------------------------------
-    // Truly immutable fields and constants, initialized once and valid 
-    // for all suites ever since.
-    // -----------------------------------------------------------------
-
-    public static final int TESTS_PROCESSORS;
-
-    static {
-        String processors = System.getProperty(SYSPROP_PROCESSORS, ""); // mvn sets "" as default
-        if (processors == null || processors.isEmpty()) {
-            processors = Integer.toString(EsExecutors.boundedNumberOfProcessors(ImmutableSettings.EMPTY));
-        }
-        TESTS_PROCESSORS = Integer.parseInt(processors);
-    }
-
-
     // -----------------------------------------------------------------
     // Suite and test case setup/ cleanup.
     // -----------------------------------------------------------------

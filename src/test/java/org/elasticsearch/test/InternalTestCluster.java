@@ -414,10 +414,10 @@ public final class InternalTestCluster extends TestCluster {
                 }
             }
         }
+
         if (random.nextInt(10) == 0) {
-            builder.put(EsExecutors.PROCESSORS, 1 + random.nextInt(ESTestCase.TESTS_PROCESSORS));
-        } else {
-            builder.put(EsExecutors.PROCESSORS, ESTestCase.TESTS_PROCESSORS);
+            // node gets an extra cpu this time
+            builder.put(EsExecutors.PROCESSORS, 1 + EsExecutors.boundedNumberOfProcessors(ImmutableSettings.EMPTY));
         }
 
         if (random.nextBoolean()) {

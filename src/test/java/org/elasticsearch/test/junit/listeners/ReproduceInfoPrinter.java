@@ -144,7 +144,6 @@ public class ReproduceInfoPrinter extends RunListener {
             }
             appendOpt("tests.locale", Locale.getDefault().toString());
             appendOpt("tests.timezone", TimeZone.getDefault().getID());
-            appendOpt(ESTestCase.SYSPROP_PROCESSORS, Integer.toString(ESTestCase.TESTS_PROCESSORS));
             return this;
         }
 

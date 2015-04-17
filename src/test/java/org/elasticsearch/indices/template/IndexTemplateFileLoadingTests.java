@@ -31,6 +31,7 @@ import org.junit.Test;
 
 import java.io.File;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
@@ -79,10 +80,10 @@ public class IndexTemplateFileLoadingTests extends ElasticsearchIntegrationTest 
 
     @Test
     public void testThatLoadingTemplateFromFileWorks() throws Exception {
-        final int iters = scaledRandomIntBetween(5, 20);
+        final int iters = scaledRandomIntBetween(1, 5);
         Set<String> indices = new HashSet<>();
         for (int i = 0; i < iters; i++) {
-            String indexName = "foo" + randomRealisticUnicodeOfLengthBetween(0, 5);
+            String indexName = "foo" + randomAsciiOfLengthBetween(0, 5).toLowerCase(Locale.ROOT);
             if (indices.contains(indexName)) {
                 continue;
             }

@@ -70,7 +70,9 @@ public abstract class ShardReplicationOperationRequestBuilder<Request extends Sh
 
     /**
      * Sets the replication type.
+     * @deprecated will be removed in 2.0.0. See https://github.com/elastic/elasticsearch/pull/10171
      */
+    @Deprecated
     @SuppressWarnings("unchecked")
     public RequestBuilder setReplicationType(ReplicationType replicationType) {
         request.replicationType(replicationType);
@@ -79,7 +81,9 @@ public abstract class ShardReplicationOperationRequestBuilder<Request extends Sh
 
     /**
      * Sets the replication type.
+     * @deprecated will be removed in 2.0.0. See https://github.com/elastic/elasticsearch/pull/10171
      */
+    @Deprecated
     @SuppressWarnings("unchecked")
     public RequestBuilder setReplicationType(String replicationType) {
         request.replicationType(replicationType);

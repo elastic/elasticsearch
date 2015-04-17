@@ -424,12 +424,19 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
 
     /**
      * Set the replication type for this operation.
+     * @deprecated will be removed in 2.0.0. See https://github.com/elastic/elasticsearch/pull/10171
      */
+    @Deprecated
     public BulkRequest replicationType(ReplicationType replicationType) {
         this.replicationType = replicationType;
         return this;
     }
 
+    /**
+     * Get the replication type for this operation.
+     * @deprecated will be removed in 2.0.0. See https://github.com/elastic/elasticsearch/pull/10171
+     */
+    @Deprecated
     public ReplicationType replicationType() {
         return this.replicationType;
     }

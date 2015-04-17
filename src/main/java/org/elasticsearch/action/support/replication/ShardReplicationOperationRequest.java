@@ -151,14 +151,18 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
 
     /**
      * The replication type.
+     * @deprecated will be removed in 2.0.0. See https://github.com/elastic/elasticsearch/pull/10171
      */
+    @Deprecated
     public ReplicationType replicationType() {
         return this.replicationType;
     }
 
     /**
      * Sets the replication type.
+     * @deprecated will be removed in 2.0.0. See https://github.com/elastic/elasticsearch/pull/10171
      */
+    @Deprecated
     @SuppressWarnings("unchecked")
     public final T replicationType(ReplicationType replicationType) {
         this.replicationType = replicationType;
@@ -167,7 +171,9 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
 
     /**
      * Sets the replication type.
+     * @deprecated will be removed in 2.0.0. See https://github.com/elastic/elasticsearch/pull/10171
      */
+    @Deprecated
     public final T replicationType(String replicationType) {
         return replicationType(ReplicationType.fromString(replicationType));
     }

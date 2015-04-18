@@ -44,7 +44,7 @@ public class VersionTests extends ElasticsearchTestCase {
         // we use here is the version that is actually set to the project.version
         // in maven
         String property = System.getProperty("tests.version", null);
-        assumeNotNull(property);
+        assumeTrue("tests.version is set", property != null);
         assertEquals(property, Version.CURRENT.toString());
     }
     

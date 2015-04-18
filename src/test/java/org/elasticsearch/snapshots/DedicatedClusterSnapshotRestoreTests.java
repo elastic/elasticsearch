@@ -81,6 +81,7 @@ import static org.hamcrest.Matchers.*;
 /**
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
+@LuceneTestCase.SuppressFileSystems("ExtrasFS") // not ready for this yet
 public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
     @Test

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -50,7 +49,6 @@ import static org.hamcrest.Matchers.*;
 /**
  */
 @ElasticsearchIntegrationTest.SuiteScopeTest
-@Slow
 public class ChildrenTests extends ElasticsearchIntegrationTest {
 
     private final static Map<String, Control> categoryToControl = new HashMap<>();

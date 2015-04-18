@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -60,7 +59,6 @@ import static org.hamcrest.Matchers.sameInstance;
  *
  */
 @ElasticsearchIntegrationTest.SuiteScopeTest
-@Slow
 public class GeoBoundsTests extends ElasticsearchIntegrationTest {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "geo_value";

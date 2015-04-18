@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.LongOpenHashSet;
 import com.carrotsearch.hppc.LongSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -55,7 +54,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 
 
 @ElasticsearchIntegrationTest.SuiteScopeTest
-@Slow
 public class MinDocCountTests extends AbstractTermsTests {
 
     private static final QueryBuilder QUERY = QueryBuilders.termQuery("match", true);

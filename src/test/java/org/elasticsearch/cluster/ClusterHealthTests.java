@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
@@ -28,7 +27,6 @@ import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@Slow
 public class ClusterHealthTests extends ElasticsearchIntegrationTest {
 
 

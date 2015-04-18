@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -45,7 +44,6 @@ import static org.hamcrest.Matchers.*;
  * Checking simple filtering capabilites of the cluster state
  *
  */
-@Slow
 public class SimpleClusterStateTests extends ElasticsearchIntegrationTest {
 
     @Before

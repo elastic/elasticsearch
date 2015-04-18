@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.externalvalues;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -36,7 +35,6 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
-@Slow
 public class ExternalValuesMapperIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Override

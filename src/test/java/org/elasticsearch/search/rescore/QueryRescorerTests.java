@@ -23,7 +23,6 @@ package org.elasticsearch.search.rescore;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.English;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -53,7 +52,6 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-@Slow
 public class QueryRescorerTests extends ElasticsearchIntegrationTest {
 
     @Test
@@ -571,7 +569,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @Test
+    @Test @Slow
     public void testScoring() throws Exception {
         int numDocs = indexRandomNumbers("keyword");
 

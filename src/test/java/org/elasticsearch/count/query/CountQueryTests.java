@@ -19,7 +19,6 @@
 
 package org.elasticsearch.count.query;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -48,7 +47,6 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
-@Slow
 public class CountQueryTests extends ElasticsearchIntegrationTest {
 
     @Test

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -30,7 +29,6 @@ import static org.hamcrest.Matchers.greaterThan;
 
 /**
  */
-@Slow
 public class FieldDataLoadingTests extends ElasticsearchIntegrationTest {
 
     @Test

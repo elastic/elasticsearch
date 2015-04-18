@@ -19,7 +19,6 @@
 
 package org.elasticsearch.timestamp;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -41,7 +40,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
-@Slow
 public class SimpleTimestampTests  extends ElasticsearchIntegrationTest {
 
     @Test

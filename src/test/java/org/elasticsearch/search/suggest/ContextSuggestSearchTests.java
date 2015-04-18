@@ -20,7 +20,6 @@ package org.elasticsearch.search.suggest;
 
 import com.google.common.collect.Sets;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestRequest;
@@ -53,7 +52,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertDistance;
 import static org.hamcrest.Matchers.containsString;
 
-@Slow
 public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     private static final String INDEX = "test";

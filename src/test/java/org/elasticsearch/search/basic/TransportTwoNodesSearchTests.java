@@ -21,7 +21,6 @@ package org.elasticsearch.search.basic;
 
 
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.common.unit.TimeValue;
 
 import com.google.common.base.Charsets;
@@ -62,7 +61,6 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
-@Slow
 public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
 
     @Override

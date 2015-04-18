@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.indexing;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -44,14 +43,13 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 /**
  *
  */
-@Slow
 public class IndexActionTests extends ElasticsearchIntegrationTest {
 
     /**
      * This test tries to simulate load while creating an index and indexing documents
      * while the index is being created.
      */
-    @Test
+    @Test @Slow
     public void testAutoGenerateIdNoDuplicates() throws Exception {
         int numberOfIterations = scaledRandomIntBetween(10, 50);
         for (int i = 0; i < numberOfIterations; i++) {

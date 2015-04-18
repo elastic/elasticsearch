@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations;
 import com.carrotsearch.hppc.IntIntMap;
 import com.carrotsearch.hppc.IntIntOpenHashMap;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -47,7 +46,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
 /**
  *
  */
-@Slow
 public class CombiTests extends ElasticsearchIntegrationTest {
 
     /**

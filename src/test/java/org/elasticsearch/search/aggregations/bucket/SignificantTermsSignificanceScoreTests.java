@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -65,7 +64,6 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
-@Slow
 public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegrationTest {
 
     static final String INDEX_NAME = "testidx";

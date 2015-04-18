@@ -20,7 +20,6 @@
 package org.elasticsearch.indices.store;
 
 import com.google.common.base.Predicate;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterService;
@@ -57,7 +56,6 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-@Slow
 public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Test
@@ -177,7 +175,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(waitForShardDeletion(node_4, "test", 0), equalTo(false));
     }
 
-    @Test
+    @Test @Slow
     public void testShardActiveElseWhere() throws Exception {
         boolean node1IsMasterEligible = randomBoolean();
         boolean node2IsMasterEligible = !node1IsMasterEligible || randomBoolean();

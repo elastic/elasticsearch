@@ -21,7 +21,6 @@ package org.elasticsearch.search.query;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -38,7 +37,6 @@ import java.util.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 
-@Slow
 public class ExistsMissingTests extends ElasticsearchIntegrationTest {
 
     public void testExistsMissing() throws Exception {

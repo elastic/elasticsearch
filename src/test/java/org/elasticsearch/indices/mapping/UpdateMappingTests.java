@@ -21,7 +21,6 @@ package org.elasticsearch.indices.mapping;
 
 import com.google.common.collect.Lists;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -54,7 +53,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThro
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(randomDynamicTemplates = false)
-@Slow
 public class UpdateMappingTests extends ElasticsearchIntegrationTest {
 
     @Test

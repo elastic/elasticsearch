@@ -1405,6 +1405,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
     @Test
     public void testIndexWriterInfoStream() {
+        assumeFalse("who tests the tester?", VERBOSE);
         MockAppender mockAppender = new MockAppender();
 
         Logger rootLogger = Logger.getRootLogger();
@@ -1433,6 +1434,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
     // #8603: make sure we can separately log IFD's messages
     public void testIndexWriterIFDInfoStream() {
+        assumeFalse("who tests the tester?", VERBOSE);
         MockAppender mockAppender = new MockAppender();
 
         // Works when running this test inside Intellij:

@@ -450,7 +450,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
     }
 
-    private static ImmutableSettings.Builder setRandomSettings(Random random, ImmutableSettings.Builder builder) {
+    protected ImmutableSettings.Builder setRandomSettings(Random random, ImmutableSettings.Builder builder) {
         setRandomMerge(random, builder);
         setRandomTranslogSettings(random, builder);
         setRandomNormsLoading(random, builder);
@@ -501,11 +501,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             builder.put(IndicesQueryCache.INDICES_CACHE_QUERY_CONCURRENCY_LEVEL, RandomInts.randomIntBetween(random, 1, 32));
             builder.put(IndicesFieldDataCache.FIELDDATA_CACHE_CONCURRENCY_LEVEL, RandomInts.randomIntBetween(random, 1, 32));
             builder.put(IndicesFilterCache.INDICES_CACHE_FILTER_CONCURRENCY_LEVEL, RandomInts.randomIntBetween(random, 1, 32));
-        }
-        if (globalCompatibilityVersion().before(Version.V_1_3_2)) {
-            // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
-            // see #7210
-            builder.put(RecoverySettings.INDICES_RECOVERY_COMPRESS, false);
         }
         if (random.nextBoolean()) {
             builder.put(NettyTransport.PING_SCHEDULE, RandomInts.randomIntBetween(random, 100, 2000) + "ms");

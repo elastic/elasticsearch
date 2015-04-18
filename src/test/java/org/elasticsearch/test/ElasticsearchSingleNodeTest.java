@@ -154,7 +154,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
      * Returns the name of the cluster used for the single test node.
      */
     public static String clusterName() {
-        return InternalTestCluster.clusterName("single-node", Integer.toString(CHILD_JVM_ID), randomLong());
+        return "single-node-cluster";
     }
 
     /**

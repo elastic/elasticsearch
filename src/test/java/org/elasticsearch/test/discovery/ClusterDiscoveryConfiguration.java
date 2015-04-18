@@ -27,6 +27,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SettingsSource;
 import org.elasticsearch.transport.local.LocalTransport;
+import org.omg.CORBA.INTERNAL;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -114,9 +115,7 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
         }
 
         private static int calcBasePort() {
-            // note that this has properly co-exist with the port logic at InternalTestCluster's constructor
-            return 30000 +
-                    1000 * (ElasticsearchIntegrationTest.CHILD_JVM_ID);
+            return 30000 + InternalTestCluster.BASE_PORT;
         }
 
         @Override

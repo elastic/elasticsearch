@@ -41,7 +41,7 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ElasticsearchSingleNodeLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.hamcrest.Description;
 import org.hamcrest.StringDescription;
 import org.junit.After;
@@ -53,7 +53,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 
 @Ignore
-public abstract class AbstractChildTests extends ElasticsearchSingleNodeLuceneTestCase {
+public abstract class AbstractChildTests extends ElasticsearchSingleNodeTest {
 
     /**
      * The name of the field within the child type that stores a score to use in test queries.

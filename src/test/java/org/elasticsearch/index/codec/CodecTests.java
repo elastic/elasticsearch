@@ -40,13 +40,13 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.test.ElasticsearchSingleNodeLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Before;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class CodecTests extends ElasticsearchSingleNodeLuceneTestCase {
+public class CodecTests extends ElasticsearchSingleNodeTest {
     
     @Override
     @Before

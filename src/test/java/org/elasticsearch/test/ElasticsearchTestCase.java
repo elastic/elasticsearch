@@ -388,11 +388,11 @@ public abstract class ElasticsearchTestCase extends ESTestCase {
         @Override
         public void uncaughtException(Thread t, Throwable e) {
             if (e instanceof EsRejectedExecutionException) {
-                if (e.getMessage().contains(EsAbortPolicy.SHUTTING_DOWN_KEY)) {
+                if (e.getMessage() != null && e.getMessage().contains(EsAbortPolicy.SHUTTING_DOWN_KEY)) {
                     return; // ignore the EsRejectedExecutionException when a node shuts down
                 }
             } else if (e instanceof OutOfMemoryError) {
-                if (e.getMessage().contains("unable to create new native thread")) {
+                if (e.getMessage() != null && e.getMessage().contains("unable to create new native thread")) {
                     printStackDump(logger);
                 }
             }

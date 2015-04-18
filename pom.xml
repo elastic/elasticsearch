@@ -68,12 +68,6 @@
             <name>Lucene Snapshots</name>
             <url>https://download.elastic.co/lucenesnapshots/1674278</url>
         </repository>
-        <!-- TODO: nuke this after a while, its for latest randomizedtesting -->
-        <repository>
-            <id>oss-sonatype</id>
-            <name>Temporarily Situation</name>
-            <url>http://oss.sonatype.org/content/repositories/releases</url>
-        </repository>
     </repositories>
 
     <dependencies>

@@ -33,7 +33,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.Collections;
 
-import static org.elasticsearch.test.VersionTestUtil.randomVersion;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 

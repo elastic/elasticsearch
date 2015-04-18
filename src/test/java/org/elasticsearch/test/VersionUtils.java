@@ -31,8 +31,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
-/** Utilities for selection versions in tests */
-public class VersionTestUtil {
+/** Utilities for selecting versions in tests */
+public class VersionUtils {
 
     private static final List<Version> SORTED_VERSIONS;
     static {
@@ -53,7 +53,6 @@ public class VersionTestUtil {
         }
         List<Integer> idList = new ArrayList<>(ids);
         Collections.sort(idList);
-        Collections.reverse(idList);
         ImmutableList.Builder<Version> version = ImmutableList.builder();
         for (Integer integer : idList) {
             version.add(Version.fromId(integer));
@@ -68,9 +67,14 @@ public class VersionTestUtil {
     
     /** Returns the {@link Version} before the {@link Version#CURRENT} */
     public static Version getPreviousVersion() {
-        Version version = SORTED_VERSIONS.get(1);
+        Version version = SORTED_VERSIONS.get(SORTED_VERSIONS.size() - 2);
         assert version.before(Version.CURRENT);
         return version;
+    }
+    
+    /** Returns the oldest {@link Version} */
+    public static Version getFirstVersion() {
+        return SORTED_VERSIONS.get(0);
     }
 
     /** Returns a random {@link Version} from all available versions. */
@@ -80,11 +84,11 @@ public class VersionTestUtil {
 
     /** Returns a random {@link Version} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
     public static Version randomVersionBetween(Random random, Version minVersion, Version maxVersion) {
-        int minVersionIndex = SORTED_VERSIONS.size();
+        int minVersionIndex = 0;
         if (minVersion != null) {
             minVersionIndex = SORTED_VERSIONS.indexOf(minVersion);
         }
-        int maxVersionIndex = 0;
+        int maxVersionIndex = SORTED_VERSIONS.size();
         if (maxVersion != null) {
             maxVersionIndex = SORTED_VERSIONS.indexOf(maxVersion);
         }
@@ -92,10 +96,12 @@ public class VersionTestUtil {
             throw new IllegalArgumentException("minVersion [" + minVersion + "] does not exist.");
         } else if (maxVersionIndex == -1) {
             throw new IllegalArgumentException("maxVersion [" + maxVersion + "] does not exist.");
+        } else if (minVersionIndex > maxVersionIndex) {
+            throw new IllegalArgumentException("maxVersion [" + maxVersion + "] cannot be less than minVersion [" + minVersion + "]");
         } else {
             // minVersionIndex is inclusive so need to add 1 to this index
-            int range = minVersionIndex + 1 - maxVersionIndex;
-            return SORTED_VERSIONS.get(maxVersionIndex + random.nextInt(range));
+            int range = maxVersionIndex + 1 - minVersionIndex;
+            return SORTED_VERSIONS.get(minVersionIndex + random.nextInt(range));
         }
     }
 }

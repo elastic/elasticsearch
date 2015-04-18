@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.test.VersionTestUtil;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -34,7 +34,7 @@ import java.util.Map;
 
 import static org.elasticsearch.Version.V_0_20_0;
 import static org.elasticsearch.Version.V_0_90_0;
-import static org.elasticsearch.test.VersionTestUtil.randomVersion;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
@@ -152,7 +152,7 @@ public class VersionTests extends ElasticsearchTestCase {
     
     public void testParseLenient() {
         // note this is just a silly sanity check, we test it in lucene
-        for (Version version : VersionTestUtil.allVersions()) {
+        for (Version version : VersionUtils.allVersions()) {
             org.apache.lucene.util.Version luceneVersion = version.luceneVersion;
             String string = luceneVersion.toString().toUpperCase(Locale.ROOT)
                     .replaceFirst("^LUCENE_(\\d+)_(\\d+)$", "$1.$2");

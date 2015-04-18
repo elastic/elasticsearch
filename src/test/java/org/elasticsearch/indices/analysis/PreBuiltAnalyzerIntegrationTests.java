@@ -36,7 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.VersionTestUtil.randomVersion;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 

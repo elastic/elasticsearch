@@ -40,7 +40,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.Version.CURRENT;
-import static org.elasticsearch.test.VersionTestUtil.randomVersion;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.is;
 
 /**

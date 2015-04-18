@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
-import org.elasticsearch.test.VersionTestUtil;
+import org.elasticsearch.test.VersionUtils;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -42,7 +42,7 @@ import java.util.List;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.VersionTestUtil.randomVersion;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -124,7 +124,7 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
         }
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
-                .put(newNode("node3", VersionTestUtil.getPreviousVersion())))
+                .put(newNode("node3", VersionUtils.getPreviousVersion())))
                 .build();
         prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState).routingTable();
@@ -204,7 +204,7 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
             } else {
                 for (int j = nodes.size(); j < numNodes; j++) {
                     if (frequently()) {
-                        nodes.add(newNode("node" + (nodeIdx++), randomBoolean() ? VersionTestUtil.getPreviousVersion() : Version.CURRENT));
+                        nodes.add(newNode("node" + (nodeIdx++), randomBoolean() ? VersionUtils.getPreviousVersion() : Version.CURRENT));
                     } else {
                         nodes.add(newNode("node" + (nodeIdx++), randomVersion(random())));
                     }
@@ -249,20 +249,20 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
             assertThat(routingTable.index("test").shard(i).shards().get(2).currentNodeId(), nullValue());
         }
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .put(newNode("old0", VersionTestUtil.getPreviousVersion()))
-                .put(newNode("old1", VersionTestUtil.getPreviousVersion()))
-                .put(newNode("old2", VersionTestUtil.getPreviousVersion()))).build();
+                .put(newNode("old0", VersionUtils.getPreviousVersion()))
+                .put(newNode("old1", VersionUtils.getPreviousVersion()))
+                .put(newNode("old2", VersionUtils.getPreviousVersion()))).build();
         clusterState = stabilize(clusterState, service);
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .put(newNode("old0", VersionTestUtil.getPreviousVersion()))
-                .put(newNode("old1", VersionTestUtil.getPreviousVersion()))
+                .put(newNode("old0", VersionUtils.getPreviousVersion()))
+                .put(newNode("old1", VersionUtils.getPreviousVersion()))
                 .put(newNode("new0"))).build();
 
         clusterState = stabilize(clusterState, service);
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .put(newNode("node0", VersionTestUtil.getPreviousVersion()))
+                .put(newNode("node0", VersionUtils.getPreviousVersion()))
                 .put(newNode("new1"))
                 .put(newNode("new0"))).build();
 

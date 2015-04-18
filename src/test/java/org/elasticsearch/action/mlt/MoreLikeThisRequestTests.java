@@ -32,7 +32,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.VersionTestUtil.randomVersion;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.*;
 
 public class MoreLikeThisRequestTests extends ElasticsearchTestCase {

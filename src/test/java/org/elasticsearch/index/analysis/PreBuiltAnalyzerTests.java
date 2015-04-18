@@ -37,7 +37,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.test.VersionTestUtil.randomVersion;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.*;
 
 /**

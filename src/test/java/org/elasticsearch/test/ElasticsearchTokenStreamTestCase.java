@@ -47,7 +47,7 @@ public abstract class ElasticsearchTokenStreamTestCase extends BaseTokenStreamTe
     }
     
     public static Version randomVersion() {
-        return VersionTestUtil.randomVersion(random());
+        return VersionUtils.randomVersion(random());
     }
 
     public ImmutableSettings.Builder newAnalysisSettingsBuilder() {

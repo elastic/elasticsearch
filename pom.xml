@@ -580,7 +580,8 @@
                             <sysouts>${tests.verbose}</sysouts>
                             <seed>${tests.seed}</seed>
                             <haltOnFailure>${tests.failfast}</haltOnFailure>
-                            <uniqueSuiteNames>false</uniqueSuiteNames>
+                            <!-- enforce unique suite names, or reporting stuff can be screwed up -->
+                            <uniqueSuiteNames>true</uniqueSuiteNames>
                             <systemProperties>
                                 <!-- we use './temp' since this is per JVM and tests are forbidden from writing to CWD -->
                                 <java.io.tmpdir>./temp</java.io.tmpdir>

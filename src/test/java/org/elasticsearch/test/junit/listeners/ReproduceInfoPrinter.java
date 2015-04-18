@@ -38,7 +38,7 @@ import java.util.TimeZone;
 
 import static com.carrotsearch.randomizedtesting.SysGlobals.*;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.TESTS_CLUSTER;
-import static org.elasticsearch.test.rest.ElasticsearchRestTests.*;
+import static org.elasticsearch.test.rest.ElasticsearchRestTestCase.*;
 
 /**
  * A {@link RunListener} that emits to {@link System#err} a string with command

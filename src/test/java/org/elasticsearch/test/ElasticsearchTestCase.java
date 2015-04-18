@@ -61,7 +61,6 @@ import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.test.search.MockSearchService;
-import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -171,11 +170,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     
     // old shit:
     
-    /**
-     * The child JVM ordinal of this JVM. Default is <tt>0</tt>
-     */
-    public static final int CHILD_JVM_ID = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_ID, "0"));
-
     /**
      * Annotation for REST tests
      */

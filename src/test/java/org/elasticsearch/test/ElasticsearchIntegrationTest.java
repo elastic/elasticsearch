@@ -1694,8 +1694,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         return new InternalTestCluster(seed, createTempDir(), minNumDataNodes, maxNumDataNodes,
-                clusterName(scope.name(), Integer.toString(CHILD_JVM_ID), seed), settingsSource, getNumClientNodes(),
-                InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, CHILD_JVM_ID, nodePrefix);
+                scope.name() + "-cluster", settingsSource, getNumClientNodes(),
+                InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix);
     }
 
     /**

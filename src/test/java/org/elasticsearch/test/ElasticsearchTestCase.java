@@ -18,29 +18,25 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
-
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -107,7 +103,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
-@Ignore
 @SuppressCodecs({"SimpleText", "Memory", "CheapBastard", "Direct"}) // slow ones
 @LuceneTestCase.SuppressReproduceLine
 public abstract class ElasticsearchTestCase extends LuceneTestCase {
@@ -169,31 +164,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     }
     
     // old shit:
-    
-    /**
-     * Annotation for REST tests
-     */
-    @Inherited
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target(ElementType.TYPE)
-    @TestGroup(enabled = true, sysProperty = TESTS_REST)
-    public @interface Rest {
-    }
-
-    /**
-     * Property that allows to control whether the REST tests are run (default) or not
-     */
-    public static final String TESTS_REST = "tests.rest";
-
-    /**
-     * Annotation for integration tests
-     */
-    @Inherited
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target(ElementType.TYPE)
-    @TestGroup(enabled = true, sysProperty = SYSPROP_INTEGRATION)
-    public @interface Integration {
-    }
 
     // --------------------------------------------------------------------
     // Test groups, system properties and other annotations modifying tests
@@ -209,7 +179,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
      */
     public static final String SYSPROP_FAILFAST = "tests.failfast";
 
-    public static final String SYSPROP_INTEGRATION = "tests.integration";
     // -----------------------------------------------------------------
     // Suite and test case setup/ cleanup.
     // -----------------------------------------------------------------

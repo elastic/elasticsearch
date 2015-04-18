@@ -581,7 +581,7 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
         logger.info("Indexing a single document ...");
         XContentBuilder doc = jsonBuilder().startObject();
         for (int i = 0; i < numFields; i++) {
-            doc.field("field"+i, generateRandomStringArray(5, 10));
+            doc.field("field"+i, generateRandomStringArray(5, 10, false));
         }
         doc.endObject();
         indexRandom(true, client().prepareIndex("test", "type1", "0").setSource(doc));

@@ -23,11 +23,9 @@ import com.google.common.primitives.Ints;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SettingsSource;
 import org.elasticsearch.transport.local.LocalTransport;
-import org.omg.CORBA.INTERNAL;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -41,10 +39,6 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
     final int numOfNodes;
     final Settings nodeSettings;
     final Settings transportClientSettings;
-
-    public ClusterDiscoveryConfiguration(int numOfNodes) {
-        this(numOfNodes, ImmutableSettings.EMPTY);
-    }
 
     public ClusterDiscoveryConfiguration(int numOfNodes, Settings extraSettings) {
         this.numOfNodes = numOfNodes;

@@ -48,6 +48,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.VersionTestUtil;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
@@ -226,21 +227,11 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
 
     public void testAllVersionsTested() throws Exception {
         SortedSet<String> expectedVersions = new TreeSet<>();
-        for (java.lang.reflect.Field field : Version.class.getDeclaredFields()) {
-            if (Modifier.isStatic(field.getModifiers()) && field.getType() == Version.class) {
-                Version v = (Version) field.get(Version.class);
-                if (v.snapshot()) {
-                    continue;  // snapshots are unreleased, so there is no backcompat yet
-                }
-                if (v.onOrBefore(Version.V_0_20_6)) {
-                    continue; // we can only test back one major lucene version
-                }
-                if (v.equals(Version.CURRENT)) {
-                    continue; // the current version is always compatible with itself
-                }
-
-                expectedVersions.add("index-" + v.toString() + ".zip");
-            }
+        for (Version v : VersionTestUtil.allVersions()) {
+            if (v.snapshot()) continue;  // snapshots are unreleased, so there is no backcompat yet
+            if (v.onOrBefore(Version.V_0_20_6)) continue; // we can only test back one major lucene version
+            if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
+            expectedVersions.add("index-" + v.toString() + ".zip");
         }
 
         for (String index : indexes) {

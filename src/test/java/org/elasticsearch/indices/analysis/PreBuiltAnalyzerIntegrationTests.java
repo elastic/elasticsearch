@@ -36,6 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.VersionTestUtil.randomVersion;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -64,7 +65,7 @@ public class PreBuiltAnalyzerIntegrationTests extends ElasticsearchIntegrationTe
             PreBuiltAnalyzers preBuiltAnalyzer = PreBuiltAnalyzers.values()[randomInt];
             String name = preBuiltAnalyzer.name().toLowerCase(Locale.ROOT);
 
-            Version randomVersion = randomVersion();
+            Version randomVersion = randomVersion(random());
             if (!loadedAnalyzers.containsKey(preBuiltAnalyzer)) {
                  loadedAnalyzers.put(preBuiltAnalyzer, Lists.<Version>newArrayList());
             }
@@ -138,7 +139,7 @@ public class PreBuiltAnalyzerIntegrationTests extends ElasticsearchIntegrationTe
             .endObject()
             .endObject();
 
-        Settings versionSettings = settings(randomVersion())
+        Settings versionSettings = settings(randomVersion(random()))
                 .put("index.analysis.analyzer.my_dummy.type", "custom")
                 .put("index.analysis.analyzer.my_dummy.filter", "my_dummy_token_filter")
                 .put("index.analysis.analyzer.my_dummy.char_filter", "my_dummy_char_filter")

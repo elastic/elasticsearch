@@ -29,6 +29,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.VersionTestUtil;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -45,7 +46,7 @@ public class CodecTests extends ElasticsearchSingleNodeTest {
                 .startObject("properties").startObject("field").field("type", "string").field("postings_format", Codec.getDefault().postingsFormat().getName()).endObject().endObject()
                 .endObject().endObject().string();
         int i = 0;
-        for (Version v : allVersions()) {
+        for (Version v : VersionTestUtil.allVersions()) {
             IndexService indexService = createIndex("test-" + i++, ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v).build());
             DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
             try {
@@ -68,7 +69,7 @@ public class CodecTests extends ElasticsearchSingleNodeTest {
                 .startObject("properties").startObject("field").field("type", "string").field("doc_values_format", Codec.getDefault().docValuesFormat().getName()).endObject().endObject()
                 .endObject().endObject().string();
         int i = 0;
-        for (Version v : allVersions()) {
+        for (Version v : VersionTestUtil.allVersions()) {
             IndexService indexService = createIndex("test-" + i++, ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v).build());
             DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
             try {

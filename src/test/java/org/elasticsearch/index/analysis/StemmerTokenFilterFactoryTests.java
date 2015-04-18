@@ -26,8 +26,8 @@ import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
+import org.elasticsearch.test.VersionTestUtil;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -47,7 +47,7 @@ public class StemmerTokenFilterFactoryTests extends ElasticsearchTokenStreamTest
         int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
 
-            Version v = ElasticsearchTestCase.randomVersion(random());
+            Version v = VersionTestUtil.randomVersion(random());
             Settings settings = ImmutableSettings.settingsBuilder()
                     .put("index.analysis.filter.my_english.type", "stemmer")
                     .put("index.analysis.filter.my_english.language", "english")
@@ -80,7 +80,7 @@ public class StemmerTokenFilterFactoryTests extends ElasticsearchTokenStreamTest
         int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
 
-            Version v = ElasticsearchTestCase.randomVersion(random());
+            Version v = VersionTestUtil.randomVersion(random());
             Settings settings = ImmutableSettings.settingsBuilder()
                     .put("index.analysis.filter.my_porter2.type", "stemmer")
                     .put("index.analysis.filter.my_porter2.language", "porter2")

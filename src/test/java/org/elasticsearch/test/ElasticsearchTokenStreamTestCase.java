@@ -20,9 +20,6 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.analysis.BaseTokenStreamTestCase;
@@ -50,7 +47,7 @@ public abstract class ElasticsearchTokenStreamTestCase extends BaseTokenStreamTe
     }
     
     public static Version randomVersion() {
-        return ElasticsearchTestCase.randomVersion(random());
+        return VersionTestUtil.randomVersion(random());
     }
 
     public ImmutableSettings.Builder newAnalysisSettingsBuilder() {

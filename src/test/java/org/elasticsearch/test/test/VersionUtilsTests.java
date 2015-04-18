@@ -18,14 +18,12 @@
  */
 package org.elasticsearch.test.test;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.Version;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.util.List;
 
-@Seed("E619863BE07FF5CB")
 public class VersionUtilsTests extends ElasticsearchTestCase {
 
     public void testAllVersionsSorted() {

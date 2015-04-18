@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -113,7 +114,7 @@ public class MetaStateServiceTests extends ElasticsearchTestCase {
     private Settings randomSettings() {
         ImmutableSettings.Builder builder = ImmutableSettings.builder();
         if (randomBoolean()) {
-            builder.put(MetaStateService.FORMAT_SETTING, randomXContentType().shortName());
+            builder.put(MetaStateService.FORMAT_SETTING, randomFrom(XContentType.values()).shortName());
         }
         return builder.build();
     }

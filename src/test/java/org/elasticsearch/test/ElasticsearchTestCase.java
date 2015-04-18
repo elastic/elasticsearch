@@ -111,6 +111,10 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         SecurityHack.ensureInitialized();
     }
     
+    private static Thread.UncaughtExceptionHandler defaultHandler;
+    
+    protected final ESLogger logger = Loggers.getLogger(getClass());
+    
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
     
@@ -123,6 +127,33 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException();
         }
+    }
+
+    @BeforeClass
+    public static void setBeforeClass() throws Exception {
+        closeAfterSuite(new Closeable() {
+            @Override
+            public void close() throws IOException {
+                assertAllFilesClosed();
+            }
+        });
+        closeAfterSuite(new Closeable() {
+            @Override
+            public void close() throws IOException {
+                assertAllSearchersClosed();
+            }
+        });
+        defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler(defaultHandler));
+        Requests.CONTENT_TYPE = randomFrom(XContentType.values());
+        Requests.INDEX_CONTENT_TYPE = randomFrom(XContentType.values());
+    }
+
+    @AfterClass
+    public static void resetAfterClass() {
+        Thread.setDefaultUncaughtExceptionHandler(defaultHandler);
+        Requests.CONTENT_TYPE = XContentType.SMILE;
+        Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
     }
     
     @AfterClass
@@ -150,6 +181,26 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         System.clearProperty(EsExecutors.DEFAULT_SYSPROP);
     }
 
+    @After
+    public void ensureAllPagesReleased() throws Exception {
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    }
+
+    @After
+    public void ensureAllArraysReleased() throws Exception {
+        MockBigArrays.ensureAllArraysAreReleased();
+    }
+
+    @After
+    public void ensureAllSearchContextsReleased() throws Exception {
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                MockSearchService.assertNoInFLightContext();
+            }
+        });
+    }
+
     @Before
     public void disableQueryCache() {
         // TODO: Parent/child and other things does not work with the query cache
@@ -164,20 +215,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     }
     
     // old shit:
-
-    // --------------------------------------------------------------------
-    // Test groups, system properties and other annotations modifying tests
-    // --------------------------------------------------------------------
-
-    /**
-     * @see #ignoreAfterMaxFailures
-     */
-    public static final String SYSPROP_MAXFAILURES = "tests.maxfailures";
-
-    /**
-     * @see #ignoreAfterMaxFailures
-     */
-    public static final String SYSPROP_FAILFAST = "tests.failfast";
 
     // -----------------------------------------------------------------
     // Suite and test case setup/ cleanup.
@@ -204,12 +241,29 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         super.tearDown();
     }
 
-
     // -----------------------------------------------------------------
     // Test facilities and facades for subclasses. 
     // -----------------------------------------------------------------
     
     // old helper stuff, a lot of it is bad news and we should see if its all used
+
+    /**
+     * Shortcut for {@link RandomizedContext#getRandom()}. Even though this method
+     * is static, it returns per-thread {@link Random} instance, so no race conditions
+     * can occur.
+     *
+     * <p>It is recommended that specific methods are used to pick random values.
+     */
+    public static Random getRandom() {
+        return random();
+    }
+    
+    /**
+     * Shortcut for {@link RandomizedContext#current()}. 
+     */
+    public static RandomizedContext getContext() {
+        return RandomizedTest.getContext();
+    }
     
     /**
      * Returns a "scaled" random number between min and max (inclusive).
@@ -276,17 +330,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
       return RandomPicks.randomFrom(random(), list);
     }
     
-    /**
-     * Shortcut for {@link RandomizedContext#getRandom()}. Even though this method
-     * is static, it returns per-thread {@link Random} instance, so no race conditions
-     * can occur.
-     * 
-     * <p>It is recommended that specific methods are used to pick random values.
-     */
-    public static Random getRandom() {
-        return random();
-    }
-    
     /** 
      * A random integer from 0..max (inclusive). 
      */
@@ -344,37 +387,12 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
       return RandomizedTest.randomRealisticUnicodeOfCodepointLength(codePoints);
     }
     
-    /**
-     * Shortcut for {@link RandomizedContext#current()}. 
-     */
-    public static RandomizedContext getContext() {
-      return RandomizedTest.getContext();
-    }
-    
-    /**
-     * Returns true if we're running nightly tests.
-     * @see Nightly
-     */
-    public static boolean isNightly() {
-      return RandomizedTest.isNightly();
-    }
-    
     /** 
      * Returns a non-negative random value smaller or equal <code>max</code>.
      * @see RandomizedTest#atMost(int);
      */
     public static int atMost(int max) {
         return RandomizedTest.atMost(max);
-    }
-
-    private static Thread.UncaughtExceptionHandler defaultHandler;
-
-    protected final ESLogger logger = Loggers.getLogger(getClass());
-
-
-
-    static {
-        SecurityHack.ensureInitialized();
     }
 
     /**
@@ -425,8 +443,7 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
             throw e;
         }
     }
-
-
+    
     public static boolean awaitBusy(Predicate<?> breakPredicate) throws InterruptedException {
         return awaitBusy(breakPredicate, 10, TimeUnit.SECONDS);
     }
@@ -449,12 +466,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         return breakPredicate.apply(null);
     }
 
-    private static final String[] numericTypes = new String[]{"byte", "short", "integer", "long"};
-
-    public static String randomNumericType(Random random) {
-        return numericTypes[random.nextInt(numericTypes.length)];
-    }
-
     /**
      * Returns a {@link java.nio.file.Path} pointing to the class path relative resource given
      * as the first argument. In contrast to
@@ -472,57 +483,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         } catch (Exception e) {
             throw new RuntimeException("resource not found: " + relativePath, e);
         }
-    }
-
-    @After
-    public void ensureAllPagesReleased() throws Exception {
-        MockPageCacheRecycler.ensureAllPagesAreReleased();
-    }
-
-    @After
-    public void ensureAllArraysReleased() throws Exception {
-        MockBigArrays.ensureAllArraysAreReleased();
-    }
-
-    @After
-    public void ensureAllSearchContextsReleased() throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                MockSearchService.assertNoInFLightContext();
-            }
-        });
-    }
-
-    @BeforeClass
-    public static void setBeforeClass() throws Exception {
-        closeAfterSuite(new Closeable() {
-            @Override
-            public void close() throws IOException {
-                assertAllFilesClosed();
-            }
-        });
-        closeAfterSuite(new Closeable() {
-            @Override
-            public void close() throws IOException {
-                assertAllSearchersClosed();
-            }
-        });
-        defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
-        Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler(defaultHandler));
-        Requests.CONTENT_TYPE = randomXContentType();
-        Requests.INDEX_CONTENT_TYPE = randomXContentType();
-    }
-
-    public static XContentType randomXContentType() {
-        return randomFrom(XContentType.values());
-    }
-
-    @AfterClass
-    public static void resetAfterClass() {
-        Thread.setDefaultUncaughtExceptionHandler(defaultHandler);
-        Requests.CONTENT_TYPE = XContentType.SMILE;
-        Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
     }
 
     private static final List<Version> SORTED_VERSIONS;

@@ -22,7 +22,6 @@ import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.Randomness;
-import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Joiner;
@@ -281,11 +280,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * Default maximum number of shards for an index
      */
     protected static final int DEFAULT_MAX_NUM_SHARDS = 10;
-    
-    /**
-     * The child JVM ordinal of this JVM. Default is <tt>0</tt>
-     */
-    public static final int CHILD_JVM_ID = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_ID, "0"));
 
     /**
      * The current cluster depending on the configured {@link Scope}.
@@ -770,7 +764,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
         // 30% of the time
         if (randomInt(9) < 3) {
-            final Path dataPath = newTempDirPath();
+            final Path dataPath = createTempDir();
             logger.info("using custom data_path for index: [{}]", dataPath);
             builder.put(IndexMetaData.SETTING_DATA_PATH, dataPath);
         }
@@ -1704,7 +1698,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             maxNumDataNodes = getMaxNumDataNodes();
         }
 
-        return new InternalTestCluster(seed, newTempDirPath(), minNumDataNodes, maxNumDataNodes,
+        return new InternalTestCluster(seed, createTempDir(), minNumDataNodes, maxNumDataNodes,
                 clusterName(scope.name(), Integer.toString(CHILD_JVM_ID), seed), settingsSource, getNumClientNodes(),
                 InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, CHILD_JVM_ID, nodePrefix);
     }
@@ -1923,7 +1917,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * Return settings that could be used to start a node that has the given zipped home directory.
      */
     protected Settings prepareBackwardsDataDir(Path backwardsIndex, Object... settings) throws IOException {
-        Path indexDir = newTempDirPath();
+        Path indexDir = createTempDir();
         Path dataDir = indexDir.resolve("data");
         try (InputStream stream = Files.newInputStream(backwardsIndex)) {
             TestUtil.unzip(stream, indexDir);

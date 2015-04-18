@@ -92,7 +92,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
                 return MetaData.Builder.fromXContent(parser);
             }
         };
-        Path tmp = newTempDirPath();
+        Path tmp = createTempDir();
         final InputStream resource = this.getClass().getResourceAsStream("global-3.st");
         assertThat(resource, notNullValue());
         Path dst = tmp.resolve("global-3.st");
@@ -106,7 +106,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
     public void testReadWriteState() throws IOException {
         Path[] dirs = new Path[randomIntBetween(1, 5)];
         for (int i = 0; i < dirs.length; i++) {
-            dirs[i] = newTempDirPath();
+            dirs[i] = createTempDir();
         }
         final long id = addDummyFiles("foo-", dirs);
         Format format = new Format(randomFrom(XContentType.values()), "foo-");
@@ -148,7 +148,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
     public void testVersionMismatch() throws IOException {
         Path[] dirs = new Path[randomIntBetween(1, 5)];
         for (int i = 0; i < dirs.length; i++) {
-            dirs[i] = newTempDirPath();
+            dirs[i] = createTempDir();
         }
         final long id = addDummyFiles("foo-", dirs);
 
@@ -173,7 +173,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
     public void testCorruption() throws IOException {
         Path[] dirs = new Path[randomIntBetween(1, 5)];
         for (int i = 0; i < dirs.length; i++) {
-            dirs[i] = newTempDirPath();
+            dirs[i] = createTempDir();
         }
         final long id = addDummyFiles("foo-", dirs);
         Format format = new Format(randomFrom(XContentType.values()), "foo-");
@@ -247,8 +247,8 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         final ToXContent.Params params = ToXContent.EMPTY_PARAMS;
         MetaDataStateFormat<MetaData> format = MetaStateService.globalStateFormat(randomFrom(XContentType.values()), params);
         final Path[] dirs = new Path[2];
-        dirs[0] = newTempDirPath();
-        dirs[1] = newTempDirPath();
+        dirs[0] = createTempDir();
+        dirs[1] = createTempDir();
         for (Path dir : dirs) {
             Files.createDirectories(dir.resolve(MetaDataStateFormat.STATE_DIR_NAME));
         }
@@ -292,8 +292,8 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         final ToXContent.Params params = ToXContent.EMPTY_PARAMS;
         MetaDataStateFormat<MetaData> format = MetaStateService.globalStateFormat(randomFrom(XContentType.values()), params);
         final Path[] dirs = new Path[2];
-        dirs[0] = newTempDirPath();
-        dirs[1] = newTempDirPath();
+        dirs[0] = createTempDir();
+        dirs[1] = createTempDir();
         for (Path dir : dirs) {
             Files.createDirectories(dir.resolve(MetaDataStateFormat.STATE_DIR_NAME));
         }
@@ -334,7 +334,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         Set<Path> corruptedFiles = new HashSet<>();
         MetaDataStateFormat<MetaData> format = MetaStateService.globalStateFormat(randomFrom(XContentType.values()), params);
         for (int i = 0; i < dirs.length; i++) {
-            dirs[i] = newTempDirPath();
+            dirs[i] = createTempDir();
             Files.createDirectories(dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME));
             for (int j = 0; j < numLegacy; j++) {
                 XContentType type = format.format();

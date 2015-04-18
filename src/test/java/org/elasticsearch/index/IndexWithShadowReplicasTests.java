@@ -68,7 +68,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
                 .build();
 
         internalCluster().startNodesAsync(3, nodeSettings).get();
-        final Path dataPath = newTempDirPath();
+        final Path dataPath = createTempDir();
         Settings idxSettings = ImmutableSettings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build();
@@ -82,7 +82,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", newTempDirPath())));
+                        .put("location", createTempDir())));
         CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("foo").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
@@ -128,7 +128,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
         internalCluster().startNodesAsync(3, nodeSettings).get();
         final String IDX = "test";
-        final Path dataPath = newTempDirPath();
+        final Path dataPath = createTempDir();
 
         Settings idxSettings = ImmutableSettings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -193,7 +193,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
                 .build();
 
         String node1 = internalCluster().startNode(nodeSettings);
-        Path dataPath = newTempDirPath();
+        Path dataPath = createTempDir();
         String IDX = "test";
 
         Settings idxSettings = ImmutableSettings.builder()
@@ -255,7 +255,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
                 .build();
 
         String node1 = internalCluster().startNode(nodeSettings);
-        Path dataPath = newTempDirPath();
+        Path dataPath = createTempDir();
         String IDX = "test";
 
         Settings idxSettings = ImmutableSettings.builder()
@@ -320,7 +320,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
         int nodeCount = randomIntBetween(2, 5);
         internalCluster().startNodesAsync(nodeCount, nodeSettings).get();
-        Path dataPath = newTempDirPath();
+        Path dataPath = createTempDir();
         String IDX = "test";
 
         Settings idxSettings = ImmutableSettings.builder()
@@ -364,7 +364,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
                 .build();
 
         internalCluster().startNodesAsync(2, nodeSettings).get();
-        Path dataPath = newTempDirPath();
+        Path dataPath = createTempDir();
         String IDX = "test";
 
         Settings idxSettings = ImmutableSettings.builder()
@@ -421,7 +421,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
                 .build();
 
         internalCluster().startNodesAsync(3, nodeSettings).get();
-        Path dataPath = newTempDirPath();
+        Path dataPath = createTempDir();
         String IDX = "test";
 
         Settings idxSettings = ImmutableSettings.builder()

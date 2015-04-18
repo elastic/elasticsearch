@@ -44,7 +44,7 @@ public class BalanceUnbalancedClusterTest extends CatAllocationTestBase {
 
     @Override
     protected Path getCatPath() throws IOException {
-        Path tmp = newTempDirPath();
+        Path tmp = createTempDir();
         try (InputStream stream = Files.newInputStream(getDataPath("/org/elasticsearch/cluster/routing/issue_9023.zip"))) {
             TestUtil.unzip(stream, tmp);
         }

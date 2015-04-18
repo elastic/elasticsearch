@@ -69,7 +69,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
 
     @Before
     public void setup() throws IOException {
-        Path genericConfigFolder = newTempDirPath();
+        Path genericConfigFolder = createTempDir();
         baseSettings = settingsBuilder()
                 .put("path.conf", genericConfigFolder)
                 .build();

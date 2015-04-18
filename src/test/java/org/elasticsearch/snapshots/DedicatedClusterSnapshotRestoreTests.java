@@ -113,7 +113,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
         logger.info("--> create repository");
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", newTempDirPath())).execute().actionGet();
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", createTempDir())).execute().actionGet();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> start snapshot");
@@ -146,7 +146,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
     @Test
     public void restoreCustomMetadata() throws Exception {
-        Path tempDir = newTempDirPath();
+        Path tempDir = createTempDir();
 
         logger.info("--> start node");
         internalCluster().startNode();
@@ -293,7 +293,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(
                         ImmutableSettings.settingsBuilder()
-                                .put("location", newTempDirPath())
+                                .put("location", createTempDir())
                                 .put("random", randomAsciiOfLength(10))
                                 .put("wait_after_unblock", 200)
                 ).get();
@@ -338,7 +338,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
 
         logger.info("--> creating repository");
-        Path repo = newTempDirPath();
+        Path repo = createTempDir();
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(
                         ImmutableSettings.settingsBuilder()
@@ -427,7 +427,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         logger.info("--> create repository");
         logger.info("--> creating repository");
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", newTempDirPath())).execute().actionGet();
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", createTempDir())).execute().actionGet();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> start snapshot with default settings - should fail");
@@ -530,7 +530,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
         logger.info("--> create repository");
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", newTempDirPath())).execute().actionGet();
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", createTempDir())).execute().actionGet();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
         int numberOfShards = 6;
         logger.info("--> create an index that will have some unallocated shards");
@@ -589,12 +589,12 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         for (int i = 0; i < 5; i++) {
             client().admin().cluster().preparePutRepository("test-repo" + i)
                     .setType("mock").setSettings(ImmutableSettings.settingsBuilder()
-                    .put("location", newTempDirPath())).setVerify(false).get();
+                    .put("location", createTempDir())).setVerify(false).get();
         }
         logger.info("--> make sure that properly setup repository can be registered on all nodes");
         client().admin().cluster().preparePutRepository("test-repo-0")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                .put("location", newTempDirPath())).get();
+                .put("location", createTempDir())).get();
 
     }
 
@@ -612,7 +612,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         logger.info("-->  creating repository");
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", newTempDirPath())
+                        .put("location", createTempDir())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000))));
 

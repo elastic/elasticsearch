@@ -83,7 +83,7 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
 
     @Test
     public void testResolveJsonLoggingConfig() throws Exception {
-        Path tmpDir = newTempDirPath();
+        Path tmpDir = createTempDir();
         Path loggingConf = tmpDir.resolve(loggingConfiguration("json"));
         Files.write(loggingConf, "{\"json\": \"foo\"}".getBytes(StandardCharsets.UTF_8));
         Environment environment = new Environment(
@@ -98,7 +98,7 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
 
     @Test
     public void testResolvePropertiesLoggingConfig() throws Exception {
-        Path tmpDir = newTempDirPath();
+        Path tmpDir = createTempDir();
         Path loggingConf = tmpDir.resolve(loggingConfiguration("properties"));
         Files.write(loggingConf, "key: value".getBytes(StandardCharsets.UTF_8));
         Environment environment = new Environment(
@@ -113,7 +113,7 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
 
     @Test
     public void testResolveYamlLoggingConfig() throws Exception {
-        Path tmpDir = newTempDirPath();
+        Path tmpDir = createTempDir();
         Path loggingConf1 = tmpDir.resolve(loggingConfiguration("yml"));
         Path loggingConf2 = tmpDir.resolve(loggingConfiguration("yaml"));
         Files.write(loggingConf1, "yml: bar".getBytes(StandardCharsets.UTF_8));
@@ -131,7 +131,7 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
 
     @Test
     public void testResolveConfigInvalidFilename() throws Exception {
-        Path tmpDir = newTempDirPath();
+        Path tmpDir = createTempDir();
         Path invalidSuffix = tmpDir.resolve(loggingConfiguration(randomFrom(LogConfigurator.ALLOWED_SUFFIXES)) + randomInvalidSuffix());
         Files.write(invalidSuffix, "yml: bar".getBytes(StandardCharsets.UTF_8));
         Environment environment = new Environment(

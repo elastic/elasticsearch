@@ -37,6 +37,7 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
+@Slow
 public class SpecificMasterNodesTests extends ElasticsearchIntegrationTest {
 
     protected final ImmutableSettings.Builder settingsBuilder() {

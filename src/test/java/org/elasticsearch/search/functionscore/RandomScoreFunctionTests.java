@@ -19,6 +19,7 @@
 package org.elasticsearch.search.functionscore;
 
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBuilder;
 import org.elasticsearch.search.SearchHit;
@@ -37,7 +38,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
-
+@Slow
 public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
 
     public void testConsistentHitsWithSameSeed() throws Exception {

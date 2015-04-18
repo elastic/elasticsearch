@@ -21,10 +21,12 @@ package org.elasticsearch.search.sort;
 
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -67,6 +69,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
+@Slow
 public class SimpleSortTests extends ElasticsearchIntegrationTest {
 
     @TestLogging("action.search.type:TRACE")

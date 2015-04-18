@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots;
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.collect.ImmutableList;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
@@ -48,6 +49,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
+@Slow
 public class RepositoriesTests extends AbstractSnapshotTests {
 
     @Test

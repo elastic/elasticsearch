@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.script;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -38,6 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 //Use Suite scope so that paths get set correctly
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
+@Slow
 public class OnDiskScriptTests extends ElasticsearchIntegrationTest {
 
     @Override

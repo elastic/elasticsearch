@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.innerhits;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -46,6 +47,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
+@Slow
 public class InnerHitsTests extends ElasticsearchIntegrationTest {
 
     @Test

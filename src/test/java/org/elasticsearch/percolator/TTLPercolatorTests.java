@@ -20,6 +20,8 @@
 package org.elasticsearch.percolator;
 
 import com.google.common.base.Predicate;
+
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
@@ -46,6 +48,7 @@ import static org.hamcrest.Matchers.*;
 /**
  */
 @ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
+@Slow
 public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
 
     private static final long PURGE_INTERVAL = 200;

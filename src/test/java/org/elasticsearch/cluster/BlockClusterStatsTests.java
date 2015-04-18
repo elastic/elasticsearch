@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -37,6 +38,7 @@ import static org.hamcrest.Matchers.*;
  * Scoped as test, because the if the test with cluster read only block fails, all other tests fail as well, as this is not cleaned up properly
  */
 @ClusterScope(scope= Scope.TEST)
+@Slow
 public class BlockClusterStatsTests extends ElasticsearchIntegrationTest {
 
     @Test

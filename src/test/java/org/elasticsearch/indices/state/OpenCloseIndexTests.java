@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.state;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -48,6 +49,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
+@Slow
 public class OpenCloseIndexTests extends ElasticsearchIntegrationTest {
 
     @Test

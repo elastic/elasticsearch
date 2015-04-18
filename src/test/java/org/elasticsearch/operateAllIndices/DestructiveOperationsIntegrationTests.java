@@ -19,6 +19,7 @@
 
 package org.elasticsearch.operateAllIndices;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -33,6 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
+@Slow
 public class DestructiveOperationsIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Test

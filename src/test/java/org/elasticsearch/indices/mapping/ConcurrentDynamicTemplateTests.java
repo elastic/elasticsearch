@@ -21,6 +21,8 @@ package org.elasticsearch.indices.mapping;
 
 
 import com.google.common.collect.Sets;
+
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -45,6 +47,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.emptyIterable;
 
 @ElasticsearchIntegrationTest.ClusterScope(randomDynamicTemplates = false) // this test takes a long time to delete the idx if all fields are eager loading
+@Slow
 public class ConcurrentDynamicTemplateTests extends ElasticsearchIntegrationTest {
 
     private final String mappingType = "test-mapping";

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
@@ -30,6 +31,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  *
  */
 @ElasticsearchIntegrationTest.SuiteScopeTest
+@Slow
 public abstract class AbstractNumericTests extends ElasticsearchIntegrationTest {
 
     protected static long minValue, maxValue, minValues, maxValues;

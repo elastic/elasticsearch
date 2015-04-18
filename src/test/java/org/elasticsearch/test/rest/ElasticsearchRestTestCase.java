@@ -26,6 +26,7 @@ import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.google.common.collect.Lists;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
@@ -56,6 +57,7 @@ import java.util.*;
  * Runs the clients test suite against an elasticsearch cluster.
  */
 @ElasticsearchTestCase.Rest
+@Slow
 @ClusterScope(randomDynamicTemplates = false)
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // timeout the suite after 40min and fail the test.
 public abstract class ElasticsearchRestTestCase extends ElasticsearchIntegrationTest {

@@ -20,6 +20,8 @@
 package org.elasticsearch.cluster;
 
 import com.google.common.base.Predicate;
+
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
@@ -47,6 +49,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThro
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
+@Slow
 public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
     @Test

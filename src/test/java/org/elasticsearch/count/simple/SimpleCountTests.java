@@ -19,6 +19,7 @@
 
 package org.elasticsearch.count.simple;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -38,6 +39,7 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
+@Slow
 public class SimpleCountTests extends ElasticsearchIntegrationTest {
 
     @Test

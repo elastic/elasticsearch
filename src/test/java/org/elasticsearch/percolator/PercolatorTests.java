@@ -19,6 +19,8 @@
 package org.elasticsearch.percolator;
 
 import com.google.common.base.Predicate;
+
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -104,6 +106,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
+@Slow
 public class PercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test

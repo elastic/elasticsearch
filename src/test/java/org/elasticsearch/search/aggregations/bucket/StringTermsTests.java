@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import com.google.common.base.Strings;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -72,6 +73,7 @@ import static org.hamcrest.core.IsNull.nullValue;
  *
  */
 @ElasticsearchIntegrationTest.SuiteScopeTest
+@Slow
 public class StringTermsTests extends AbstractTermsTests {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "s_value";

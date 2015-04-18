@@ -19,6 +19,7 @@
 
 package org.elasticsearch.routing;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.RoutingMissingException;
@@ -41,6 +42,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.*;
 
+@Slow
 public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
 
     @Override

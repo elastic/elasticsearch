@@ -19,6 +19,7 @@
 package org.elasticsearch.search.child;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
@@ -121,6 +122,7 @@ import static org.hamcrest.Matchers.startsWith;
  *
  */
 @ClusterScope(scope = Scope.SUITE)
+@Slow
 public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
     @Override

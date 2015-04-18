@@ -31,7 +31,6 @@ import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -41,7 +40,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
-import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -51,6 +49,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.Version.V_1_5_0;
+import static org.elasticsearch.Version.V_2_0_0;
+import static org.elasticsearch.test.VersionTestUtil.randomVersion;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
@@ -92,7 +93,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testDefaultValues() throws Exception {
-        for (Version version : Arrays.asList(Version.V_1_5_0, Version.V_2_0_0, ElasticsearchTestCase.randomVersion())) {
+        for (Version version : Arrays.asList(V_1_5_0, V_2_0_0, randomVersion(random()))) {
             for (String mapping : Arrays.asList(
                     XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string(),
                     XContentFactory.jsonBuilder().startObject().startObject("type").startObject("_timestamp").endObject().endObject().string())) {

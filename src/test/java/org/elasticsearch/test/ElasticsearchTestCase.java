@@ -21,7 +21,6 @@ package org.elasticsearch.test;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
-import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
@@ -30,7 +29,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableList;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
@@ -62,28 +60,18 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Inherited;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
 import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Formatter;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -247,20 +235,13 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     
     // old helper stuff, a lot of it is bad news and we should see if its all used
 
-    /**
-     * Shortcut for {@link RandomizedContext#getRandom()}. Even though this method
-     * is static, it returns per-thread {@link Random} instance, so no race conditions
-     * can occur.
-     *
-     * <p>It is recommended that specific methods are used to pick random values.
-     */
+    /** Shortcut for {@link RandomizedContext#getRandom()}. Use {@link #random()} instead. */
     public static Random getRandom() {
+        // TODO: replace uses of this function with random()
         return random();
     }
     
-    /**
-     * Shortcut for {@link RandomizedContext#current()}. 
-     */
+    /** Shortcut for {@link RandomizedContext#current()}. */
     public static RandomizedContext getContext() {
         return RandomizedTest.getContext();
     }
@@ -309,90 +290,67 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     public static boolean randomBoolean() {
         return random().nextBoolean();
     }
-    public static byte    randomByte()     { return (byte) getRandom().nextInt(); }
-    public static short   randomShort()    { return (short) getRandom().nextInt(); }
-    public static int     randomInt()      { return getRandom().nextInt(); }
-    public static float   randomFloat()    { return getRandom().nextFloat(); }
-    public static double  randomDouble()   { return getRandom().nextDouble(); }
-    public static long    randomLong()     { return getRandom().nextLong(); }
     
-    /**
-     * Pick a random object from the given array. The array must not be empty.
-     */
+    public static byte    randomByte()     { return (byte) random().nextInt(); }
+    public static short   randomShort()    { return (short) random().nextInt(); }
+    public static int     randomInt()      { return random().nextInt(); }
+    public static float   randomFloat()    { return random().nextFloat(); }
+    public static double  randomDouble()   { return random().nextDouble(); }
+    public static long    randomLong()     { return random().nextLong(); }
+    
+    /** Pick a random object from the given array. The array must not be empty. */
     public static <T> T randomFrom(T... array) {
       return RandomPicks.randomFrom(random(), array);
     }
 
-    /**
-     * Pick a random object from the given list.
-     */
+    /** Pick a random object from the given list. */
     public static <T> T randomFrom(List<T> list) {
       return RandomPicks.randomFrom(random(), list);
     }
     
-    /** 
-     * A random integer from 0..max (inclusive). 
-     */
+    /** A random integer from 0..max (inclusive). */
     public static int randomInt(int max) { 
-      return RandomizedTest.randomInt(max); 
+      return RandomizedTest.randomInt(max);
     }
-
-    /** @see StringGenerator#ofCodeUnitsLength(Random, int, int) */
+    
     public static String randomAsciiOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
       return RandomizedTest.randomAsciiOfLengthBetween(minCodeUnits, maxCodeUnits);
     }
     
-    /** @see StringGenerator#ofCodeUnitsLength(Random, int, int) */
     public static String randomAsciiOfLength(int codeUnits) {
       return RandomizedTest.randomAsciiOfLength(codeUnits);
     }
     
-    /** @see StringGenerator#ofCodeUnitsLength(Random, int, int) */
     public static String randomUnicodeOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
       return RandomizedTest.randomUnicodeOfLengthBetween(minCodeUnits, maxCodeUnits);
     }
     
-    /** @see StringGenerator#ofCodeUnitsLength(Random, int, int) */
     public static String randomUnicodeOfLength(int codeUnits) {
       return RandomizedTest.randomUnicodeOfLength(codeUnits);
     }
-    
-    /** @see StringGenerator#ofCodePointsLength(Random, int, int) */
+
     public static String randomUnicodeOfCodepointLengthBetween(int minCodePoints, int maxCodePoints) {
       return RandomizedTest.randomUnicodeOfCodepointLengthBetween(minCodePoints, maxCodePoints);
     }
     
-    /** @see StringGenerator#ofCodePointsLength(Random, int, int) */
     public static String randomUnicodeOfCodepointLength(int codePoints) {
       return RandomizedTest.randomUnicodeOfCodepointLength(codePoints);
     }
-    
-    /** @see StringGenerator#ofCodeUnitsLength(Random, int, int) */
+
     public static String randomRealisticUnicodeOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
       return RandomizedTest.randomRealisticUnicodeOfLengthBetween(minCodeUnits, maxCodeUnits);
     }
     
-    /** @see StringGenerator#ofCodeUnitsLength(Random, int, int) */
     public static String randomRealisticUnicodeOfLength(int codeUnits) {
       return RandomizedTest.randomRealisticUnicodeOfLength(codeUnits);
     }
-    
-    /** @see StringGenerator#ofCodePointsLength(Random, int, int) */
+
     public static String randomRealisticUnicodeOfCodepointLengthBetween(int minCodePoints, int maxCodePoints) {
       return RandomizedTest.randomRealisticUnicodeOfCodepointLengthBetween(minCodePoints, maxCodePoints);
     }
     
-    /** @see StringGenerator#ofCodePointsLength(Random, int, int) */
     public static String randomRealisticUnicodeOfCodepointLength(int codePoints) {
       return RandomizedTest.randomRealisticUnicodeOfCodepointLength(codePoints);
-    }
-    
-    /** 
-     * Returns a non-negative random value smaller or equal <code>max</code>.
-     * @see RandomizedTest#atMost(int);
-     */
-    public static int atMost(int max) {
-        return RandomizedTest.atMost(max);
     }
 
     /**
@@ -485,119 +443,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         }
     }
 
-    private static final List<Version> SORTED_VERSIONS;
-
-    static {
-        Field[] declaredFields = Version.class.getDeclaredFields();
-        Set<Integer> ids = new HashSet<>();
-        for (Field field : declaredFields) {
-            final int mod = field.getModifiers();
-            if (Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod)) {
-                if (field.getType() == Version.class) {
-                    try {
-                        Version object = (Version) field.get(null);
-                        ids.add(object.id);
-                    } catch (Throwable e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-            }
-        }
-        List<Integer> idList = new ArrayList<>(ids);
-        Collections.sort(idList);
-        Collections.reverse(idList);
-        ImmutableList.Builder<Version> version = ImmutableList.builder();
-        for (Integer integer : idList) {
-            version.add(Version.fromId(integer));
-        }
-        SORTED_VERSIONS = version.build();
-    }
-
-    /**
-     * @return the {@link Version} before the {@link Version#CURRENT}
-     */
-    public static Version getPreviousVersion() {
-        Version version = SORTED_VERSIONS.get(1);
-        assert version.before(Version.CURRENT);
-        return version;
-    }
-    
-    /**
-     * A random {@link Version}.
-     *
-     * @return a random {@link Version} from all available versions
-     */
-    public static Version randomVersion() {
-        return randomVersion(random());
-    }
-    
-    /**
-     * A random {@link Version}.
-     * 
-     * @param random
-     *            the {@link Random} to use to generate the random version
-     *
-     * @return a random {@link Version} from all available versions
-     */
-    public static Version randomVersion(Random random) {
-        return SORTED_VERSIONS.get(random.nextInt(SORTED_VERSIONS.size()));
-    }
-    
-    /**
-     * Returns immutable list of all known versions.
-     */
-    public static List<Version> allVersions() {
-        return Collections.unmodifiableList(SORTED_VERSIONS);
-    }
-
-    /**
-     * A random {@link Version} from <code>minVersion</code> to
-     * <code>maxVersion</code> (inclusive).
-     * 
-     * @param minVersion
-     *            the minimum version (inclusive)
-     * @param maxVersion
-     *            the maximum version (inclusive)
-     * @return a random {@link Version} from <code>minVersion</code> to
-     *         <code>maxVersion</code> (inclusive)
-     */
-    public static Version randomVersionBetween(Version minVersion, Version maxVersion) {
-        return randomVersionBetween(random(), minVersion, maxVersion);
-    }
-
-    /**
-     * A random {@link Version} from <code>minVersion</code> to
-     * <code>maxVersion</code> (inclusive).
-     * 
-     * @param random
-     *            the {@link Random} to use to generate the random version
-     * @param minVersion
-     *            the minimum version (inclusive)
-     * @param maxVersion
-     *            the maximum version (inclusive)
-     * @return a random {@link Version} from <code>minVersion</code> to
-     *         <code>maxVersion</code> (inclusive)
-     */
-    public static Version randomVersionBetween(Random random, Version minVersion, Version maxVersion) {
-        int minVersionIndex = SORTED_VERSIONS.size();
-        if (minVersion != null) {
-            minVersionIndex = SORTED_VERSIONS.indexOf(minVersion);
-        }
-        int maxVersionIndex = 0;
-        if (maxVersion != null) {
-            maxVersionIndex = SORTED_VERSIONS.indexOf(maxVersion);
-        }
-        if (minVersionIndex == -1) {
-            throw new IllegalArgumentException("minVersion [" + minVersion + "] does not exist.");
-        } else if (maxVersionIndex == -1) {
-            throw new IllegalArgumentException("maxVersion [" + maxVersion + "] does not exist.");
-        } else {
-            // minVersionIndex is inclusive so need to add 1 to this index
-            int range = minVersionIndex + 1 - maxVersionIndex;
-            return SORTED_VERSIONS.get(maxVersionIndex + random.nextInt(range));
-        }
-    }
-
     /**
      * Return consistent index settings for the provided index version.
      */
@@ -617,8 +462,7 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         private ElasticsearchUncaughtExceptionHandler(Thread.UncaughtExceptionHandler parent) {
             this.parent = parent;
         }
-
-
+        
         @Override
         public void uncaughtException(Thread t, Throwable e) {
             if (e instanceof EsRejectedExecutionException) {
@@ -632,7 +476,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
             }
             parent.uncaughtException(t, e);
         }
-
     }
 
     protected static final void printStackDump(ESLogger logger) {
@@ -689,11 +532,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         }
         return array;
     }
-
-    public static String[] generateRandomStringArray(int maxArraySize, int maxStringSize) {
-        return generateRandomStringArray(maxArraySize, maxStringSize, false);
-    }
-
 
     public static boolean terminate(ExecutorService... services) throws InterruptedException {
         boolean terminated = true;

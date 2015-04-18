@@ -55,7 +55,6 @@ import static org.hamcrest.Matchers.*;
  * Tests for indices that use shadow replicas and a shared filesystem
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0)
-@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 @Slow
 public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 

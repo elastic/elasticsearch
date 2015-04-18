@@ -20,6 +20,7 @@
 package org.elasticsearch.tribe;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
@@ -58,6 +59,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * does it by default.
  */
 @Slow
+@LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
 public class TribeTests extends ElasticsearchIntegrationTest {
 
     public static final String SECOND_CLUSTER_NODE_PREFIX = "node_tribe2";

@@ -20,6 +20,7 @@ package org.elasticsearch.test.test;
 
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
@@ -41,6 +42,7 @@ import static org.hamcrest.Matchers.hasEntry;
  * Basic test that ensure that the internal cluster reproduces the same
  * configuration given the same seed / input.
  */
+@LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
 public class InternalTestClusterTests extends ElasticsearchTestCase {
 
     public void testInitializiationIsConsistent() {

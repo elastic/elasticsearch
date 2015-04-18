@@ -92,7 +92,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
-@LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: need to only do the checksum check on lucene files
 public class CorruptedFileTest extends ElasticsearchIntegrationTest {
 
     @Override

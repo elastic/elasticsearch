@@ -88,7 +88,7 @@ public class VersionUtils {
         if (minVersion != null) {
             minVersionIndex = SORTED_VERSIONS.indexOf(minVersion);
         }
-        int maxVersionIndex = SORTED_VERSIONS.size();
+        int maxVersionIndex = SORTED_VERSIONS.size() - 1;
         if (maxVersion != null) {
             maxVersionIndex = SORTED_VERSIONS.indexOf(maxVersion);
         }

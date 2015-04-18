@@ -32,6 +32,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -226,6 +227,7 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 @Ignore
 @ElasticsearchIntegrationTest.Integration
+@LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
 public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase {
 
     /**

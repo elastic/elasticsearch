@@ -36,9 +36,6 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-/**
- *
- */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class FileWatcherTest extends ElasticsearchTestCase {
 

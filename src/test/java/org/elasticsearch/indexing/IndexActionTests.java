@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.indexing;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -43,6 +44,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 /**
  *
  */
+@Slow
 public class IndexActionTests extends ElasticsearchIntegrationTest {
 
     /**

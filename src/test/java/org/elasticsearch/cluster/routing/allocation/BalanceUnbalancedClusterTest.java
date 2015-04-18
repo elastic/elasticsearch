@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -40,6 +41,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 /**
  * see issue #9023
  */
+@Slow
 public class BalanceUnbalancedClusterTest extends CatAllocationTestBase {
 
     @Override

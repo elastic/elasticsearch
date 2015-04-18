@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.FilterBuilders;
@@ -43,6 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
+@Slow
 public class TermsShardMinDocCountTests extends ElasticsearchIntegrationTest {
     private static final String index = "someindex";
     private static final String type = "testtype";

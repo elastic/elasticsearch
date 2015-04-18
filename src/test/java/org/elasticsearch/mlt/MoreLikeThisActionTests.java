@@ -20,6 +20,7 @@
 package org.elasticsearch.mlt;
 
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -58,6 +59,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
+@Slow
 public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
 
     @Test

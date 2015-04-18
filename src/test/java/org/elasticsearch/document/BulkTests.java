@@ -21,6 +21,7 @@ package org.elasticsearch.document;
 
 import com.google.common.base.Charsets;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -60,6 +61,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
+@Slow
 public class BulkTests extends ElasticsearchIntegrationTest {
 
     @Test

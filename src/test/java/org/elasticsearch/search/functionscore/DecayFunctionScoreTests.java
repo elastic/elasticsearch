@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.functionscore;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -56,6 +57,7 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
+@Slow
 public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
 
     @Test

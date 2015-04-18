@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.percolator;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.percolate.PercolateRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -44,6 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
+@Slow
 public class PercolatorFacetsAndAggregationsTests extends ElasticsearchIntegrationTest {
 
     @Test

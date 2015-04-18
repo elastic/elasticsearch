@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.percolator;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
@@ -47,6 +48,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
+@Slow
 public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test

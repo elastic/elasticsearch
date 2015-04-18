@@ -57,6 +57,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.*;
 
+@Slow
 public class UpdateTests extends ElasticsearchIntegrationTest {
 
     private void createTestIndex() throws Exception {

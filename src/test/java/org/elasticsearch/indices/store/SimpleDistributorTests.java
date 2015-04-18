@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.store;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.IndexStoreModule;
@@ -38,6 +39,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
+@Slow
 public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
 
     @Test

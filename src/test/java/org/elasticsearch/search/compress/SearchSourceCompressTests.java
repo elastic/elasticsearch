@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.compress;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;
@@ -37,6 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
+@Slow
 public class SearchSourceCompressTests  extends ElasticsearchIntegrationTest {
     
     @Test

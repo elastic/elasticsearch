@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.settings;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -34,6 +35,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = TEST)
+@Slow
 public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
 
     @Test

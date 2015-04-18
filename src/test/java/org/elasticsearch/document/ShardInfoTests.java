@@ -19,6 +19,7 @@
 
 package org.elasticsearch.document;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
@@ -41,6 +42,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
+@Slow
 public class ShardInfoTests extends ElasticsearchIntegrationTest {
 
     private int numCopies;

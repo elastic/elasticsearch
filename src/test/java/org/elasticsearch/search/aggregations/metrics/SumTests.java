@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -34,6 +35,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
+@Slow
 public class SumTests extends AbstractNumericTests {
 
     @Override

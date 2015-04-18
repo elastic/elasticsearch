@@ -20,7 +20,9 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.Randomness;
+import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Joiner;
@@ -279,6 +281,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * Default maximum number of shards for an index
      */
     protected static final int DEFAULT_MAX_NUM_SHARDS = 10;
+    
+    /**
+     * The child JVM ordinal of this JVM. Default is <tt>0</tt>
+     */
+    public static final int CHILD_JVM_ID = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_ID, "0"));
 
     /**
      * The current cluster depending on the configured {@link Scope}.
@@ -1755,7 +1762,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         // It sounds like some Java Time Zones are unknown by JODA. For example: Asia/Riyadh88
         // We need to fallback in that case to a known time zone
         try {
-            timeZone = DateTimeZone.forTimeZone(randomTimeZone());
+            timeZone = DateTimeZone.forTimeZone(RandomizedTest.randomTimeZone());
         } catch (IllegalArgumentException e) {
             timeZone = DateTimeZone.forOffsetHours(randomIntBetween(-12, 12));
         }

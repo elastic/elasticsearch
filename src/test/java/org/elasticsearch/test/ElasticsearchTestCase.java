@@ -20,6 +20,7 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
@@ -66,7 +67,6 @@ import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
@@ -91,7 +91,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.TimeZone;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -174,10 +173,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     
     // old shit:
     
-    /**
-     * The number of concurrent JVMs used to run the tests, Default is <tt>1</tt>
-     */
-    public static final int CHILD_JVM_COUNT = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_COUNT, "1"));
     /**
      * The child JVM ordinal of this JVM. Default is <tt>0</tt>
      */
@@ -301,40 +296,15 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     // old helper stuff, a lot of it is bad news and we should see if its all used
     
     /**
-     * Returns a "scaled" random number between min and max (inclusive). The number of 
-     * iterations will fall between [min, max], but the selection will also try to 
-     * achieve the points below: 
-     * <ul>
-     *   <li>the multiplier can be used to move the number of iterations closer to min
-     *   (if it is smaller than 1) or closer to max (if it is larger than 1). Setting
-     *   the multiplier to 0 will always result in picking min.</li>
-     *   <li>on normal runs, the number will be closer to min than to max.</li>
-     *   <li>on nightly runs, the number will be closer to max than to min.</li>
-     * </ul>
-     * 
-     * @see #multiplier()
-     * 
-     * @param min Minimum (inclusive).
-     * @param max Maximum (inclusive).
-     * @return Returns a random number between min and max.
+     * Returns a "scaled" random number between min and max (inclusive).
+     * @see RandomizedTest#scaledRandomIntBetween(int, int);
      */
     public static int scaledRandomIntBetween(int min, int max) {
-        if (min < 0) throw new IllegalArgumentException("min must be >= 0: " + min);
-        if (min > max) throw new IllegalArgumentException("max must be >= min: " + min + ", " + max);
-
-        double point = Math.min(1, Math.abs(random().nextGaussian()) * 0.3) * RANDOM_MULTIPLIER;
-        double range = max - min;
-        int scaled = (int) Math.round(Math.min(point * range, range));
-        if (isNightly()) {
-          return max - scaled;
-        } else {
-          return min + scaled; 
-        }
+        return RandomizedTest.scaledRandomIntBetween(min, max);
     }
     
     /** 
      * A random integer from <code>min</code> to <code>max</code> (inclusive).
-     * 
      * @see #scaledRandomIntBetween(int, int)
      */
     public static int randomIntBetween(int min, int max) {
@@ -377,13 +347,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     public static long    randomLong()     { return getRandom().nextLong(); }
     
     /**
-     * Making {@link Assume#assumeNotNull(Object...)} directly available.
-     */
-    public static void assumeNotNull(Object... objects) {
-        Assume.assumeNotNull(objects);
-    }
-    
-    /**
      * Pick a random object from the given array. The array must not be empty.
      */
     public static <T> T randomFrom(T... array) {
@@ -412,85 +375,64 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
      * A random integer from 0..max (inclusive). 
      */
     public static int randomInt(int max) { 
-        return RandomInts.randomInt(getRandom(), max); 
+      return RandomizedTest.randomInt(max); 
     }
 
     /** @see StringGenerator#ofCodeUnitsLength(Random, int, int) */
     public static String randomAsciiOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
-      return RandomStrings.randomAsciiOfLengthBetween(getRandom(), minCodeUnits,
-          maxCodeUnits);
+      return RandomizedTest.randomAsciiOfLengthBetween(minCodeUnits, maxCodeUnits);
     }
     
     /** @see StringGenerator#ofCodeUnitsLength(Random, int, int) */
     public static String randomAsciiOfLength(int codeUnits) {
-      return RandomStrings.randomAsciiOfLength(getRandom(), codeUnits);
+      return RandomizedTest.randomAsciiOfLength(codeUnits);
     }
     
     /** @see StringGenerator#ofCodeUnitsLength(Random, int, int) */
     public static String randomUnicodeOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
-      return RandomStrings.randomUnicodeOfLengthBetween(getRandom(),
-          minCodeUnits, maxCodeUnits);
+      return RandomizedTest.randomUnicodeOfLengthBetween(minCodeUnits, maxCodeUnits);
     }
     
     /** @see StringGenerator#ofCodeUnitsLength(Random, int, int) */
     public static String randomUnicodeOfLength(int codeUnits) {
-      return RandomStrings.randomUnicodeOfLength(getRandom(), codeUnits);
+      return RandomizedTest.randomUnicodeOfLength(codeUnits);
     }
     
     /** @see StringGenerator#ofCodePointsLength(Random, int, int) */
     public static String randomUnicodeOfCodepointLengthBetween(int minCodePoints, int maxCodePoints) {
-      return RandomStrings.randomUnicodeOfCodepointLengthBetween(getRandom(),
-          minCodePoints, maxCodePoints);
+      return RandomizedTest.randomUnicodeOfCodepointLengthBetween(minCodePoints, maxCodePoints);
     }
     
     /** @see StringGenerator#ofCodePointsLength(Random, int, int) */
     public static String randomUnicodeOfCodepointLength(int codePoints) {
-      return RandomStrings
-          .randomUnicodeOfCodepointLength(getRandom(), codePoints);
+      return RandomizedTest.randomUnicodeOfCodepointLength(codePoints);
     }
     
     /** @see StringGenerator#ofCodeUnitsLength(Random, int, int) */
     public static String randomRealisticUnicodeOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
-      return RandomStrings.randomRealisticUnicodeOfLengthBetween(getRandom(),
-          minCodeUnits, maxCodeUnits);
+      return RandomizedTest.randomRealisticUnicodeOfLengthBetween(minCodeUnits, maxCodeUnits);
     }
     
     /** @see StringGenerator#ofCodeUnitsLength(Random, int, int) */
     public static String randomRealisticUnicodeOfLength(int codeUnits) {
-      return RandomStrings.randomRealisticUnicodeOfLength(getRandom(), codeUnits);
+      return RandomizedTest.randomRealisticUnicodeOfLength(codeUnits);
     }
     
     /** @see StringGenerator#ofCodePointsLength(Random, int, int) */
-    public static String randomRealisticUnicodeOfCodepointLengthBetween(
-        int minCodePoints, int maxCodePoints) {
-      return RandomStrings.randomRealisticUnicodeOfCodepointLengthBetween(
-          getRandom(), minCodePoints, maxCodePoints);
+    public static String randomRealisticUnicodeOfCodepointLengthBetween(int minCodePoints, int maxCodePoints) {
+      return RandomizedTest.randomRealisticUnicodeOfCodepointLengthBetween(minCodePoints, maxCodePoints);
     }
     
     /** @see StringGenerator#ofCodePointsLength(Random, int, int) */
     public static String randomRealisticUnicodeOfCodepointLength(int codePoints) {
-      return RandomStrings.randomRealisticUnicodeOfCodepointLength(getRandom(),
-          codePoints);
-    }
-    
-    /** 
-     * Return a random TimeZone from the available timezones on the system.
-     * 
-     * <p>Warning: This test assumes the returned array of time zones is repeatable from jvm execution
-     * to jvm execution. It _may_ be different from jvm to jvm and as such, it can render
-     * tests execute in a different way.</p>
-     */
-    public static TimeZone randomTimeZone() {
-      final String[] availableIDs = TimeZone.getAvailableIDs();
-      Arrays.sort(availableIDs);
-      return TimeZone.getTimeZone(randomFrom(availableIDs));
+      return RandomizedTest.randomRealisticUnicodeOfCodepointLength(codePoints);
     }
     
     /**
      * Shortcut for {@link RandomizedContext#current()}. 
      */
     public static RandomizedContext getContext() {
-      return RandomizedContext.current();
+      return RandomizedTest.getContext();
     }
     
     /**
@@ -498,30 +440,15 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
      * @see Nightly
      */
     public static boolean isNightly() {
-      return getContext().isNightly();
+      return RandomizedTest.isNightly();
     }
     
     /** 
-     * Returns a non-negative random value smaller or equal <code>max</code>. The value
-     * picked is affected by {@link #isNightly()} and {@link #multiplier()}.
-     * 
-     * <p>This method is effectively an alias to:
-     * <pre>
-     * scaledRandomIntBetween(0, max)
-     * </pre>
-     * 
-     * @see #scaledRandomIntBetween(int, int)
+     * Returns a non-negative random value smaller or equal <code>max</code>.
+     * @see RandomizedTest#atMost(int);
      */
     public static int atMost(int max) {
-        if (max < 0) throw new IllegalArgumentException("atMost requires non-negative argument: " + max);
-        return scaledRandomIntBetween(0, max);
-    }
-    
-    /**
-     * Making {@link Assume#assumeTrue(boolean)} directly available.
-     */
-    public void assumeTrue(boolean condition) {
-        assumeTrue("caller was too lazy to provide a reason", condition);
+        return RandomizedTest.atMost(max);
     }
 
     private static Thread.UncaughtExceptionHandler defaultHandler;

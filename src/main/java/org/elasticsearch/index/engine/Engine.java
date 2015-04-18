@@ -213,7 +213,7 @@ public abstract class Engine implements Closeable {
      * @param expectedCommitId the expected value of
      * @return true if the sync commit was made, false o.w.
      */
-    public abstract boolean syncCommitIfNoPendingChanges(String syncId, byte[] expectedCommitId) throws EngineException;
+    public abstract boolean syncFlushIfNoPendingChanges(String syncId, byte[] expectedCommitId) throws EngineException;
 
     final protected GetResult getFromSearcher(Get get) throws EngineException {
         final Searcher searcher = acquireSearcher("get");

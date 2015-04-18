@@ -19,18 +19,17 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -71,5 +70,16 @@ public class FlushTest extends ElasticsearchIntegrationTest {
             latch.await();
             assertThat(errors, emptyIterable());
         }
+    }
+
+    public void testSyncedFlush() {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).get();
+        ensureGreen();
+        ClusterStateResponse state = client().admin().cluster().prepareState().get();
+        String nodeId = state.getState().getRoutingTable().index("test").shard(0).getShards().get(0).currentNodeId();
+        String nodeName = state.getState().getNodes().get(nodeId).name();
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
+        indicesService.indexServiceSafe("test").shardInjectorSafe(0).getInstance(SyncedFlushService.class).attemptSyncedFlush(new ShardId("test", 0));
     }
 }

@@ -42,7 +42,7 @@ import org.elasticsearch.index.store.distributor.Distributor;
 import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.index.store.distributor.RandomWeightedDistributor;
 import org.elasticsearch.test.DummyShardLock;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -57,7 +57,7 @@ import java.util.zip.Adler32;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
 import static org.hamcrest.Matchers.*;
 
-public class StoreTest extends ESTestCase {
+public class StoreTest extends ElasticsearchTestCase {
 
     @Test
     public void testRefCount() throws IOException {

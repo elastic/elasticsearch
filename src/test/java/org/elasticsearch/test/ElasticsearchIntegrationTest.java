@@ -226,7 +226,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * </p>
  */
 @Ignore
-@ESTestCase.Integration
+@ElasticsearchTestCase.Integration
 public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase {
 
     /** node names of the corresponding clusters will start with these prefixes */

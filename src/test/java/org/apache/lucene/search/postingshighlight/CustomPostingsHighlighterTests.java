@@ -30,7 +30,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.search.highlight.HighlightUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -39,7 +39,7 @@ import java.util.*;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
-public class CustomPostingsHighlighterTests extends ESTestCase {
+public class CustomPostingsHighlighterTests extends ElasticsearchTestCase {
 
     @Test
     public void testDiscreteHighlightingPerValue() throws Exception {

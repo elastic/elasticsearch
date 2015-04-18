@@ -44,7 +44,7 @@ import org.elasticsearch.index.store.distributor.Distributor;
 import org.elasticsearch.index.store.fs.FsDirectoryService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import java.io.IOException;
@@ -131,7 +131,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
                     return;
                 }
                 if (IndexWriter.isLocked(dir)) {
-                    ESTestCase.checkIndexFailed = true;
+                    ElasticsearchTestCase.checkIndexFailed = true;
                     throw new IllegalStateException("IndexWriter is still open on shard " + shardId);
                 }
                 try (CheckIndex checkIndex = new CheckIndex(dir)) {
@@ -141,7 +141,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
                     out.flush();
                     CheckIndex.Status status = checkIndex.checkIndex();
                     if (!status.clean) {
-                        ESTestCase.checkIndexFailed = true;
+                        ElasticsearchTestCase.checkIndexFailed = true;
                         logger.warn("check index [failure] index files={}\n{}",
                                     Arrays.toString(dir.listAll()),
                                     new String(os.bytes().toBytes(), Charsets.UTF_8));

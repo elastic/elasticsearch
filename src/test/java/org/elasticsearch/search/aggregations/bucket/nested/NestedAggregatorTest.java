@@ -42,7 +42,7 @@ import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ElasticsearchSingleNodeLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class NestedAggregatorTest extends ElasticsearchSingleNodeLuceneTestCase {
+public class NestedAggregatorTest extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testResetRootDocId() throws Exception {

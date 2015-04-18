@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.test.rest.test;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParseContext;
 import org.elasticsearch.test.rest.parser.SkipSectionParser;
@@ -41,7 +43,8 @@ public class SkipSectionParserTests extends AbstractParserTests {
         SkipSection skipSection = skipSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
 
         assertThat(skipSection, notNullValue());
-        assertThat(skipSection.getVersion(), equalTo("0 - 0.90.2"));
+        assertThat(skipSection.getLowerVersion(), equalTo(VersionUtils.getFirstVersion()));
+        assertThat(skipSection.getUpperVersion(), equalTo(Version.V_0_90_2));
         assertThat(skipSection.getFeatures().size(), equalTo(0));
         assertThat(skipSection.getReason(), equalTo("Delete ignores the parent param"));
     }
@@ -57,7 +60,7 @@ public class SkipSectionParserTests extends AbstractParserTests {
         SkipSection skipSection = skipSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
 
         assertThat(skipSection, notNullValue());
-        assertThat(skipSection.getVersion(), nullValue());
+        assertThat(skipSection.isVersionCheck(), equalTo(false));
         assertThat(skipSection.getFeatures().size(), equalTo(1));
         assertThat(skipSection.getFeatures().get(0), equalTo("regex"));
         assertThat(skipSection.getReason(), nullValue());
@@ -74,7 +77,7 @@ public class SkipSectionParserTests extends AbstractParserTests {
         SkipSection skipSection = skipSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
 
         assertThat(skipSection, notNullValue());
-        assertThat(skipSection.getVersion(), nullValue());
+        assertThat(skipSection.isVersionCheck(), equalTo(false));
         assertThat(skipSection.getFeatures().size(), equalTo(3));
         assertThat(skipSection.getFeatures().get(0), equalTo("regex1"));
         assertThat(skipSection.getFeatures().get(1), equalTo("regex2"));

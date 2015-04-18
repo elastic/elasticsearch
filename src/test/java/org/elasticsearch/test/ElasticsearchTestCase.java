@@ -443,6 +443,16 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         }
     }
 
+    /** Returns a random number of temporary paths. */
+    public String[] tmpPaths() {
+        final int numPaths = TestUtil.nextInt(random(), 1, 3);
+        final String[] absPaths = new String[numPaths];
+        for (int i = 0; i < numPaths; i++) {
+            absPaths[i] = createTempDir().toAbsolutePath().toString();
+        }
+        return absPaths;
+    }
+
     /**
      * Return consistent index settings for the provided index version.
      */
@@ -484,9 +494,7 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         logger.error(formatThreadStacks(allStackTraces));
     }
 
-    /**
-     * Dump threads and their current stack trace.
-     */
+    /** Dump threads and their current stack trace. */
     private static String formatThreadStacks(Map<Thread, StackTraceElement[]> threads) {
         StringBuilder message = new StringBuilder();
         int cnt = 1;
@@ -547,17 +555,7 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         return ThreadPool.terminate(service, 10, TimeUnit.SECONDS);
     }
     
-    /**
-     * Returns a random number of temporary paths.
-     */
-    public String[] tmpPaths() {
-        final int numPaths = TestUtil.nextInt(random(), 1, 3);
-        final String[] absPaths = new String[numPaths];
-        for (int i = 0; i < numPaths; i++) {
-            absPaths[i] = createTempDir().toAbsolutePath().toString();
-        }
-        return absPaths;
-    }
+
 
     public NodeEnvironment newNodeEnvironment() throws IOException {
         return newNodeEnvironment(ImmutableSettings.EMPTY);

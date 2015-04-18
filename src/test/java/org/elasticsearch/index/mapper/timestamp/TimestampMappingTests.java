@@ -51,7 +51,7 @@ import java.util.Map;
 
 import static org.elasticsearch.Version.V_1_5_0;
 import static org.elasticsearch.Version.V_2_0_0;
-import static org.elasticsearch.test.VersionTestUtil.randomVersion;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 

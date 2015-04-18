@@ -562,15 +562,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         });
     }
 
-    public static boolean hasUnclosedWrapper() {
-        for (MockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
-            if (w.isOpen()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     @BeforeClass
     public static void setBeforeClass() throws Exception {
         closeAfterSuite(new Closeable() {
@@ -600,10 +591,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         Thread.setDefaultUncaughtExceptionHandler(defaultHandler);
         Requests.CONTENT_TYPE = XContentType.SMILE;
         Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
-    }
-
-    public static boolean maybeDocValues() {
-        return random().nextBoolean();
     }
 
     private static final List<Version> SORTED_VERSIONS;

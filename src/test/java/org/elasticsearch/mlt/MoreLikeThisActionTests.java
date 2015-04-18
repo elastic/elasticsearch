@@ -215,10 +215,11 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
     @Test
     // See issue https://github.com/elasticsearch/elasticsearch/issues/3252
     public void testNumericField() throws Exception {
+        final String[] numericTypes = new String[]{"byte", "short", "integer", "long"};
         prepareCreate("test").addMapping("type", jsonBuilder()
                     .startObject().startObject("type")
                     .startObject("properties")
-                        .startObject("int_value").field("type", randomNumericType(getRandom())).endObject()
+                        .startObject("int_value").field("type", randomFrom(numericTypes)).endObject()
                         .startObject("string_value").field("type", "string").endObject()
                         .endObject()
                     .endObject().endObject()).execute().actionGet();

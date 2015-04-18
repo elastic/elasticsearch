@@ -34,7 +34,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -49,7 +49,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
  */
-public class XBooleanFilterTests extends ESTestCase {
+public class XBooleanFilterTests extends ElasticsearchTestCase {
 
     private Directory directory;
     private LeafReader reader;

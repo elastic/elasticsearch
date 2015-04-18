@@ -36,10 +36,10 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 
 /** Tests upgrading old document versions from _uid payloads to _version docvalues */
-public class VersionFieldUpgraderTest extends ESTestCase  {
+public class VersionFieldUpgraderTest extends ElasticsearchTestCase  {
     
     /** Simple test: one doc in the old format, check that it looks correct */
     public void testUpgradeOneDocument() throws Exception {

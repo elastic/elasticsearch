@@ -25,7 +25,7 @@ import junit.framework.TestCase;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
 import org.junit.Ignore;
@@ -104,7 +104,7 @@ public class NamingConventionTests extends ElasticsearchTestCase {
                 }
 
                 private boolean isTestCase(Class<?> clazz) {
-                    return ElasticsearchTestCase.class.isAssignableFrom(clazz) || ESTestCase.class.isAssignableFrom(clazz) || ElasticsearchTokenStreamTestCase.class.isAssignableFrom(clazz) || LuceneTestCase.class.isAssignableFrom(clazz);
+                    return ElasticsearchTestCase.class.isAssignableFrom(clazz) || ElasticsearchTestCase.class.isAssignableFrom(clazz) || ElasticsearchTokenStreamTestCase.class.isAssignableFrom(clazz) || LuceneTestCase.class.isAssignableFrom(clazz);
                 }
 
                 private Class<?> loadClass(String filename) throws ClassNotFoundException {
@@ -138,7 +138,7 @@ public class NamingConventionTests extends ElasticsearchTestCase {
 
         String classesToSubclass = Joiner.on(',').join(
                 ElasticsearchTestCase.class.getSimpleName(),
-                ESTestCase.class.getSimpleName(),
+                ElasticsearchTestCase.class.getSimpleName(),
                 ElasticsearchTokenStreamTestCase.class.getSimpleName(),
                 LuceneTestCase.class.getSimpleName());
         assertTrue("Not all subclasses of " + ElasticsearchTestCase.class.getSimpleName() +
@@ -161,7 +161,7 @@ public class NamingConventionTests extends ElasticsearchTestCase {
 
     public static final class WrongName extends ElasticsearchTestCase {}
 
-    public static final class WrongNameTheSecond extends ESTestCase {}
+    public static final class WrongNameTheSecond extends ElasticsearchTestCase {}
 
     public static final class PlainUnit extends TestCase {}
 

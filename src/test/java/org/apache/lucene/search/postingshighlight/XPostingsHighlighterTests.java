@@ -28,7 +28,7 @@ import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.BufferedReader;
@@ -41,7 +41,7 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.*;
 
-public class XPostingsHighlighterTests extends ESTestCase {
+public class XPostingsHighlighterTests extends ElasticsearchTestCase {
 
     /*
     Tests changes needed to make possible to perform discrete highlighting.

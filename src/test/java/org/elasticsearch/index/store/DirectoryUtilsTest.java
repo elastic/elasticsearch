@@ -19,7 +19,7 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.*;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -29,7 +29,7 @@ import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.*;
 
-public class DirectoryUtilsTest extends ESTestCase {
+public class DirectoryUtilsTest extends ElasticsearchTestCase {
 
     @Test
     public void testGetLeave() throws IOException {

@@ -36,7 +36,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.is;
 
 /**
  */
-public class FreqTermsEnumTests extends ESTestCase {
+public class FreqTermsEnumTests extends ElasticsearchTestCase {
 
     private String[] terms;
     private IndexWriter iw;

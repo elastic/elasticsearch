@@ -25,7 +25,7 @@ import com.carrotsearch.randomizedtesting.TraceFormatting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.junit.internal.AssumptionViolatedException;

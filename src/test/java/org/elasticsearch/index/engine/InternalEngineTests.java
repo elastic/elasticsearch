@@ -90,7 +90,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogSizeMatcher;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.test.DummyShardLock;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
@@ -118,7 +118,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 // TODO: this guy isn't ready for mock filesystems yet
 @SuppressFileSystems("*")
-public class InternalEngineTests extends ESTestCase {
+public class InternalEngineTests extends ElasticsearchTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 

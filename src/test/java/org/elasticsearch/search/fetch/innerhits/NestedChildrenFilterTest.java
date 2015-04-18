@@ -34,7 +34,7 @@ import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext.NestedInnerHits.NestedChildrenFilter;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class NestedChildrenFilterTest extends ESTestCase {
+public class NestedChildrenFilterTest extends ElasticsearchTestCase {
 
     @Test
     public void testNestedChildrenFilter() throws Exception {

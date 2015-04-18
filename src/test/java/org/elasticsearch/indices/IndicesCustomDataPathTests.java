@@ -44,7 +44,6 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for custom data path locations and templates
  */
-@LuceneTestCase.SuppressFileSystems("ExtrasFS") //TODO: assertPathHasBeenCleared seems like a bad method altogether, should it be agnostic to extra files that already existed?
 public class IndicesCustomDataPathTests extends ElasticsearchIntegrationTest {
 
     private String path;

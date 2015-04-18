@@ -40,13 +40,11 @@ import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
-import org.apache.lucene.util.LuceneTestCase.Nightly;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.DjbHashFunction;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -177,30 +175,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
      * The child JVM ordinal of this JVM. Default is <tt>0</tt>
      */
     public static final int CHILD_JVM_ID = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_ID, "0"));
-
-    /**
-     * Annotation for backwards compat tests
-     */
-    @Inherited
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target(ElementType.TYPE)
-    @TestGroup(enabled = false, sysProperty = TESTS_BACKWARDS_COMPATIBILITY)
-    public @interface Backwards {
-    }
-
-    /**
-     * Key used to set the path for the elasticsearch executable used to run backwards compatibility tests from
-     * via the commandline -D{@value #TESTS_BACKWARDS_COMPATIBILITY}
-     */
-    public static final String TESTS_BACKWARDS_COMPATIBILITY = "tests.bwc";
-
-    public static final String TESTS_BACKWARDS_COMPATIBILITY_VERSION = "tests.bwc.version";
-
-    /**
-     * Key used to set the path for the elasticsearch executable used to run backwards compatibility tests from
-     * via the commandline -D{@value #TESTS_BACKWARDS_COMPATIBILITY_PATH}
-     */
-    public static final String TESTS_BACKWARDS_COMPATIBILITY_PATH = "tests.bwc.path";
 
     /**
      * Annotation for REST tests
@@ -434,12 +408,7 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
 
-    /**
-     * Property that allows to adapt the tests behaviour to older features/bugs based on the input version
-     */
-    private static final String TESTS_COMPATIBILITY = "tests.compatibility";
 
-    private static final Version GLOABL_COMPATIBILITY_VERSION = Version.fromString(compatibilityVersionProperty());
 
     static {
         SecurityHack.ensureInitialized();
@@ -800,55 +769,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
 
     public static String[] generateRandomStringArray(int maxArraySize, int maxStringSize) {
         return generateRandomStringArray(maxArraySize, maxStringSize, false);
-    }
-
-
-    /**
-     * If a test is annotated with {@link org.elasticsearch.test.ElasticsearchTestCase.CompatibilityVersion}
-     * all randomized settings will only contain settings or mappings which are compatible with the specified version ID.
-     */
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target({ElementType.TYPE})
-    @Ignore
-    public @interface CompatibilityVersion {
-        int version();
-    }
-
-    /**
-     * Returns a global compatibility version that is set via the
-     * {@value #TESTS_COMPATIBILITY} or {@value #TESTS_BACKWARDS_COMPATIBILITY_VERSION} system property.
-     * If both are unset the current version is used as the global compatibility version. This
-     * compatibility version is used for static randomization. For per-suite compatibility version see
-     * {@link #compatibilityVersion()}
-     */
-    public static Version globalCompatibilityVersion() {
-        return GLOABL_COMPATIBILITY_VERSION;
-    }
-
-    /**
-     * Retruns the tests compatibility version.
-     */
-    public Version compatibilityVersion() {
-        return compatibilityVersion(getClass());
-    }
-
-    private Version compatibilityVersion(Class<?> clazz) {
-        if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
-            return globalCompatibilityVersion();
-        }
-        CompatibilityVersion annotation = clazz.getAnnotation(CompatibilityVersion.class);
-        if (annotation != null) {
-            return Version.smallest(Version.fromId(annotation.version()), compatibilityVersion(clazz.getSuperclass()));
-        }
-        return compatibilityVersion(clazz.getSuperclass());
-    }
-
-    private static String compatibilityVersionProperty() {
-        final String version = System.getProperty(TESTS_COMPATIBILITY);
-        if (Strings.hasLength(version)) {
-            return version;
-        }
-        return System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_VERSION);
     }
 
 

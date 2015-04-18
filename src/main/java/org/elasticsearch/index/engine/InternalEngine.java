@@ -597,7 +597,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public boolean syncCommitIfNoPendingChanges(String syncId, byte[] expectedCommitId) throws EngineException {
+    public boolean syncFlushIfNoPendingChanges(String syncId, byte[] expectedCommitId) throws EngineException {
         // best effort attempt before we aquire locks
         ensureOpen();
         if (indexWriter.hasUncommittedChanges()) {

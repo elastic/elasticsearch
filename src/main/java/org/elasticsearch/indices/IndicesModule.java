@@ -20,7 +20,6 @@
 package org.elasticsearch.indices;
 
 import com.google.common.collect.ImmutableList;
-
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
@@ -69,6 +68,7 @@ public class IndicesModule extends AbstractModule implements SpawnModules {
         bind(IndicesStore.class).asEagerSingleton();
         bind(IndicesClusterStateService.class).asEagerSingleton();
         bind(IndexingMemoryController.class).asEagerSingleton();
+        bind(SyncedFlushService.class).asEagerSingleton();
         bind(IndicesFilterCache.class).asEagerSingleton();
         bind(IndicesQueryCache.class).asEagerSingleton();
         bind(IndicesFieldDataCache.class).asEagerSingleton();

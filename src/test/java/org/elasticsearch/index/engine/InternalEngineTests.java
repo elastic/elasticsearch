@@ -671,7 +671,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         searchResult.close();
     }
 
-    public void testSyncCommit() throws IOException {
+    public void testSyncedFlush() throws IOException {
         final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc));
@@ -679,11 +679,11 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         assertThat(commitID, equalTo(store.readLastCommittedSegmentsInfo().getId()));
         byte[] fakeId = commitID.clone();
         fakeId[0] = (byte) ~fakeId[0];
-        assertFalse("should fail to sync commit with wrong id (but no docs)", engine.syncCommitIfNoPendingChanges(syncId + "1", fakeId));
+        assertFalse("should fail to sync flush with wrong id (but no docs)", engine.syncFlushIfNoPendingChanges(syncId + "1", fakeId));
         engine.create(new Engine.Create(null, newUid("2"), doc));
-        assertFalse("should fail to sync commit with right id but pending doc", engine.syncCommitIfNoPendingChanges(syncId + "2", commitID));
+        assertFalse("should fail to sync flush with right id but pending doc", engine.syncFlushIfNoPendingChanges(syncId + "2", commitID));
         commitID = engine.flush();
-        assertTrue("should succeed to sync commit with right id and no pending doc", engine.syncCommitIfNoPendingChanges(syncId, commitID));
+        assertTrue("should succeed to flush commit with right id and no pending doc", engine.syncFlushIfNoPendingChanges(syncId, commitID));
         assertThat(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncId));
     }
 

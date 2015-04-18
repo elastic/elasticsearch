@@ -16,23 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.shard;
+package org.elasticsearch.indices;
 
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.ShardId;
 
-public class SyncCommitService extends AbstractIndexShardComponent {
+public class SyncedFlushService extends AbstractComponent {
 
-    private final IndexShard indexShard;
+    private final IndicesService indicesService;
 
     @Inject
-    public SyncCommitService(ShardId shardId, @IndexSettings Settings indexSettings, IndexShard indexShard) {
-        super(shardId, indexSettings);
-        this.indexShard = indexShard;
+    public SyncedFlushService(Settings settings, IndicesService indicesService) {
+        super(settings);
+        this.indicesService = indicesService;
     }
 
-    public boolean attemptSyncCommit() {
+    public boolean attemptSyncedFlush(ShardId shardId) {
         throw new UnsupportedOperationException("not so fast");
     }
 }

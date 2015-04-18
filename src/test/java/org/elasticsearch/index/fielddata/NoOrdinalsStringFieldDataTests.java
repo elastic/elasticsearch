@@ -21,7 +21,6 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
@@ -31,7 +30,6 @@ import org.junit.Test;
 
 /** Returns an implementation based on paged bytes which doesn't implement WithOrdinals in order to visit different paths in the code,
  *  eg. BytesRefFieldComparatorSource makes decisions based on whether the field data implements WithOrdinals. */
-@Slow
 public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTests {
 
     public static IndexFieldData<AtomicFieldData> hideOrdinals(final IndexFieldData<?> in) {

@@ -20,7 +20,6 @@ package org.elasticsearch.validate;
 
 import com.google.common.base.Charsets;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.client.Client;
@@ -61,7 +60,6 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @ClusterScope(randomDynamicTemplates = false, scope = Scope.SUITE)
-@Slow
 public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
 
     static Boolean hasFilterCache;

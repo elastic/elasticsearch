@@ -26,7 +26,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -69,7 +68,6 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-@Slow
 public class SimpleSortTests extends ElasticsearchIntegrationTest {
 
     @TestLogging("action.search.type:TRACE")
@@ -1024,7 +1022,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
     }
 
-    @Test
+    @Test @Slow
     public void testSortMissingStrings() throws ElasticsearchException, IOException {
         assertAcked(prepareCreate("test").addMapping("type1",
                 XContentFactory.jsonBuilder()
@@ -1056,6 +1054,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         flush();
         refresh();
 
+        // TODO: WTF?
         try {
             Thread.sleep(2000);
         } catch (InterruptedException e) {

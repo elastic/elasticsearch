@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test.test;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.TestCluster;
 import org.junit.Test;
@@ -32,7 +31,6 @@ import static org.hamcrest.Matchers.equalTo;
  * the tests random sequence due to initializtion using the same random instance.
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
-@Slow
 public class TestScopeClusterTests extends ElasticsearchIntegrationTest {
     private static int ITER = 0;
     private static long[] SEQUENCE = new long[100];

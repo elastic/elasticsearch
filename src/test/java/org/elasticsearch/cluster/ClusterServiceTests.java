@@ -21,7 +21,6 @@ package org.elasticsearch.cluster;
 import com.google.common.base.Predicate;
 import com.google.common.util.concurrent.ListenableFuture;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
@@ -55,7 +54,6 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-@Slow
 public class ClusterServiceTests extends ElasticsearchIntegrationTest {
 
     @Test
@@ -605,7 +603,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         block2.countDown();
     }
 
-    @Test
+    @Test @Slow
     public void testLocalNodeMasterListenerCallbacks() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")

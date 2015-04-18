@@ -20,7 +20,6 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Maps;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptResponse;
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
@@ -53,7 +52,6 @@ import static org.hamcrest.Matchers.is;
  * Full integration test of the template query plugin.
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
-@Slow
 public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
     @Before

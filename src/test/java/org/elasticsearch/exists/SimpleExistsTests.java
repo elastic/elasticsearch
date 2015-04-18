@@ -19,7 +19,6 @@
 
 package org.elasticsearch.exists;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -30,7 +29,6 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 
-@Slow
 public class SimpleExistsTests extends ElasticsearchIntegrationTest {
 
 

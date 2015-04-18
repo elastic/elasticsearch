@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.script;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
@@ -32,7 +31,6 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
-@Slow
 public class ScriptIndexSettingsTest extends ElasticsearchIntegrationTest{
 
 

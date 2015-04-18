@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
@@ -51,7 +50,6 @@ import static org.hamcrest.core.IsNull.nullValue;
  *
  */
 @ElasticsearchIntegrationTest.SuiteScopeTest
-@Slow
 public class IPv4RangeTests extends ElasticsearchIntegrationTest {
 
     @Override

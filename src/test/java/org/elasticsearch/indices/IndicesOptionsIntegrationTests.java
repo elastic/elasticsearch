@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.indices;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
@@ -66,7 +65,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
-@Slow
 public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Test

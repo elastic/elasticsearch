@@ -22,14 +22,12 @@ package org.elasticsearch.action.bulk;
 
 import com.google.common.base.Charsets;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 
-@Slow
 public class BulkIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Test

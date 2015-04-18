@@ -19,7 +19,6 @@
 
 package org.elasticsearch.update;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -57,7 +56,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.*;
 
-@Slow
 public class UpdateTests extends ElasticsearchIntegrationTest {
 
     private void createTestIndex() throws Exception {

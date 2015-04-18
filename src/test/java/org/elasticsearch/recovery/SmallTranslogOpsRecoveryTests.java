@@ -19,14 +19,12 @@
 
 package org.elasticsearch.recovery;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
 /**
  *
  */
-@Slow
 public class SmallTranslogOpsRecoveryTests extends SimpleRecoveryTests {
 
     @Override

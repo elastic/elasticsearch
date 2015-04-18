@@ -21,7 +21,6 @@ package org.elasticsearch.action.bulk;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
@@ -48,7 +47,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
-@Slow
 public class BulkProcessorTests extends ElasticsearchIntegrationTest {
 
     @Test

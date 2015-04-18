@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.scriptfilter;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -44,7 +43,6 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope=ElasticsearchIntegrationTest.Scope.SUITE)
-@Slow
 public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
 
     @Override

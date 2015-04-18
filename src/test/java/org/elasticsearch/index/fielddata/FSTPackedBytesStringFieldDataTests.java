@@ -19,13 +19,11 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 
 /**
  */
-@Slow
 public class FSTPackedBytesStringFieldDataTests extends AbstractStringFieldDataTests {
 
     @Override

@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import com.carrotsearch.hppc.LongOpenHashSet;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.apache.tools.ant.filters.TokenFilter.ContainsString;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -63,7 +62,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
  *
  */
 @ElasticsearchIntegrationTest.SuiteScopeTest
-@Slow
 public class HistogramTests extends ElasticsearchIntegrationTest {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "l_value";

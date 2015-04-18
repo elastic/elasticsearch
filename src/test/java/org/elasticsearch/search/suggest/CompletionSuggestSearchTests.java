@@ -22,7 +22,6 @@ import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Lists;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
@@ -69,7 +68,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.*;
 
-@Slow
 public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     private final String INDEX = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);

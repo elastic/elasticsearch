@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -33,7 +32,6 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.hamcrest.Matchers.equalTo;
 
-@Slow
 public class ShardSizeTermsTests extends ShardSizeTests {
 
     @Test

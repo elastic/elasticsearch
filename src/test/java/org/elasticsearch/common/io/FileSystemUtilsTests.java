@@ -49,8 +49,8 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
     @Before
     public void copySourceFilesToTarget() throws IOException, URISyntaxException {
-        src = newTempDirPath();
-        dst = newTempDirPath();
+        src = createTempDir();
+        dst = createTempDir();
         Files.createDirectories(src);
         Files.createDirectories(dst);
 
@@ -89,7 +89,7 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
     @Test
     public void testMoveOverExistingFileAndIgnore() throws IOException {
-        Path dest = newTempDirPath();
+        Path dest = createTempDir();
 
         FileSystemUtils.moveFilesWithoutOverwriting(src.resolve("v1"), dest, null);
         assertFileContent(dest, "file1.txt", "version1");
@@ -117,7 +117,7 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
     @Test
     public void testMoveFilesDoesNotCreateSameFileWithSuffix() throws Exception {
-        Path[] dirs = new Path[] { newTempDirPath(), newTempDirPath(), newTempDirPath()};
+        Path[] dirs = new Path[] { createTempDir(), createTempDir(), createTempDir()};
         for (Path dir : dirs) {
             Files.write(dir.resolve("file1.txt"), "file1".getBytes(Charsets.UTF_8));
             Files.createDirectory(dir.resolve("dir"));

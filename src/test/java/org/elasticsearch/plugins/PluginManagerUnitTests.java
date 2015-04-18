@@ -40,8 +40,8 @@ public class PluginManagerUnitTests extends ElasticsearchTestCase {
     @Test
     public void testThatConfigDirectoryCanBeOutsideOfElasticsearchHomeDirectory() throws IOException {
         String pluginName = randomAsciiOfLength(10);
-        Path homeFolder = newTempDirPath();
-        Path genericConfigFolder = newTempDirPath();
+        Path homeFolder = createTempDir();
+        Path genericConfigFolder = createTempDir();
 
         Settings settings = settingsBuilder()
                 .put("path.conf", genericConfigFolder)

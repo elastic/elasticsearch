@@ -271,27 +271,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     // -----------------------------------------------------------------
     // Test facilities and facades for subclasses. 
     // -----------------------------------------------------------------
-
-    /**
-     * Registers a {@link Closeable} resource that should be closed after the test
-     * completes.
-     *
-     * @return <code>resource</code> (for call chaining).
-     */
-    @Override
-    public <T extends Closeable> T closeAfterTest(T resource) {
-        return RandomizedContext.current().closeAtEnd(resource, LifecycleScope.TEST);
-    }
-
-    /**
-     * Registers a {@link Closeable} resource that should be closed after the suite
-     * completes.
-     *
-     * @return <code>resource</code> (for call chaining).
-     */
-    public static <T extends Closeable> T closeAfterSuite(T resource) {
-        return RandomizedContext.current().closeAtEnd(resource, LifecycleScope.SUITE);
-    }
     
     // old helper stuff, a lot of it is bad news and we should see if its all used
     
@@ -900,24 +879,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         return ThreadPool.terminate(service, 10, TimeUnit.SECONDS);
     }
     
-    // TODO: these method names stink, but are a temporary solution.
-    // see https://github.com/carrotsearch/randomizedtesting/pull/178
-
-    /**
-     * Returns a temporary file
-     * @throws IOException 
-     */
-    public Path newTempFilePath() throws IOException {
-        return createTempFile();
-    }
-    
-    /**
-     * Returns a temporary directory
-     */
-    public Path newTempDirPath() {
-        return createTempDir();
-    }
-
     /**
      * Returns a random number of temporary paths.
      */
@@ -925,7 +886,7 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         final int numPaths = TestUtil.nextInt(random(), 1, 3);
         final String[] absPaths = new String[numPaths];
         for (int i = 0; i < numPaths; i++) {
-            absPaths[i] = newTempDirPath().toAbsolutePath().toString();
+            absPaths[i] = createTempDir().toAbsolutePath().toString();
         }
         return absPaths;
     }
@@ -937,7 +898,7 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
         Settings build = ImmutableSettings.builder()
                 .put(settings)
-                .put("path.home", newTempDirPath().toAbsolutePath())
+                .put("path.home", createTempDir().toAbsolutePath())
                 .putArray("path.data", tmpPaths()).build();
         return new NodeEnvironment(build, new Environment(build));
     }

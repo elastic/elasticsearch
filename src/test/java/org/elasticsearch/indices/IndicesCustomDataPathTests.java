@@ -51,7 +51,7 @@ public class IndicesCustomDataPathTests extends ElasticsearchIntegrationTest {
 
     @Before
     public void setup() {
-        path = newTempDirPath().toAbsolutePath().toString();
+        path = createTempDir().toAbsolutePath().toString();
     }
 
     @After
@@ -63,7 +63,7 @@ public class IndicesCustomDataPathTests extends ElasticsearchIntegrationTest {
     @TestLogging("_root:DEBUG,index:TRACE")
     public void testDataPathCanBeChanged() throws Exception {
         final String INDEX = "idx";
-        Path root = newTempDirPath();
+        Path root = createTempDir();
         Path startDir = root.resolve("start");
         Path endDir = root.resolve("end");
         logger.info("--> start dir: [{}]", startDir.toAbsolutePath().toString());

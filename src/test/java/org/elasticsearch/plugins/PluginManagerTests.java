@@ -287,7 +287,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         Settings settings = ImmutableSettings.settingsBuilder()
             .put("discovery.zen.ping.multicast.enabled", false)
             .put("http.enabled", true)
-            .put("path.home", newTempDirPath()).build();
+            .put("path.home", createTempDir()).build();
         return InternalSettingsPreparer.prepareSettings(settings, false);
     }
 

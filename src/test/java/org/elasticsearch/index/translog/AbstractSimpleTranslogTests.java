@@ -67,7 +67,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        translogDir = newTempDirPath();
+        translogDir = createTempDir();
         translog = create(translogDir);
         translog.newTranslog(1);
     }

@@ -355,7 +355,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
         final int numPaths = randomIntBetween(1, 3);
         final String[] absPaths = new String[numPaths];
         for (int i = 0; i < numPaths; i++) {
-            absPaths[i] = newTempDirPath().toAbsolutePath().toString();
+            absPaths[i] = createTempDir().toAbsolutePath().toString();
         }
         return absPaths;
     }
@@ -369,7 +369,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
         Settings build = ImmutableSettings.builder()
                 .put(settings)
-                .put("path.home", newTempDirPath().toAbsolutePath().toString())
+                .put("path.home", createTempDir().toAbsolutePath().toString())
                 .put(NodeEnvironment.SETTING_CUSTOM_DATA_PATH_ENABLED, true)
                 .putArray("path.data", tmpPaths()).build();
         return new NodeEnvironment(build, new Environment(build));
@@ -378,7 +378,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
     public NodeEnvironment newNodeEnvironment(String[] dataPaths, Settings settings) throws IOException {
         Settings build = ImmutableSettings.builder()
                 .put(settings)
-                .put("path.home", newTempDirPath().toAbsolutePath().toString())
+                .put("path.home", createTempDir().toAbsolutePath().toString())
                 .put(NodeEnvironment.SETTING_CUSTOM_DATA_PATH_ENABLED, true)
                 .putArray("path.data", dataPaths).build();
         return new NodeEnvironment(build, new Environment(build));

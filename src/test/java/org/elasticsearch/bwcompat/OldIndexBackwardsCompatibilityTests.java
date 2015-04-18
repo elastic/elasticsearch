@@ -112,7 +112,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     void setupCluster() throws Exception {
         ListenableFuture<List<String>> replicas = internalCluster().startNodesAsync(1); // for replicas
 
-        Path baseTempDir = newTempDirPath();
+        Path baseTempDir = createTempDir();
         // start single data path node
         ImmutableSettings.Builder nodeSettings = ImmutableSettings.builder()
             .put("path.data", baseTempDir.resolve("single-path").toAbsolutePath())
@@ -148,7 +148,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     }
 
     String loadIndex(String indexFile) throws Exception {
-        Path unzipDir = newTempDirPath();
+        Path unzipDir = createTempDir();
         Path unzipDataDir = unzipDir.resolve("data");
         String indexName = indexFile.replace(".zip", "").toLowerCase(Locale.ROOT);
 

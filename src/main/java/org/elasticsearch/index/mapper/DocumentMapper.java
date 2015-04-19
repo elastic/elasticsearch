@@ -24,8 +24,9 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.util.BitDocIdSet;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -41,21 +42,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.Mapping.SourceTransform;
-import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.internal.IdFieldMapper;
-import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.internal.SizeFieldMapper;
-import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
-import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
-import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
+import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.script.ExecutableScript;
@@ -63,14 +51,10 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -352,15 +336,29 @@ public class DocumentMapper implements ToXContent {
     /**
      * Returns the best nested {@link ObjectMapper} instances that is in the scope of the specified nested docId.
      */
-    public ObjectMapper findNestedObjectMapper(int nestedDocId, BitsetFilterCache cache, LeafReaderContext context) throws IOException {
+    public ObjectMapper findNestedObjectMapper(int nestedDocId, SearchContext sc, LeafReaderContext context) throws IOException {
         ObjectMapper nestedObjectMapper = null;
         for (ObjectMapper objectMapper : objectMappers().values()) {
             if (!objectMapper.nested().isNested()) {
                 continue;
             }
 
-            BitDocIdSet nestedTypeBitSet = cache.getBitDocIdSetFilter(objectMapper.nestedTypeFilter()).getDocIdSet(context);
-            if (nestedTypeBitSet != null && nestedTypeBitSet.bits().get(nestedDocId)) {
+            Filter filter = sc.filterCache().cache(objectMapper.nestedTypeFilter(), null, sc.queryParserService().autoFilterCachePolicy());
+            if (filter == null) {
+                continue;
+            }
+            // We can pass down 'null' as acceptedDocs, because nestedDocId is a doc to be fetched and
+            // therefor is guaranteed to be a live doc.
+            DocIdSet nestedTypeSet = filter.getDocIdSet(context, null);
+            if (nestedTypeSet == null) {
+                continue;
+            }
+            DocIdSetIterator iterator = nestedTypeSet.iterator();
+            if (iterator == null) {
+                continue;
+            }
+
+            if (iterator.advance(nestedDocId) == nestedDocId) {
                 if (nestedObjectMapper == null) {
                     nestedObjectMapper = objectMapper;
                 } else {

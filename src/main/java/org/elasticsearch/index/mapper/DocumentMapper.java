@@ -27,9 +27,10 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.CloseableThreadLocal;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Booleans;
@@ -45,7 +46,6 @@ import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
 import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
@@ -53,6 +53,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.*;
@@ -598,15 +599,29 @@ public class DocumentMapper implements ToXContent {
     /**
      * Returns the best nested {@link ObjectMapper} instances that is in the scope of the specified nested docId.
      */
-    public ObjectMapper findNestedObjectMapper(int nestedDocId, FixedBitSetFilterCache cache, AtomicReaderContext context) throws IOException {
+    public ObjectMapper findNestedObjectMapper(int nestedDocId, SearchContext sc, AtomicReaderContext context) throws IOException {
         ObjectMapper nestedObjectMapper = null;
         for (ObjectMapper objectMapper : objectMappers().values()) {
             if (!objectMapper.nested().isNested()) {
                 continue;
             }
 
-            FixedBitSet nestedTypeBitSet = cache.getFixedBitSetFilter(objectMapper.nestedTypeFilter()).getDocIdSet(context, null);
-            if (nestedTypeBitSet != null && nestedTypeBitSet.get(nestedDocId)) {
+            Filter filter = sc.filterCache().cache(objectMapper.nestedTypeFilter());
+            if (filter == null) {
+                continue;
+            }
+            // We can pass down 'null' as acceptedDocs, because nestedDocId is a doc to be fetched and
+            // therefor is guaranteed to be a live doc.
+            DocIdSet nestedTypeSet = filter.getDocIdSet(context, null);
+            if (nestedTypeSet == null) {
+                continue;
+            }
+            DocIdSetIterator iterator = nestedTypeSet.iterator();
+            if (iterator == null) {
+                continue;
+            }
+
+            if (iterator.advance(nestedDocId) == nestedDocId) {
                 if (nestedObjectMapper == null) {
                     nestedObjectMapper = objectMapper;
                 } else {

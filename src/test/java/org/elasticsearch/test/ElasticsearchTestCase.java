@@ -29,6 +29,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.base.Predicate;
+
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
@@ -64,6 +65,7 @@ import org.junit.BeforeClass;
 import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.nio.file.FileSystem;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -107,10 +109,12 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
 
     // TODO: Parent/child and other things does not work with the query cache
     // We must disable query cache for both suite and test to override lucene, but LTC resets it after the suite
+    
     @BeforeClass
     public static void disableQueryCacheSuite() {
         IndexSearcher.setDefaultQueryCache(null);
     }
+    
     @Before
     public final void disableQueryCache() {
         IndexSearcher.setDefaultQueryCache(null);
@@ -118,12 +122,16 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
+    
     @BeforeClass
     public static void setFileSystem() throws Exception {
         Field field = PathUtils.class.getDeclaredField("DEFAULT");
         field.setAccessible(true);
-        field.set(null, LuceneTestCase.getBaseTempDirForTestClass().getFileSystem());
+        FileSystem mock = LuceneTestCase.getBaseTempDirForTestClass().getFileSystem();
+        field.set(null, mock);
+        assertEquals(mock, PathUtils.getDefaultFileSystem());
     }
+    
     @AfterClass
     public static void restoreFileSystem() throws Exception {
         Field field1 = PathUtils.class.getDeclaredField("ACTUAL_DEFAULT");
@@ -135,22 +143,26 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
 
     // setup a default exception handler which knows when and how to print a stacktrace
     private static Thread.UncaughtExceptionHandler defaultHandler;
+    
     @BeforeClass
     public static void setDefaultExceptionHandler() throws Exception {
         defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler(defaultHandler));
     }
+    
     @AfterClass
     public static void restoreDefaultExceptionHandler() throws Exception {
         Thread.setDefaultUncaughtExceptionHandler(defaultHandler);
     }
 
     // randomize content type for request builders
+    
     @BeforeClass
     public static void setContentType() throws Exception {
         Requests.CONTENT_TYPE = randomFrom(XContentType.values());
         Requests.INDEX_CONTENT_TYPE = randomFrom(XContentType.values());
     }
+    
     @AfterClass
     public static void restoreContentType() {
         Requests.CONTENT_TYPE = XContentType.SMILE;
@@ -158,17 +170,23 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     }
     
     // randomize and override the number of cpus so tests reproduce regardless of real number of cpus
+    
     @BeforeClass
     public static void setProcessors() {
         int numCpu = TestUtil.nextInt(random(), 1, 4);
         System.setProperty(EsExecutors.DEFAULT_SYSPROP, Integer.toString(numCpu));
         assertEquals(numCpu, EsExecutors.boundedNumberOfProcessors(ImmutableSettings.EMPTY));
     }
+    
     @AfterClass
     public static void restoreProcessors() {
         System.clearProperty(EsExecutors.DEFAULT_SYSPROP);
     }
 
+    // check some things (like MockDirectoryWrappers) are closed where we currently
+    // manage them. TODO: can we add these to LuceneTestCase.closeAfterSuite directly?
+    // or something else simpler instead of the fake closeables?
+    
     @BeforeClass
     public static void setAfterSuiteAssertions() throws Exception {
         closeAfterSuite(new Closeable() {
@@ -205,12 +223,17 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         });
     }
     
+    // mockdirectorywrappers currently set this boolean if checkindex fails
+    // TODO: can we do this cleaner???
+    
     /** MockFSDirectoryService sets this: */
     public static boolean checkIndexFailed;
+    
     @Before
     public final void resetCheckIndexStatus() throws Exception {
         checkIndexFailed = false;
     }
+    
     @After
     public final void ensureCheckIndexPassed() throws Exception {
         assertFalse("at least one shard failed CheckIndex", checkIndexFailed);

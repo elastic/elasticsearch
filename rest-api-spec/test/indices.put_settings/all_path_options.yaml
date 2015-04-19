@@ -81,7 +81,7 @@ setup:
 ---
 "put settings in list of indices":
   - skip:
-      version: 0 - 999
+      version: " - "
       reason:  list of indices not implemented yet
   - do:
       indices.put_settings:

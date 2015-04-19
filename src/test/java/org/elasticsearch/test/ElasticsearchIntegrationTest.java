@@ -1889,7 +1889,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     private static void initializeSuiteScope() throws Exception {
-        Class<?> targetClass = getContext().getTargetClass();
+        Class<?> targetClass = getTestClass();
         /**
          * Note we create these test class instance via reflection
          * since JUnit creates a new instance per test and that is also

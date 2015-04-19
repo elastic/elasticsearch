@@ -74,7 +74,7 @@ public class RestTestParserTests extends ElasticsearchTestCase {
                         "\"Get type mapping - pre 1.0\":\n" +
                         "\n" +
                         "  - skip:\n" +
-                        "      version:     \"0.90.9 - 999\"\n" +
+                        "      version:     \"0.90.9 - \"\n" +
                         "      reason:      \"for newer versions the index name is always returned\"\n" +
                         "\n" +
                         "  - do:\n" +

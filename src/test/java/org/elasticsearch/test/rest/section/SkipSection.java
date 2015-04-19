@@ -105,8 +105,8 @@ public class SkipSection {
         String lower = skipVersions[0].trim();
         String upper = skipVersions[1].trim();
         return new Version[] {
-            lower.equals("0") ? VersionUtils.getFirstVersion() : Version.fromString(lower),
-            upper.equals("999") ? Version.CURRENT : Version.fromString(upper)
+            lower.isEmpty() ? VersionUtils.getFirstVersion() : Version.fromString(lower),
+            upper.isEmpty() ? Version.CURRENT : Version.fromString(upper)
         };
     }
 }

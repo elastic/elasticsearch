@@ -23,6 +23,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -281,7 +283,7 @@ public class FetchPhase implements SearchPhase {
         context.lookup().setNextReader(subReaderContext);
         context.lookup().setNextDocId(nestedSubDocId);
 
-        ObjectMapper nestedObjectMapper = documentMapper.findNestedObjectMapper(nestedSubDocId, context.fixedBitSetFilterCache(), subReaderContext);
+        ObjectMapper nestedObjectMapper = documentMapper.findNestedObjectMapper(nestedSubDocId, context, subReaderContext);
         assert nestedObjectMapper != null;
         InternalSearchHit.InternalNestedIdentity nestedIdentity = getInternalNestedIdentity(context, nestedSubDocId, subReaderContext, documentMapper, nestedObjectMapper);
 
@@ -368,36 +370,54 @@ public class FetchPhase implements SearchPhase {
     private InternalSearchHit.InternalNestedIdentity getInternalNestedIdentity(SearchContext context, int nestedSubDocId, AtomicReaderContext subReaderContext, DocumentMapper documentMapper, ObjectMapper nestedObjectMapper) throws IOException {
         int currentParent = nestedSubDocId;
         ObjectMapper nestedParentObjectMapper;
+        StringBuilder field = new StringBuilder();
+        ObjectMapper current = nestedObjectMapper;
         InternalSearchHit.InternalNestedIdentity nestedIdentity = null;
         do {
-            String field;
             Filter parentFilter;
-            nestedParentObjectMapper = documentMapper.findParentObjectMapper(nestedObjectMapper);
+            nestedParentObjectMapper = documentMapper.findParentObjectMapper(current);
+            if (field.length() != 0) {
+                field.insert(0, '.');
+            }
+            field.insert(0, current.name());
             if (nestedParentObjectMapper != null) {
-                field = nestedObjectMapper.name();
-                if (!nestedParentObjectMapper.nested().isNested()) {
-                    nestedObjectMapper = nestedParentObjectMapper;
-                    // all right, the parent is a normal object field, so this is the best identiy we can give for that:
-                    nestedIdentity = new InternalSearchHit.InternalNestedIdentity(field, 0, nestedIdentity);
+                if (nestedParentObjectMapper.nested().isNested() == false) {
+                    current = nestedParentObjectMapper;
                     continue;
                 }
                 parentFilter = nestedParentObjectMapper.nestedTypeFilter();
             } else {
-                field = nestedObjectMapper.fullPath();
                 parentFilter = NonNestedDocsFilter.INSTANCE;
+            }
+
+            Filter childFilter = context.filterCache().cache(nestedObjectMapper.nestedTypeFilter());
+            if (childFilter == null) {
+                current = nestedParentObjectMapper;
+                continue;
+            }
+            // We can pass down 'null' as acceptedDocs, because we're fetching matched docId that matched in the query phase.
+            DocIdSet childDocSet = childFilter.getDocIdSet(subReaderContext, null);
+            if (childDocSet == null) {
+                current = nestedParentObjectMapper;
+                continue;
+            }
+            DocIdSetIterator childIter = childDocSet.iterator();
+            if (childIter == null) {
+                current = nestedParentObjectMapper;
+                continue;
             }
 
             FixedBitSet parentBitSet = context.fixedBitSetFilterCache().getFixedBitSetFilter(parentFilter).getDocIdSet(subReaderContext, null);
             int offset = 0;
-            FixedBitSet nestedDocsBitSet = context.fixedBitSetFilterCache().getFixedBitSetFilter(nestedObjectMapper.nestedTypeFilter()).getDocIdSet(subReaderContext, null);
             int nextParent = parentBitSet.nextSetBit(currentParent);
-            for (int docId = nestedDocsBitSet.nextSetBit(currentParent + 1); docId < nextParent && docId != -1; docId = nestedDocsBitSet.nextSetBit(docId + 1)) {
+            for (int docId = childIter.advance(currentParent + 1); docId < nextParent && docId != DocIdSetIterator.NO_MORE_DOCS; docId = childIter.nextDoc()) {
                 offset++;
             }
             currentParent = nextParent;
-            nestedObjectMapper = nestedParentObjectMapper;
-            nestedIdentity = new InternalSearchHit.InternalNestedIdentity(field, offset, nestedIdentity);
-        } while (nestedParentObjectMapper != null);
+            current = nestedObjectMapper = nestedParentObjectMapper;
+            nestedIdentity = new InternalSearchHit.InternalNestedIdentity(field.toString(), offset, nestedIdentity);
+            field = new StringBuilder();
+        } while (current != null);
         return nestedIdentity;
     }
 

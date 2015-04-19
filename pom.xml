@@ -33,6 +33,7 @@
     <properties>
         <lucene.version>5.2.0</lucene.version>
         <lucene.maven.version>5.2.0-snapshot-1674576</lucene.maven.version>
+        <testframework.version>2.1.14</testframework.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
@@ -81,7 +82,7 @@
         <dependency>
             <groupId>com.carrotsearch.randomizedtesting</groupId>
             <artifactId>randomizedtesting-runner</artifactId>
-            <version>2.1.14</version>
+            <version>${testframework.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -502,7 +503,7 @@
             <plugin>
                 <groupId>com.carrotsearch.randomizedtesting</groupId>
                 <artifactId>junit4-maven-plugin</artifactId>
-                <version>2.1.14</version>
+                <version>${testframework.version}</version>
                 <executions>
                     <execution>
                         <id>tests</id>

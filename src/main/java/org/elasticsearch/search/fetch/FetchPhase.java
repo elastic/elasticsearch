@@ -367,23 +367,23 @@ public class FetchPhase implements SearchPhase {
 
     private InternalSearchHit.InternalNestedIdentity getInternalNestedIdentity(SearchContext context, int nestedSubDocId, AtomicReaderContext subReaderContext, DocumentMapper documentMapper, ObjectMapper nestedObjectMapper) throws IOException {
         int currentParent = nestedSubDocId;
+        StringBuilder objectFieldPrefix = new StringBuilder();
+        ObjectMapper current = nestedObjectMapper;
         ObjectMapper nestedParentObjectMapper;
         InternalSearchHit.InternalNestedIdentity nestedIdentity = null;
         do {
-            String field;
-            Filter parentFilter;
-            nestedParentObjectMapper = documentMapper.findParentObjectMapper(nestedObjectMapper);
+            String field = nestedObjectMapper.name();
+            nestedParentObjectMapper = documentMapper.findParentObjectMapper(current);
+
+            final Filter parentFilter;
             if (nestedParentObjectMapper != null) {
-                field = nestedObjectMapper.name();
                 if (!nestedParentObjectMapper.nested().isNested()) {
-                    nestedObjectMapper = nestedParentObjectMapper;
-                    // all right, the parent is a normal object field, so this is the best identiy we can give for that:
-                    nestedIdentity = new InternalSearchHit.InternalNestedIdentity(field, 0, nestedIdentity);
+                    objectFieldPrefix.append(nestedParentObjectMapper.name()).append('.');
+                    current = nestedParentObjectMapper;
                     continue;
                 }
                 parentFilter = nestedParentObjectMapper.nestedTypeFilter();
             } else {
-                field = nestedObjectMapper.fullPath();
                 parentFilter = NonNestedDocsFilter.INSTANCE;
             }
 
@@ -395,7 +395,11 @@ public class FetchPhase implements SearchPhase {
                 offset++;
             }
             currentParent = nextParent;
-            nestedObjectMapper = nestedParentObjectMapper;
+            nestedObjectMapper = current = nestedParentObjectMapper;
+            if (objectFieldPrefix.length() > 0) {
+                field = objectFieldPrefix.append(field).toString();
+                objectFieldPrefix = new StringBuilder();
+            }
             nestedIdentity = new InternalSearchHit.InternalNestedIdentity(field, offset, nestedIdentity);
         } while (nestedParentObjectMapper != null);
         return nestedIdentity;

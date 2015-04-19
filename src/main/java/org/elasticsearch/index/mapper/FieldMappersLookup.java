@@ -19,21 +19,20 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.ForwardingSet;
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
-import org.elasticsearch.common.collect.CopyOnWriteHashSet;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 
 /**
  * A class that holds a map of field mappers from name, index name, and full name.
  */
-public class FieldMappersLookup extends ForwardingSet<FieldMapper<?>> {
+class FieldMappersLookup implements Iterable<FieldMapper<?>> {
 
     private static CopyOnWriteHashMap<String, FieldMappers> add(CopyOnWriteHashMap<String, FieldMappers> map, String key, FieldMapper<?> mapper) {
         FieldMappers mappers = map.get(key);
@@ -45,72 +44,36 @@ public class FieldMappersLookup extends ForwardingSet<FieldMapper<?>> {
         return map.copyAndPut(key, mappers);
     }
 
-    private static CopyOnWriteHashMap<String, FieldMappers> remove(CopyOnWriteHashMap<String, FieldMappers> map, String key, FieldMapper<?> mapper) {
-        FieldMappers mappers = map.get(key);
-        if (mappers == null) {
-            return map;
-        }
-        mappers = mappers.remove(mapper);
-        if (mappers.isEmpty()) {
-            return map.copyAndRemove(key);
-        } else {
-            return map.copyAndPut(key, mappers);
-        }
-    }
-
     private static class MappersLookup {
 
-        final CopyOnWriteHashMap<String, FieldMappers> name, indexName, fullName;
+        final CopyOnWriteHashMap<String, FieldMappers> indexName, fullName;
 
-        MappersLookup(CopyOnWriteHashMap<String, FieldMappers> name, CopyOnWriteHashMap<String,
-                FieldMappers> indexName, CopyOnWriteHashMap<String, FieldMappers> fullName) {
-            this.name = name;
+        MappersLookup(CopyOnWriteHashMap<String, FieldMappers> indexName, CopyOnWriteHashMap<String, FieldMappers> fullName) {
             this.indexName = indexName;
             this.fullName = fullName;
         }
 
         MappersLookup addNewMappers(Iterable<? extends FieldMapper<?>> mappers) {
-            CopyOnWriteHashMap<String, FieldMappers> name = this.name;
             CopyOnWriteHashMap<String, FieldMappers> indexName = this.indexName;
             CopyOnWriteHashMap<String, FieldMappers> fullName = this.fullName;
             for (FieldMapper<?> mapper : mappers) {
-                name = add(name, mapper.names().name(), mapper);
                 indexName = add(indexName, mapper.names().indexName(), mapper);
                 fullName = add(fullName, mapper.names().fullName(), mapper);
             }
-            return new MappersLookup(name, indexName, fullName);
+            return new MappersLookup(indexName, fullName);
         }
-
-        MappersLookup removeMappers(Iterable<?> mappers) {
-            CopyOnWriteHashMap<String, FieldMappers> name = this.name;
-            CopyOnWriteHashMap<String, FieldMappers> indexName = this.indexName;
-            CopyOnWriteHashMap<String, FieldMappers> fullName = this.fullName;
-            for (Object o : mappers) {
-                if (!(o instanceof FieldMapper)) {
-                    continue;
-                }
-                FieldMapper<?> mapper = (FieldMapper<?>) o;
-                name = remove(name, mapper.names().name(), mapper);
-                indexName = remove(indexName, mapper.names().indexName(), mapper);
-                fullName = remove(fullName, mapper.names().fullName(), mapper);
-            }
-            return new MappersLookup(name, indexName, fullName);
-        }
+        
     }
 
-    private final CopyOnWriteHashSet<FieldMapper<?>> mappers;
     private final MappersLookup lookup;
 
     /** Create a new empty instance. */
     public FieldMappersLookup() {
-        this(new CopyOnWriteHashSet<FieldMapper<?>>(),
-             new MappersLookup(new CopyOnWriteHashMap<String, FieldMappers>(),
-                               new CopyOnWriteHashMap<String, FieldMappers>(),
+        this(new MappersLookup(new CopyOnWriteHashMap<String, FieldMappers>(),
                                new CopyOnWriteHashMap<String, FieldMappers>()));
     }
 
-    private FieldMappersLookup(CopyOnWriteHashSet<FieldMapper<?>> mappers, MappersLookup lookup) {
-        this.mappers = mappers;
+    private FieldMappersLookup(MappersLookup lookup) {
         this.lookup = lookup;
     }
 
@@ -118,19 +81,7 @@ public class FieldMappersLookup extends ForwardingSet<FieldMapper<?>> {
      * Return a new instance that contains the union of this instance and the provided mappers.
      */
     public FieldMappersLookup copyAndAddAll(Collection<? extends FieldMapper<?>> newMappers) {
-        return new FieldMappersLookup(mappers.copyAndAddAll(newMappers), lookup.addNewMappers(newMappers));
-    }
-
-    /**
-     * Return a new instance that contains this instance minus the provided mappers.
-     */
-    public FieldMappersLookup copyAndRemoveAll(Collection<?> mappersToRemove) {
-        final CopyOnWriteHashSet<FieldMapper<?>> newMappers = mappers.copyAndRemoveAll(mappersToRemove);
-        if (newMappers != mappers) {
-            return new FieldMappersLookup(newMappers, lookup.removeMappers(mappersToRemove));
-        } else {
-            return this;
-        }
+        return new FieldMappersLookup(lookup.addNewMappers(newMappers));
     }
 
     /**
@@ -152,7 +103,7 @@ public class FieldMappersLookup extends ForwardingSet<FieldMapper<?>> {
      */
     public List<String> simpleMatchToIndexNames(String pattern) {
         List<String> fields = Lists.newArrayList();
-        for (FieldMapper<?> fieldMapper : mappers) {
+        for (FieldMapper<?> fieldMapper : this) {
             if (Regex.simpleMatch(pattern, fieldMapper.names().fullName())) {
                 fields.add(fieldMapper.names().indexName());
             } else if (Regex.simpleMatch(pattern, fieldMapper.names().indexName())) {
@@ -167,7 +118,7 @@ public class FieldMappersLookup extends ForwardingSet<FieldMapper<?>> {
      */
     public List<String> simpleMatchToFullName(String pattern) {
         List<String> fields = Lists.newArrayList();
-        for (FieldMapper<?> fieldMapper : mappers) {
+        for (FieldMapper<?> fieldMapper : this) {
             if (Regex.simpleMatch(pattern, fieldMapper.names().fullName())) {
                 fields.add(fieldMapper.names().fullName());
             } else if (Regex.simpleMatch(pattern, fieldMapper.names().indexName())) {
@@ -181,7 +132,7 @@ public class FieldMappersLookup extends ForwardingSet<FieldMapper<?>> {
      * Tries to find first based on {@link #fullName(String)}, then by {@link #indexName(String)}.
      */
     @Nullable
-    public FieldMappers smartName(String name) {
+    FieldMappers smartName(String name) {
         FieldMappers fieldMappers = fullName(name);
         if (fieldMappers != null) {
             return fieldMappers;
@@ -202,8 +153,28 @@ public class FieldMappersLookup extends ForwardingSet<FieldMapper<?>> {
         return fieldMappers.mapper();
     }
 
-    @Override
-    protected Set<FieldMapper<?>> delegate() {
-        return mappers;
+    public Iterator<FieldMapper<?>> iterator() {
+        final Iterator<FieldMappers> fieldsItr = lookup.fullName.values().iterator();
+        if (fieldsItr.hasNext() == false) {
+            return Collections.emptyIterator();
+        }
+        return new Iterator<FieldMapper<?>>() {
+            Iterator<FieldMapper> fieldValuesItr = fieldsItr.next().iterator();
+            @Override
+            public boolean hasNext() {
+                return fieldsItr.hasNext() || fieldValuesItr.hasNext();
+            }
+            @Override
+            public FieldMapper next() {
+                if (fieldValuesItr.hasNext() == false && fieldsItr.hasNext()) {
+                    fieldValuesItr = fieldsItr.next().iterator();
+                }
+                return fieldValuesItr.next();
+            }
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException("cannot remove field mapper from lookup");
+            }
+        };
     }
 }

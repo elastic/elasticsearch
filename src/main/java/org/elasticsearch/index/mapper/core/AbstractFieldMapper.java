@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -355,16 +354,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
         this.multiFields = multiFields;
         this.copyTo = copyTo;
-    }
-
-    @Nullable
-    protected String defaultPostingFormat() {
-        return null;
-    }
-
-    @Nullable
-    protected String defaultDocValuesFormat() {
-        return null;
     }
     
     protected boolean defaultDocValues() {

@@ -99,26 +99,78 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         SecurityHack.ensureInitialized();
     }
     
-    private static Thread.UncaughtExceptionHandler defaultHandler;
-    
     protected final ESLogger logger = Loggers.getLogger(getClass());
+
+    // -----------------------------------------------------------------
+    // Suite and test case setup/cleanup.
+    // -----------------------------------------------------------------
+
+    // TODO: Parent/child and other things does not work with the query cache
+    // We must disable query cache for both suite and test to override lucene, but LTC resets it after the suite
+    @BeforeClass
+    public static void disableQueryCacheSuite() {
+        IndexSearcher.setDefaultQueryCache(null);
+    }
+    @Before
+    public final void disableQueryCache() {
+        IndexSearcher.setDefaultQueryCache(null);
+    }
     
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
-    
     @BeforeClass
-    public static void setUpFileSystem() {
-        try {
-            Field field = PathUtils.class.getDeclaredField("DEFAULT");
-            field.setAccessible(true);
-            field.set(null, LuceneTestCase.getBaseTempDirForTestClass().getFileSystem());
-        } catch (ReflectiveOperationException e) {
-            throw new RuntimeException();
-        }
+    public static void setFileSystem() throws Exception {
+        Field field = PathUtils.class.getDeclaredField("DEFAULT");
+        field.setAccessible(true);
+        field.set(null, LuceneTestCase.getBaseTempDirForTestClass().getFileSystem());
+    }
+    @AfterClass
+    public static void restoreFileSystem() throws Exception {
+        Field field1 = PathUtils.class.getDeclaredField("ACTUAL_DEFAULT");
+        field1.setAccessible(true);
+        Field field2 = PathUtils.class.getDeclaredField("DEFAULT");
+        field2.setAccessible(true);
+        field2.set(null, field1.get(null));
+    }
+
+    // setup a default exception handler which knows when and how to print a stacktrace
+    private static Thread.UncaughtExceptionHandler defaultHandler;
+    @BeforeClass
+    public static void setDefaultExceptionHandler() throws Exception {
+        defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler(defaultHandler));
+    }
+    @AfterClass
+    public static void restoreDefaultExceptionHandler() throws Exception {
+        Thread.setDefaultUncaughtExceptionHandler(defaultHandler);
+    }
+
+    // randomize content type for request builders
+    @BeforeClass
+    public static void setContentType() throws Exception {
+        Requests.CONTENT_TYPE = randomFrom(XContentType.values());
+        Requests.INDEX_CONTENT_TYPE = randomFrom(XContentType.values());
+    }
+    @AfterClass
+    public static void restoreContentType() {
+        Requests.CONTENT_TYPE = XContentType.SMILE;
+        Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
+    }
+    
+    // randomize and override the number of cpus so tests reproduce regardless of real number of cpus
+    @BeforeClass
+    public static void setProcessors() {
+        int numCpu = TestUtil.nextInt(random(), 1, 4);
+        System.setProperty(EsExecutors.DEFAULT_SYSPROP, Integer.toString(numCpu));
+        assertEquals(numCpu, EsExecutors.boundedNumberOfProcessors(ImmutableSettings.EMPTY));
+    }
+    @AfterClass
+    public static void restoreProcessors() {
+        System.clearProperty(EsExecutors.DEFAULT_SYSPROP);
     }
 
     @BeforeClass
-    public static void setBeforeClass() throws Exception {
+    public static void setAfterSuiteAssertions() throws Exception {
         closeAfterSuite(new Closeable() {
             @Override
             public void close() throws IOException {
@@ -131,56 +183,20 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
                 assertAllSearchersClosed();
             }
         });
-        defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
-        Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler(defaultHandler));
-        Requests.CONTENT_TYPE = randomFrom(XContentType.values());
-        Requests.INDEX_CONTENT_TYPE = randomFrom(XContentType.values());
-    }
-
-    @AfterClass
-    public static void resetAfterClass() {
-        Thread.setDefaultUncaughtExceptionHandler(defaultHandler);
-        Requests.CONTENT_TYPE = XContentType.SMILE;
-        Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
     }
     
-    @AfterClass
-    public static void restoreFileSystem() {
-        try {
-            Field field1 = PathUtils.class.getDeclaredField("ACTUAL_DEFAULT");
-            field1.setAccessible(true);
-            Field field2 = PathUtils.class.getDeclaredField("DEFAULT");
-            field2.setAccessible(true);
-            field2.set(null, field1.get(null));
-        } catch (ReflectiveOperationException e) {
-            throw new RuntimeException();
-        }
-    }
-    
-    @BeforeClass
-    public static void setUpProcessors() {
-        int numCpu = TestUtil.nextInt(random(), 1, 4);
-        System.setProperty(EsExecutors.DEFAULT_SYSPROP, Integer.toString(numCpu));
-        assertEquals(numCpu, EsExecutors.boundedNumberOfProcessors(ImmutableSettings.EMPTY));
-    }
-
-    @AfterClass
-    public static void restoreProcessors() {
-        System.clearProperty(EsExecutors.DEFAULT_SYSPROP);
-    }
-
     @After
-    public void ensureAllPagesReleased() throws Exception {
+    public final void ensureCleanedUp() throws Exception {
         MockPageCacheRecycler.ensureAllPagesAreReleased();
-    }
-
-    @After
-    public void ensureAllArraysReleased() throws Exception {
         MockBigArrays.ensureAllArraysAreReleased();
+        // field cache should NEVER get loaded.
+        String[] entries = UninvertingReader.getUninvertedStats();
+        assertEquals("fieldcache must never be used, got=" + Arrays.toString(entries), 0, entries.length);
     }
 
+    // this must be a separate method from other ensure checks above so suite scoped integ tests can call...TODO: fix that
     @After
-    public void ensureAllSearchContextsReleased() throws Exception {
+    public final void ensureAllSearchContextsReleased() throws Exception {
         assertBusy(new Runnable() {
             @Override
             public void run() {
@@ -188,62 +204,30 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
             }
         });
     }
-
-    @Before
-    public void disableQueryCache() {
-        // TODO: Parent/child and other things does not work with the query cache
-        IndexSearcher.setDefaultQueryCache(null);
-    }
-
-    @After
-    public void ensureNoFieldCacheUse() {
-        // field cache should NEVER get loaded.
-        String[] entries = UninvertingReader.getUninvertedStats();
-        assertEquals("fieldcache must never be used, got=" + Arrays.toString(entries), 0, entries.length);
-    }
     
-    // old shit:
-
-    // -----------------------------------------------------------------
-    // Suite and test case setup/ cleanup.
-    // -----------------------------------------------------------------
-
     /** MockFSDirectoryService sets this: */
     public static boolean checkIndexFailed;
-
-    /**
-     * For subclasses to override. Overrides must call {@code super.setUp()}.
-     */
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public final void resetCheckIndexStatus() throws Exception {
         checkIndexFailed = false;
     }
-
-    /**
-     * For subclasses to override. Overrides must call {@code super.tearDown()}.
-     */
     @After
-    public void tearDown() throws Exception {
+    public final void ensureCheckIndexPassed() throws Exception {
         assertFalse("at least one shard failed CheckIndex", checkIndexFailed);
-        super.tearDown();
     }
 
     // -----------------------------------------------------------------
     // Test facilities and facades for subclasses. 
     // -----------------------------------------------------------------
     
-    // old helper stuff, a lot of it is bad news and we should see if its all used
+    // TODO: replaces uses of getRandom() with random()
+    // TODO: decide on one set of naming for between/scaledBetween and remove others
+    // TODO: replace frequently() with usually()
 
     /** Shortcut for {@link RandomizedContext#getRandom()}. Use {@link #random()} instead. */
     public static Random getRandom() {
         // TODO: replace uses of this function with random()
         return random();
-    }
-    
-    /** Shortcut for {@link RandomizedContext#current()}. */
-    public static RandomizedContext getContext() {
-        return RandomizedTest.getContext();
     }
     
     /**
@@ -297,6 +281,11 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     public static float   randomFloat()    { return random().nextFloat(); }
     public static double  randomDouble()   { return random().nextDouble(); }
     public static long    randomLong()     { return random().nextLong(); }
+
+    /** A random integer from 0..max (inclusive). */
+    public static int randomInt(int max) {
+        return RandomizedTest.randomInt(max);
+    }
     
     /** Pick a random object from the given array. The array must not be empty. */
     public static <T> T randomFrom(T... array) {
@@ -306,11 +295,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     /** Pick a random object from the given list. */
     public static <T> T randomFrom(List<T> list) {
       return RandomPicks.randomFrom(random(), list);
-    }
-    
-    /** A random integer from 0..max (inclusive). */
-    public static int randomInt(int max) { 
-      return RandomizedTest.randomInt(max);
     }
     
     public static String randomAsciiOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
@@ -351,6 +335,17 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     
     public static String randomRealisticUnicodeOfCodepointLength(int codePoints) {
       return RandomizedTest.randomRealisticUnicodeOfCodepointLength(codePoints);
+    }
+    
+    public static String[] generateRandomStringArray(int maxArraySize, int maxStringSize, boolean allowNull) {
+        if (allowNull && random().nextBoolean()) {
+            return null;
+        }
+        String[] array = new String[random().nextInt(maxArraySize)]; // allow empty arrays
+        for (int i = 0; i < array.length; i++) {
+            array[i] = RandomStrings.randomAsciiOfLength(random(), maxStringSize);
+        }
+        return array;
     }
 
     /**
@@ -424,6 +419,20 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         return breakPredicate.apply(null);
     }
 
+    public static boolean terminate(ExecutorService... services) throws InterruptedException {
+        boolean terminated = true;
+        for (ExecutorService service : services) {
+            if (service != null) {
+                terminated &= ThreadPool.terminate(service, 10, TimeUnit.SECONDS);
+            }
+        }
+        return terminated;
+    }
+
+    public static boolean terminate(ThreadPool service) throws InterruptedException {
+        return ThreadPool.terminate(service, 10, TimeUnit.SECONDS);
+    }
+
     /**
      * Returns a {@link java.nio.file.Path} pointing to the class path relative resource given
      * as the first argument. In contrast to
@@ -453,9 +462,19 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         return absPaths;
     }
 
-    /**
-     * Return consistent index settings for the provided index version.
-     */
+    public NodeEnvironment newNodeEnvironment() throws IOException {
+        return newNodeEnvironment(ImmutableSettings.EMPTY);
+    }
+
+    public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
+        Settings build = ImmutableSettings.builder()
+            .put(settings)
+            .put("path.home", createTempDir().toAbsolutePath())
+            .putArray("path.data", tmpPaths()).build();
+        return new NodeEnvironment(build, new Environment(build));
+    }
+
+    /** Return consistent index settings for the provided index version. */
     public static ImmutableSettings.Builder settings(Version version) {
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version);
         if (version.before(Version.V_2_0_0)) {
@@ -463,6 +482,10 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         }
         return builder;
     }
+
+    // -----------------------------------------------------------------
+    // Failure utilities
+    // -----------------------------------------------------------------
 
     static final class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
 
@@ -528,45 +551,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
         } else {
             return threadGroup.getName();
         }
-    }
-
-    public static String[] generateRandomStringArray(int maxArraySize, int maxStringSize, boolean allowNull) {
-        if (allowNull && random().nextBoolean()) {
-            return null;
-        }
-        String[] array = new String[random().nextInt(maxArraySize)]; // allow empty arrays
-        for (int i = 0; i < array.length; i++) {
-            array[i] = RandomStrings.randomAsciiOfLength(random(), maxStringSize);
-        }
-        return array;
-    }
-
-    public static boolean terminate(ExecutorService... services) throws InterruptedException {
-        boolean terminated = true;
-        for (ExecutorService service : services) {
-            if (service != null) {
-                terminated &= ThreadPool.terminate(service, 10, TimeUnit.SECONDS);
-            }
-        }
-        return terminated;
-    }
-
-    public static boolean terminate(ThreadPool service) throws InterruptedException {
-        return ThreadPool.terminate(service, 10, TimeUnit.SECONDS);
-    }
-    
-
-
-    public NodeEnvironment newNodeEnvironment() throws IOException {
-        return newNodeEnvironment(ImmutableSettings.EMPTY);
-    }
-
-    public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
-        Settings build = ImmutableSettings.builder()
-                .put(settings)
-                .put("path.home", createTempDir().toAbsolutePath())
-                .putArray("path.data", tmpPaths()).build();
-        return new NodeEnvironment(build, new Environment(build));
     }
 
 }

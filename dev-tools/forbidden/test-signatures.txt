@@ -16,3 +16,5 @@
 
 com.carrotsearch.randomizedtesting.RandomizedTest#globalTempDir() @ Use newTempDirPath() instead
 com.carrotsearch.randomizedtesting.annotations.Seed @ Don't commit hardcoded seeds
+
+org.apache.lucene.codecs.Codec#setDefault(org.apache.lucene.codecs.Codec) @ Use the SuppressCodecs("*") annotation instead

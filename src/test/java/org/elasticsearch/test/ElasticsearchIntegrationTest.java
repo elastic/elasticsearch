@@ -28,6 +28,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.store.StoreRateLimiting;
@@ -95,6 +96,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -369,7 +371,14 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards())
                     .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas());
 
-            randomSettingsBuilder.put("index.codec", randomFrom("default", "best_compression"));
+            // if the test class is annotated with SuppressCodecs("*"), it means don't use lucene's codec randomization
+            // otherwise, use it, it has assertions and so on that can find bugs.
+            SuppressCodecs annotation = getClass().getAnnotation(SuppressCodecs.class);
+            if (annotation != null && annotation.value().length == 1 && "*".equals(annotation.value()[0])) {
+                randomSettingsBuilder.put("index.codec", randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC));
+            } else {
+                randomSettingsBuilder.put("index.codec", CodecService.LUCENE_DEFAULT_CODEC);
+            }
             XContentBuilder mappings = null;
             if (frequently() && randomDynamicTemplates()) {
                 mappings = XContentFactory.jsonBuilder().startObject().startObject("_default_");

@@ -776,7 +776,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
         assertThat(topReviewers.getHits().getAt(0).getNestedIdentity().getChild().getOffset(), equalTo(0));
     }
 
-    @Test
+    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/10661")
     public void testNestedFetchFeatures() {
         String hlType = randomFrom("plain", "fvh", "postings");
         HighlightBuilder.Field hlField = new HighlightBuilder.Field("comments.message")

@@ -27,6 +27,7 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.google.common.collect.Lists;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.LuceneTestCase.SuppressFsync;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.Strings;
@@ -72,6 +73,7 @@ import java.util.Set;
 @ElasticsearchRestTestCase.Rest
 @Slow
 @SuppressFsync // we aren't trying to test this here, and it can make the test slow
+@SuppressCodecs("*") // requires custom completion postings format
 @ClusterScope(randomDynamicTemplates = false)
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // timeout the suite after 40min and fail the test.
 public abstract class ElasticsearchRestTestCase extends ElasticsearchIntegrationTest {

@@ -91,7 +91,7 @@ public class MapperService extends AbstractIndexComponent  {
 
     public static final String DEFAULT_MAPPING = "_default_";
     private static ObjectOpenHashSet<String> META_FIELDS = ObjectOpenHashSet.from(
-            "_uid", "_id", "_type", "_all", "_analyzer", "_parent", "_routing", "_index",
+            "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
     );
     private final AnalysisService analysisService;
@@ -104,7 +104,6 @@ public class MapperService extends AbstractIndexComponent  {
 
     private volatile String defaultMappingSource;
     private volatile String defaultPercolatorMappingSource;
-
 
     private volatile Map<String, DocumentMapper> mappers = ImmutableMap.of();
 
@@ -392,42 +391,6 @@ public class MapperService extends AbstractIndexComponent  {
     private void addFieldMappers(List<FieldMapper<?>> fieldMappers) {
         synchronized (mappersMutex) {
             this.fieldMappers = this.fieldMappers.copyAndAddAll(fieldMappers);
-        }
-    }
-
-    public void remove(String type) {
-        synchronized (typeMutex) {
-            DocumentMapper docMapper = mappers.get(type);
-            if (docMapper == null) {
-                return;
-            }
-            docMapper.close();
-            mappers = newMapBuilder(mappers).remove(type).map();
-            removeObjectAndFieldMappers(docMapper);
-            for (DocumentTypeListener typeListener : typeListeners) {
-                typeListener.afterRemove(docMapper);
-            }
-        }
-    }
-
-    private void removeObjectAndFieldMappers(DocumentMapper docMapper) {
-        synchronized (mappersMutex) {
-            fieldMappers = fieldMappers.copyAndRemoveAll(docMapper.mappers());
-
-            ImmutableOpenMap.Builder<String, ObjectMappers> fullPathObjectMappers = ImmutableOpenMap.builder(this.fullPathObjectMappers);
-            for (ObjectMapper mapper : docMapper.objectMappers().values()) {
-                ObjectMappers mappers = fullPathObjectMappers.get(mapper.fullPath());
-                if (mappers != null) {
-                    mappers = mappers.remove(mapper);
-                    if (mappers.isEmpty()) {
-                        fullPathObjectMappers.remove(mapper.fullPath());
-                    } else {
-                        fullPathObjectMappers.put(mapper.fullPath(), mappers);
-                    }
-                }
-            }
-
-            this.fullPathObjectMappers = fullPathObjectMappers.build();
         }
     }
 

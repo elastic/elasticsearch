@@ -21,21 +21,20 @@ package org.elasticsearch.index.mapper;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
-import com.google.common.collect.ForwardingSet;
 import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  *
  */
-public final class DocumentFieldMappers extends ForwardingSet<FieldMapper<?>> {
+public final class DocumentFieldMappers implements Iterable<FieldMapper<?>> {
 
     private final FieldMappersLookup fieldMappers;
 
@@ -104,7 +103,7 @@ public final class DocumentFieldMappers extends ForwardingSet<FieldMapper<?>> {
      * Tries to find first based on {@link #fullName(String)}, then by {@link #indexName(String)}, and last
      * by {@link #name(String)}.
      */
-    public FieldMappers smartName(String name) {
+    FieldMappers smartName(String name) {
         return fieldMappers.smartName(name);
     }
 
@@ -140,8 +139,7 @@ public final class DocumentFieldMappers extends ForwardingSet<FieldMapper<?>> {
         return this.searchQuoteAnalyzer;
     }
 
-    @Override
-    protected Set<FieldMapper<?>> delegate() {
-        return fieldMappers;
+    public Iterator<FieldMapper<?>> iterator() {
+        return fieldMappers.iterator();
     }
 }

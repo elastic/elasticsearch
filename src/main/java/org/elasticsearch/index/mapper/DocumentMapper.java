@@ -489,14 +489,14 @@ public class DocumentMapper implements ToXContent {
                     // lock to avoid concurrency issues with mapping updates coming from the API
                     synchronized(this) {
                         // simulate on the first time to check if the mapping update is applicable
-                        MergeContext mergeContext = newMmergeContext(new MergeFlags().simulate(true));
+                        MergeContext mergeContext = newMergeContext(new MergeFlags().simulate(true));
                         rootObjectMapper.merge(update, mergeContext);
                         if (mergeContext.hasConflicts()) {
                             throw new MapperParsingException("Could not apply generated dynamic mappings: " + Arrays.toString(mergeContext.buildConflicts()));
                         } else {
                             // then apply it for real
                             mappingsModified = true;
-                            mergeContext = newMmergeContext(new MergeFlags().simulate(false));
+                            mergeContext = newMergeContext(new MergeFlags().simulate(false));
                             rootObjectMapper.merge(update, mergeContext);
                         }
                     }
@@ -665,7 +665,7 @@ public class DocumentMapper implements ToXContent {
         rootObjectMapper.traverse(listener);
     }
 
-    private MergeContext newMmergeContext(MergeFlags mergeFlags) {
+    private MergeContext newMergeContext(MergeFlags mergeFlags) {
         return new MergeContext(mergeFlags) {
 
             List<String> conflicts = new ArrayList<>();
@@ -699,7 +699,7 @@ public class DocumentMapper implements ToXContent {
     }
 
     public synchronized MergeResult merge(DocumentMapper mergeWith, MergeFlags mergeFlags) {
-        final MergeContext mergeContext = newMmergeContext(mergeFlags);
+        final MergeContext mergeContext = newMergeContext(mergeFlags);
         assert rootMappers.size() == mergeWith.rootMappers.size();
 
         rootObjectMapper.merge(mergeWith.rootObjectMapper, mergeContext);

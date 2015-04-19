@@ -54,15 +54,15 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapper.MergeResult mergeResult = stage1.merge(stage2, mergeFlags().simulate(true));
         assertThat(mergeResult.hasConflicts(), equalTo(false));
         // since we are simulating, we should not have the age mapping
-        assertThat(stage1.mappers().smartName("age"), nullValue());
-        assertThat(stage1.mappers().smartName("obj1.prop1"), nullValue());
+        assertThat(stage1.mappers().smartNameFieldMapper("age"), nullValue());
+        assertThat(stage1.mappers().smartNameFieldMapper("obj1.prop1"), nullValue());
         // now merge, don't simulate
         mergeResult = stage1.merge(stage2, mergeFlags().simulate(false));
         // there is still merge failures
         assertThat(mergeResult.hasConflicts(), equalTo(false));
         // but we have the age in
-        assertThat(stage1.mappers().smartName("age"), notNullValue());
-        assertThat(stage1.mappers().smartName("obj1.prop1"), notNullValue());
+        assertThat(stage1.mappers().smartNameFieldMapper("age"), notNullValue());
+        assertThat(stage1.mappers().smartNameFieldMapper("obj1.prop1"), notNullValue());
     }
 
     @Test

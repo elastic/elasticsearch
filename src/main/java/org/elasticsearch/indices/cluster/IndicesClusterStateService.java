@@ -386,14 +386,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                                     typesToRefresh.toArray(new String[typesToRefresh.size()]), event.state().nodes().localNodeId())
                     );
                 }
-                // go over and remove mappings
-                for (DocumentMapper documentMapper : mapperService.docMappers(true)) {
-                    if (seenMappings.containsKey(new Tuple<>(index, documentMapper.type())) && !indexMetaData.mappings().containsKey(documentMapper.type())) {
-                        // we have it in our mappings, but not in the metadata, and we have seen it in the cluster state, remove it
-                        mapperService.remove(documentMapper.type());
-                        seenMappings.remove(new Tuple<>(index, documentMapper.type()));
-                    }
-                }
             } catch (Throwable t) {
                 // if we failed the mappings anywhere, we need to fail the shards for this index, note, we safeguard
                 // by creating the processing the mappings on the master, or on the node the mapping was introduced on,

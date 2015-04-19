@@ -53,11 +53,11 @@ public class SimpleDynamicTemplatesTests extends ElasticsearchSingleNodeTest {
 
         DocumentFieldMappers mappers = docMapper.mappers();
 
-        assertThat(mappers.smartName("s"), Matchers.notNullValue());
-        assertEquals(IndexOptions.NONE, mappers.smartName("s").mapper().fieldType().indexOptions());
+        assertThat(mappers.smartNameFieldMapper("s"), Matchers.notNullValue());
+        assertEquals(IndexOptions.NONE, mappers.smartNameFieldMapper("s").fieldType().indexOptions());
 
-        assertThat(mappers.smartName("l"), Matchers.notNullValue());
-        assertNotSame(IndexOptions.NONE, mappers.smartName("l").mapper().fieldType().indexOptions());
+        assertThat(mappers.smartNameFieldMapper("l"), Matchers.notNullValue());
+        assertNotSame(IndexOptions.NONE, mappers.smartNameFieldMapper("l").fieldType().indexOptions());
 
 
     }

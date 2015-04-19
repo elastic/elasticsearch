@@ -54,6 +54,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTest {
 
     @Test
+    @Slow // maybe due to all the logging?
     @TestLogging("action.search.type:TRACE,index.shard:TRACE")
     public void testRandomDirectoryIOExceptions() throws IOException, InterruptedException, ExecutionException {
         String mapping = XContentFactory.jsonBuilder().

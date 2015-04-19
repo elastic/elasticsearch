@@ -512,7 +512,7 @@
                             <goal>junit4</goal>
                         </goals>
                         <configuration>
-                            <heartbeat>20</heartbeat>
+                            <heartbeat>10</heartbeat>
                             <jvmOutputAction>pipe,warn</jvmOutputAction>
                             <leaveTemporary>true</leaveTemporary>
                             <ifNoTests>fail</ifNoTests>

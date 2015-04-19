@@ -875,7 +875,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         checkBrownFoxTermVector(resp.getFields(), "field1", false);
     }
 
-    @Test
+    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/10660")
     public void testArtificialNonExistingField() throws Exception {
         // setup indices
         ImmutableSettings.Builder settings = settingsBuilder()

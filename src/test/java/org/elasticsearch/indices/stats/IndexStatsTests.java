@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.stats;
 
 import org.apache.lucene.util.Version;
+import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.*;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -60,6 +61,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 2, numClientNodes = 0, randomDynamicTemplates = false)
+@SuppressCodecs("*") // requires custom completion format
 public class IndexStatsTests extends ElasticsearchIntegrationTest {
 
     @Override

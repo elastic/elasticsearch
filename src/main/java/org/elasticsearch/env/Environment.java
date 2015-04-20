@@ -43,10 +43,6 @@ public class Environment {
 
     private final Path homeFile;
 
-    private final Path workFile;
-
-    private final Path workWithClusterFile;
-
     private final Path[] dataFiles;
 
     private final Path[] dataWithClusterFiles;
@@ -97,13 +93,6 @@ public class Environment {
             pluginsFile = homeFile.resolve("plugins");
         }
 
-        if (settings.get("path.work") != null) {
-            workFile = PathUtils.get(cleanPath(settings.get("path.work")));
-        } else {
-            workFile = homeFile.resolve("work");
-        }
-        workWithClusterFile = workFile.resolve(ClusterName.clusterNameFromSettings(settings).value());
-
         String[] dataPaths = settings.getAsArray("path.data");
         if (dataPaths.length > 0) {
             dataFiles = new Path[dataPaths.length];
@@ -136,26 +125,6 @@ public class Environment {
      */
     public Path homeFile() {
         return homeFile;
-    }
-
-    /**
-     * The work location, path to temp files.
-     *
-     * Note, currently, we don't use it in ES at all, we should strive to see if we can keep it like that,
-     * but if we do, we have the infra for it.
-     */
-    public Path workFile() {
-        return workFile;
-    }
-
-    /**
-     * The work location with the cluster name as a sub directory.
-     *
-     * Note, currently, we don't use it in ES at all, we should strive to see if we can keep it like that,
-     * but if we do, we have the infra for it.
-     */
-    public Path workWithClusterFile() {
-        return workWithClusterFile;
     }
 
     /**

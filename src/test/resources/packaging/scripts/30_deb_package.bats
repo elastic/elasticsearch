@@ -128,7 +128,6 @@ setup() {
     # Those directories are deleted when removing the package
     # see postrm file
     assert_file_not_exist "/var/log/elasticsearch"
-    assert_file_not_exist "/tmp/elasticsearch"
     assert_file_not_exist "/usr/share/elasticsearch/plugins"
     assert_file_not_exist "/var/run/elasticsearch"
 

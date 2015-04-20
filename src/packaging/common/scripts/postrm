@@ -54,7 +54,6 @@ esac
 ES_USER="${packaging.elasticsearch.user}"
 ES_GROUP="${packaging.elasticsearch.group}"
 LOG_DIR="${packaging.elasticsearch.log.dir}"
-WORK_DIR="${packaging.elasticsearch.work.dir}"
 PLUGINS_DIR="${packaging.elasticsearch.plugins.dir}"
 PID_DIR="${packaging.elasticsearch.pid.dir}"
 DATA_DIR="${packaging.elasticsearch.data.dir}"
@@ -86,12 +85,6 @@ if [ "$REMOVE_DIRS" = "true" ]; then
     if [ -d "$LOG_DIR" ]; then
         echo -n "Deleting log directory..."
         rm -rf "$LOG_DIR"
-        echo " OK"
-    fi
-
-    if [ -d "$WORK_DIR" ]; then
-        echo -n "Deleting work directory..."
-        rm -rf "$WORK_DIR"
         echo " OK"
     fi
 

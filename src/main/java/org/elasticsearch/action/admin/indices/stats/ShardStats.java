@@ -21,15 +21,16 @@ package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.shard.IndexShard;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.cluster.routing.ImmutableShardRouting.readShardRoutingEntry;
 
@@ -39,9 +40,10 @@ public class ShardStats extends BroadcastShardOperationResponse implements ToXCo
 
     private ShardRouting shardRouting;
 
-    CommonStats stats;
+    CommonStats commonStats;
 
-    Map<String, String> commitData
+    @Nullable
+    CommitStats commitStats;
 
     ShardStats() {
     }
@@ -49,7 +51,8 @@ public class ShardStats extends BroadcastShardOperationResponse implements ToXCo
     public ShardStats(IndexShard indexShard, ShardRouting shardRouting, CommonStatsFlags flags) {
         super(indexShard.shardId());
         this.shardRouting = shardRouting;
-        this.stats = new CommonStats(indexShard, flags);
+        this.commonStats = new CommonStats(indexShard, flags);
+        this.commitStats = indexShard.commitStats();
     }
 
     /**
@@ -60,7 +63,11 @@ public class ShardStats extends BroadcastShardOperationResponse implements ToXCo
     }
 
     public CommonStats getStats() {
-        return this.stats;
+        return this.commonStats;
+    }
+
+    public CommitStats getCommitStats() {
+        return this.commitStats;
     }
 
     public static ShardStats readShardStats(StreamInput in) throws IOException {
@@ -73,14 +80,23 @@ public class ShardStats extends BroadcastShardOperationResponse implements ToXCo
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         shardRouting = readShardRoutingEntry(in);
-        stats = CommonStats.readCommonStats(in);
+        commonStats = CommonStats.readCommonStats(in);
+        if (in.readBoolean()) {
+            commitStats = CommitStats.readCommitStatsFrom(in);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         shardRouting.writeTo(out);
-        stats.writeTo(out);
+        commonStats.writeTo(out);
+        if (commitStats == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            commitStats.writeTo(out);
+        }
     }
 
     @Override
@@ -92,7 +108,10 @@ public class ShardStats extends BroadcastShardOperationResponse implements ToXCo
                 .field(Fields.RELOCATING_NODE, shardRouting.relocatingNodeId())
                 .endObject();
 
-        stats.toXContent(builder, params);
+        commonStats.toXContent(builder, params);
+        if (commitStats != null) {
+            commitStats.toXContent(builder, params);
+        }
         return builder;
     }
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.engine;
 
 import com.google.common.collect.Lists;
-
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.search.*;
@@ -105,7 +104,7 @@ public class InternalEngine extends Engine {
     private final AtomicLong translogIdGenerator = new AtomicLong();
     private final AtomicBoolean versionMapRefreshPending = new AtomicBoolean();
 
-    private SegmentInfos lastCommittedSegmentInfos;
+    private volatile SegmentInfos lastCommittedSegmentInfos;
 
     private final IndexThrottle throttle;
 
@@ -897,6 +896,11 @@ public class InternalEngine extends Engine {
             return true;
         }
         return false;
+    }
+
+    @Override
+    protected SegmentInfos getLastCommittedSegmentInfos() {
+        return lastCommittedSegmentInfos;
     }
 
     @Override

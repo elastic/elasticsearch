@@ -21,6 +21,7 @@ package org.elasticsearch.index.store;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Lists;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
@@ -97,7 +99,7 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
         // Restart the single node
         internalCluster().fullRestart();
         // node needs time to start recovery and discover the translog corruption
-        sleep(1000);
+        Thread.sleep(1000);
         enableTranslogFlush("test");
 
         try {
@@ -125,7 +127,7 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
         for (FsStats.Info info : nodeStatses.getNodes()[0].getFs()) {
             String path = info.getPath();
             final String relativeDataLocationPath =  "indices/test/" + Integer.toString(shardRouting.getId()) + "/translog";
-            Path file = Paths.get(path).resolve(relativeDataLocationPath);
+            Path file = PathUtils.get(path).resolve(relativeDataLocationPath);
             logger.info("--> path: {}", file);
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
                 for (Path item : stream) {

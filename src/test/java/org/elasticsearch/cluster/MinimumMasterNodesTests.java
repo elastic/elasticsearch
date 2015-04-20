@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster;
 
 import com.google.common.base.Predicate;
+
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
@@ -169,7 +170,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @Test
+    @Test @Slow
     public void multipleNodesShutdownNonMasterNodes() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")

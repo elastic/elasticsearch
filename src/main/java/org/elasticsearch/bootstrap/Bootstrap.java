@@ -26,6 +26,8 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
+import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.jna.Natives;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -153,7 +155,7 @@ public class Bootstrap {
 
         if (pidFile != null) {
             try {
-                PidFile.create(Paths.get(pidFile), true);
+                PidFile.create(PathUtils.get(pidFile), true);
             } catch (Exception e) {
                 String errorMessage = buildErrorMessage("pid", e);
                 sysError(errorMessage, true);

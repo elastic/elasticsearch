@@ -23,7 +23,6 @@ import com.google.common.primitives.Ints;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SettingsSource;
 import org.elasticsearch.transport.local.LocalTransport;
@@ -40,10 +39,6 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
     final int numOfNodes;
     final Settings nodeSettings;
     final Settings transportClientSettings;
-
-    public ClusterDiscoveryConfiguration(int numOfNodes) {
-        this(numOfNodes, ImmutableSettings.EMPTY);
-    }
 
     public ClusterDiscoveryConfiguration(int numOfNodes, Settings extraSettings) {
         this.numOfNodes = numOfNodes;
@@ -114,9 +109,7 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
         }
 
         private static int calcBasePort() {
-            // note that this has properly co-exist with the port logic at InternalTestCluster's constructor
-            return 30000 +
-                    1000 * (ElasticsearchIntegrationTest.CHILD_JVM_ID);
+            return 30000 + InternalTestCluster.BASE_PORT;
         }
 
         @Override

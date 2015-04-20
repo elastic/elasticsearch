@@ -37,6 +37,7 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -44,6 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
+@Slow
 public class UnicastZenPingTests extends ElasticsearchTestCase {
 
     @Test

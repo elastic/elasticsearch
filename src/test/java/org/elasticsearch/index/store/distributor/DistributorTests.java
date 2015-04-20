@@ -165,7 +165,7 @@ public class DistributorTests extends ElasticsearchTestCase {
 
 
         public FakeFsDirectory(String path, long usableSpace) throws IOException {
-            super(newTempDirPath().resolve(path), NoLockFactory.INSTANCE);
+            super(createTempDir().resolve(path), NoLockFactory.INSTANCE);
             allocationCount = 0;
             this.useableSpace = usableSpace;
         }

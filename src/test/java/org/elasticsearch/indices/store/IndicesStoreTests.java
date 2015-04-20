@@ -39,6 +39,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.Version.CURRENT;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -149,7 +151,7 @@ public class IndicesStoreTests extends ElasticsearchTestCase {
         int numReplicas = randomInt(2);
 
         // Most of the times don't test bwc and use current version
-        final Version nodeVersion = randomBoolean() ? Version.CURRENT : randomVersion();
+        final Version nodeVersion = randomBoolean() ? CURRENT : randomVersion(random());
         ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
         clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(numShards).numberOfReplicas(numReplicas)));
         clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.id()).put(localNode).put(new DiscoveryNode("xyz", new LocalTransportAddress("xyz"), nodeVersion)));
@@ -172,7 +174,7 @@ public class IndicesStoreTests extends ElasticsearchTestCase {
 
         ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
         clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(numShards).numberOfReplicas(numReplicas)));
-        final Version nodeVersion = randomBoolean() ? Version.CURRENT : randomVersion();
+        final Version nodeVersion = randomBoolean() ? CURRENT : randomVersion(random());
 
         clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.id())
                 .put(localNode)

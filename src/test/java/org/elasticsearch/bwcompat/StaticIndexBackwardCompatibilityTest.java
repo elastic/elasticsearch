@@ -33,13 +33,13 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * These tests are against static indexes, built from versions of ES that cannot be upgraded without
  * a full cluster restart (ie no wire format compatibility).
  */
-@LuceneTestCase.SuppressCodecs({"Lucene3x", "MockFixedIntBlock", "MockVariableIntBlock", "MockSep", "MockRandom", "Lucene40", "Lucene41", "Appending", "Lucene42", "Lucene45", "Lucene46", "Lucene49"})
+@LuceneTestCase.SuppressCodecs("*")
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
 public class StaticIndexBackwardCompatibilityTest extends ElasticsearchIntegrationTest {
 
     public void loadIndex(String index, Object... settings) throws Exception {
         logger.info("Checking static index " + index);
-        Settings nodeSettings = prepareBackwardsDataDir(Paths.get(getClass().getResource(index + ".zip").toURI()), settings);
+        Settings nodeSettings = prepareBackwardsDataDir(getDataPath(index + ".zip"), settings);
         internalCluster().startNode(nodeSettings);
         ensureGreen(index);
         assertIndexSanity(index);

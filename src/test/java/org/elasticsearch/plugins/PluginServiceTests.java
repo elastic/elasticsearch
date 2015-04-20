@@ -20,8 +20,10 @@
 package org.elasticsearch.plugins;
 
 import com.google.common.collect.ImmutableList;
+
 import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.nodesinfo.SimpleNodesInfoTests;
 import org.elasticsearch.plugins.loading.classpath.InClassPathPlugin;
@@ -31,6 +33,7 @@ import org.junit.Test;
 
 import java.net.URISyntaxException;
 import java.nio.file.Path;
+import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -38,7 +41,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
 
 @ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numDataNodes=0, numClientNodes = 1, transportClientRatio = 0)
-public class PluginServiceTests extends ElasticsearchIntegrationTest {
+public class PluginServiceTests extends PluginTestCase {
 
     @Test
     public void testPluginLoadingFromClassName() throws URISyntaxException {
@@ -50,7 +53,7 @@ public class PluginServiceTests extends ElasticsearchIntegrationTest {
                                 .put("plugin.types", InSettingsPlugin.class.getName())
                             .build();
 
-        SimpleNodesInfoTests.startNodeWithPlugins(settings, "/org/elasticsearch/plugins/loading/");
+        startNodeWithPlugins(settings, "/org/elasticsearch/plugins/loading/");
 
         Plugin plugin = getPlugin("in-settings-plugin");
         assertNotNull("InSettingsPlugin (defined below in this class) must be loaded", plugin);
@@ -71,17 +74,19 @@ public class PluginServiceTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testHasLibExtension() {
-        Path p = Paths.get("path", "to", "plugin.jar");
-        assertTrue(PluginsService.hasLibExtension(p));
+        PathMatcher matcher = PathUtils.getDefaultFileSystem().getPathMatcher(PluginsService.PLUGIN_LIB_PATTERN);
 
-        p = Paths.get("path", "to", "plugin.zip");
-        assertTrue(PluginsService.hasLibExtension(p));
+        Path p = PathUtils.get("path", "to", "plugin.jar");
+        assertTrue(matcher.matches(p));
 
-        p = Paths.get("path", "to", "plugin.tar.gz");
-        assertFalse(PluginsService.hasLibExtension(p));
+        p = PathUtils.get("path", "to", "plugin.zip");
+        assertTrue(matcher.matches(p));
 
-        p = Paths.get("path", "to", "plugin");
-        assertFalse(PluginsService.hasLibExtension(p));
+        p = PathUtils.get("path", "to", "plugin.tar.gz");
+        assertFalse(matcher.matches(p));
+
+        p = PathUtils.get("path", "to", "plugin");
+        assertFalse(matcher.matches(p));
     }
 
     private Plugin getPlugin(String pluginName) {

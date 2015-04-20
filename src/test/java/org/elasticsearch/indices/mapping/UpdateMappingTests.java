@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.mapping;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;

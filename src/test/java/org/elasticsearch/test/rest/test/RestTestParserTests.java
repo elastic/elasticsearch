@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.test.rest.test;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParseContext;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParser;
@@ -72,7 +74,7 @@ public class RestTestParserTests extends ElasticsearchTestCase {
                         "\"Get type mapping - pre 1.0\":\n" +
                         "\n" +
                         "  - skip:\n" +
-                        "      version:     \"0.90.9 - 999\"\n" +
+                        "      version:     \"0.90.9 - \"\n" +
                         "      reason:      \"for newer versions the index name is always returned\"\n" +
                         "\n" +
                         "  - do:\n" +
@@ -119,7 +121,8 @@ public class RestTestParserTests extends ElasticsearchTestCase {
         assertThat(restTestSuite.getTestSections().get(1).getName(), equalTo("Get type mapping - pre 1.0"));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().isEmpty(), equalTo(false));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getReason(), equalTo("for newer versions the index name is always returned"));
-        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getVersion(), equalTo("0.90.9 - 999"));
+        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getLowerVersion(), equalTo(Version.V_0_90_9));
+        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getUpperVersion(), equalTo(Version.CURRENT));
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().size(), equalTo(3));
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().get(0), instanceOf(DoSection.class));
         doSection = (DoSection) restTestSuite.getTestSections().get(1).getExecutableSections().get(0);

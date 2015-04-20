@@ -20,19 +20,11 @@
 package org.elasticsearch.bootstrap;
 
 import com.google.common.io.ByteStreams;
-
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.env.Environment;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.io.Writer;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -83,8 +75,6 @@ class Security {
             paths.add(environment.configFile());
             paths.add(environment.logsFile());
             paths.add(environment.pluginsFile());
-            paths.add(environment.workFile());
-            paths.add(environment.workWithClusterFile());
             for (Path path : environment.dataFiles()) {
                 paths.add(path);
             }

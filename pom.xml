@@ -57,7 +57,6 @@
         <packaging.elasticsearch.data.dir>/var/lib/elasticsearch</packaging.elasticsearch.data.dir>
         <packaging.elasticsearch.user>elasticsearch</packaging.elasticsearch.user>
         <packaging.elasticsearch.group>elasticsearch</packaging.elasticsearch.group>
-        <packaging.elasticsearch.work.dir>/tmp/elasticsearch</packaging.elasticsearch.work.dir>
         <packaging.elasticsearch.log.dir>/var/log/elasticsearch</packaging.elasticsearch.log.dir>
         <packaging.elasticsearch.plugins.dir>${packaging.elasticsearch.home.dir}/plugins</packaging.elasticsearch.plugins.dir>
         <packaging.elasticsearch.pid.dir>/var/run/elasticsearch</packaging.elasticsearch.pid.dir>
@@ -1210,7 +1209,6 @@
                                     <paths>
                                         <path>${packaging.elasticsearch.data.dir}</path>
                                         <path>${packaging.elasticsearch.log.dir}</path>
-                                        <path>${packaging.elasticsearch.work.dir}</path>
                                         <path>${packaging.elasticsearch.plugins.dir}</path>
                                         <path>${packaging.elasticsearch.pid.dir}</path>
                                     </paths>
@@ -1404,12 +1402,6 @@
                         </mapping>
                         <mapping>
                             <directory>${packaging.elasticsearch.log.dir}</directory>
-                            <filemode>755</filemode>
-                            <username>${packaging.elasticsearch.user}</username>
-                            <groupname>${packaging.elasticsearch.group}</groupname>
-                        </mapping>
-                        <mapping>
-                            <directory>${packaging.elasticsearch.work.dir}</directory>
                             <filemode>755</filemode>
                             <username>${packaging.elasticsearch.user}</username>
                             <groupname>${packaging.elasticsearch.group}</groupname>

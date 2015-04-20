@@ -471,10 +471,11 @@ public final class InternalTestCluster extends TestCluster {
         return builder.build();
     }
 
-    public static String clusterName(String prefix, String childVMId, long clusterSeed) {
+    public static String clusterName(String prefix, long clusterSeed) {
         StringBuilder builder = new StringBuilder(prefix);
+        final int childVM = RandomizedTest.systemPropertyAsInt(SysGlobals.CHILDVM_SYSPROP_JVM_ID, 0);
         builder.append('-').append(NetworkUtils.getLocalHostName("__default_host__"));
-        builder.append("-CHILD_VM=[").append(childVMId).append(']');
+        builder.append("-CHILD_VM=[").append(childVM).append(']');
         builder.append("-CLUSTER_SEED=[").append(clusterSeed).append(']');
         // if multiple maven task run on a single host we better have an identifier that doesn't rely on input params
         builder.append("-HASH=[").append(SeedUtils.formatSeed(System.nanoTime())).append(']');

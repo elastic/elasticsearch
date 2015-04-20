@@ -280,13 +280,12 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         return new ConstantScoreQuery(scoringQuery);
     }
 
-    /**
-     * Numeric field level filter are basically range queries with same value and included. That's the recommended
-     * way to execute it.
-     */
     @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        return rangeFilter(value, value, true, true, context);
+    public final Filter termFilter(Object value, @Nullable QueryParseContext context) {
+        // Made this method final because previously many subclasses duplicated
+        // the same code, returning a NumericRangeFilter, which should be less
+        // efficient than super's default impl of a single TermFilter.
+        return super.termFilter(value, context);
     }
 
     @Override

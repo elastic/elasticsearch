@@ -209,13 +209,6 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     }
 
     @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        int iValue = parseValueAsInt(value);
-        return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
-                iValue, iValue, true, true);
-    }
-
-    @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseValueAsInt(lowerTerm),

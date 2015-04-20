@@ -317,13 +317,6 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        final long lValue = parseToMilliseconds(value);
-        return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
-                lValue, lValue, true, true);
-    }
-
-    @Override
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, null, null, context);
     }

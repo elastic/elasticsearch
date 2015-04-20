@@ -210,13 +210,6 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     }
 
     @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        float fValue = parseValue(value);
-        return NumericRangeFilter.newFloatRange(names.indexName(), precisionStep,
-                fValue, fValue, true, true);
-    }
-
-    @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFilter.newFloatRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseValue(lowerTerm),

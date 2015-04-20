@@ -185,14 +185,6 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
                 true, true);
     }
 
-
-    @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        long iValue = parseLongValue(value);
-        return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
-                iValue, iValue, true, true);
-    }
-
     @Override
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,

@@ -200,13 +200,6 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     }
 
     @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        double dValue = parseDoubleValue(value);
-        return NumericRangeFilter.newDoubleRange(names.indexName(), precisionStep,
-                dValue, dValue, true, true);
-    }
-
-    @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFilter.newDoubleRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseDoubleValue(lowerTerm),

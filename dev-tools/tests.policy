@@ -26,6 +26,8 @@ grant {
   // contain read access to only what we need:
   // project base directory
   permission java.io.FilePermission "${project.basedir}${/}target${/}-", "read";
+  // read permission for lib sigar
+  permission java.io.FilePermission "${project.basedir}${/}lib/sigar{/}-", "read";
   // mvn custom ./m2/repository for dependency jars
   permission java.io.FilePermission "${m2.repository}${/}-", "read";
   // system jar resources

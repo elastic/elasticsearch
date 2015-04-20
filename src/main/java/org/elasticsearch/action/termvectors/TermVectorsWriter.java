@@ -104,9 +104,14 @@ final class TermVectorsWriter {
                 if (flags.contains(Flag.TermStatistics)) {
                     // get the doc frequency
                     if (dfs != null) {
-                        writeTermStatistics(dfs.termStatistics().get(term));
+                        final TermStatistics statistics = dfs.termStatistics().get(term);
+                        writeTermStatistics(statistics == null ? new TermStatistics(termBytesRef, 0, 0) : statistics);
                     } else {
-                        writeTermStatistics(topLevelIterator);
+                        if (foundTerm) {
+                            writeTermStatistics(topLevelIterator);
+                        } else {
+                            writeTermStatistics(new TermStatistics(termBytesRef, 0, 0));
+                        }
                     }
                 }
                 if (useDocsAndPos) {

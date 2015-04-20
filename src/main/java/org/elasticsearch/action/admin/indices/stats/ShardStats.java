@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.shard.IndexShard;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.routing.ImmutableShardRouting.readShardRoutingEntry;
 
@@ -39,6 +40,8 @@ public class ShardStats extends BroadcastShardOperationResponse implements ToXCo
     private ShardRouting shardRouting;
 
     CommonStats stats;
+
+    Map<String, String> commitData
 
     ShardStats() {
     }

@@ -559,6 +559,9 @@ public class Lucene {
             out.writeBoolean(false);
         }
         out.writeFloat(explanation.getValue());
+        if (explanation.getDescription() == null) {
+            throw new ElasticsearchIllegalArgumentException("Explanation descriptions should NOT be null\n[" + explanation.toString() + "]");
+        }
         out.writeString(explanation.getDescription());
         Explanation[] subExplanations = explanation.getDetails();
         if (subExplanations == null) {

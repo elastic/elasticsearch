@@ -102,7 +102,7 @@ public class InternalEngine extends Engine {
     private final AtomicLong translogIdGenerator = new AtomicLong();
     private final AtomicBoolean versionMapRefreshPending = new AtomicBoolean();
 
-    private SegmentInfos lastCommittedSegmentInfos;
+    private volatile SegmentInfos lastCommittedSegmentInfos;
 
     private final IndexThrottle throttle;
     private volatile boolean possibleMergeNeeded;
@@ -927,6 +927,11 @@ public class InternalEngine extends Engine {
         } catch (AlreadyClosedException ex) {
             return ex.getCause();
         }
+    }
+
+    @Override
+    protected SegmentInfos getLastCommittedSegmentInfos() {
+        return lastCommittedSegmentInfos;
     }
 
     @Override

@@ -273,6 +273,27 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
     protected static final BytesReference B_2 = new BytesArray(new byte[]{2});
     protected static final BytesReference B_3 = new BytesArray(new byte[]{3});
 
+    public void testCommitStats() {
+        // create a doc and refresh
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
+        primaryEngine.create(new Engine.Create(null, newUid("1"), doc));
+
+        CommitStats stats1 = replicaEngine.commitStats();
+        assertThat(stats1.getGeneration(), greaterThan(0l));
+        assertThat(stats1.getUserData(), hasKey(Translog.TRANSLOG_ID_KEY));
+
+        // flush the primary engine
+        primaryEngine.flush();
+        // flush on replica to make flush visible
+        replicaEngine.flush();
+
+        CommitStats stats2 = replicaEngine.commitStats();
+        assertThat(stats2.getGeneration(), greaterThan(stats1.getGeneration()));
+        assertThat(stats2.getUserData(), hasKey(Translog.TRANSLOG_ID_KEY));
+        assertThat(stats2.getUserData().get(Translog.TRANSLOG_ID_KEY), not(equalTo(stats1.getUserData().get(Translog.TRANSLOG_ID_KEY))));
+    }
+
+
     @Test
     public void testSegments() throws Exception {
         List<Segment> segments = primaryEngine.segments();

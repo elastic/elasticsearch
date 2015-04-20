@@ -94,7 +94,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.apache.lucene.util.AbstractRandomizedTest.CHILD_JVM_ID;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
@@ -451,6 +450,23 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                 assertEquals(gen2 + 1, store.readLastCommittedSegmentsInfo().getLastGeneration());
             }
         }
+    }
+
+    public void testCommitStats() {
+        Document document = testDocumentWithTextField();
+        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, Lucene.STANDARD_ANALYZER, B_1, false);
+        engine.create(new Engine.Create(null, newUid("1"), doc));
+
+        CommitStats stats1 = engine.commitStats();
+        assertThat(stats1.getGeneration(), greaterThan(0l));
+        assertThat(stats1.getUserData(), hasKey(Translog.TRANSLOG_ID_KEY));
+
+        engine.flush(true, true);
+        CommitStats stats2 = engine.commitStats();
+        assertThat(stats2.getGeneration(), greaterThan(stats1.getGeneration()));
+        assertThat(stats2.getUserData(), hasKey(Translog.TRANSLOG_ID_KEY));
+        assertThat(stats2.getUserData().get(Translog.TRANSLOG_ID_KEY), not(equalTo(stats1.getUserData().get(Translog.TRANSLOG_ID_KEY))));
     }
 
     @Test
@@ -982,7 +998,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     public void testForceMerge() {
         final MockAnalyzer analyzer = new MockAnalyzer(random());
         int numDocs = randomIntBetween(10, 100);
-        for (int i=0; i < numDocs; i++) {
+        for (int i = 0; i < numDocs; i++) {
             ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), analyzer, B_1, false);
             Engine.Index index = new Engine.Index(null, newUid(Integer.toString(i)), doc);
             engine.index(index);
@@ -1001,8 +1017,8 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
         assertEquals(engine.segments().size(), 1);
         try (Engine.Searcher test = engine.acquireSearcher("test")) {
-            assertEquals(numDocs-1, test.reader().numDocs());
-            assertEquals(numDocs-1, test.reader().maxDoc());
+            assertEquals(numDocs - 1, test.reader().numDocs());
+            assertEquals(numDocs - 1, test.reader().maxDoc());
         }
 
         doc = testParsedDocument(Integer.toString(1), Integer.toString(1), "test", null, -1, -1, testDocument(), analyzer, B_1, false);
@@ -1012,8 +1028,8 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
         assertEquals(engine.segments().size(), 1);
         try (Engine.Searcher test = engine.acquireSearcher("test")) {
-            assertEquals(numDocs-2, test.reader().numDocs());
-            assertEquals(numDocs-1, test.reader().maxDoc());
+            assertEquals(numDocs - 2, test.reader().numDocs());
+            assertEquals(numDocs - 1, test.reader().maxDoc());
         }
     }
 
@@ -1037,7 +1053,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                             }
                             int i = 0;
                             while (true) {
-                                int numDocs  = randomIntBetween(1, 20);
+                                int numDocs = randomIntBetween(1, 20);
                                 for (int j = 0; j < numDocs; j++) {
                                     i++;
                                     ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), analyzer, B_1, false);
@@ -1652,12 +1668,12 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     public void testDeletesAloneCanTriggerRefresh() throws Exception {
         // Tiny indexing buffer:
         Settings indexSettings = ImmutableSettings.builder().put(defaultSettings)
-            .put(EngineConfig.INDEX_BUFFER_SIZE_SETTING, "1kb").build();
+                .put(EngineConfig.INDEX_BUFFER_SIZE_SETTING, "1kb").build();
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), indexSettings);
         try (Store store = createStore();
-            Translog translog = createTranslog();
-            final Engine engine = new InternalEngine(config(indexSettingsService, store, translog, createMergeScheduler()))) {
-            for(int i=0;i<100;i++) {
+             Translog translog = createTranslog();
+             final Engine engine = new InternalEngine(config(indexSettingsService, store, translog, createMergeScheduler()))) {
+            for (int i = 0; i < 100; i++) {
                 String id = Integer.toString(i);
                 ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocument(), Lucene.STANDARD_ANALYZER, B_1, false);
                 engine.index(new Engine.Index(null, newUid(id), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
@@ -1669,7 +1685,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             Searcher s = engine.acquireSearcher("test");
             final long version1 = ((DirectoryReader) s.reader()).getVersion();
             s.close();
-            for(int i=0;i<100;i++) {
+            for (int i = 0; i < 100; i++) {
                 String id = Integer.toString(i);
                 engine.delete(new Engine.Delete("test", id, newUid(id), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
             }

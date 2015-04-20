@@ -167,7 +167,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
     }
 
-    final void ensureOpen() { // for testing
+    final void ensureOpen() {
         if (this.refCounter.refCount() <= 0) {
             throw new AlreadyClosedException("store is already closed");
         }

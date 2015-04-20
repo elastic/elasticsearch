@@ -15,6 +15,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.template.xmustache.XMustacheTemplateEngine;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -33,13 +34,13 @@ public class TemplateTests extends ElasticsearchTestCase {
     private ScriptServiceProxy proxy;
     private TemplateEngine engine;
     private ExecutableScript script;
-    private final String lang = "mustache";
+    private final String lang = "xmustache";
 
     @Before
     public void init() throws Exception {
         proxy = mock(ScriptServiceProxy.class);
         script = mock(ExecutableScript.class);
-        engine = new MustacheTemplateEngine(ImmutableSettings.EMPTY, proxy);
+        engine = new XMustacheTemplateEngine(ImmutableSettings.EMPTY, proxy);
     }
 
     @Test

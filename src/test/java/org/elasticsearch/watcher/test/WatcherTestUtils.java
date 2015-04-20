@@ -40,7 +40,7 @@ import org.elasticsearch.watcher.support.http.HttpMethod;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
-import org.elasticsearch.watcher.support.template.MustacheTemplateEngine;
+import org.elasticsearch.watcher.support.template.xmustache.XMustacheTemplateEngine;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.transform.SearchTransform;
@@ -143,7 +143,7 @@ public final class WatcherTestUtils {
         Template body = new Template("{{ctx.watch_id}} executed with {{ctx.payload.response.hits.total_hits}} hits");
         httpRequest.body(body);
 
-        TemplateEngine engine = new MustacheTemplateEngine(ImmutableSettings.EMPTY, scriptService);
+        TemplateEngine engine = new XMustacheTemplateEngine(ImmutableSettings.EMPTY, scriptService);
 
         actions.add(new ActionWrapper("_webhook", new ExecutableWebhookAction(new WebhookAction(httpRequest.build()), logger, httpClient, engine)));
 
@@ -155,7 +155,7 @@ public final class WatcherTestUtils {
                 .to(to)
                 .build();
 
-        TemplateEngine templateEngine = new MustacheTemplateEngine(ImmutableSettings.EMPTY, scriptService);
+        TemplateEngine templateEngine = new XMustacheTemplateEngine(ImmutableSettings.EMPTY, scriptService);
 
         Authentication auth = new Authentication("testname", "testpassword".toCharArray());
 

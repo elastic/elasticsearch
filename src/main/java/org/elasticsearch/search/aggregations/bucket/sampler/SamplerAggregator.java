@@ -240,7 +240,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData)
                 throws IOException {
-            final UnmappedSampler aggregation = new UnmappedSampler();
+            final UnmappedSampler aggregation = new UnmappedSampler(name, metaData);
 
             return new NonCollectingAggregator(name, aggregationContext, parent, factories, metaData) {
                 @Override

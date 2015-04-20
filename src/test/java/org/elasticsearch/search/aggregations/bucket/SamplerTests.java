@@ -60,6 +60,9 @@ public class SamplerTests extends ElasticsearchIntegrationTest {
                 "book", "author", "type=string,index=not_analyzed", "name", "type=string,index=analyzed", "genre",
                 "type=string,index=not_analyzed"));
         createIndex("idx_unmapped");
+        // idx_unmapped_author is same as main index but missing author field
+        assertAcked(prepareCreate("idx_unmapped_author").setSettings(SETTING_NUMBER_OF_SHARDS, NUM_SHARDS, SETTING_NUMBER_OF_REPLICAS, 0)
+                .addMapping("book", "name", "type=string,index=analyzed", "genre", "type=string,index=not_analyzed"));
 
         ensureGreen();
         String data[] = {                    
@@ -80,6 +83,7 @@ public class SamplerTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < data.length; i++) {
             String[] parts = data[i].split(",");
             client().prepareIndex("test", "book", "" + i).setSource("author", parts[5], "name", parts[2], "genre", parts[8]).get();
+            client().prepareIndex("idx_unmapped_author", "book", "" + i).setSource("name", parts[2], "genre", parts[8]).get();
         }
         client().admin().indices().refresh(new RefreshRequest("test")).get();
     }
@@ -186,7 +190,7 @@ public class SamplerTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void unmapped() throws Exception {
+    public void unmappedChildAggNoDiversity() throws Exception {
         SamplerAggregationBuilder sampleAgg = new SamplerAggregationBuilder("sample").shardSize(100);
         sampleAgg.subAggregation(new TermsBuilder("authors").field("author"));
         SearchResponse response = client().prepareSearch("idx_unmapped")
@@ -206,7 +210,7 @@ public class SamplerTests extends ElasticsearchIntegrationTest {
 
 
     @Test
-    public void partiallyUnmapped() throws Exception {
+    public void partiallyUnmappedChildAggNoDiversity() throws Exception {
         SamplerAggregationBuilder sampleAgg = new SamplerAggregationBuilder("sample").shardSize(100);
         sampleAgg.subAggregation(new TermsBuilder("authors").field("author"));
         SearchResponse response = client().prepareSearch("idx_unmapped", "test")
@@ -222,4 +226,37 @@ public class SamplerTests extends ElasticsearchIntegrationTest {
         Terms authors = sample.getAggregations().get("authors");
         assertThat(authors.getBuckets().size(), greaterThan(0));
     }
+
+    @Test
+    public void partiallyUnmappedDiversifyField() throws Exception {
+        // One of the indexes is missing the "author" field used for
+        // diversifying results
+        SamplerAggregationBuilder sampleAgg = new SamplerAggregationBuilder("sample").shardSize(100).field("author").maxDocsPerValue(1);
+        sampleAgg.subAggregation(new TermsBuilder("authors").field("author"));
+        SearchResponse response = client().prepareSearch("idx_unmapped_author", "test").setSearchType(SearchType.QUERY_AND_FETCH)
+                .setQuery(new TermQueryBuilder("genre", "fantasy")).setFrom(0).setSize(60).addAggregation(sampleAgg)
+                .execute().actionGet();
+        assertSearchResponse(response);
+        Sampler sample = response.getAggregations().get("sample");
+        assertThat(sample.getDocCount(), greaterThan(0l));
+        Terms authors = sample.getAggregations().get("authors");
+        assertThat(authors.getBuckets().size(), greaterThan(0));
+    }
+
+    @Test
+    public void whollyUnmappedDiversifyField() throws Exception {
+        //All of the indices are missing the "author" field used for diversifying results        
+        int MAX_DOCS_PER_AUTHOR = 1;
+        SamplerAggregationBuilder sampleAgg = new SamplerAggregationBuilder("sample").shardSize(100);
+        sampleAgg.field("author").maxDocsPerValue(MAX_DOCS_PER_AUTHOR).executionHint(randomExecutionHint());
+        sampleAgg.subAggregation(new TermsBuilder("authors").field("author"));
+        SearchResponse response = client().prepareSearch("idx_unmapped", "idx_unmapped_author").setSearchType(SearchType.QUERY_AND_FETCH)
+                .setQuery(new TermQueryBuilder("genre", "fantasy")).setFrom(0).setSize(60).addAggregation(sampleAgg).execute().actionGet();
+        assertSearchResponse(response);
+        Sampler sample = response.getAggregations().get("sample");
+        assertThat(sample.getDocCount(), equalTo(0l));
+        Terms authors = sample.getAggregations().get("authors");
+        assertNull(authors);
+    }
+
 }

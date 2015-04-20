@@ -19,13 +19,14 @@
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -51,17 +52,13 @@ public class UnmappedSampler extends InternalSampler {
     UnmappedSampler() {
     }
 
+    public UnmappedSampler(String name, Map<String, Object> metaData) {
+        super(name, 0, InternalAggregations.EMPTY, metaData);
+    }
+
     @Override
     public Type type() {
         return TYPE;
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
     }
 
     @Override

@@ -35,7 +35,7 @@ import java.util.Objects;
  */
 public class MatchAllQueryBuilder extends BaseQueryBuilder implements Streamable, BoostableQueryBuilder<MatchAllQueryBuilder> {
 
-    float boost = 1.0f;
+    private float boost = 1.0f;
 
     /**
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
@@ -45,6 +45,13 @@ public class MatchAllQueryBuilder extends BaseQueryBuilder implements Streamable
     public MatchAllQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;
+    }
+
+    /**
+     * Gets the boost for this query.
+     */
+    public float boost() {
+        return this.boost;
     }
 
     @Override
@@ -72,21 +79,6 @@ public class MatchAllQueryBuilder extends BaseQueryBuilder implements Streamable
     }
 
     @Override
-    public int hashCode() {
-        return Float.hashCode(this.boost);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        this.boost = in.readFloat();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeFloat(this.boost);
-    }
-
-    @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
@@ -98,5 +90,20 @@ public class MatchAllQueryBuilder extends BaseQueryBuilder implements Streamable
 
         MatchAllQueryBuilder other = (MatchAllQueryBuilder) obj;
         return Objects.equals(boost, other.boost);
+    }
+
+    @Override
+    public int hashCode() {
+        return Float.floatToIntBits(this.boost);
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        this.boost = in.readFloat();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeFloat(this.boost);
     }
 }

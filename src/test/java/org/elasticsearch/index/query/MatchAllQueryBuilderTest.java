@@ -19,106 +19,35 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.analysis.AnalysisModule;
-import org.elasticsearch.index.cache.IndexCacheModule;
-import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
-import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.index.similarity.SimilarityModule;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.indices.query.IndicesQueriesModule;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
-public class MatchAllQueryBuilderTest extends ElasticsearchTestCase {
+public class MatchAllQueryBuilderTest extends BaseQueryTest {
 
-    protected QueryParseContext context;
-
-    protected Injector injector;
-
-    private XContentParser parser;
-
-    private MatchAllQueryBuilder testQuery;
+    protected MatchAllQueryBuilder testQuery;
 
     @Before
-    public void setup() throws IOException {
-        Settings settings = ImmutableSettings.settingsBuilder()
-                .put("path.conf", this.getResourcePath("config"))
-                .put("name", getClass().getName())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .build();
-
-        Index index = new Index("test");
-        injector = new ModulesBuilder().add(
-                new EnvironmentModule(new Environment(settings)),
-                new SettingsModule(settings),
-                new ThreadPoolModule(settings),
-                new IndicesQueriesModule(),
-                new ScriptModule(settings),
-                new IndexSettingsModule(index, settings),
-                new IndexCacheModule(settings),
-                new AnalysisModule(settings),
-                new SimilarityModule(settings),
-                new IndexNameModule(index),
-                new IndexQueryParserModule(settings),
-                new FunctionScoreModule(),
-                new AbstractModule() {
-                    @Override
-                    protected void configure() {
-                        bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
-                        bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
-                    }
-                }
-        ).createInjector();
-
-        IndexQueryParserService queryParserService = injector.getInstance(IndexQueryParserService.class);
-        context = new QueryParseContext(index, queryParserService);
-
+    public void setUpTest() throws IOException {
         testQuery = createTestQuery();
         String contentString = testQuery.toString();
         parser = XContentFactory.xContent(contentString).createParser(contentString);
         context.reset(parser);
     }
 
-    @Override
-    @After
-    public void tearDown() throws Exception {
-        super.tearDown();
-        terminate(injector.getInstance(ThreadPool.class));
-    }
-
     @Test
     public void testFromXContent() throws IOException {
         MatchAllQueryBuilder newMatchAllQuery = new MatchAllQueryParser().fromXContent(context);
-        // compare these
         assertThat(testQuery, is(newMatchAllQuery));
     }
 
@@ -126,8 +55,12 @@ public class MatchAllQueryBuilderTest extends ElasticsearchTestCase {
     public void testToQuery() throws IOException {
         MatchAllQueryBuilder newMatchAllQuery = new MatchAllQueryParser().fromXContent(context);
         Query query = newMatchAllQuery.toQuery(context);
-        // compare these
-        assertThat(query.getBoost(), is(testQuery.boost));
+        if (testQuery.boost() != 1.0f) {
+            assertThat(query, instanceOf(MatchAllDocsQuery.class));
+        } else {
+            assertThat(query, instanceOf(ConstantScoreQuery.class));
+        }
+        assertThat(query.getBoost(), is(testQuery.boost()));
     }
 
     @Test

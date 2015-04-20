@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -29,7 +28,7 @@ import java.io.IOException;
 /**
  * Parser code for MatchAllQuery
  */
-public class MatchAllQueryParser extends BaseQueryParserTemp {
+public class MatchAllQueryParser extends BaseQueryParser {
 
     public static final String NAME = "match_all";
 
@@ -53,17 +52,12 @@ public class MatchAllQueryParser extends BaseQueryParserTemp {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if ("boost".equals(currentFieldName)) {
-                    queryBuilder.boost = parser.floatValue();
+                    queryBuilder.boost(parser.floatValue());
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[match_all] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         return queryBuilder;
-    }
-
-    @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
-        return fromXContent(parseContext).toQuery(parseContext);
     }
 }

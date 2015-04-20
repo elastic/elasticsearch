@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.fetch.source;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;

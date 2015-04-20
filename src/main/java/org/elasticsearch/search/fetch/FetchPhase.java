@@ -21,7 +21,6 @@ package org.elasticsearch.search.fetch;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -56,22 +55,17 @@ import org.elasticsearch.search.fetch.matchedqueries.MatchedQueriesFetchSubPhase
 import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.fetch.source.FetchSourceSubPhase;
+import org.elasticsearch.search.fetch.termvectors.TermVectorsFetchSubPhase;
 import org.elasticsearch.search.fetch.version.VersionFetchSubPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.xcontent.XContentFactory.contentBuilder;
@@ -87,10 +81,10 @@ public class FetchPhase implements SearchPhase {
     public FetchPhase(HighlightPhase highlightPhase, ScriptFieldsFetchSubPhase scriptFieldsPhase,
                       MatchedQueriesFetchSubPhase matchedQueriesPhase, ExplainFetchSubPhase explainPhase, VersionFetchSubPhase versionPhase,
                       FetchSourceSubPhase fetchSourceSubPhase, FieldDataFieldsFetchSubPhase fieldDataFieldsFetchSubPhase, 
-                      InnerHitsFetchSubPhase innerHitsFetchSubPhase) {
+                      InnerHitsFetchSubPhase innerHitsFetchSubPhase, TermVectorsFetchSubPhase termVectorsFetchSubPhase) {
         innerHitsFetchSubPhase.setFetchPhase(this);
         this.fetchSubPhases = new FetchSubPhase[]{scriptFieldsPhase, matchedQueriesPhase, explainPhase, highlightPhase,
-                fetchSourceSubPhase, versionPhase, fieldDataFieldsFetchSubPhase, innerHitsFetchSubPhase};
+                fetchSourceSubPhase, versionPhase, fieldDataFieldsFetchSubPhase, innerHitsFetchSubPhase, termVectorsFetchSubPhase};
     }
 
     @Override

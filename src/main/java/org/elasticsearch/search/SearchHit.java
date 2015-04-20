@@ -21,6 +21,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
@@ -226,4 +227,9 @@ public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitFie
          */
         public NestedIdentity getChild();
     }
+
+    /**
+     * The possibly fetched term vectors of the hit.
+     */
+    TermVectorsResponse getTermVectorsResponse();
 }

@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -75,6 +76,8 @@ public class InternalSearchHit implements SearchHit {
 
     private long version = -1;
 
+    private TermVectorsResponse termVectorsResponse;
+
     private BytesReference source;
 
     private Map<String, SearchHitField> fields = ImmutableMap.of();
@@ -94,7 +97,7 @@ public class InternalSearchHit implements SearchHit {
     private byte[] sourceAsBytes;
 
     private Map<String, InternalSearchHits> innerHits;
-
+    
     private InternalSearchHit() {
 
     }
@@ -411,6 +414,15 @@ public class InternalSearchHit implements SearchHit {
         this.innerHits = innerHits;
     }
 
+    @Override
+    public TermVectorsResponse getTermVectorsResponse() {
+        return this.termVectorsResponse;
+    }
+
+    public void setTermVectorsResponse(TermVectorsResponse termVectors) {
+        this.termVectorsResponse = termVectors;
+    }
+
     public static class Fields {
         static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
@@ -523,6 +535,9 @@ public class InternalSearchHit implements SearchHit {
                 builder.endObject();
             }
             builder.endObject();
+        }
+        if (termVectorsResponse != null) {
+            termVectorsResponse.buildTermVectors(builder);
         }
         builder.endObject();
         return builder;
@@ -693,6 +708,11 @@ public class InternalSearchHit implements SearchHit {
                 innerHits.put(key, value);
             }
         }
+        
+        if (in.readBoolean()) {
+            termVectorsResponse = new TermVectorsResponse();
+            termVectorsResponse.readFrom(in);
+        }
     }
 
     @Override
@@ -805,6 +825,13 @@ public class InternalSearchHit implements SearchHit {
                 out.writeString(entry.getKey());
                 entry.getValue().writeTo(out, InternalSearchHits.streamContext().streamShardTarget(InternalSearchHits.StreamContext.ShardTargetType.NO_STREAM));
             }
+        }
+        
+        if (termVectorsResponse == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            termVectorsResponse.writeTo(out);
         }
     }
 

@@ -107,6 +107,8 @@ include::request/script-fields.asciidoc[]
 
 include::request/fielddata-fields.asciidoc[]
 
+include::request/termvectors.asciidoc[]
+
 include::request/post-filter.asciidoc[]
 
 include::request/highlighting.asciidoc[]

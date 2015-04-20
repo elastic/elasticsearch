@@ -43,9 +43,9 @@ import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.termvectors.ShardTermVectorsService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
@@ -56,6 +56,7 @@ import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.fetch.termvectors.TermVectorsContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -195,6 +196,18 @@ public abstract class SearchContext implements Releasable {
 
     public abstract SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext);
 
+    public boolean hasTermVectorsContext() {
+        throw new UnsupportedOperationException("Returning term vectors is only supported in the search API.");
+    }
+
+    public TermVectorsContext termVectorsContext() {
+        throw new UnsupportedOperationException("Returning term vectors is only supported in the search API.");
+    }
+
+    public SearchContext termVectorsContext(TermVectorsContext termVectorsContext) {
+        throw new UnsupportedOperationException("Returning term vectors is only supported in the search API.");
+    }
+
     public abstract ContextIndexSearcher searcher();
 
     public abstract IndexShard indexShard();
@@ -208,6 +221,10 @@ public abstract class SearchContext implements Releasable {
     public abstract SimilarityService similarityService();
 
     public abstract ScriptService scriptService();
+
+    public ShardTermVectorsService termVectorsService() {
+        throw new UnsupportedOperationException("Returning term vectors is only supported in the search API.");
+    }
 
     public abstract PageCacheRecycler pageCacheRecycler();
 

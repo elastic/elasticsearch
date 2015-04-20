@@ -21,12 +21,7 @@ package org.elasticsearch.search.internal;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchType;
@@ -38,6 +33,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
@@ -49,10 +45,9 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.termvectors.ShardTermVectorsService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
@@ -63,6 +58,7 @@ import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.fetch.termvectors.TermVectorsContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
@@ -133,6 +129,7 @@ public class DefaultSearchContext extends SearchContext {
     private FieldDataFieldsContext fieldDataFields;
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
+    private TermVectorsContext termVectorsContext;
 
     private int from = -1;
 
@@ -432,6 +429,22 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    public boolean hasTermVectorsContext() {
+        return termVectorsContext != null;
+    }
+
+    @Override
+    public TermVectorsContext termVectorsContext() {
+        return this.termVectorsContext;
+    }
+
+    @Override
+    public SearchContext termVectorsContext(TermVectorsContext termVectorsContext) {
+        this.termVectorsContext = termVectorsContext;
+        return this;
+    }
+
+    @Override
     public ContextIndexSearcher searcher() {
         return this.searcher;
     }
@@ -466,6 +479,11 @@ public class DefaultSearchContext extends SearchContext {
         return scriptService;
     }
 
+    @Override
+    public ShardTermVectorsService termVectorsService() {
+        return indexShard.termVectorsService();
+    }
+    
     @Override
     public PageCacheRecycler pageCacheRecycler() {
         return pageCacheRecycler;

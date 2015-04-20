@@ -1,0 +1,30 @@
+[[search-request-termvectors]]
+=== Term Vectors
+
+Allows to return the term vectors for each hit, for example:
+
+[source,js]
+--------------------------------------------------
+{
+    "query" : {
+        ...
+    },
+    "term_vectors" : {
+        "fields" : ["text"],
+        "offsets" : true,
+        "payloads" : true,
+        "positions" : true,
+        "term_statistics" : true,
+        "field_statistics" : true
+    }
+}
+--------------------------------------------------
+
+The parameters are the same as for the <<docs-termvectors,Term Vectors API>>.
+Use `"term_vectors": true` with no parameters, to only return the term vectors
+stored for each document hit. This will ensure that if the term vectors are
+not stored, they will not be computed on the fly.
+
+[NOTE]
+Parameters such as `_index`, `_type`, `_id`, `doc`, `_routing`,
+`_version` and `_version_type` are not allowed.

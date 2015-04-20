@@ -40,6 +40,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.fetch.termvectors.TermVectorsBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreBuilder;
@@ -123,7 +124,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     private String[] stats;
 
-
+    private TermVectorsBuilder termVectorsBuilder;
     /**
      * Constructs a new search source builder.
      */
@@ -623,6 +624,25 @@ public class SearchSourceBuilder implements ToXContent {
         return this;
     }
 
+    /**
+     * Specifies whether to return the stored term vectors for each hit, disregarding any previous parameters.
+     */
+    public SearchSourceBuilder termVectors(boolean fetch) {
+        if (this.termVectorsBuilder == null) {
+            this.termVectorsBuilder = new TermVectorsBuilder();
+        }
+        this.termVectorsBuilder.setFetchOnly(fetch);
+        return this;
+    }
+
+    /**
+     * Specifies how term vectors should be fetched for each hit.
+     */
+    public SearchSourceBuilder termVectors(TermVectorsBuilder termVectorsBuilder) {
+        this.termVectorsBuilder = termVectorsBuilder;
+        return this;
+    }
+
     @Override
     public String toString() {
         try {
@@ -853,6 +873,10 @@ public class SearchSourceBuilder implements ToXContent {
                 builder.value(stat);
             }
             builder.endArray();
+        }
+
+        if (termVectorsBuilder != null) {
+            termVectorsBuilder.toXContent(builder, params);
         }
     }
 

@@ -35,6 +35,7 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
+import org.elasticsearch.search.fetch.termvectors.TermVectorsBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -967,6 +968,22 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setQueryCache(Boolean queryCache) {
         request.queryCache(queryCache);
+        return this;
+    }
+
+    /**
+     * Specifies whether to return the stored term vectors for each hit, disregarding any previous parameters.
+     */
+    public SearchRequestBuilder setTermVectors(boolean fetch) {
+        sourceBuilder().termVectors(fetch);
+        return this;
+    }
+
+    /**
+     * Specifies how term vectors should be fetched for each hit.
+     */
+    public SearchRequestBuilder setTermVectors(TermVectorsBuilder termVectorsBuilder) {
+        sourceBuilder().termVectors(termVectorsBuilder);
         return this;
     }
 

@@ -1,0 +1,35 @@
+---
+"Term Vectors":
+
+  - do:
+      indices.create:
+          index: test
+          body:
+            mappings:
+              type:
+                "properties":
+                  "text":
+                     "type" : "string"
+                     "term_vector" : "with_positions_offsets"
+  - do:
+      index:
+        index: test
+        type:  type
+        id:    1
+        body:
+            "text" : "The quick brown fox is brown."
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test
+        type: type
+        body:
+          term_vectors: { term_statistics: true }
+          query: { match_all: {} }
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0.term_vectors.text.field_statistics.sum_doc_freq: 5 }
+  - match: { hits.hits.0.term_vectors.text.terms.brown.doc_freq: 1 }
+  - match: { hits.hits.0.term_vectors.text.terms.brown.tokens.0.start_offset: 10 }

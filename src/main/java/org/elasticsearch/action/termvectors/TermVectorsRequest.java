@@ -33,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
@@ -77,7 +78,7 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
 
     private FilterSettings filterSettings;
 
-    public static final class FilterSettings {
+    public static final class FilterSettings implements ToXContent {
         public Integer maxNumTerms;
         public Integer minTermFreq;
         public Integer maxTermFreq;
@@ -120,6 +121,33 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
             out.writeOptionalVInt(maxDocFreq);
             out.writeOptionalVInt(minWordLength);
             out.writeOptionalVInt(maxWordLength);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject("filter");
+            if (maxNumTerms != null) {
+                builder.field("max_num_terms", maxNumTerms);
+            }
+            if (minTermFreq != null) {
+                builder.field("min_term_freq", minTermFreq);
+            }
+            if (maxTermFreq != null) {
+                builder.field("max_term_freq", maxTermFreq);
+            }
+            if (minDocFreq != null) {
+                builder.field("min_doc_freq", minDocFreq);
+            }
+            if (maxDocFreq != null) {
+                builder.field("max_doc_freq", maxDocFreq);
+            }
+            if (minWordLength != null) {
+                builder.field("min_word_length", minWordLength);
+            }
+            if (maxWordLength != null) {
+                builder.field("max_word_length", maxWordLength);
+            }
+            return builder.endObject();
         }
     }
 
@@ -574,7 +602,7 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
     /**
      * populates a request object (pre-populated with defaults) based on a parser.
      */
-    public static void parseRequest(TermVectorsRequest termVectorsRequest, XContentParser parser) throws IOException {
+    public static void parseRequest(TermVectorsRequest termVectorsRequest, XContentParser parser, @Nullable Set<String> disallowedParameters) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         List<String> fields = new ArrayList<>();
@@ -582,6 +610,9 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (currentFieldName != null) {
+                if (disallowedParameters != null && disallowedParameters.contains(currentFieldName)) {
+                    throw new ElasticsearchParseException("The parameter \"" + currentFieldName + "\" is not allowed!");
+                }
                 if (currentFieldName.equals("fields")) {
                     if (token == XContentParser.Token.START_ARRAY) {
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
@@ -625,7 +656,8 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
                     termVectorsRequest.routing = parser.text();
                 } else if ("_version".equals(currentFieldName) || "version".equals(currentFieldName)) {
                     termVectorsRequest.version = parser.longValue();
-                } else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName) || "version_type".equals(currentFieldName) || "versionType".equals(currentFieldName)) {
+                } else if ("_version_type".equals(currentFieldName) || "version_type".equals(currentFieldName) || 
+                        "_versionType".equals(currentFieldName) || "versionType".equals(currentFieldName)) {
                     termVectorsRequest.versionType = VersionType.fromString(parser.text());
                 } else {
                     throw new ElasticsearchParseException("The parameter " + currentFieldName
@@ -637,6 +669,10 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
             String[] fieldsAsArray = new String[fields.size()];
             termVectorsRequest.selectedFields(fields.toArray(fieldsAsArray));
         }
+    }
+
+    public static void parseRequest(TermVectorsRequest termVectorsRequest, XContentParser parser) throws IOException {
+        parseRequest(termVectorsRequest, parser, null);
     }
 
     private static Map<String, String> readPerFieldAnalyzer(Map<String, Object> map) {

@@ -39,6 +39,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
 import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
@@ -122,7 +123,7 @@ public class ScriptSortParser implements SortParser {
         if (type == null) {
             throw new SearchParseException(context, "_script sorting requires setting the type of the script");
         }
-        final SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, ScriptContext.Standard.SEARCH, params);
+        final SearchScript searchScript = context.scriptService().search(context.lookup(), new Script(scriptLang, script, scriptType, params), ScriptContext.Standard.SEARCH);
 
         if (STRING_SORT_TYPE.equals(type) && (sortMode == MultiValueMode.SUM || sortMode == MultiValueMode.AVG)) {
             throw new SearchParseException(context, "type [string] doesn't support mode [" + sortMode + "]");

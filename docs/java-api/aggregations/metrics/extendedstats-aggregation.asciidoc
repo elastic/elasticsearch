@@ -31,7 +31,7 @@ import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStat
 [source,java]
 --------------------------------------------------
 // sr is here your SearchResponse object
-Stats agg = sr.getAggregations().get("agg");
+ExtendedStats agg = sr.getAggregations().get("agg");
 double min = agg.getMin();
 double max = agg.getMax();
 double avg = agg.getAvg();

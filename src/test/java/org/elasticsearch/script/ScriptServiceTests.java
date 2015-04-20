@@ -133,7 +133,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         resourceWatcherService.notifyNow();
 
         logger.info("--> verify that file with extension was correctly processed");
-        CompiledScript compiledScript = scriptService.compile("test", "test_script", ScriptType.FILE, ScriptContext.Standard.SEARCH);
+        CompiledScript compiledScript = scriptService.compile(new Script("test", "test_script", ScriptType.FILE, null), ScriptContext.Standard.SEARCH);
         assertThat(compiledScript.compiled(), equalTo((Object) "compiled_test_file"));
 
         logger.info("--> delete both files");
@@ -143,7 +143,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
 
         logger.info("--> verify that file with extension was correctly removed");
         try {
-            scriptService.compile("test", "test_script", ScriptType.FILE, ScriptContext.Standard.SEARCH);
+            scriptService.compile(new Script("test", "test_script", ScriptType.FILE, null), ScriptContext.Standard.SEARCH);
             fail("the script test_script should no longer exist");
         } catch (ElasticsearchIllegalArgumentException ex) {
             assertThat(ex.getMessage(), containsString("Unable to find on disk script test_script"));
@@ -154,17 +154,17 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
     public void testScriptsSameNameDifferentLanguage() throws IOException {
         buildScriptService(ImmutableSettings.EMPTY);
         createFileScripts("groovy", "expression");
-        CompiledScript groovyScript = scriptService.compile(GroovyScriptEngineService.NAME, "file_script", ScriptType.FILE, randomFrom(scriptContexts));
+        CompiledScript groovyScript = scriptService.compile(new Script(GroovyScriptEngineService.NAME, "file_script", ScriptType.FILE, null), randomFrom(scriptContexts));
         assertThat(groovyScript.lang(), equalTo(GroovyScriptEngineService.NAME));
-        CompiledScript expressionScript = scriptService.compile(ExpressionScriptEngineService.NAME, "file_script", ScriptType.FILE, randomFrom(scriptContexts));
+        CompiledScript expressionScript = scriptService.compile(new Script(ExpressionScriptEngineService.NAME, "file_script", ScriptType.FILE, null), randomFrom(scriptContexts));
         assertThat(expressionScript.lang(), equalTo(ExpressionScriptEngineService.NAME));
     }
 
     @Test
     public void testInlineScriptCompiledOnceMultipleLangAcronyms() throws IOException {
         buildScriptService(ImmutableSettings.EMPTY);
-        CompiledScript compiledScript1 = scriptService.compile("test", "script", ScriptType.INLINE, randomFrom(scriptContexts));
-        CompiledScript compiledScript2 = scriptService.compile("test2", "script", ScriptType.INLINE, randomFrom(scriptContexts));
+        CompiledScript compiledScript1 = scriptService.compile(new Script("test", "script", ScriptType.INLINE, null), randomFrom(scriptContexts));
+        CompiledScript compiledScript2 = scriptService.compile(new Script("test2", "script", ScriptType.INLINE, null), randomFrom(scriptContexts));
         assertThat(compiledScript1, sameInstance(compiledScript2));
     }
 
@@ -172,8 +172,8 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
     public void testFileScriptCompiledOnceMultipleLangAcronyms() throws IOException {
         buildScriptService(ImmutableSettings.EMPTY);
         createFileScripts("test");
-        CompiledScript compiledScript1 = scriptService.compile("test", "file_script", ScriptType.FILE, randomFrom(scriptContexts));
-        CompiledScript compiledScript2 = scriptService.compile("test2", "file_script", ScriptType.FILE, randomFrom(scriptContexts));
+        CompiledScript compiledScript1 = scriptService.compile(new Script("test", "file_script", ScriptType.FILE, null), randomFrom(scriptContexts));
+        CompiledScript compiledScript2 = scriptService.compile(new Script("test2", "file_script", ScriptType.FILE, null), randomFrom(scriptContexts));
         assertThat(compiledScript1, sameInstance(compiledScript2));
     }
 
@@ -350,7 +350,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         for (ScriptEngineService scriptEngineService : scriptEngineServices) {
             for (String type : scriptEngineService.types()) {
                 try {
-                    scriptService.compile(type, "test", randomFrom(ScriptType.values()), new ScriptContext.Plugin(pluginName, unknownContext));
+                    scriptService.compile(new Script(type, "test", randomFrom(ScriptType.values()), null), new ScriptContext.Plugin(pluginName, unknownContext));
                     fail("script compilation should have been rejected");
                 } catch(ElasticsearchIllegalArgumentException e) {
                     assertThat(e.getMessage(), containsString("script context [" + pluginName + "_" + unknownContext + "] not supported"));
@@ -369,7 +369,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
 
     private void assertCompileRejected(String lang, String script, ScriptType scriptType, ScriptContext scriptContext) {
         try {
-            scriptService.compile(lang, script, scriptType, scriptContext);
+            scriptService.compile(new Script(lang, script, scriptType, null), scriptContext);
             fail("compile should have been rejected for lang [" + lang + "], script_type [" + scriptType + "], scripted_op [" + scriptContext + "]");
         } catch(ScriptException e) {
             //all good
@@ -377,7 +377,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
     }
 
     private void assertCompileAccepted(String lang, String script, ScriptType scriptType, ScriptContext scriptContext) {
-        assertThat(scriptService.compile(lang, script, scriptType, scriptContext), notNullValue());
+        assertThat(scriptService.compile(new Script(lang, script, scriptType, null), scriptContext), notNullValue());
     }
 
     public static class TestEngineService implements ScriptEngineService {

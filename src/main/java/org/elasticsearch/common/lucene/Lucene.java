@@ -20,16 +20,26 @@
 package org.elasticsearch.common.lucene;
 
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
+
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ComplexExplanation;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Filter;
@@ -43,8 +53,11 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
-import org.apache.lucene.search.TotalHitCountCollector;
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.Lock;
+import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.Version;
@@ -64,7 +77,11 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.lucene.search.NoopCollector.NOOP_COLLECTOR;
 
@@ -236,10 +253,7 @@ public class Lucene {
     }
 
     public static long count(IndexSearcher searcher, Query query) throws IOException {
-        TotalHitCountCollector countCollector = new TotalHitCountCollector();
-        query = wrapCountQuery(query);
-        searcher.search(query, countCollector);
-        return countCollector.getTotalHits();
+        return searcher.count(query);
     }
 
     /**
@@ -313,7 +327,6 @@ public class Lucene {
      */
     public static boolean countWithEarlyTermination(IndexSearcher searcher, Filter filter, Query query,
                                                         EarlyTerminatingCollector collector) throws IOException {
-        query = wrapCountQuery(query);
         try {
             if (filter == null) {
                 searcher.search(query, collector);
@@ -333,14 +346,6 @@ public class Lucene {
      */
     public final static EarlyTerminatingCollector createExistsCollector() {
         return createCountBasedEarlyTerminatingCollector(1);
-    }
-
-    private final static Query wrapCountQuery(Query query) {
-        // we don't need scores, so wrap it in a constant score query
-        if (!(query instanceof ConstantScoreQuery)) {
-            query = new ConstantScoreQuery(query);
-        }
-        return query;
     }
 
     /**

@@ -25,7 +25,16 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopDocsCollector;
+import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
@@ -125,9 +134,7 @@ public final class InnerHitsContext {
             Query q = new FilteredQuery(query, new NestedChildrenFilter(parentFilter, childFilter, hitContext));
 
             if (size() == 0) {
-                TotalHitCountCollector collector = new TotalHitCountCollector();
-                context.searcher().search(q, collector);
-                return new TopDocs(collector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
+                return new TopDocs(context.searcher().count(q), Lucene.EMPTY_SCORE_DOCS, 0);
             } else {
                 int topN = from() + size();
                 TopDocsCollector topDocsCollector;

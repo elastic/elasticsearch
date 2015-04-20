@@ -19,6 +19,7 @@
 package org.elasticsearch.action.termvector;
 
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.termvector.TermVectorRequest.Flag;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -81,7 +82,11 @@ final class TermVectorWriter {
                 boolean foundTerm = topLevelIterator.seekExact(term);
                 startTerm(term);
                 if (flags.contains(Flag.TermStatistics)) {
-                    writeTermStatistics(topLevelIterator);
+                    if (foundTerm) {
+                        writeTermStatistics(topLevelIterator);
+                    } else {
+                        writeEmptyTermStatistics();
+                    }
                 }
                 if (useDocsAndPos) {
                     // given we have pos or offsets
@@ -205,6 +210,12 @@ final class TermVectorWriter {
         long ttf = topLevelIterator.totalTermFreq();
         assert (ttf >= -1);
         writePotentiallyNegativeVLong(ttf);
+
+    }
+
+    private void writeEmptyTermStatistics() throws IOException {
+        writePotentiallyNegativeVInt(0);
+        writePotentiallyNegativeVLong(0);
 
     }
 

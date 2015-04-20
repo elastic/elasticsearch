@@ -6,11 +6,14 @@
 package org.elasticsearch.shield.support;
 
 import com.google.common.collect.Sets;
+import com.google.common.jimfs.Configuration;
+import com.google.common.jimfs.Jimfs;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.PrintWriter;
+import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributeView;
@@ -20,7 +23,9 @@ import java.util.Set;
 
 import static java.nio.file.attribute.PosixFilePermission.*;
 import static org.elasticsearch.shield.support.ShieldFiles.openAtomicMoveWriter;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class ShieldFilesTests extends ElasticsearchTestCase {
 
@@ -49,4 +54,27 @@ public class ShieldFilesTests extends ElasticsearchTestCase {
         assertThat(permissionsAfterWrite, is(perms));
     }
 
+    @Test
+    public void testThatOwnerAndGroupAreChanged() throws Exception {
+        Configuration jimFsConfiguration = Configuration.unix().toBuilder().setAttributeViews("basic", "owner", "posix", "unix").build();
+        try (FileSystem fs = Jimfs.newFileSystem(jimFsConfiguration)) {
+            Path path = fs.getPath("foo");
+            Path tempPath = fs.getPath("bar");
+            Files.write(path, "foo".getBytes(Charsets.UTF_8));
+            Files.write(tempPath, "bar".getBytes(Charsets.UTF_8));
+
+            PosixFileAttributeView view = Files.getFileAttributeView(path, PosixFileAttributeView.class);
+            view.setGroup(fs.getUserPrincipalLookupService().lookupPrincipalByGroupName(randomAsciiOfLength(10)));
+            view.setOwner(fs.getUserPrincipalLookupService().lookupPrincipalByName(randomAsciiOfLength(10)));
+
+            PosixFileAttributeView tempPathView = Files.getFileAttributeView(tempPath, PosixFileAttributeView.class);
+            assertThat(tempPathView.getOwner(), not(equalTo(view.getOwner())));
+            assertThat(tempPathView.readAttributes().group(), not(equalTo(view.readAttributes().group())));
+
+            ShieldFiles.setPosixAttributesOnTempFile(path, tempPath);
+
+            assertThat(tempPathView.getOwner(), equalTo(view.getOwner()));
+            assertThat(tempPathView.readAttributes().group(), equalTo(view.readAttributes().group()));
+        }
+    }
 }

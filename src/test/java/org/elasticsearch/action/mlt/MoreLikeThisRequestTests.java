@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.mlt;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
@@ -33,6 +32,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.*;
 
 public class MoreLikeThisRequestTests extends ElasticsearchTestCase {
@@ -99,7 +99,7 @@ public class MoreLikeThisRequestTests extends ElasticsearchTestCase {
         }
 
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(randomVersion());
+        out.setVersion(randomVersion(random()));
         mltRequest.writeTo(out);
 
         BytesStreamInput in = new BytesStreamInput(out.bytes());

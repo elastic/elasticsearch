@@ -64,6 +64,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.engine.AssertingSearcher;
 import org.elasticsearch.test.engine.MockInternalEngine;
 import org.elasticsearch.test.engine.MockShadowEngine;
@@ -82,6 +83,7 @@ import java.util.concurrent.TimeUnit;
 
 import static com.google.common.base.Predicates.isNull;
 import static org.elasticsearch.test.ElasticsearchTestCase.*;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -585,8 +587,8 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertVersionSerializable(Streamable streamable) {
-        assertTrue(Version.CURRENT.after(getPreviousVersion()));
-        assertVersionSerializable(randomVersion(), streamable);
+        assertTrue(Version.CURRENT.after(VersionUtils.getPreviousVersion()));
+        assertVersionSerializable(randomVersion(random()), streamable);
     }
 
     public static void assertVersionSerializable(Version version, Streamable streamable) {

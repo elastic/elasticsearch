@@ -212,7 +212,7 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
     }
 
     private Path generateWordList(String[] words) throws Exception {
-        Path wordListFile = newTempDirPath().resolve("wordlist.txt");
+        Path wordListFile = createTempDir().resolve("wordlist.txt");
         try (BufferedWriter writer = Files.newBufferedWriter(wordListFile, StandardCharsets.UTF_8)) {
             for (String word : words) {
                 writer.write(word);

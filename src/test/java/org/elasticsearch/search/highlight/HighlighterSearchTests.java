@@ -60,6 +60,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
+@Slow
 public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
     @Test

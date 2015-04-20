@@ -19,6 +19,7 @@
 
 package org.elasticsearch.deleteByQuery;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequestBuilder;
@@ -38,6 +39,7 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
+@Slow
 public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
 
     @Test

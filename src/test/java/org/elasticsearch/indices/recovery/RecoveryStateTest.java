@@ -39,6 +39,7 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.*;
 
 public class RecoveryStateTest extends ElasticsearchTestCase {
@@ -52,7 +53,7 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
         final Version streamVersion;
 
         Streamer(AtomicBoolean shouldStop, T source) {
-            this(shouldStop, source, randomVersion());
+            this(shouldStop, source, randomVersion(random()));
         }
 
         Streamer(AtomicBoolean shouldStop, T source, Version streamVersion) {

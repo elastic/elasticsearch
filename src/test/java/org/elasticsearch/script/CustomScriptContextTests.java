@@ -20,6 +20,7 @@
 package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableSet;
+
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.ImmutableSettings;

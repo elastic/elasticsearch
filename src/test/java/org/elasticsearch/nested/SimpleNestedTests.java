@@ -164,7 +164,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
 
-    @Test
+    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/10661")
     public void simpleNestedMatchQueries() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
                 .startObject("type1")

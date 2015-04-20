@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -38,7 +39,7 @@ import java.util.Arrays;
 public class RoutingBackwardCompatibilityTests extends ElasticsearchTestCase {
 
     public void testBackwardCompatibility() throws Exception {
-        Path baseDir = newTempDirPath();
+        Path baseDir = createTempDir();
         Node node = new Node(ImmutableSettings.builder().put("path.home", baseDir.toString()).build(), false);
         try {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(RoutingBackwardCompatibilityTests.class.getResourceAsStream("/org/elasticsearch/cluster/routing/shard_routes.txt"), "UTF-8"))) {
@@ -57,7 +58,7 @@ public class RoutingBackwardCompatibilityTests extends ElasticsearchTestCase {
                     final int currentExpectedShard = Integer.parseInt(parts[6]);
 
                     OperationRouting operationRouting = node.injector().getInstance(OperationRouting.class);
-                    for (Version version : allVersions()) {
+                    for (Version version : VersionUtils.allVersions()) {
                         final Settings settings = settings(version).build();
                         IndexMetaData indexMetaData = IndexMetaData.builder(index).settings(settings).numberOfShards(numberOfShards).numberOfReplicas(randomInt(3)).build();
                         MetaData.Builder metaData = MetaData.builder().put(indexMetaData, false);

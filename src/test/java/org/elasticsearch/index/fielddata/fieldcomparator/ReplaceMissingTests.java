@@ -24,11 +24,9 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 
-@SuppressCodecs({ "Lucene3x", "Lucene40", "Lucene41", "Lucene42" }) // these codecs dont support missing values
-public class ReplaceMissingTests extends ElasticsearchLuceneTestCase {
+public class ReplaceMissingTests extends ElasticsearchTestCase {
     
     public void test() throws Exception {
         Directory dir = newDirectory();

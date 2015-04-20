@@ -50,6 +50,8 @@ public class CodecService extends AbstractIndexComponent {
 
     public final static String DEFAULT_CODEC = "default";
     public final static String BEST_COMPRESSION_CODEC = "best_compression";
+    /** the raw unfiltered lucene default. useful for testing */
+    public final static String LUCENE_DEFAULT_CODEC = "lucene_default";
 
     public CodecService(Index index) {
         this(index, ImmutableSettings.Builder.EMPTY_SETTINGS);
@@ -73,6 +75,7 @@ public class CodecService extends AbstractIndexComponent {
             codecs.put(BEST_COMPRESSION_CODEC, 
                     new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
         }
+        codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
         for (String codec : Codec.availableCodecs()) {
             codecs.put(codec, Codec.forName(codec));
         }

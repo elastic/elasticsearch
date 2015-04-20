@@ -446,6 +446,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @Slow
     @TestLogging("cluster.service:TRACE,indices.recovery:TRACE")
     public void testRelocationWithBusyClusterUpdateThread() throws Exception {
         final String indexName = "test";

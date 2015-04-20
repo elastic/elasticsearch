@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.functionscore;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -60,6 +61,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
+@Slow
 public class FunctionScoreTests extends ElasticsearchIntegrationTest {
 
     static final String TYPE = "type";

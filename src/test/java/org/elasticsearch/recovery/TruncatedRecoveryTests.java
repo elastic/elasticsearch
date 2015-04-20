@@ -20,6 +20,7 @@
 package org.elasticsearch.recovery;
 
 import org.apache.lucene.util.English;
+import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -52,6 +53,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ElasticsearchIntegrationTest.ClusterScope(numDataNodes = 2, numClientNodes = 0, scope = ElasticsearchIntegrationTest.Scope.TEST)
+@SuppressCodecs("*") // test relies on exact file extensions
 public class TruncatedRecoveryTests extends ElasticsearchIntegrationTest {
 
     protected Settings nodeSettings(int nodeOrdinal) {

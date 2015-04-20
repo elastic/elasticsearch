@@ -28,9 +28,9 @@ import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.docset.AndDocIdSet;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 
-public class AndDocIdSetTests extends ElasticsearchLuceneTestCase {
+public class AndDocIdSetTests extends ElasticsearchTestCase {
 
     private static FixedBitSet randomBitSet(int numDocs) {
         FixedBitSet b = new FixedBitSet(numDocs);

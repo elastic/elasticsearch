@@ -22,6 +22,7 @@ package org.elasticsearch.common.lucene.index;
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Lists;
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -35,7 +36,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -48,7 +49,7 @@ import static org.hamcrest.Matchers.is;
 
 /**
  */
-public class FreqTermsEnumTests extends ElasticsearchLuceneTestCase {
+public class FreqTermsEnumTests extends ElasticsearchTestCase {
 
     private String[] terms;
     private IndexWriter iw;

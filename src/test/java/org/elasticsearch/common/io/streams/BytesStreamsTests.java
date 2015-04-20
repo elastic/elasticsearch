@@ -260,7 +260,7 @@ public class BytesStreamsTests extends ElasticsearchTestCase {
 
     @Test
     public void testSimpleStreams() throws Exception {
-        assumeTrue(Constants.JRE_IS_64BIT);
+        assumeTrue("requires a 64-bit JRE ... ?!", Constants.JRE_IS_64BIT);
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeBoolean(false);
         out.writeByte((byte)1);

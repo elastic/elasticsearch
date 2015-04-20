@@ -24,7 +24,7 @@ accept a filter.
                 },
                 "must_not" : {
                     "range" : {
-                        "age" : { "from" : 10, "to" : 20 }
+                        "age" : { "gt" : 10, "lt" : 20 }
                     }
                 },
                 "should" : [

@@ -284,12 +284,6 @@ public abstract class ElasticsearchRestTestCase extends ElasticsearchIntegration
                 testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
     }
 
-    @Override
-    protected void afterTestFailed() {
-        //after we reset the global cluster, we have to make sure the client gets re-initialized too
-        restTestExecutionContext.resetClient();
-    }
-
     private static String buildSkipMessage(String description, SkipSection skipSection) {
         StringBuilder messageBuilder = new StringBuilder();
         if (skipSection.isVersionCheck()) {

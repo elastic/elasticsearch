@@ -140,7 +140,7 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
      * These paths don't contain actual translog files they are
      * directories holding the transaction logs.
      */
-    public Path[] locations();
+    public Path location();
 
     /**
      * Returns the translog filename for the given id.

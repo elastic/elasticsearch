@@ -581,5 +581,4 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
             return threadGroup.getName();
         }
     }
-
 }

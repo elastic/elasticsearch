@@ -32,7 +32,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -596,23 +595,25 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
         logger.info("--> verifying no temporary recoveries are left");
         for (String node : internalCluster().getNodeNames()) {
             NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, node);
-            for (final Path shardLoc : nodeEnvironment.shardPaths(new ShardId(indexName, 0))) {
-                assertBusy(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            Files.walkFileTree(shardLoc, new SimpleFileVisitor<Path>() {
-                                @Override
-                                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                                    assertThat("found a temporary recovery file: " + file, file.getFileName().toString(), not(startsWith("recovery.")));
-                                    return FileVisitResult.CONTINUE;
-                                }
-                            });
-                        } catch (IOException e) {
-                            throw new AssertionError("failed to walk file tree starting at [" + shardLoc + "]", e);
+            for (final Path shardLoc : nodeEnvironment.availableShardPaths(new ShardId(indexName, 0))) {
+                if (Files.exists(shardLoc)) {
+                    assertBusy(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                Files.walkFileTree(shardLoc, new SimpleFileVisitor<Path>() {
+                                    @Override
+                                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                                        assertThat("found a temporary recovery file: " + file, file.getFileName().toString(), not(startsWith("recovery.")));
+                                        return FileVisitResult.CONTINUE;
+                                    }
+                                });
+                            } catch (IOException e) {
+                                throw new AssertionError("failed to walk file tree starting at [" + shardLoc + "]", e);
+                            }
                         }
-                    }
-                });
+                    });
+                }
             }
         }
     }

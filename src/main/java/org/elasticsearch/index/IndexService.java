@@ -58,10 +58,7 @@ import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.search.stats.ShardSearchModule;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardCreationException;
-import org.elasticsearch.index.shard.IndexShardModule;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotModule;
 import org.elasticsearch.index.store.IndexStore;
@@ -296,6 +293,15 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         boolean success = false;
         Injector shardInjector = null;
         try {
+
+            ShardPath path = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
+            if (path == null) {
+                path = ShardPath.selectNewPathForShard(nodeEnv, shardId, indexSettings);
+                logger.debug("{} creating using a new path [{}]", shardId, path);
+            } else {
+                logger.debug("{} creating using an existing path [{}]", shardId, path);
+            }
+
             lock = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5));
             if (shards.containsKey(shardId.id())) {
                 throw new IndexShardAlreadyExistsException(shardId + " already exists");
@@ -313,8 +319,8 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             modules.add(new ShardIndexingModule());
             modules.add(new ShardSearchModule());
             modules.add(new ShardGetModule());
-            modules.add(new StoreModule(indexSettings, injector.getInstance(IndexStore.class), lock,
-                    new StoreCloseListener(shardId, canDeleteShardContent)));
+            modules.add(new StoreModule(indexSettings, injector.getInstance(IndexStore.class).shardDirectory(), lock,
+                    new StoreCloseListener(shardId, canDeleteShardContent), path));
             modules.add(new DeletionPolicyModule(indexSettings));
             modules.add(new MergePolicyModule(indexSettings));
             modules.add(new MergeSchedulerModule(indexSettings));

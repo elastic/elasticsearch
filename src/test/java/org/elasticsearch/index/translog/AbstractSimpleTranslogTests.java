@@ -67,6 +67,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        // if a previous test failed we clean up things here
         translogDir = createTempDir();
         translog = create(translogDir);
         translog.newTranslog(1);
@@ -383,18 +384,14 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
     }
 
     public void assertFileIsPresent(Translog translog, long id) {
-        for (Path location : translog.locations()) {
-            if (Files.exists(location.resolve(translog.getFilename(id)))) {
-                return;
-            }
+        if(Files.exists(translog.location().resolve(translog.getFilename(id)))) {
+            return;
         }
-        fail(translog.getFilename(id) + " is not present in any location: " + Arrays.toString(translog.locations()));
+        fail(translog.getFilename(id) + " is not present in any location: " + translog.location());
     }
 
     public void assertFileDeleted(Translog translog, long id) {
-        for (Path location : translog.locations()) {
-            assertFalse(Files.exists(location.resolve(translog.getFilename(id))));
-        }
+        assertFalse(Files.exists(translog.location().resolve(translog.getFilename(id))));
     }
 
     @Test

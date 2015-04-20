@@ -30,9 +30,11 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.MultiDataPathUpgrader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -170,12 +172,15 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
 
         if (randomBoolean()) {
             logger.info("--> injecting index [{}] into single data path", indexName);
-            copyIndex(src, indexName, singleDataPath);
+            copyIndex(logger, src, indexName, singleDataPath);
         } else {
             logger.info("--> injecting index [{}] into multi data path", indexName);
-            copyIndex(src, indexName, multiDataPath);
+            copyIndex(logger, src, indexName, multiDataPath);
         }
-
+        final Iterable<NodeEnvironment> instances = internalCluster().getInstances(NodeEnvironment.class);
+        for (NodeEnvironment nodeEnv : instances) { // upgrade multidata path
+            MultiDataPathUpgrader.upgradeMultiDataPath(nodeEnv, logger);
+        }
         // force reloading dangling indices with a cluster state republish
         client().admin().cluster().prepareReroute().get();
         ensureGreen(indexName);
@@ -183,7 +188,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     }
 
     // randomly distribute the files from src over dests paths
-    void copyIndex(final Path src, final String indexName, final Path... dests) throws IOException {
+    public static void copyIndex(final ESLogger logger, final Path src, final String indexName, final Path... dests) throws IOException {
         for (Path dest : dests) {
             Path indexDir = dest.resolve(indexName);
             assertFalse(Files.exists(indexDir));
@@ -382,4 +387,5 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         UpgradeTest.runUpgrade(httpClient, indexName);
         UpgradeTest.assertUpgraded(httpClient, indexName);
     }
+
 }

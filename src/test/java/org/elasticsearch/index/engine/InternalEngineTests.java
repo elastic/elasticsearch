@@ -84,7 +84,6 @@ import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogSizeMatcher;
 import org.elasticsearch.index.translog.fs.FsTranslog;
@@ -214,8 +213,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     protected Store createStore(final Directory directory) throws IOException {
         final DirectoryService directoryService = new DirectoryService(shardId, EMPTY_SETTINGS) {
             @Override
-            public Directory[] build() throws IOException {
-                return new Directory[]{directory};
+            public Directory newDirectory() throws IOException {
+                return directory;
             }
 
             @Override
@@ -223,7 +222,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                 return 0;
             }
         };
-        return new Store(shardId, EMPTY_SETTINGS, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
+        return new Store(shardId, EMPTY_SETTINGS, directoryService, new DummyShardLock(shardId));
     }
 
     protected Translog createTranslog() throws IOException {

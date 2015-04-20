@@ -30,6 +30,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
@@ -73,6 +74,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.hamcrest.Matchers.*;
@@ -938,5 +941,57 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
         CodecService codecService = new CodecService(shardId.index());
         assertEquals(replicaEngine.config().getCodec().getName(), codecService.codec(codecName).getName());
         assertEquals(replicaEngine.config().getIndexConcurrency(), indexConcurrency);
+    }
+
+    @Test
+    public void testShadowEngineCreationRetry() throws Exception {
+        final Path srDir = createTempDir();
+        final Store srStore = createStore(srDir);
+        Lucene.cleanLuceneIndex(srStore.directory());
+        final Translog srTranslog = createTranslogReplica();
+
+        final AtomicBoolean succeeded = new AtomicBoolean(false);
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        // Create a shadow Engine, which will freak out because there is no
+        // index yet
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    // ignore interruptions
+                }
+                try (ShadowEngine srEngine = createShadowEngine(srStore, srTranslog)) {
+                    succeeded.set(true);
+                } catch (Exception e) {
+                    fail("should have been able to create the engine!");
+                }
+            }
+        });
+        t.start();
+
+        // count down latch
+        // now shadow engine should try to be created
+        latch.countDown();
+
+        // Create an InternalEngine, which creates the index so the shadow
+        // replica will handle it correctly
+        Store pStore = createStore(srDir);
+        Translog pTranslog = createTranslog();
+        InternalEngine pEngine = createInternalEngine(pStore, pTranslog);
+
+        // create a document
+        ParseContext.Document document = testDocumentWithTextField();
+        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
+        pEngine.create(new Engine.Create(null, newUid("1"), doc));
+        pEngine.flush(true, true);
+
+        t.join();
+        assertTrue("ShadowEngine should have been able to be created", succeeded.get());
+        // (shadow engine is already shut down in the try-with-resources)
+        IOUtils.close(srTranslog, srStore, pTranslog, pEngine, pStore);
     }
 }

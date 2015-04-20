@@ -120,7 +120,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
 
     private static Node newNode() {
         Node build = NodeBuilder.nodeBuilder().local(true).data(true).settings(ImmutableSettings.builder()
-            .put(ClusterName.SETTING, clusterName())
+            .put(ClusterName.SETTING, InternalTestCluster.clusterName("single-node-cluster", randomLong()))
             .put("path.home", createTempDir())
             .put("node.name", nodeName())
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -148,13 +148,6 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
      */
     public static String nodeName() {
         return "node_s_0";
-    }
-
-    /**
-     * Returns the name of the cluster used for the single test node.
-     */
-    public static String clusterName() {
-        return "single-node-cluster";
     }
 
     /**

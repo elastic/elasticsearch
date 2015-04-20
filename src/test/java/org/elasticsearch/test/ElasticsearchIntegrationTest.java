@@ -675,13 +675,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
     }
 
-    /**
-     * Allows to execute some additional task after a test is failed, right after we cleared the clusters
-     */
-    protected void afterTestFailed() {
-
-    }
-
     public static TestCluster cluster() {
         return currentCluster;
     }

@@ -125,11 +125,6 @@ public class RestTestExecutionContext implements Closeable {
         }
     }
 
-    public void resetClient() {
-        restClient.close();
-        restClient = null;
-    }
-
     /**
      * Clears the last obtained response and the stashed fields
      */

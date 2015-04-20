@@ -19,6 +19,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.SegmentInfos;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -31,9 +32,15 @@ import java.util.Map;
 public class CommitStats implements Streamable, ToXContent {
 
     Map<String, String> userData;
+    long generation;
+    String id; // lucene commit id in base 64;
 
     public CommitStats(SegmentInfos segmentInfos) {
-
+        // clone the map to protect against concurrent changes
+        userData = MapBuilder.<String, String>newMapBuilder().putAll(segmentInfos.getUserData()).immutableMap();
+        // lucene calls the current generation, last generation.
+        generation = segmentInfos.getLastGeneration();
+        id = segmentInfos.getSegmentsFileName();
     }
 
     private CommitStats() {

@@ -20,14 +20,12 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.ActionException;
 import org.elasticsearch.watcher.actions.email.service.Attachment;
-import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
-import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.watch.Watch;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
@@ -66,8 +64,9 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         final Map<String, Object> expectedModel = ImmutableMap.<String, Object>builder()
                 .put("ctx", ImmutableMap.builder()
                         .put("execution_time", now)
-                        .put("watch_id", "_watch_name")
+                        .put("watch_id", "_watch_id")
                         .put("payload", ImmutableMap.of())
+                        .put("metadata", ImmutableMap.of())
                         .put("trigger", ImmutableMap.builder()
                                 .put("scheduled_time", now)
                                 .put("triggered_time", now)
@@ -76,15 +75,14 @@ public class LoggingActionTests extends ElasticsearchTestCase {
                 .build();
 
         String text = randomAsciiOfLength(10);
-        System.out.println("**** text: " + text);
         Template template = new Template(text);
         LoggingAction action = new LoggingAction(template, level, "_category");
         ExecutableLoggingAction executable = new ExecutableLoggingAction(action, logger, actionLogger, engine);
         when(engine.render(template, expectedModel)).thenReturn(text);
 
-        Watch watch = mock(Watch.class);
-        when(watch.name()).thenReturn("_watch_name");
-        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, now, new ScheduleTriggerEvent(now, now));
+        WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContextBuilder("_watch_id")
+                .time(now)
+                .buildMock();
 
         LoggingAction.Result result = executable.execute("_id", ctx, new Payload.Simple());
         verifyLogger(actionLogger, level, text);

@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.actions.email;
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -24,13 +25,12 @@ import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.watch.Payload;
 import org.junit.Test;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContextBuilder;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -82,28 +82,26 @@ public class EmailActionTests extends ElasticsearchTestCase {
         EmailAction action = new EmailAction(email, account, auth, profile, attachPayload);
         ExecutableEmailAction executable = new ExecutableEmailAction(action, logger, service, engine);
 
-        final Map<String, Object> data = new HashMap<>();
-        Payload payload = new Payload() {
-            @Override
-            public Map<String, Object> data() {
-                return data;
-            }
+        Map<String, Object> data = new HashMap<>();
+        Payload payload = new Payload.Simple(data);
 
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.map(data);
-            }
-        };
+        Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
 
         DateTime now = DateTime.now(UTC);
 
-        Wid wid = new Wid(randomAsciiOfLength(5), randomLong(), DateTime.now(UTC));
-        WatchExecutionContext ctx = mockExecutionContext("watch1", now, payload);
-        when(ctx.id()).thenReturn(wid);
+        Wid wid = new Wid(randomAsciiOfLength(5), randomLong(), now);
+        WatchExecutionContext ctx = mockExecutionContextBuilder("watch1")
+                .wid(wid)
+                .payload(payload)
+                .time(now)
+                .metadata(metadata)
+                .buildMock();
+
         Map<String, Object> expectedModel = ImmutableMap.<String, Object>builder()
                 .put("ctx", ImmutableMap.<String, Object>builder()
                         .put("watch_id", "watch1")
                         .put("payload", data)
+                        .put("metadata", metadata)
                         .put("execution_time", now)
                         .put("trigger", ImmutableMap.<String, Object>builder()
                                 .put("triggered_time", now)
@@ -134,7 +132,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         assertThat(actualEmail.textBody(), is(textBody == null ? null : textBody.getText()));
         assertThat(actualEmail.htmlBody(), is(htmlBody == null ? null : htmlBody.getText()));
         if (attachPayload) {
-            assertThat(actualEmail.attachments(), hasKey("payload"));
+            assertThat(actualEmail.attachments(), hasKey("data"));
         }
     }
 
@@ -151,13 +149,13 @@ public class EmailActionTests extends ElasticsearchTestCase {
         Template subject = randomBoolean() ? new Template("_subject") : null;
         Template textBody = randomBoolean() ? new Template("_text_body") : null;
         Template htmlBody = randomBoolean() ? new Template("_text_html") : null;
-        boolean attachPayload = randomBoolean();
+        boolean attachData = randomBoolean();
         XContentBuilder builder = jsonBuilder().startObject()
                 .field("account", "_account")
                 .field("profile", profile.name())
                 .field("user", "_user")
                 .field("password", "_passwd")
-                .field("attach_payload", attachPayload)
+                .field("attach_data", attachData)
                 .field("from", "from@domain")
                 .field("priority", priority.name());
         if (to != null) {
@@ -219,7 +217,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
 
         assertThat(executable, notNullValue());
         assertThat(executable.action().getAccount(), is("_account"));
-        assertThat(executable.action().isAttachPayload(), is(attachPayload));
+        assertThat(executable.action().getAttachData(), is(attachData));
         assertThat(executable.action().getAuth(), notNullValue());
         assertThat(executable.action().getAuth().user(), is("_user"));
         assertThat(executable.action().getAuth().password(), is("_passwd".toCharArray()));

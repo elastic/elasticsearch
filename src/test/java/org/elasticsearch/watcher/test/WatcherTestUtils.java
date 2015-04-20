@@ -47,7 +47,6 @@ import org.elasticsearch.watcher.transform.SearchTransform;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.CronSchedule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
-import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 
@@ -57,7 +56,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.mockito.Mockito.mock;
@@ -97,23 +95,29 @@ public final class WatcherTestUtils {
         return new Payload.Simple(key, value);
     }
 
+    public static WatchExecutionContextMockBuilder mockExecutionContextBuilder(String watchId) {
+        return new WatchExecutionContextMockBuilder(watchId);
+    }
+
     public static WatchExecutionContext mockExecutionContext(String watchId, Payload payload) {
-        return mockExecutionContext(watchId, DateTime.now(UTC), payload);
+        return mockExecutionContextBuilder(watchId)
+                .payload(payload)
+                .buildMock();
     }
 
-    public static WatchExecutionContext mockExecutionContext(String watchName, DateTime time, Payload payload) {
-        return mockExecutionContext(watchName, time, new ScheduleTriggerEvent(time, time), payload);
+    public static WatchExecutionContext mockExecutionContext(String watchId, DateTime time, Payload payload) {
+        return mockExecutionContextBuilder(watchId)
+                .payload(payload)
+                .time(time)
+                .buildMock();
     }
 
-    public static WatchExecutionContext mockExecutionContext(String watchName, DateTime executionTime, TriggerEvent event, Payload payload) {
-        WatchExecutionContext ctx = mock(WatchExecutionContext.class);
-        when(ctx.executionTime()).thenReturn(executionTime);
-        when(ctx.triggerEvent()).thenReturn(event);
-        Watch watch = mock(Watch.class);
-        when(watch.name()).thenReturn(watchName);
-        when(ctx.watch()).thenReturn(watch);
-        when(ctx.payload()).thenReturn(payload);
-        return ctx;
+    public static WatchExecutionContext mockExecutionContext(String watchId, DateTime executionTime, TriggerEvent event, Payload payload) {
+        return mockExecutionContextBuilder(watchId)
+                .payload(payload)
+                .executionTime(executionTime)
+                .triggerEvent(event)
+                .buildMock();
     }
 
 

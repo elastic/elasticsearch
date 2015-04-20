@@ -155,7 +155,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                         new ExecutableScriptCondition(new ScriptCondition(new Script("return true")), logger, scriptService()),
                         new SearchTransform(logger, scriptService(), ClientProxy.of(client()), searchRequest),
                         new ExecutableActions(new ArrayList<ActionWrapper>()),
-                        null, // metatdata
+                        null, // metadata
                         new TimeValue(0),
                         new Watch.Status());
                 XContentBuilder jsonBuilder = jsonBuilder();

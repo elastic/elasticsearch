@@ -29,14 +29,14 @@ public class EmailAction implements Action {
     private final @Nullable String account;
     private final @Nullable Authentication auth;
     private final @Nullable Profile profile;
-    private final @Nullable Boolean attachPayload;
+    private final @Nullable Boolean attachData;
 
-    public EmailAction(EmailTemplate email, @Nullable String account, @Nullable Authentication auth, @Nullable Profile profile, @Nullable Boolean attachPayload) {
+    public EmailAction(EmailTemplate email, @Nullable String account, @Nullable Authentication auth, @Nullable Profile profile, @Nullable Boolean attachData) {
         this.email = email;
         this.account = account;
         this.auth = auth;
         this.profile = profile;
-        this.attachPayload = attachPayload;
+        this.attachData = attachData;
     }
 
     public EmailTemplate getEmail() {
@@ -55,8 +55,8 @@ public class EmailAction implements Action {
         return profile;
     }
 
-    public boolean isAttachPayload() {
-        return attachPayload != null && attachPayload;
+    public boolean getAttachData() {
+        return attachData != null && attachData;
     }
 
     @Override
@@ -75,7 +75,7 @@ public class EmailAction implements Action {
         if (account != null ? !account.equals(action.account) : action.account != null) return false;
         if (auth != null ? !auth.equals(action.auth) : action.auth != null) return false;
         if (profile != action.profile) return false;
-        return !(attachPayload != null ? !attachPayload.equals(action.attachPayload) : action.attachPayload != null);
+        return !(attachData != null ? !attachData.equals(action.attachData) : action.attachData != null);
     }
 
     @Override
@@ -84,7 +84,7 @@ public class EmailAction implements Action {
         result = 31 * result + (account != null ? account.hashCode() : 0);
         result = 31 * result + (auth != null ? auth.hashCode() : 0);
         result = 31 * result + (profile != null ? profile.hashCode() : 0);
-        result = 31 * result + (attachPayload != null ? attachPayload.hashCode() : 0);
+        result = 31 * result + (attachData != null ? attachData.hashCode() : 0);
         return result;
     }
 
@@ -101,8 +101,8 @@ public class EmailAction implements Action {
         if (profile != null) {
             builder.field(Field.PROFILE.getPreferredName(), profile.name().toLowerCase(Locale.ROOT));
         }
-        if (attachPayload != null) {
-            builder.field(Field.ATTACH_PAYLOAD.getPreferredName(), attachPayload);
+        if (attachData != null) {
+            builder.field(Field.ATTACH_DATA.getPreferredName(), attachData);
         }
         email.xContentBody(builder, params);
         return builder.endObject();
@@ -135,7 +135,7 @@ public class EmailAction implements Action {
                         throw new EmailActionException("could not parse [{}] action [{}/{}]. unexpected string field [{}]", TYPE, watchId, actionId, currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                    if (Field.ATTACH_PAYLOAD.match(currentFieldName)) {
+                    if (Field.ATTACH_DATA.match(currentFieldName)) {
                         attachPayload = parser.booleanValue();
                     } else {
                         throw new EmailActionException("could not parse [{}] action [{}/{}]. unexpected boolean field [{}]", TYPE, watchId, actionId, currentFieldName);
@@ -342,7 +342,7 @@ public class EmailAction implements Action {
         ParseField PROFILE = new ParseField("profile");
         ParseField USER = new ParseField("user");
         ParseField PASSWORD = new ParseField("password");
-        ParseField ATTACH_PAYLOAD = new ParseField("attach_payload");
+        ParseField ATTACH_DATA = new ParseField("attach_data");
 
         // result fields
         ParseField EMAIL = new ParseField("email");

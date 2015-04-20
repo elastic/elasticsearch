@@ -36,8 +36,8 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction, EmailAc
         Email.Builder email = action.getEmail().render(templateEngine, model);
         email.id(ctx.id().value());
 
-        if (action.isAttachPayload()) {
-            Attachment.Bytes attachment = new Attachment.XContent.Yaml("payload", "payload.yml", payload);
+        if (action.getAttachData()) {
+            Attachment.Bytes attachment = new Attachment.XContent.Yaml("data", "data.yml", new Payload.Simple(model));
             email.attach(attachment);
         }
 

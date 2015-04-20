@@ -592,6 +592,15 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
+    /**
+     * @return {@link CommitStats} if engine is open, otherwise null
+     */
+    @Nullable
+    public CommitStats commitStats() {
+        Engine engine = engineUnsafe();
+        return engine == null ? null : engine.commitStats();
+    }
+
     public IndexingStats indexingStats(String... types) {
         return indexingService.stats(types);
     }
@@ -1257,7 +1266,6 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
         }
     }
-
 
     private String getIndexUUID() {
         assert indexSettings.get(IndexMetaData.SETTING_UUID) != null

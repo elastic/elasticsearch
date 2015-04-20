@@ -137,6 +137,8 @@ public abstract class Engine implements Closeable {
         return engineConfig;
     }
 
+    protected abstract SegmentInfos getLastCommittedSegmentInfos();
+
     /** A throttling class that can be activated, causing the
      * {@code acquireThrottle} method to block on a lock when throttling
      * is enabled
@@ -280,6 +282,13 @@ public abstract class Engine implements Closeable {
             throw new EngineClosedException(shardId, failedEngine);
         }
     }
+
+    /** get commits stats for the last commit */
+    public CommitStats commitStats() {
+        return new CommitStats(getLastCommittedSegmentInfos());
+    }
+
+
 
     /**
      * Global stats on segments.

@@ -66,4 +66,6 @@ setup:
   - is_true:  indices.test2.total.docs
   - is_true:  indices.test2.total.docs
   - is_true:  indices.test2.shards
+  - is_true:  indices.test1.shards.0.0.commit.id
+  - is_true:  indices.test2.shards.0.0.commit.id
 

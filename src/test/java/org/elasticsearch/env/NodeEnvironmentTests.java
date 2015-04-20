@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -314,11 +313,13 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
         assertFalse("no settings should mean no custom data path", NodeEnvironment.hasCustomDataPath(s1));
         assertTrue("settings with path_data should have a custom data path", NodeEnvironment.hasCustomDataPath(s2));
 
-        assertThat(env.shardDataPaths(sid, s1), equalTo(env.shardPaths(sid)));
-        assertThat(env.shardDataPaths(sid, s2), equalTo(new Path[] {PathUtils.get("/tmp/foo/0/myindex/0")}));
+        assertThat(env.availableShardPaths(sid), equalTo(env.availableShardPaths(sid)));
+        assertFalse(NodeEnvironment.hasCustomDataPath(s1));
+        assertThat(env.resolveCustomLocation(s2, sid), equalTo(PathUtils.get("/tmp/foo/0/myindex/0")));
+        assertTrue(NodeEnvironment.hasCustomDataPath(s2));
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
-                env.shardPaths(sid),
+                env.availableShardPaths(sid),
                 equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/myindex/0")));
 
         assertThat("index paths uses the regular template",
@@ -328,11 +329,11 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
         NodeEnvironment env2 = newNodeEnvironment(dataPaths,
                 ImmutableSettings.builder().put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH, false).build());
 
-        assertThat(env2.shardDataPaths(sid, s1), equalTo(env2.shardPaths(sid)));
-        assertThat(env2.shardDataPaths(sid, s2), equalTo(new Path[] {PathUtils.get("/tmp/foo/myindex/0")}));
+        assertThat(env2.availableShardPaths(sid), equalTo(env2.availableShardPaths(sid)));
+        assertThat(env2.resolveCustomLocation(s2, sid), equalTo(PathUtils.get("/tmp/foo/myindex/0")));
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
-                env2.shardPaths(sid),
+                env2.availableShardPaths(sid),
                 equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/myindex/0")));
 
         assertThat("index paths uses the regular template",

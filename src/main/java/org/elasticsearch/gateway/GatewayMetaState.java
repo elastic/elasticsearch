@@ -37,7 +37,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.common.util.MultiDataPathUpgrader;
 import org.elasticsearch.env.NodeEnvironment;
 
 import java.io.IOException;
@@ -71,6 +71,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
         if (DiscoveryNode.dataNode(settings)) {
             ensureNoPre019ShardState(nodeEnv);
+            MultiDataPathUpgrader.upgradeMultiDataPath(nodeEnv, logger);
         }
 
         if (DiscoveryNode.masterNode(settings) || DiscoveryNode.dataNode(settings)) {

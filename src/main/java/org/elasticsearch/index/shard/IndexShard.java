@@ -123,8 +123,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.index.mapper.SourceToParse.source;
-
 /**
  *
  */
@@ -195,6 +193,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      * This setting is realtime updateable.
      */
     public static final String INDEX_FLUSH_ON_CLOSE = "index.flush_on_close";
+    private final ShardPath path;
 
     @Inject
     public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, MergeSchedulerProvider mergeScheduler, Translog translog,
@@ -202,7 +201,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                       ShardFilterCache shardFilterCache, ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService,
                       ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache,
                       @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, MergePolicyProvider mergePolicyProvider, EngineFactory factory,
-                      ClusterService clusterService, NodeEnvironment nodeEnv) {
+                      ClusterService clusterService, NodeEnvironment nodeEnv,  ShardPath path) {
         super(shardId, indexSettingsService.getSettings());
         this.codecService = codecService;
         this.warmer = warmer;
@@ -244,8 +243,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.flushOnClose = indexSettings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, true);
         this.nodeEnv = nodeEnv;
         indexSettingsService.addListener(applyRefreshSettings);
-
         this.mapperAnalyzer = new MapperAnalyzer(mapperService);
+        this.path = path;
         /* create engine config */
 
         logger.debug("state: [CREATED]");
@@ -997,7 +996,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (this.routingEntry() != null && this.routingEntry().active()) {
             throw new ElasticsearchIllegalStateException("Can't delete shard state on an active shard");
         }
-        MetaDataStateFormat.deleteMetaState(nodeEnv.shardPaths(shardId));
+        MetaDataStateFormat.deleteMetaState(shardPath().getDataPath());
+    }
+    public ShardPath shardPath() {
+        return path;
     }
 
     private class ApplyRefreshSettings implements IndexSettingsService.Listener {
@@ -1200,7 +1202,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable failure) {
             try {
                 // delete the shard state so this folder will not be reused
-                MetaDataStateFormat.deleteMetaState(nodeEnv.shardPaths(shardId));
+                MetaDataStateFormat.deleteMetaState(nodeEnv.availableShardPaths(shardId));
             } catch (IOException e) {
                 logger.warn("failed to delete shard state", e);
             } finally {
@@ -1258,7 +1260,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                 }
                 final ShardStateMetaData newShardStateMetadata = new ShardStateMetaData(newRouting.version(), newRouting.primary(), getIndexUUID());
                 logger.trace("{} writing shard state, reason [{}]", shardId, writeReason);
-                ShardStateMetaData.FORMAT.write(newShardStateMetadata, newShardStateMetadata.version, nodeEnv.shardPaths(shardId));
+                ShardStateMetaData.FORMAT.write(newShardStateMetadata, newShardStateMetadata.version, shardPath().getShardStatePath());
             } catch (IOException e) { // this is how we used to handle it.... :(
                 logger.warn("failed to write shard state", e);
                 // we failed to write the shard state, we will try and write

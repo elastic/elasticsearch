@@ -31,6 +31,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.fs.*;
@@ -96,31 +97,24 @@ public class MockDirectoryHelper {
         return w;
     }
 
-    public Directory[] wrapAllInplace(Directory[] dirs) {
-        for (int i = 0; i < dirs.length; i++) {
-            dirs[i] = wrap(dirs[i]);
-        }
-        return dirs;
-    }
-
-    public FsDirectoryService randomDirectorService(IndexStore indexStore) {
+    public FsDirectoryService randomDirectorService(IndexStore indexStore, ShardPath path) {
         if ((Constants.WINDOWS || Constants.SUN_OS) && Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
-            return new MmapFsDirectoryService(shardId, indexSettings, indexStore);
+            return new MmapFsDirectoryService(shardId, indexSettings, indexStore, path);
         } else if (Constants.WINDOWS) {
-            return new SimpleFsDirectoryService(shardId, indexSettings, indexStore);
+            return new SimpleFsDirectoryService(shardId, indexSettings, indexStore, path);
         }
         switch (random.nextInt(4)) {
             case 2:
-                return new DefaultFsDirectoryService(shardId, indexSettings, indexStore);
+                return new DefaultFsDirectoryService(shardId, indexSettings, indexStore, path);
             case 1:
-                return new MmapFsDirectoryService(shardId, indexSettings, indexStore);
+                return new MmapFsDirectoryService(shardId, indexSettings, indexStore, path);
             case 0:
                 if (random.nextInt(10) == 0) {
                     // use simplefs less, it synchronizes all threads reads
-                    return new SimpleFsDirectoryService(shardId, indexSettings, indexStore);
+                    return new SimpleFsDirectoryService(shardId, indexSettings, indexStore, path);
                 }
             default:
-                return new NioFsDirectoryService(shardId, indexSettings, indexStore);
+                return new NioFsDirectoryService(shardId, indexSettings, indexStore, path);
         }
     }
 
@@ -170,7 +164,7 @@ public class MockDirectoryHelper {
         /**
          * Returns true if {@link #in} must sync its files.
          * Currently, only {@link NRTCachingDirectory} requires sync'ing its files
-         * because otherwise they are cached in an internal {@link RAMDirectory}. If
+         * because otherwise they are cached in an internal {@link org.apache.lucene.store.RAMDirectory}. If
          * other directories require that too, they should be added to this method.
          */
         private boolean mustSync() {

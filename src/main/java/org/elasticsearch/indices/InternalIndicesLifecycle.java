@@ -46,7 +46,6 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
     public InternalIndicesLifecycle(Settings settings) {
         super(settings);
     }
-
     @Override
     public void addListener(Listener listener) {
         listeners.add(listener);

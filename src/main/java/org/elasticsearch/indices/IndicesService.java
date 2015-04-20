@@ -80,7 +80,7 @@ import org.elasticsearch.plugins.PluginsService;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.file.Path;
+import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -587,8 +587,11 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                 final IndexService indexService = indexServiceInjectorTuple.v1();
                 return indexService.hasShard(shardId.id()) == false;
             } else if (nodeEnv.hasNodeFile()) {
-                final Path[] shardLocations = nodeEnv.shardDataPaths(shardId, indexSettings);
-                return FileSystemUtils.exists(shardLocations);
+                if (NodeEnvironment.hasCustomDataPath(indexSettings)) {
+                    return Files.exists(nodeEnv.resolveCustomLocation(indexSettings, shardId));
+                } else {
+                    return FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId));
+                }
             }
         } else {
             logger.trace("{} skipping shard directory deletion due to shadow replicas", shardId);

@@ -128,14 +128,15 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
             String path = info.getPath();
             final String relativeDataLocationPath =  "indices/test/" + Integer.toString(shardRouting.getId()) + "/translog";
             Path file = PathUtils.get(path).resolve(relativeDataLocationPath);
-            logger.info("--> path: {}", file);
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
-                for (Path item : stream) {
-                    logger.info("--> File: {}", item);
-                    if (Files.isRegularFile(item) && item.getFileName().toString().startsWith("translog-")) {
-                        files.add(item);
+            if (Files.exists(file)) {
+                logger.info("--> path: {}", file);
+                try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
+                    for (Path item : stream) {
+                        logger.info("--> File: {}", item);
+                        if (Files.isRegularFile(item) && item.getFileName().toString().startsWith("translog-")) {
+                            files.add(item);
+                        }
                     }
-
                 }
             }
         }

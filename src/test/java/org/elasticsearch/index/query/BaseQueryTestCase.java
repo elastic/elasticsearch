@@ -47,9 +47,9 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -60,18 +60,18 @@ import static org.hamcrest.Matchers.is;
 @Ignore
 public abstract class BaseQueryTestCase<T extends BaseQueryBuilder> extends ElasticsearchTestCase {
 
-    protected static Injector injector;
-    private static IndexQueryParserService queryParserService;
-    private static Index index;
+    private Injector injector;
+    private IndexQueryParserService queryParserService;
+    private Index index;
     protected QueryParseContext context;
     protected XContentParser parser;
 
     protected T testQuery;
 
-    @BeforeClass
-    public static void init() {
+    @Before
+    public void init() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
-                .put("name", BaseQueryTestCase.class.getName()+"_"+randomInt())
+                .put("name", getClass().getName())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
 
@@ -99,10 +99,7 @@ public abstract class BaseQueryTestCase<T extends BaseQueryBuilder> extends Elas
         ).createInjector();
 
         queryParserService = injector.getInstance(IndexQueryParserService.class);
-    }
 
-    @Before
-    public void setUpTest() throws IOException {
         context = new QueryParseContext(index, queryParserService);
         testQuery = createRandomTestQuery();
         String contentString = testQuery.toString();
@@ -129,8 +126,10 @@ public abstract class BaseQueryTestCase<T extends BaseQueryBuilder> extends Elas
         assertThat((T) newQuery, is(testQuery));
     }
 
-    @AfterClass
-    public static void cleanUp() throws Exception {
+    @After
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
         terminate(injector.getInstance(ThreadPool.class));
     }
 }

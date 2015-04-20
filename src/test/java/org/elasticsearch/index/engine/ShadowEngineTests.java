@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.engine;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -31,6 +30,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
@@ -63,7 +63,7 @@ import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.test.DummyShardLock;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
@@ -75,12 +75,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomDouble;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
-import static org.elasticsearch.test.ElasticsearchTestCase.newTempDirPath;
 import static org.elasticsearch.test.ElasticsearchTestCase.terminate;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -90,7 +85,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * TODO: document me!
  */
-public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
+public class ShadowEngineTests extends ElasticsearchTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 

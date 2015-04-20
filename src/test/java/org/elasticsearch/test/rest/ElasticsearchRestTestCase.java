@@ -25,9 +25,13 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.google.common.collect.Lists;
-import org.apache.lucene.util.AbstractRandomizedTest;
+
+import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.util.LuceneTestCase.SuppressFsync;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
@@ -36,7 +40,11 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.rest.client.RestException;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParser;
-import org.elasticsearch.test.rest.section.*;
+import org.elasticsearch.test.rest.section.DoSection;
+import org.elasticsearch.test.rest.section.ExecutableSection;
+import org.elasticsearch.test.rest.section.RestTestSuite;
+import org.elasticsearch.test.rest.section.SkipSection;
+import org.elasticsearch.test.rest.section.TestSection;
 import org.elasticsearch.test.rest.spec.RestApi;
 import org.elasticsearch.test.rest.spec.RestSpec;
 import org.elasticsearch.test.rest.support.FileUtils;
@@ -46,22 +54,44 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.nio.file.FileSystems;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
-import java.nio.file.Paths;
-import java.util.*;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Runs the clients test suite against an elasticsearch cluster.
  */
-//tests distribution disabled for now since it causes reporting problems,
-// due to the non unique suite name
-//@ReplicateOnEachVm
-@AbstractRandomizedTest.Rest
+@ElasticsearchRestTestCase.Rest
+@Slow
+@SuppressFsync // we aren't trying to test this here, and it can make the test slow
+@SuppressCodecs("*") // requires custom completion postings format
 @ClusterScope(randomDynamicTemplates = false)
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // timeout the suite after 40min and fail the test.
-public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
+public abstract class ElasticsearchRestTestCase extends ElasticsearchIntegrationTest {
+
+    /**
+     * Property that allows to control whether the REST tests are run (default) or not
+     */
+    public static final String TESTS_REST = "tests.rest";
+
+    /**
+     * Annotation for REST tests
+     */
+    @Inherited
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @TestGroup(enabled = true, sysProperty = ElasticsearchRestTestCase.TESTS_REST)
+    public @interface Rest {
+    }
 
     /**
      * Property that allows to control which REST tests get run. Supports comma separated list of tests
@@ -90,19 +120,16 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
     private final PathMatcher[] blacklistPathMatchers;
     private static RestTestExecutionContext restTestExecutionContext;
 
-    //private static final int JVM_COUNT = systemPropertyAsInt(SysGlobals.CHILDVM_SYSPROP_JVM_COUNT, 1);
-    //private static final int CURRENT_JVM_ID = systemPropertyAsInt(SysGlobals.CHILDVM_SYSPROP_JVM_ID, 0);
-
     private final RestTestCandidate testCandidate;
 
-    public ElasticsearchRestTests(@Name("yaml") RestTestCandidate testCandidate) {
+    public ElasticsearchRestTestCase(RestTestCandidate testCandidate) {
         this.testCandidate = testCandidate;
         String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
         if (blacklist != null) {
             blacklistPathMatchers = new PathMatcher[blacklist.length];
             int i = 0;
             for (String glob : blacklist) {
-                blacklistPathMatchers[i++] = FileSystems.getDefault().getPathMatcher("glob:" + glob);
+                blacklistPathMatchers[i++] = PathUtils.getDefaultFileSystem().getPathMatcher("glob:" + glob);
             }
         } else {
             blacklistPathMatchers = new PathMatcher[0];
@@ -115,9 +142,8 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
             .put(Node.HTTP_ENABLED, true)
             .put(super.nodeSettings(nodeOrdinal)).build();
     }
-
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+    
+    public static Iterable<Object[]> createParameters(int id, int count) throws IOException, RestTestParseException {
         TestGroup testGroup = Rest.class.getAnnotation(TestGroup.class);
         String sysProperty = TestGroup.Utilities.getSysProperty(Rest.class);
         boolean enabled;
@@ -131,7 +157,7 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
             return Lists.newArrayList();
         }
         //parse tests only if rest test group is enabled, otherwise rest tests might not even be available on file system
-        List<RestTestCandidate> restTestCandidates = collectTestCandidates();
+        List<RestTestCandidate> restTestCandidates = collectTestCandidates(id, count);
         List<Object[]> objects = Lists.newArrayList();
         for (RestTestCandidate restTestCandidate : restTestCandidates) {
             objects.add(new Object[]{restTestCandidate});
@@ -139,7 +165,7 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
         return objects;
     }
 
-    private static List<RestTestCandidate> collectTestCandidates() throws RestTestParseException, IOException {
+    private static List<RestTestCandidate> collectTestCandidates(int id, int count) throws RestTestParseException, IOException {
         String[] paths = resolvePathsProperty(REST_TESTS_SUITE, DEFAULT_TESTS_PATH);
         Map<String, Set<Path>> yamlSuites = FileUtils.findYamlSuites(DEFAULT_TESTS_PATH, paths);
 
@@ -149,14 +175,13 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
         for (String api : yamlSuites.keySet()) {
             List<Path> yamlFiles = Lists.newArrayList(yamlSuites.get(api));
             for (Path yamlFile : yamlFiles) {
-                //tests distribution disabled for now since it causes reporting problems,
-                // due to the non unique suite name
-                //if (mustExecute(yamlFile.getAbsolutePath())) {
+                String key = api + yamlFile.getFileName().toString();
+                if (mustExecute(key, id, count)) {
                     RestTestSuite restTestSuite = restTestSuiteParser.parse(api, yamlFile);
                     for (TestSection testSection : restTestSuite.getTestSections()) {
                         testCandidates.add(new RestTestCandidate(restTestSuite, testSection));
                     }
-                //}
+                }
             }
         }
 
@@ -170,17 +195,11 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
         return testCandidates;
     }
-
-    /*private static boolean mustExecute(String test) {
-        //we distribute the tests across the forked jvms if > 1
-        if (JVM_COUNT > 1) {
-            int jvmId = MathUtils.mod(DjbHashFunction.DJB_HASH(test), JVM_COUNT);
-            if (jvmId != CURRENT_JVM_ID) {
-                return false;
-            }
-        }
-        return true;
-    }*/
+    
+    private static boolean mustExecute(String test, int id, int count) {
+        int hash = (int) (Math.abs((long)test.hashCode()) % count);
+        return hash == id;
+    }
 
     private static String[] resolvePathsProperty(String propertyName, String defaultValue) {
         String property = System.getProperty(propertyName);
@@ -251,7 +270,7 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
             //we need to replace a few characters otherwise the test section name can't be parsed as a path on windows
             String testSection = testCandidate.getTestSection().getName().replace("*", "").replace("\\", "/").replaceAll("\\s+/", "/").trim();
             String testPath = testCandidate.getSuitePath() + "/" + testSection;
-            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher.matches(Paths.get(testPath)));
+            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher.matches(PathUtils.get(testPath)));
         }
         //The client needs non static info to get initialized, therefore it can't be initialized in the before class
         restTestExecutionContext.initClient(cluster().httpAddresses(), restClientSettings());
@@ -300,6 +319,88 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
         for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {
             executableSection.execute(restTestExecutionContext);
+        }
+    }
+
+    // don't look any further: NO TOUCHY!
+    
+    public static class Rest0Tests extends ElasticsearchRestTestCase {
+        public Rest0Tests(@Name("yaml") RestTestCandidate testCandidate) {
+            super(testCandidate);
+        }
+        @ParametersFactory
+        public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+            return createParameters(0, 8);
+        }
+    }
+    
+    public static class Rest1Tests extends ElasticsearchRestTestCase {
+        public Rest1Tests(@Name("yaml") RestTestCandidate testCandidate) {
+            super(testCandidate);
+        }
+        @ParametersFactory
+        public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+            return createParameters(1, 8);
+        }
+    }
+    
+    public static class Rest2Tests extends ElasticsearchRestTestCase {
+        public Rest2Tests(@Name("yaml") RestTestCandidate testCandidate) {
+            super(testCandidate);
+        }
+        @ParametersFactory
+        public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+            return createParameters(2, 8);
+        }
+    }
+    
+    public static class Rest3Tests extends ElasticsearchRestTestCase {
+        public Rest3Tests(@Name("yaml") RestTestCandidate testCandidate) {
+            super(testCandidate);
+        }
+        @ParametersFactory
+        public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+            return createParameters(3, 8);
+        }
+    }
+    
+    public static class Rest4Tests extends ElasticsearchRestTestCase {
+        public Rest4Tests(@Name("yaml") RestTestCandidate testCandidate) {
+            super(testCandidate);
+        }
+        @ParametersFactory
+        public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+            return createParameters(4, 8);
+        }
+    }
+    
+    public static class Rest5Tests extends ElasticsearchRestTestCase {
+        public Rest5Tests(@Name("yaml") RestTestCandidate testCandidate) {
+            super(testCandidate);
+        }
+        @ParametersFactory
+        public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+            return createParameters(5, 8);
+        }
+    }
+    
+    public static class Rest6Tests extends ElasticsearchRestTestCase {
+        public Rest6Tests(@Name("yaml") RestTestCandidate testCandidate) {
+            super(testCandidate);
+        }
+        @ParametersFactory
+        public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+            return createParameters(6, 8);
+        }
+    }
+    
+    public static class Rest7Tests extends ElasticsearchRestTestCase {
+        public Rest7Tests(@Name("yaml") RestTestCandidate testCandidate) {
+            super(testCandidate);
+        }
+        @ParametersFactory
+        public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+            return createParameters(7, 8);
         }
     }
 }

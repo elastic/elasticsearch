@@ -19,6 +19,7 @@
 package org.elasticsearch.validate;
 
 import com.google.common.base.Charsets;
+
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.client.Client;

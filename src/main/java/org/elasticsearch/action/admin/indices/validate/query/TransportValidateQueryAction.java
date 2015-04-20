@@ -96,7 +96,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
     }
 
     @Override
-    protected ValidateQueryRequest newRequest() {
+    protected ValidateQueryRequest newRequestInstance() {
         return new ValidateQueryRequest();
     }
 

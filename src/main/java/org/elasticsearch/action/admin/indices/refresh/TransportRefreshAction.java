@@ -63,7 +63,7 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
     }
 
     @Override
-    protected RefreshRequest newRequest() {
+    protected RefreshRequest newRequestInstance() {
         return new RefreshRequest();
     }
 

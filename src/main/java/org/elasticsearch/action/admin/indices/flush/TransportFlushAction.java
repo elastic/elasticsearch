@@ -62,7 +62,7 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
     }
 
     @Override
-    protected FlushRequest newRequest() {
+    protected FlushRequest newRequestInstance() {
         return new FlushRequest();
     }
 

@@ -1649,7 +1649,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @Test
+    @Test @Slow
     // The SimpleIdReaderTypeCache#docById method used lget, which can't be used if a map is shared.
     public void testTopChildrenBug_concurrencyIssue() throws Exception {
         assertAcked(prepareCreate("test")

@@ -41,7 +41,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -89,7 +89,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogSizeMatcher;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.test.DummyShardLock;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
@@ -102,21 +102,17 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomDouble;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
-import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
-import static org.elasticsearch.test.ElasticsearchTestCase.terminate;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@LuceneTestCase.SuppressFileSystems("*") // mock FS causes translog issues recovering sometimes because of their use of globs, see LUCENE-6424
-public class InternalEngineTests extends ElasticsearchLuceneTestCase {
+// TODO: this guy isn't ready for mock filesystems yet
+@SuppressFileSystems("*")
+public class InternalEngineTests extends ElasticsearchTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
@@ -1409,6 +1405,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testIndexWriterInfoStream() {
+        assumeFalse("who tests the tester?", VERBOSE);
         MockAppender mockAppender = new MockAppender();
 
         Logger rootLogger = Logger.getRootLogger();
@@ -1437,6 +1434,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     // #8603: make sure we can separately log IFD's messages
     public void testIndexWriterIFDInfoStream() {
+        assumeFalse("who tests the tester?", VERBOSE);
         MockAppender mockAppender = new MockAppender();
 
         // Works when running this test inside Intellij:

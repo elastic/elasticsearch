@@ -19,6 +19,7 @@
 package org.elasticsearch.percolator;
 
 import com.google.common.base.Predicate;
+
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;

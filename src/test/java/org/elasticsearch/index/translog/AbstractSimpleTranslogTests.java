@@ -55,6 +55,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
+@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
@@ -66,7 +67,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        translogDir = newTempDirPath();
+        translogDir = createTempDir();
         translog = create(translogDir);
         translog.newTranslog(1);
     }

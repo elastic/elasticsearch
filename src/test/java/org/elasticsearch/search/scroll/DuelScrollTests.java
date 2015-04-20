@@ -158,7 +158,7 @@ public class DuelScrollTests extends ElasticsearchIntegrationTest {
         int scrollRequestSize = randomIntBetween(1, rarely() ? numDocs : numDocs / 2);
         boolean unevenRouting = randomBoolean();
 
-        int numMissingDocs = atMost(numDocs / 100);
+        int numMissingDocs = scaledRandomIntBetween(0, numDocs / 100);
         IntOpenHashSet missingDocs = new IntOpenHashSet(numMissingDocs);
         for (int i = 0; i < numMissingDocs; i++) {
             while (!missingDocs.add(randomInt(numDocs))) {}

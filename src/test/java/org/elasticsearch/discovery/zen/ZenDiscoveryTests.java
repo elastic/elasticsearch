@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -59,6 +60,7 @@ import static org.hamcrest.Matchers.*;
 /**
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
+@Slow
 public class ZenDiscoveryTests extends ElasticsearchIntegrationTest {
 
     @Test

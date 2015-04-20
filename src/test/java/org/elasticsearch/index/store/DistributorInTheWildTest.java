@@ -32,6 +32,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.store.distributor.Distributor;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
+import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
+
 import org.junit.Before;
 
 import java.io.IOException;
@@ -47,8 +49,13 @@ import java.util.concurrent.ExecutorService;
 @LuceneTestCase.SuppressCodecs({ "SimpleText", "Memory", "Direct" })
 @ThreadLeakScope(ThreadLeakScope.Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
-@Listeners(LoggingListener.class)
+@Listeners({
+    ReproduceInfoPrinter.class,
+    LoggingListener.class
+})
+@LuceneTestCase.SuppressReproduceLine
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
+@LuceneTestCase.SuppressFileSystems("ExtrasFS") // can easily create the same extra file in two subdirs
 public class DistributorInTheWildTest extends ThreadedIndexingAndSearchingTestCase {
     protected final ESLogger logger = Loggers.getLogger(getClass());
 

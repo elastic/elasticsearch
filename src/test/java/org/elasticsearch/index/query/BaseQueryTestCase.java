@@ -29,6 +29,7 @@ import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
@@ -46,25 +47,35 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Ignore;
+import org.junit.Test;
 
 import java.io.IOException;
 
-public abstract class BaseQueryTest extends ElasticsearchTestCase {
+import static org.hamcrest.Matchers.is;
 
+@Ignore
+public abstract class BaseQueryTestCase<T extends BaseQueryBuilder> extends ElasticsearchTestCase {
+
+    protected static Injector injector;
+    private static IndexQueryParserService queryParserService;
+    private static Index index;
     protected QueryParseContext context;
-    protected Injector injector;
     protected XContentParser parser;
 
-    @Before
-    public void setupBase() throws IOException {
+    protected T testQuery;
+
+    @BeforeClass
+    public static void init() {
         Settings settings = ImmutableSettings.settingsBuilder()
-                .put("name", getClass().getName())
+                .put("name", BaseQueryTestCase.class.getName()+"_"+randomInt())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
 
-        Index index = new Index("test");
+        index = new Index("test");
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 new SettingsModule(settings),
@@ -87,14 +98,39 @@ public abstract class BaseQueryTest extends ElasticsearchTestCase {
                 }
         ).createInjector();
 
-        IndexQueryParserService queryParserService = injector.getInstance(IndexQueryParserService.class);
-        context = new QueryParseContext(index, queryParserService);
+        queryParserService = injector.getInstance(IndexQueryParserService.class);
     }
 
-    @Override
-    @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @Before
+    public void setUpTest() throws IOException {
+        context = new QueryParseContext(index, queryParserService);
+        testQuery = createRandomTestQuery();
+        String contentString = testQuery.toString();
+        parser = XContentFactory.xContent(contentString).createParser(contentString);
+        context.reset(parser);
+    }
+
+    /**
+     * Create a random query for the type that is being tested
+     * @return a randomized query
+     */
+    public abstract T createRandomTestQuery();
+
+    /**
+     * Generic test that creates new query from the randomly creates test query from setup
+     * and asserts equality on the two queries.
+     * @throws IOException
+     */
+    @Test
+    public void testFromXContent() throws IOException {
+        @SuppressWarnings("unchecked")
+        T newQuery = (T) queryParserService.queryParser(testQuery.parserName()).fromXContent(context);
+        assertNotSame(newQuery, is(testQuery));
+        assertThat((T) newQuery, is(testQuery));
+    }
+
+    @AfterClass
+    public static void cleanUp() throws Exception {
         terminate(injector.getInstance(ThreadPool.class));
     }
 }

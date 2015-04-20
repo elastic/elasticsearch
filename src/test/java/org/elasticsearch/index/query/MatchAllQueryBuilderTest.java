@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.query;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -33,23 +33,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class MatchAllQueryBuilderTest extends BaseQueryTest {
-
-    protected MatchAllQueryBuilder testQuery;
-
-    @Before
-    public void setUpTest() throws IOException {
-        testQuery = createTestQuery();
-        String contentString = testQuery.toString();
-        parser = XContentFactory.xContent(contentString).createParser(contentString);
-        context.reset(parser);
-    }
-
-    @Test
-    public void testFromXContent() throws IOException {
-        MatchAllQueryBuilder newMatchAllQuery = new MatchAllQueryParser().fromXContent(context);
-        assertThat(testQuery, is(newMatchAllQuery));
-    }
+public class MatchAllQueryBuilderTest extends BaseQueryTestCase<MatchAllQueryBuilder> {
 
     @Test
     public void testToQuery() throws IOException {
@@ -79,7 +63,7 @@ public class MatchAllQueryBuilderTest extends BaseQueryTest {
     /**
      * @return a MatchAllQuery with random boost between 0.1f and 2.0f
      */
-    public static MatchAllQueryBuilder createTestQuery() {
+    public MatchAllQueryBuilder createRandomTestQuery() {
         MatchAllQueryBuilder query = new MatchAllQueryBuilder();
         if (randomBoolean()) {
             query.boost(2.0f / randomIntBetween(1, 20));

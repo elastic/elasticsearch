@@ -28,7 +28,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * A query that matches on all documents.
@@ -89,7 +88,7 @@ public class MatchAllQueryBuilder extends BaseQueryBuilder implements Streamable
         }
 
         MatchAllQueryBuilder other = (MatchAllQueryBuilder) obj;
-        return Objects.equals(boost, other.boost);
+        return (Float.floatToIntBits(this.boost) == Float.floatToIntBits(other.boost()));
     }
 
     @Override

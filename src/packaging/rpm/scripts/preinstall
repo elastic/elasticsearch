@@ -1,4 +1,0 @@
-getent group elasticsearch >/dev/null || groupadd -r elasticsearch
-getent passwd elasticsearch >/dev/null || \
-    useradd -r -g elasticsearch -d /usr/share/elasticsearch -s /sbin/nologin \
-    -c "elasticsearch user" elasticsearch

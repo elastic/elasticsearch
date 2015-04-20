@@ -633,6 +633,35 @@ public class Lucene {
     }
 
     /**
+     * Wait for an index to exist for up to {@code timeLimitMillis}. Returns
+     * true if the index eventually exists, false if not.
+     *
+     * Will retry the directory every second for at least {@code timeLimitMillis}
+     */
+    public static final boolean waitForIndex(final Directory directory, final long timeLimitMillis)
+            throws IOException {
+        final long DELAY = 1000;
+        long waited = 0;
+        try {
+            while (true) {
+                if (waited >= timeLimitMillis) {
+                    break;
+                }
+                if (indexExists(directory)) {
+                    return true;
+                }
+                Thread.sleep(DELAY);
+                waited += DELAY;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+        // one more try after all retries
+        return indexExists(directory);
+    }
+
+    /**
      * Returns <tt>true</tt> iff the given exception or
      * one of it's causes is an instance of {@link CorruptIndexException}, 
      * {@link IndexFormatTooOldException}, or {@link IndexFormatTooNewException} otherwise <tt>false</tt>.

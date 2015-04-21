@@ -19,10 +19,13 @@
 
 package org.elasticsearch.indices.settings;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -262,5 +265,21 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchIntegrationTest {
         assertThat(clusterHealth.getIndices().get("test").getActivePrimaryShards(), equalTo(numShards.numPrimaries));
         assertThat(clusterHealth.getIndices().get("test").getNumberOfReplicas(), equalTo(3));
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 4));
+    }
+
+    @Test
+    public void testUpdateWithInvalidNumberOfReplicas() {
+        createIndex("test");
+        try {
+            client().admin().indices().prepareUpdateSettings("test")
+                .setSettings(ImmutableSettings.settingsBuilder()
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(-10, -1))
+                )
+                .execute().actionGet();
+            fail("should have thrown an exception about the replica shard count");
+        } catch (ElasticsearchIllegalArgumentException e) {
+            assertThat("message contains error about shard count: " + e.getMessage(),
+                e.getMessage().contains("the value of the setting index.number_of_replicas must be a non negative integer"), equalTo(true));
+        }
     }
 }

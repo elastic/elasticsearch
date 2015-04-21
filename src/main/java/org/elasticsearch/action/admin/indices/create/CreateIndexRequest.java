@@ -106,6 +106,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         if (index == null) {
             validationException = addValidationError("index is missing", validationException);
         }
+        ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
+        updatedSettingsBuilder.put(settings).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
+        settings = updatedSettingsBuilder.build();
+
         Integer number_of_primaries = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
         Integer number_of_replicas = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null);
         if (number_of_primaries != null && number_of_primaries <= 0) {

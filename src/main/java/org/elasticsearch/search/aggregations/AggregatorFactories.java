@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -62,7 +63,8 @@ public class AggregatorFactories {
     }
 
     /**
-     * Create all aggregators so that they can be consumed with multiple buckets.
+     * Create all aggregators so that they can be consumed with multiple
+     * buckets.
      */
     public Aggregator[] createSubAggregators(Aggregator parent) throws IOException {
         Aggregator[] aggregators = new Aggregator[count()];
@@ -138,7 +140,8 @@ public class AggregatorFactories {
 
         public Builder addAggregator(AggregatorFactory factory) {
             if (!names.add(factory.name)) {
-                throw new ElasticsearchIllegalArgumentException("Two sibling aggregations cannot have the same name: [" + factory.name + "]");
+                throw new ElasticsearchIllegalArgumentException("Two sibling aggregations cannot have the same name: [" + factory.name
+                        + "]");
             }
             factories.add(factory);
             return this;
@@ -158,19 +161,12 @@ public class AggregatorFactories {
         }
 
         /*
-         * L ← Empty list that will contain the sorted nodes
-         * while there are unmarked nodes do
-         *     select an unmarked node n
-         *     visit(n) 
-         * function visit(node n)
-         *     if n has a temporary mark then stop (not a DAG)
-         *     if n is not marked (i.e. has not been visited yet) then
-         *         mark n temporarily
-         *         for each node m with an edge from n to m do
-         *             visit(m)
-         *         mark n permanently
-         *         unmark n temporarily
-         *         add n to head of L
+         * L ← Empty list that will contain the sorted nodes while there are
+         * unmarked nodes do select an unmarked node n visit(n) function
+         * visit(node n) if n has a temporary mark then stop (not a DAG) if n is
+         * not marked (i.e. has not been visited yet) then mark n temporarily
+         * for each node m with an edge from n to m do visit(m) mark n
+         * permanently unmark n temporarily add n to head of L
          */
         private List<ReducerFactory> resolveReducerOrder(List<ReducerFactory> reducerFactories, List<AggregatorFactory> aggFactories) {
             Map<String, ReducerFactory> reducerFactoriesMap = new HashMap<>();
@@ -204,8 +200,8 @@ public class AggregatorFactories {
                 temporarilyMarked.add(factory);
                 String[] bucketsPaths = factory.getBucketsPaths();
                 for (String bucketsPath : bucketsPaths) {
-                    int aggSepIndex = bucketsPath.indexOf('>');
-                    String firstAggName = aggSepIndex == -1 ? bucketsPath : bucketsPath.substring(0, aggSepIndex);
+                    List<String> bucketsPathElements = AggregationPath.parse(bucketsPath).getPathElementsAsStringList();
+                    String firstAggName = bucketsPathElements.get(0);
                     if (bucketsPath.equals("_count") || bucketsPath.equals("_key") || aggFactoryNames.contains(firstAggName)) {
                         continue;
                     } else {

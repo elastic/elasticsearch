@@ -24,19 +24,15 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 public class MatchAllQueryBuilderTest extends BaseQueryTestCase<MatchAllQueryBuilder> {
 
-    @Test
-    public void testToQuery() throws IOException {
-        MatchAllQueryBuilder newMatchAllQuery = new MatchAllQueryParser().fromXContent(context);
-        Query query = newMatchAllQuery.toQuery(context);
+    @Override
+    public void doQueryAsserts(Query query) throws IOException {
         if (testQuery.boost() != 1.0f) {
             assertThat(query, instanceOf(MatchAllDocsQuery.class));
         } else {
@@ -45,17 +41,16 @@ public class MatchAllQueryBuilderTest extends BaseQueryTestCase<MatchAllQueryBui
         assertThat(query.getBoost(), is(testQuery.boost()));
     }
 
-    @Test
-    public void testSerialization() throws IOException {
-        BytesStreamOutput output = new BytesStreamOutput();
+    @Override
+    public void doSerialize(BytesStreamOutput output) throws IOException {
         testQuery.writeTo(output);
+    }
 
-        BytesStreamInput bytesStreamInput = new BytesStreamInput(output.bytes());
-        MatchAllQueryBuilder deserializedQuery = new MatchAllQueryBuilder();
-        deserializedQuery.readFrom(bytesStreamInput);
-
-        assertEquals(deserializedQuery, testQuery);
-        assertNotSame(deserializedQuery, testQuery);
+    @Override
+    public QueryBuilder doDeserialize(BytesStreamInput in) throws IOException {
+        MatchAllQueryBuilder query = new MatchAllQueryBuilder();
+        query.readFrom(in);
+        return query;
     }
 
     /**
@@ -68,4 +63,5 @@ public class MatchAllQueryBuilderTest extends BaseQueryTestCase<MatchAllQueryBui
         }
         return query;
     }
+
 }

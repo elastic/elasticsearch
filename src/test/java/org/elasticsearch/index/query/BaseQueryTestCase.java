@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -26,6 +27,8 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.inject.util.Providers;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -47,30 +50,29 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.is;
-
 @Ignore
-public abstract class BaseQueryTestCase<T extends BaseQueryBuilder> extends ElasticsearchTestCase {
+public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder> extends ElasticsearchTestCase {
 
-    private Injector injector;
-    private IndexQueryParserService queryParserService;
-    private Index index;
+    private static Injector injector;
+    private static IndexQueryParserService queryParserService;
+    private static Index index;
     protected QueryParseContext context;
     protected XContentParser parser;
 
-    protected T testQuery;
+    protected QB testQuery;
 
-    @Before
-    public void init() throws IOException {
+    @BeforeClass
+    public static void init() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
-                .put("name", getClass().getName())
+                .put("name", BaseQueryTestCase.class.toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
 
@@ -96,9 +98,13 @@ public abstract class BaseQueryTestCase<T extends BaseQueryBuilder> extends Elas
                     }
                 }
         ).createInjector();
-
         queryParserService = injector.getInstance(IndexQueryParserService.class);
+    }
 
+    @Before
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
         context = new QueryParseContext(index, queryParserService);
         testQuery = createRandomTestQuery();
         String contentString = testQuery.toString();
@@ -110,7 +116,29 @@ public abstract class BaseQueryTestCase<T extends BaseQueryBuilder> extends Elas
      * Create a random query for the type that is being tested
      * @return a randomized query
      */
-    public abstract T createRandomTestQuery();
+    public abstract QB createRandomTestQuery();
+
+    /**
+     * Do assertions on a lucene query produced by the query builder under test
+     * @param query
+     */
+    public abstract void doQueryAsserts(Query query) throws IOException;
+
+    /**
+     * Write the test query to the specified output stream.
+     * This method can be removed once all queries are Streamable writeTo/readFrom
+     * @param output
+     * @throws IOException
+     */
+    public abstract void doSerialize(BytesStreamOutput output) throws IOException;
+
+    /**
+     * Read query builder from the specified input stream.
+     * This method can be removed once all queries are Streamable writeTo/readFrom
+     * @param input
+     * @throws IOException
+     */
+    public abstract QueryBuilder doDeserialize(BytesStreamInput bytesStreamInput) throws IOException;
 
     /**
      * Generic test that creates new query from the randomly creates test query from setup
@@ -119,16 +147,32 @@ public abstract class BaseQueryTestCase<T extends BaseQueryBuilder> extends Elas
      */
     @Test
     public void testFromXContent() throws IOException {
-        @SuppressWarnings("unchecked")
-        T newQuery = (T) queryParserService.queryParser(testQuery.parserName()).fromXContent(context);
-        assertNotSame(newQuery, is(testQuery));
-        assertThat((T) newQuery, is(testQuery));
+        QueryBuilder newQuery = queryParserService.queryParser(testQuery.parserName()).fromXContent(context);
+        assertNotSame(newQuery, testQuery);
+        assertEquals(newQuery, testQuery);
     }
 
-    @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @Test
+    public void testToQuery() throws IOException {
+        QueryBuilder newMatchAllQuery = queryParserService.queryParser(testQuery.parserName()).fromXContent(context);
+        Query query = newMatchAllQuery.toQuery(context);
+        doQueryAsserts(query);
+    }
+
+    @Test
+    public void testSerialization() throws IOException {
+        BytesStreamOutput output = new BytesStreamOutput();
+        doSerialize(output);
+
+        BytesStreamInput bytesStreamInput = new BytesStreamInput(output.bytes());
+        QueryBuilder deserializedQuery = doDeserialize(bytesStreamInput);
+
+        assertEquals(deserializedQuery, testQuery);
+        assertNotSame(deserializedQuery, testQuery);
+    }
+
+    @AfterClass
+    public static void after() throws Exception {
         terminate(injector.getInstance(ThreadPool.class));
     }
 }

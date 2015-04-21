@@ -531,7 +531,7 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
             fail("expected parseContent failure");
         } catch (Exception e) {
             assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
-            assertThat(e.getMessage(), startsWith("Unknown param [unknown]"));
+            assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
         }
     }
 
@@ -573,7 +573,7 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
             fail("expected parseContent failure");
         } catch (Exception e) {
             assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
-            assertThat(e.getMessage(), startsWith("Unknown param [unknown]"));
+            assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
         }
     }
 

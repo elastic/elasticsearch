@@ -82,7 +82,7 @@ public class RestClearScrollAction extends BaseRestHandler {
     public static void buildFromContent(BytesReference content, ClearScrollRequest clearScrollRequest) throws ElasticsearchIllegalArgumentException {
         try (XContentParser parser = XContentHelper.createParser(content)) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchIllegalArgumentException("Malforrmed content, must start with an object");
+                throw new ElasticsearchIllegalArgumentException("Malformed content, must start with an object");
             } else {
                 XContentParser.Token token;
                 String currentFieldName = null;
@@ -97,7 +97,7 @@ public class RestClearScrollAction extends BaseRestHandler {
                             clearScrollRequest.addScrollId(parser.text());
                         }
                     } else {
-                        throw new ElasticsearchIllegalArgumentException("Unknown param [" + currentFieldName + "] in request body");
+                        throw new ElasticsearchIllegalArgumentException("Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");
                     }
                 }
             }

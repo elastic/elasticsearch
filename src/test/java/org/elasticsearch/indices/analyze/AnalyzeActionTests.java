@@ -205,7 +205,7 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
             .array("filters", "lowercase")
             .endObject().bytes();
 
-        AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test", null);
+        AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
 
         RestAnalyzeAction.buildFromContent(content, analyzeRequest);
 
@@ -216,7 +216,7 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testParseXContentForAnalyzeRequestWithInvalidJsonThrowsException() throws Exception {
-        AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test", null);
+        AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
         BytesReference invalidContent =  XContentFactory.jsonBuilder().startObject().value("invalid_json").endObject().bytes();
 
         try {
@@ -231,7 +231,7 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testParseXContentForAnalyzeRequestWithUnknownParamThrowsException() throws Exception {
-        AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test", null);
+        AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
         BytesReference invalidContent =XContentFactory.jsonBuilder()
             .startObject()
             .field("text", "THIS IS A TEST")
@@ -243,7 +243,7 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
             fail("shouldn't get here");
         } catch (Exception e) {
             assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
-            assertThat(e.getMessage(), startsWith("Unknown param [unknown]"));
+            assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
         }
     }
 

@@ -56,7 +56,8 @@ public class RestAnalyzeAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         String text = request.param("text");
-        AnalyzeRequest analyzeRequest = new AnalyzeRequest(request.param("index"), text);
+        AnalyzeRequest analyzeRequest = new AnalyzeRequest(request.param("index"));
+        analyzeRequest.text(text);
         analyzeRequest.listenerThreaded(false);
         analyzeRequest.preferLocal(request.paramAsBoolean("prefer_local", analyzeRequest.preferLocalShard()));
         analyzeRequest.analyzer(request.param("analyzer"));
@@ -88,7 +89,6 @@ public class RestAnalyzeAction extends BaseRestHandler {
             } else {
                 XContentParser.Token token;
                 String currentFieldName = null;
-                int count = 0;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
@@ -102,7 +102,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
                         analyzeRequest.field(parser.text());
                     } else if ("tokenizer".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
                         analyzeRequest.tokenizer(parser.text());
-                    }else if (("token_filters".equals(currentFieldName) || "filters".equals(currentFieldName)) && token == XContentParser.Token.START_ARRAY) {
+                    } else if (("token_filters".equals(currentFieldName) || "filters".equals(currentFieldName)) && token == XContentParser.Token.START_ARRAY) {
                         List<String> filters = Lists.newArrayList();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token.isValue() == false) {
@@ -121,7 +121,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
                         }
                         analyzeRequest.tokenFilters(charFilters.toArray(new String[0]));
                     } else {
-                        throw new ElasticsearchIllegalArgumentException("Unknown param [" + currentFieldName + "] in request body");
+                        throw new ElasticsearchIllegalArgumentException("Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");
                     }
                 }
             }

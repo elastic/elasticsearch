@@ -98,7 +98,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
                     } else if ("scroll".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
                         searchScrollRequest.scroll(new Scroll(TimeValue.parseTimeValue(parser.text(), null)));
                     } else {
-                        throw new ElasticsearchIllegalArgumentException("Unknown param [" + currentFieldName + "] in request body");
+                        throw new ElasticsearchIllegalArgumentException("Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");
                     }
                 }
             }

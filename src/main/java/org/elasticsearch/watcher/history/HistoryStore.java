@@ -108,13 +108,13 @@ public class HistoryStore extends AbstractComponent {
         }
     }
 
-    public void putAsync(final WatchRecord watchRecord, final ActionListener<Boolean> listener) throws HistoryException {
+    public void put(final WatchRecord watchRecord, final ActionListener<Boolean> listener) throws HistoryException {
         String index = getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
         try {
             IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
                     .source(XContentFactory.jsonBuilder().value(watchRecord))
                     .opType(IndexRequest.OpType.CREATE);
-            client.indexAsync(request, new ActionListener<IndexResponse>() {
+            client.index(request, new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse response) {
                     watchRecord.version(response.getVersion());
@@ -131,7 +131,7 @@ public class HistoryStore extends AbstractComponent {
         }
     }
 
-    public void bulkAsync(final List<WatchRecord> records, final ActionListener<List<Integer>> listener) throws HistoryException {
+    public void putAll(final List<WatchRecord> records, final ActionListener<List<Integer>> listener) throws HistoryException {
         try {
             BulkRequest request = new BulkRequest();
             for (WatchRecord record : records) {
@@ -141,7 +141,7 @@ public class HistoryStore extends AbstractComponent {
                 indexRequest.opType(IndexRequest.OpType.CREATE);
                 request.add(indexRequest);
             }
-            client.bulkAsync(request, new ActionListener<BulkResponse>() {
+            client.bulk(request, new ActionListener<BulkResponse>() {
                 @Override
                 public void onResponse(BulkResponse response) {
                     List<Integer> successFullSlots = new ArrayList<Integer>();
@@ -168,7 +168,7 @@ public class HistoryStore extends AbstractComponent {
         }
     }
 
-    public List<Integer> bulk(final List<WatchRecord> records) throws HistoryException {
+    public List<Integer> putAll(final List<WatchRecord> records) throws HistoryException {
         try {
             BulkRequest request = new BulkRequest();
             for (WatchRecord record : records) {

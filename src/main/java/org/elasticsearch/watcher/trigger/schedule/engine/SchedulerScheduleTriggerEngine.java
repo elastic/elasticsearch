@@ -9,14 +9,12 @@ import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.support.ThreadPoolSettingsBuilder;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.*;
@@ -31,32 +29,16 @@ import java.util.concurrent.*;
  */
 public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
-    public static final String THREAD_POOL_NAME = "watcher_scheduler";
-
-    public static Settings additionalSettings(Settings nodeSettings) {
-        Settings settings = nodeSettings.getAsSettings("threadpool." + THREAD_POOL_NAME);
-        if (!settings.names().isEmpty()) {
-            // scheduler TP is already configured in the node settings
-            // no need for additional settings
-            return ImmutableSettings.EMPTY;
-        }
-        int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
-        return new ThreadPoolSettingsBuilder.Fixed(THREAD_POOL_NAME)
-                .size(availableProcessors * 2)
-                .queueSize(1000)
-                .build();
-    }
-
     private final Clock clock;
     private volatile Schedules schedules;
     private ScheduledExecutorService scheduler;
     private EsThreadPoolExecutor executor;
 
     @Inject
-    public SchedulerScheduleTriggerEngine(Settings settings, Clock clock, ScheduleRegistry scheduleRegistry, ThreadPool threadPool) {
+    public SchedulerScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock, ThreadPool threadPool) {
         super(settings, scheduleRegistry);
         this.clock = clock;
-        this.executor = (EsThreadPoolExecutor) threadPool.executor(THREAD_POOL_NAME);
+        this.executor = (EsThreadPoolExecutor) threadPool.executor(ScheduleModule.THREAD_POOL_NAME);
     }
 
     @Override
@@ -72,7 +54,7 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
             }
         }
         this.schedules = new Schedules(schedules);
-        logger.debug("schedule engine started at [{}]", DateTime.now());
+        logger.debug("schedule engine started at [{}]", clock.now());
     }
 
     @Override
@@ -80,7 +62,7 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
         logger.debug("stopping schedule engine...");
         scheduler.shutdownNow();
         try {
-            scheduler.awaitTermination(4, TimeUnit.SECONDS);
+            scheduler.awaitTermination(5, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -120,7 +102,7 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
                         rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();
                     }
                     int queueCapacity = executor.getQueue().size();
-                    logger.debug("can't execute trigger on the [" + THREAD_POOL_NAME + "] thread pool, rejected tasks [" + rejected + "] queue capacity [" + queueCapacity +"]");
+                    logger.debug("can't execute trigger on the [{}] thread pool, rejected tasks [{}] queue capacity [{}]", ScheduleModule.THREAD_POOL_NAME, rejected, queueCapacity);
                 }
             }
         }
@@ -139,14 +121,10 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
             this.name = name;
             this.schedule = schedule;
             this.startTime = startTime;
-            // we don't want the schedule to trigger on the start time itself, so we compute
-            // the next scheduled time by simply computing the schedule time on the startTime + 1
-            this.scheduledTime = schedule.nextScheduledTimeAfter(startTime, startTime + 1);
-            long delay = scheduledTime > 0 ? scheduledTime - clock.millis() : -1;
-            if (delay > 0) {
+            this.scheduledTime = schedule.nextScheduledTimeAfter(startTime, startTime);
+            if (scheduledTime != -1) {
+                long delay = Math.max(0, scheduledTime - clock.millis());
                 future = scheduler.schedule(this, delay, TimeUnit.MILLISECONDS);
-            } else {
-                future = null;
             }
         }
 
@@ -155,8 +133,8 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
             long triggeredTime = clock.millis();
             notifyListeners(name, triggeredTime, scheduledTime);
             scheduledTime = schedule.nextScheduledTimeAfter(startTime, triggeredTime);
-            long delay = scheduledTime > 0 ? scheduledTime - triggeredTime : -1;
-            if (delay > 0) {
+            if (scheduledTime != -1) {
+                long delay = Math.max(0, scheduledTime - triggeredTime);
                 future = scheduler.schedule(this, delay, TimeUnit.MILLISECONDS);
             }
         }
@@ -203,18 +181,6 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
         public Schedules(ActiveSchedule[] schedules, ImmutableMap<String, ActiveSchedule> scheduleByName) {
             this.schedules = schedules;
             this.scheduleByName = scheduleByName;
-        }
-
-        public long getNextScheduledTime() {
-            long time = -1;
-            for (ActiveSchedule schedule : schedules) {
-                if (time < 0) {
-                    time = schedule.scheduledTime;
-                } else {
-                    time = Math.min(time, schedule.scheduledTime);
-                }
-            }
-            return time;
         }
 
         public Schedules add(ActiveSchedule schedule) {

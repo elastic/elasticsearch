@@ -14,8 +14,8 @@ import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.*;
-import org.elasticsearch.watcher.trigger.schedule.engine.*;
-import org.quartz.JobExecutionContext;
+import org.elasticsearch.watcher.trigger.schedule.engine.SchedulerScheduleTriggerEngine;
+import org.elasticsearch.watcher.trigger.schedule.engine.TickerScheduleTriggerEngine;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -49,7 +49,7 @@ public class ScheduleEngineTriggerBenchmark {
         System.out.println("Running benchmark with numWatches=" + numWatches + " benchTime=" + benchTime + " interval=" + interval);
 
         Settings settings = ImmutableSettings.builder()
-                .put(SchedulerScheduleTriggerEngine.additionalSettings(ImmutableSettings.EMPTY))
+                .put(ScheduleModule.additionalSettings(ImmutableSettings.EMPTY))
                 .put("name", "test")
                 .build();
         List<TriggerEngine.Job> jobs = new ArrayList<>(numWatches);
@@ -58,7 +58,7 @@ public class ScheduleEngineTriggerBenchmark {
         }
         ThreadPool threadPool = new ThreadPool(settings, null);
         ScheduleRegistry scheduleRegistry = new ScheduleRegistry(Collections.<String, Schedule.Parser>emptyMap());
-        List<String> impls = new ArrayList<>(Arrays.asList(new String[]{"schedule", "hash_wheel", "simple_ticker", "timer_ticker", "quartz"}));
+        List<String> impls = new ArrayList<>(Arrays.asList(new String[]{"schedule", "ticker"}));
         Collections.shuffle(impls);
 
         List<Stats> results = new ArrayList<>();
@@ -75,7 +75,7 @@ public class ScheduleEngineTriggerBenchmark {
             final ScheduleTriggerEngine scheduler;
             switch (impl) {
                 case "schedule":
-                    scheduler = new SchedulerScheduleTriggerEngine(ImmutableSettings.EMPTY, SystemClock.INSTANCE, scheduleRegistry, threadPool) {
+                    scheduler = new SchedulerScheduleTriggerEngine(ImmutableSettings.EMPTY, scheduleRegistry, SystemClock.INSTANCE, threadPool) {
 
                         @Override
                         protected void notifyListeners(String name, long triggeredTime, long scheduledTime) {
@@ -85,19 +85,8 @@ public class ScheduleEngineTriggerBenchmark {
                         }
                     };
                     break;
-                case "hash_wheel":
-                    scheduler = new HashWheelScheduleTriggerEngine(settings, SystemClock.INSTANCE, scheduleRegistry, threadPool) {
-
-                        @Override
-                        protected void notifyListeners(String name, long triggeredTime, long scheduledTime) {
-                            if (running.get()) {
-                                measure(total, triggerMetric, tooEarlyMetric, triggeredTime, scheduledTime);
-                            }
-                        }
-                    };
-                    break;
-                case "simple_ticker":
-                    scheduler = new SimpleTickerScheduleTriggerEngine(settings, SystemClock.INSTANCE, scheduleRegistry, threadPool) {
+                case "ticker":
+                    scheduler = new TickerScheduleTriggerEngine(settings, scheduleRegistry, SystemClock.INSTANCE, threadPool) {
 
                         @Override
                         protected void notifyListeners(List<TriggerEvent> events) {
@@ -107,29 +96,6 @@ public class ScheduleEngineTriggerBenchmark {
                                     measure(total, triggerMetric, tooEarlyMetric, event.triggeredTime().getMillis(), scheduleTriggerEvent.scheduledTime().getMillis());
                                 }
                             }
-                        }
-                    };
-                    break;
-                case "timer_ticker":
-                    scheduler = new TimerTickerScheduleTriggerEngine(settings, SystemClock.INSTANCE, scheduleRegistry, threadPool) {
-
-                        @Override
-                        protected void notifyListeners(List<TriggerEvent> events) {
-                            if (running.get()) {
-                                for (TriggerEvent event : events) {
-                                    ScheduleTriggerEvent scheduleTriggerEvent = (ScheduleTriggerEvent) event;
-                                    measure(total, triggerMetric, tooEarlyMetric, event.triggeredTime().getMillis(), scheduleTriggerEvent.scheduledTime().getMillis());
-                                }
-                            }
-                        }
-                    };
-                    break;
-                case "quartz":
-                    scheduler = new QuartzScheduleTriggerEngine(settings, scheduleRegistry, threadPool, SystemClock.INSTANCE) {
-
-                        @Override
-                        protected void notifyListeners(String name, JobExecutionContext ctx) {
-                            measure(total, triggerMetric, tooEarlyMetric, ctx.getFireTime().getTime(), ctx.getScheduledFireTime().getTime());
                         }
                     };
                     break;

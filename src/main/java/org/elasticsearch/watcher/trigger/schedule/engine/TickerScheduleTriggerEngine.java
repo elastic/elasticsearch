@@ -8,14 +8,12 @@ package org.elasticsearch.watcher.trigger.schedule.engine;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.support.ThreadPoolSettingsBuilder;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.*;
@@ -31,36 +29,22 @@ import java.util.concurrent.RejectedExecutionHandler;
 /**
  *
  */
-public class SimpleTickerScheduleTriggerEngine extends ScheduleTriggerEngine {
-
-    public static final String THREAD_POOL_NAME = "watcher_scheduler";
-
-    public static Settings additionalSettings(Settings nodeSettings) {
-        Settings settings = nodeSettings.getAsSettings("threadpool." + THREAD_POOL_NAME);
-        if (!settings.names().isEmpty()) {
-            // scheduler TP is already configured in the node settings
-            // no need for additional settings
-            return ImmutableSettings.EMPTY;
-        }
-        int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
-        return new ThreadPoolSettingsBuilder.Fixed(THREAD_POOL_NAME)
-                .size(availableProcessors * 2)
-                .queueSize(1000)
-                .build();
-    }
+public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
     private final Clock clock;
 
+    private final TimeValue tickInterval;
     private volatile Map<String, ActiveSchedule> schedules;
     private Ticker ticker;
     private EsThreadPoolExecutor executor;
 
     @Inject
-    public SimpleTickerScheduleTriggerEngine(Settings settings, Clock clock, ScheduleRegistry scheduleRegistry, ThreadPool threadPool) {
+    public TickerScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock, ThreadPool threadPool) {
         super(settings, scheduleRegistry);
+        this.tickInterval = settings.getAsTime("watcher.trigger.schedule.ticker.tick_interval", TimeValue.timeValueMillis(500));
         this.schedules = new ConcurrentHashMap<>();
         this.clock = clock;
-        this.executor = (EsThreadPoolExecutor) threadPool.executor(THREAD_POOL_NAME);
+        this.executor = (EsThreadPoolExecutor) threadPool.executor(ScheduleModule.THREAD_POOL_NAME);
     }
 
     @Override
@@ -126,7 +110,7 @@ public class SimpleTickerScheduleTriggerEngine extends ScheduleTriggerEngine {
                         rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();
                     }
                     int queueCapacity = executor.getQueue().size();
-                    logger.debug("can't execute trigger on the [" + THREAD_POOL_NAME + "] thread pool, rejected tasks [" + rejected + "] queue capacity [" + queueCapacity +"]");
+                    logger.debug("can't execute trigger on the [" + ScheduleModule.THREAD_POOL_NAME + "] thread pool, rejected tasks [" + rejected + "] queue capacity [" + queueCapacity +"]");
                 }
             }
         }
@@ -144,9 +128,7 @@ public class SimpleTickerScheduleTriggerEngine extends ScheduleTriggerEngine {
             this.name = name;
             this.schedule = schedule;
             this.startTime = startTime;
-            // we don't want the schedule to trigger on the start time itself, so we compute
-            // the next scheduled time by simply computing the schedule time on the startTime + 1
-            this.scheduledTime = schedule.nextScheduledTimeAfter(startTime, startTime + 1);
+            this.scheduledTime = schedule.nextScheduledTimeAfter(startTime, startTime);
         }
 
         /**
@@ -159,7 +141,7 @@ public class SimpleTickerScheduleTriggerEngine extends ScheduleTriggerEngine {
                 return -1;
             }
             long prevScheduledTime = scheduledTime == 0 ? time : scheduledTime;
-            scheduledTime = schedule.nextScheduledTimeAfter(startTime, scheduledTime);
+            scheduledTime = schedule.nextScheduledTimeAfter(startTime, time);
             return prevScheduledTime;
         }
     }
@@ -198,10 +180,10 @@ public class SimpleTickerScheduleTriggerEngine extends ScheduleTriggerEngine {
             while (clock.millis() % 1000 > 15) {
             }
             while (active) {
-                logger.trace("checking jobs [{}]", DateTime.now());
+                logger.trace("checking jobs [{}]", clock.now());
                 checkJobs();
                 try {
-                    sleep(500);
+                    sleep(tickInterval.millis());
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }

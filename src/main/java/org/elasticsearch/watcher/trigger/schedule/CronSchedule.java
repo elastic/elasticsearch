@@ -21,7 +21,7 @@ public class CronSchedule extends CronnableSchedule {
     public static final String TYPE = "cron";
 
     public CronSchedule(String... crons) {
-        super(validate(crons));
+        super(crons);
     }
 
     @Override
@@ -32,17 +32,6 @@ public class CronSchedule extends CronnableSchedule {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return crons.length == 1 ? builder.value(crons[0]) : builder.value(crons);
-    }
-
-    static String[] validate(String... crons) {
-        for (String cron :crons) {
-            try {
-                Cron.validate(cron);
-            } catch (Cron.ParseException pe) {
-                throw new ValidationException(cron, pe);
-            }
-        }
-        return crons;
     }
 
     public static class Parser implements Schedule.Parser<CronSchedule> {

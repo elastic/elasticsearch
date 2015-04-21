@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.test.integration;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -25,7 +24,6 @@ import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
-import org.elasticsearch.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.watcher.trigger.schedule.Schedules;
 import org.elasticsearch.watcher.watch.WatchStore;
 import org.junit.Test;
@@ -52,11 +50,6 @@ import static org.hamcrest.Matchers.*;
  */
 @TestLogging("watcher.trigger.schedule:TRACE")
 public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
-
-    @Override
-    protected ScheduleModule.Engine scheduleEngine() {
-        return ScheduleModule.Engine.HASHWHEEL;
-    }
 
     @Test
     public void testIndexWatch() throws Exception {
@@ -248,7 +241,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         assertThat(count, equalTo(findNumberOfPerformedActions("_name")));
     }
 
-    @Test //@Repeat(iterations = 10)
+    @Test
     public void testConditionSearchWithSource() throws Exception {
         String variable = randomFrom("ctx.execution_time", "ctx.trigger.scheduled_time", "ctx.trigger.triggered_time");
         SearchSourceBuilder searchSourceBuilder = searchSource().query(filteredQuery(
@@ -260,7 +253,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         testConditionSearch(newInputSearchRequest("events").source(searchSourceBuilder));
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test
     public void testConditionSearchWithIndexedTemplate() throws Exception {
         String variable = randomFrom("ctx.execution_time", "ctx.trigger.scheduled_time", "ctx.trigger.triggered_time");
         SearchSourceBuilder searchSourceBuilder = searchSource().query(filteredQuery(

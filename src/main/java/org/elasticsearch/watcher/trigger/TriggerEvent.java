@@ -18,7 +18,6 @@ import java.util.Map;
 public abstract class TriggerEvent implements ToXContent {
 
     public static final ParseField TRIGGERED_TIME_FIELD = new ParseField("triggered_time");
-    public static final ParseField JOB_NAME_FIELD = new ParseField("job_name");
 
     private final String jobName;
     protected final DateTime triggeredTime;

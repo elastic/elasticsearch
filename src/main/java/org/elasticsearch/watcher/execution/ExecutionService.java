@@ -113,7 +113,7 @@ public class ExecutionService extends AbstractComponent {
         return executor.largestPoolSize();
     }
 
-    public void processEventsAsync(Iterable<TriggerEvent> events) throws WatcherException {
+    void processEventsAsync(Iterable<TriggerEvent> events) throws WatcherException {
         if (!started.get()) {
             throw new ElasticsearchIllegalStateException("not started");
         }
@@ -136,7 +136,7 @@ public class ExecutionService extends AbstractComponent {
         if (records.size() == 1) {
             final WatchRecord watchRecord = records.getFirst();
             final TriggeredExecutionContext ctx = contexts.getFirst();
-            historyStore.putAsync(watchRecord, new ActionListener<Boolean>() {
+            historyStore.put(watchRecord, new ActionListener<Boolean>() {
                 @Override
                 public void onResponse(Boolean aBoolean) {
                     executeAsync(ctx, watchRecord);
@@ -146,14 +146,14 @@ public class ExecutionService extends AbstractComponent {
                 public void onFailure(Throwable e) {
                     Throwable cause = ExceptionsHelper.unwrapCause(e);
                     if (cause instanceof EsRejectedExecutionException) {
-                        logger.debug("Failed to store watch record {} due to overloaded threadpool: {}", watchRecord, ExceptionsHelper.detailedMessage(e));
+                        logger.debug("failed to store watch record [{}]/[{}] due to overloaded threadpool [{}]", watchRecord, ctx.id(), ExceptionsHelper.detailedMessage(e));
                     } else {
-                        logger.warn("Failed to store watch record: {}", e, watchRecord);
+                        logger.warn("failed to store watch record [{}]/[{}]", e, watchRecord, ctx.id());
                     }
                 }
             });
         } else {
-            historyStore.bulkAsync(records, new ActionListener<List<Integer>>() {
+            historyStore.putAll(records, new ActionListener<List<Integer>>() {
                 @Override
                 public void onResponse(List<Integer> successFullSlots) {
                     for (Integer slot : successFullSlots) {
@@ -165,16 +165,16 @@ public class ExecutionService extends AbstractComponent {
                 public void onFailure(Throwable e) {
                     Throwable cause = ExceptionsHelper.unwrapCause(e);
                     if (cause instanceof EsRejectedExecutionException) {
-                        logger.debug("Failed to store watch records due to overloaded threadpool: {}", ExceptionsHelper.detailedMessage(e));
+                        logger.debug("failed to store watch records due to overloaded threadpool [{}]", ExceptionsHelper.detailedMessage(e));
                     } else {
-                        logger.warn("Failed to store watch records", e);
+                        logger.warn("failed to store watch records", e);
                     }
                 }
             });
         }
     }
 
-    public void processEventsSync(Iterable<TriggerEvent> events) throws WatcherException {
+    void processEventsSync(Iterable<TriggerEvent> events) throws WatcherException {
         if (!started.get()) {
             throw new ElasticsearchIllegalStateException("not started");
         }
@@ -200,7 +200,7 @@ public class ExecutionService extends AbstractComponent {
             historyStore.put(watchRecord);
             executeAsync(ctx, watchRecord);
         } else {
-            List<Integer> slots = historyStore.bulk(records);
+            List<Integer> slots = historyStore.putAll(records);
             for (Integer slot : slots) {
                 executeAsync(contexts.get(slot), records.get(slot));
             }
@@ -287,7 +287,7 @@ public class ExecutionService extends AbstractComponent {
         for (WatchRecord record : records) {
             Watch watch = watchStore.get(record.name());
             if (watch == null) {
-                logger.warn("unable to find watch [{}] in watch store. perhaps it has been deleted. skipping...", record.name());
+                logger.warn("unable to find watch [{}]/[{}] in watch store. perhaps it has been deleted. skipping...", record.name(), record.id());
                 continue;
             }
             TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, clock.now(), record.triggerEvent());
@@ -354,21 +354,21 @@ public class ExecutionService extends AbstractComponent {
             } catch (Exception e) {
                 if (started()) {
                     String detailedMessage = ExceptionsHelper.detailedMessage(e);
-                    logger.warn("failed to execute watch [{}] [{}], failure [{}]", watchRecord.name(), ctx.id(), detailedMessage);
+                    logger.warn("failed to execute watch [{}]/[{}], failure [{}]", watchRecord.name(), ctx.id(), detailedMessage);
                     try {
                         watchRecord.update(WatchRecord.State.FAILED, detailedMessage);
                         if (ctx.recordExecution()) {
                             historyStore.update(watchRecord);
                         }
                     } catch (Exception e2) {
-                        logger.error("failed to update watch record [{}], failure [{}], original failure [{}]", watchRecord, ExceptionsHelper.detailedMessage(e2), detailedMessage);
+                        logger.error("failed to update watch record [{}]/[{}], failure [{}], original failure [{}]", watchRecord.name(), ctx.id(), ExceptionsHelper.detailedMessage(e2), detailedMessage);
                     }
                 } else {
                     logger.debug("failed to execute watch [{}] after shutdown", e, watchRecord);
                 }
             } finally {
                 lock.release();
-                logger.trace("finished [{}] [{}]", ctx.watch().name(), ctx.id());
+                logger.trace("finished [{}]/[{}]", ctx.watch().name(), ctx.id());
             }
         }
 

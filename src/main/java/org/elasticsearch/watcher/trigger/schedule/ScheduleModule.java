@@ -8,7 +8,10 @@ package org.elasticsearch.watcher.trigger.schedule;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.watcher.support.ThreadPoolSettingsBuilder;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
 import org.elasticsearch.watcher.trigger.schedule.engine.*;
 
@@ -20,6 +23,8 @@ import java.util.Map;
  *
  */
 public class ScheduleModule extends AbstractModule {
+
+    public static final String THREAD_POOL_NAME = "watcher_scheduler";
 
     private final Map<String, Class<? extends Schedule.Parser>> parsers = new HashMap<>();
 
@@ -45,7 +50,6 @@ public class ScheduleModule extends AbstractModule {
 
     @Override
     protected void configure() {
-
         MapBinder<String, Schedule.Parser> mbinder = MapBinder.newMapBinder(binder(), String.class, Schedule.Parser.class);
         for (Map.Entry<String, Class<? extends Schedule.Parser>> entry : parsers.entrySet()) {
             bind(entry.getValue()).asEagerSingleton();
@@ -56,8 +60,17 @@ public class ScheduleModule extends AbstractModule {
     }
 
     public static Settings additionalSettings(Settings nodeSettings) {
-        Engine engine = Engine.resolve(nodeSettings);
-        return engine.additionalSettings(nodeSettings);
+        Settings settings = nodeSettings.getAsSettings("threadpool." + THREAD_POOL_NAME);
+        if (!settings.names().isEmpty()) {
+            // scheduler TP is already configured in the node settings
+            // no need for additional settings
+            return ImmutableSettings.EMPTY;
+        }
+        int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
+        return new ThreadPoolSettingsBuilder.Fixed(THREAD_POOL_NAME)
+                .size(availableProcessors * 2)
+                .queueSize(1000)
+                .build();
     }
 
     public enum Engine {
@@ -68,74 +81,24 @@ public class ScheduleModule extends AbstractModule {
                 return SchedulerScheduleTriggerEngine.class;
             }
 
-            @Override
-            protected Settings additionalSettings(Settings nodeSettings) {
-                return SchedulerScheduleTriggerEngine.additionalSettings(nodeSettings);
-            }
         },
-
-        HASHWHEEL() {
+        TICKER() {
             @Override
             protected Class<? extends TriggerEngine> engineType() {
-                return HashWheelScheduleTriggerEngine.class;
+                return TickerScheduleTriggerEngine.class;
             }
 
-            @Override
-            protected Settings additionalSettings(Settings nodeSettings) {
-                return HashWheelScheduleTriggerEngine.additionalSettings(nodeSettings);
-            }
-        },
-
-        QUARTZ() {
-            @Override
-            protected Class<? extends TriggerEngine> engineType() {
-                return QuartzScheduleTriggerEngine.class;
-            }
-
-            @Override
-            protected Settings additionalSettings(Settings nodeSettings) {
-                return QuartzScheduleTriggerEngine.additionalSettings(nodeSettings);
-            }
-        },
-
-        TIMER() {
-            @Override
-            protected Class<? extends TriggerEngine> engineType() {
-                return TimerTickerScheduleTriggerEngine.class;
-            }
-
-            @Override
-            protected Settings additionalSettings(Settings nodeSettings) {
-                return TimerTickerScheduleTriggerEngine.additionalSettings(nodeSettings);
-            }
-        },
-
-        SIMPLE() {
-            @Override
-            protected Class<? extends TriggerEngine> engineType() {
-                return SimpleTickerScheduleTriggerEngine.class;
-            }
-
-            @Override
-            protected Settings additionalSettings(Settings nodeSettings) {
-                return SimpleTickerScheduleTriggerEngine.additionalSettings(nodeSettings);
-            }
         };
 
         protected abstract Class<? extends TriggerEngine> engineType();
 
-        protected abstract Settings additionalSettings(Settings nodeSettings);
-
         public static Engine resolve(Settings settings) {
             String engine = settings.getComponentSettings(ScheduleModule.class).get("engine", "scheduler");
             switch (engine.toLowerCase(Locale.ROOT)) {
-                case "quartz"    : return QUARTZ;
-                case "timer"     : return TIMER;
-                case "simple"    : return SIMPLE;
-                case "hashwheel" : return HASHWHEEL;
+                case "ticker"    : return TICKER;
                 case "scheduler" : return SCHEDULER;
                 default:
-                    return SCHEDULER;
+                    return TICKER;
             }
         }
     }

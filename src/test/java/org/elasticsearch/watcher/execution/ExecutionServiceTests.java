@@ -94,7 +94,7 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
 
         DateTime now = DateTime.now(DateTimeZone.UTC);
 
-        ScheduleTriggerEvent event = new ScheduleTriggerEvent(null, now, now);
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event);
         WatchExecution watchExecution = executionService.executeInner(context);
         assertThat(watchExecution.conditionResult(), sameInstance(conditionResult));
@@ -140,7 +140,7 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
 
         DateTime now = DateTime.now(DateTimeZone.UTC);
 
-        ScheduleTriggerEvent event = new ScheduleTriggerEvent(null, now, now);
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event);
         WatchExecution watchExecution = executionService.executeInner(context);
         assertThat(watchExecution.inputResult(), sameInstance(inputResult));
@@ -186,7 +186,7 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
 
         DateTime now = DateTime.now(DateTimeZone.UTC);
 
-        ScheduleTriggerEvent event = new ScheduleTriggerEvent(null, now, now);
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event);
         WatchExecution watchExecution = executionService.executeInner(context);
         assertThat(watchExecution.inputResult(), sameInstance(inputResult));

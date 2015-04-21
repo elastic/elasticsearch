@@ -162,34 +162,9 @@
         </dependency>
 
         <dependency>
-            <groupId>org.quartz-scheduler</groupId>
-            <artifactId>quartz</artifactId>
-            <version>2.2.1</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.quartz-scheduler</groupId>
-            <artifactId>quartz-jobs</artifactId>
-            <version>2.2.1</version>
-        </dependency>
-
-        <dependency>
             <groupId>log4j</groupId>
             <artifactId>log4j</artifactId>
             <version>1.2.17</version>
-        </dependency>
-
-        <!-- Otherwise we can't see quartz logging -->
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
-            <version>1.7.7</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-nop</artifactId>
-            <version>1.7.7</version>
         </dependency>
 
         <dependency>
@@ -326,28 +301,15 @@
                 </executions>
                 <configuration>
                     <shadeTestJar>false</shadeTestJar>
-                    <!--
-                        We can't minimize jars, because quartz creates jobs from classpath url loading
-                        and this results in class not found errors at runtime.
-                     -->
-                    <minimizeJar>false</minimizeJar>
+                    <minimizeJar>true</minimizeJar>
                     <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
                     <artifactSet>
                         <includes>
-			    <include>com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer</include>
-                            <include>org.quartz-scheduler:quartz</include>
-                            <include>org.slf4j:slf4j-api</include>
-                            <include>org.slf4j:slf4j-nop</include>
+			                <include>com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer</include>
                             <include>javax.mail:mail</include>
                             <include>javax.activation:activation</include>
                         </includes>
                     </artifactSet>
-                    <relocations>
-                        <relocation>
-                            <pattern>org.quartz</pattern>
-                            <shadedPattern>org.elasticsearch.cronrunner</shadedPattern>
-                        </relocation>
-                    </relocations>
                     <filters>
                         <filter>
                             <artifact>*:*</artifact>
@@ -604,9 +566,6 @@
                             <internalRuntimeForbidden>true</internalRuntimeForbidden>
                             <!-- if the used Java version is too new, don't fail, just do nothing: -->
                             <failOnUnsupportedJava>false</failOnUnsupportedJava>
-                            <excludes>
-                                <exclude>org/quartz/**</exclude>
-                            </excludes>
                             <bundledSignatures>
                                 <!-- This will automatically choose the right signatures based on 'targetVersion': -->
                                 <bundledSignature>jdk-unsafe</bundledSignature>

@@ -66,7 +66,7 @@ public class WatcherScheduleEngineBenchmark {
     public static void main(String[] args) throws Exception {
         System.setProperty("es.logger.prefix", "");
 
-        String[] engines = new String[]{"quartz", "timer", "simple", "hashwheel", "scheduler"};
+        String[] engines = new String[]{"ticker", "scheduler"};
         int numWatches = 2000;
         int benchTime = 60000;
         int interval = 1;

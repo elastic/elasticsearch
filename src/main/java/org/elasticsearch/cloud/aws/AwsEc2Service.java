@@ -89,6 +89,17 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
             clientConfiguration.withProxyHost(proxyHost).setProxyPort(proxyPort);
         }
 
+        // #155: we might have 3rd party users using older EC2 API version
+        String awsSigner = settings.get("cloud.aws.ec2.signer", settings.get("cloud.aws.signer"));
+        if (awsSigner != null) {
+            logger.debug("using AWS API signer [{}]", awsSigner);
+            try {
+                AwsSigner.configureSigner(awsSigner, clientConfiguration);
+            } catch (ElasticsearchIllegalArgumentException e) {
+                logger.warn("wrong signer set for [cloud.aws.ec2.signer] or [cloud.aws.signer]: [{}]", awsSigner);
+            }
+        }
+
         AWSCredentialsProvider credentials;
 
         if (account == null && key == null) {

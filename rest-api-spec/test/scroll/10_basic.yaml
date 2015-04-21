@@ -131,7 +131,7 @@
         scroll_id: $scroll_id
 
 ---
-"Basic scroll orverride param by JSON":
+"Body params override query string":
   - do:
       indices.create:
         index: test_scroll

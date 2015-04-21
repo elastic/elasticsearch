@@ -182,7 +182,7 @@ clear a search context manually with the `clear-scroll` API:
 curl -XDELETE localhost:9200/_search/scroll -d '
 {
     "scroll_id" : ["c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1"]
-}
+}'
 ---------------------------------------
 
 coming[2.0.0, body based parameters were added in 2.0.0]
@@ -194,7 +194,7 @@ Multiple scroll IDs can be passed as array:
 curl -XDELETE localhost:9200/_search/scroll -d '
 {
     "scroll_id" : ["c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1", "aGVuRmV0Y2g7NTsxOnkxaDZ"]
-}
+}'
 ---------------------------------------
 
 coming[2.0.0, body based parameters were added in 2.0.0]
@@ -206,9 +206,8 @@ All search contexts can be cleared with the `_all` parameter:
 curl -XDELETE localhost:9200/_search/scroll/_all
 ---------------------------------------
 
-For backwards compatibility, the `scroll_id` can be passed
-in the request body or in the query string. Multiple scroll
-IDs can be passed as comma separated values:
+The `scroll_id` can also be passed as a query string parameter or in the request body.
+Multiple scroll IDs can be passed as comma separated values:
 
 [source,js]
 ---------------------------------------

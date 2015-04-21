@@ -56,7 +56,7 @@ setup:
     - length: {tokens: 1 }
     - match:     { tokens.0.token: foo bar }
 ---
-"Override request param by JSON param":
+"Body params override query string":
     - do:
         indices.analyze:
           text: Foo Bar

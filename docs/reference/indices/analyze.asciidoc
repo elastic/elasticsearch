@@ -13,8 +13,7 @@ curl -XGET 'localhost:9200/_analyze' -d '
 {
   "analyzer" : "standard",
   "text" : "this is a test"
-}
-'
+}'
 --------------------------------------------------
 
 coming[2.0.0, body based parameters were added in 2.0.0]
@@ -30,8 +29,7 @@ curl -XGET 'localhost:9200/_analyze' -d '
   "tokenizer" : "keyword",
   "filters" : ["lowercase"],
   "text" : "this is a test"
-}
-'
+}'
 
 curl -XGET 'localhost:9200/_analyze' -d '
 {
@@ -39,8 +37,7 @@ curl -XGET 'localhost:9200/_analyze' -d '
   "token_filters" : ["lowercase"],
   "char_filters" : ["html_strip"],
   "text" : "this is a <b>test</b>"
-}
-'
+}'
 --------------------------------------------------
 
 coming[2.0.0, body based parameters were added in 2.0.0]
@@ -52,8 +49,7 @@ It can also run against a specific index:
 curl -XGET 'localhost:9200/test/_analyze' -d '
 {
   "text" : "this is a test"
-}
-'
+}'
 --------------------------------------------------
 
 The above will run an analysis on the "this is a test" text, using the
@@ -66,8 +62,7 @@ curl -XGET 'localhost:9200/test/_analyze' -d '
 {
   "analyzer" : "whitespace",
   "text : "this is a test"
-}
-'
+}'
 --------------------------------------------------
 
 coming[2.0.0, body based parameters were added in 2.0.0]
@@ -80,8 +75,7 @@ curl -XGET 'localhost:9200/test/_analyze' -d '
 {
   "field" : "obj1.field1",
   "text" : "this is a test"
-}
-'
+}'
 --------------------------------------------------
 
 coming[2.0.0, body based parameters were added in 2.0.0]
@@ -89,13 +83,17 @@ coming[2.0.0, body based parameters were added in 2.0.0]
 Will cause the analysis to happen based on the analyzer configured in the
 mapping for `obj1.field1` (and if not, the default index analyzer).
 
-For backwards compatibility, all parameters can be provided as request parameters.
-Also, the text can be provided as part of the request body, and not as a
-parameter.
+All parameters can also supplied as request parameters. For example:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&filters=lowercase' -d 'this is a test'
+curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&filters=lowercase&text=this+is+a+test'
+--------------------------------------------------
 
+For backwards compatibility, we also accept the text parameter as the body of the request,
+provided it doesn't start with `{` :
+
+[source,js]
+--------------------------------------------------
 curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&token_filters=lowercase&char_filters=html_strip' -d 'this is a <b>test</b>'
 --------------------------------------------------

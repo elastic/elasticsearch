@@ -126,7 +126,7 @@ public class ParentQuery extends Query {
         IndexParentChildFieldData globalIfd = parentChildIndexFieldData.loadGlobal(searcher.getIndexReader());
         if (globalIfd == null) {
             // No docs of the specified type don't exist on this shard
-            return Queries.newMatchNoDocsQuery().createWeight(searcher, needsScores);
+            return new BooleanQuery().createWeight(searcher, needsScores);
         }
 
         try {
@@ -138,7 +138,7 @@ public class ParentQuery extends Query {
             indexSearcher.setSimilarity(searcher.getSimilarity());
             indexSearcher.search(parentQuery, collector);
             if (collector.parentCount() == 0) {
-                return Queries.newMatchNoDocsQuery().createWeight(searcher, needsScores);
+                return new BooleanQuery().createWeight(searcher, needsScores);
             }
             childWeight = new ChildWeight(this, parentQuery.createWeight(searcher, needsScores), childrenFilter, collector, globalIfd);
             releaseCollectorResource = false;

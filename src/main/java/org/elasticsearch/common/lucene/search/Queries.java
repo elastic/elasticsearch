@@ -19,7 +19,15 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -33,22 +41,29 @@ import java.util.regex.Pattern;
  */
 public class Queries {
 
-    /**
-     * A match all docs filter. Note, requires no caching!.
-     */
-    public final static Filter MATCH_ALL_FILTER = new MatchAllDocsFilter();
-    public final static Filter MATCH_NO_FILTER = new MatchNoDocsFilter();
-
     public static Query newMatchAllQuery() {
-        // We don't use MatchAllDocsQuery, its slower than the one below ... (much slower)
-        // NEVER cache this XConstantScore Query it's not immutable and based on #3521
-        // some code might set a boost on this query.
-        return new ConstantScoreQuery(MATCH_ALL_FILTER);
+        return new MatchAllDocsQuery();
     }
 
     /** Return a query that matches no document. */
     public static Query newMatchNoDocsQuery() {
         return new BooleanQuery();
+    }
+
+    public static Filter newMatchAllFilter() {
+        return wrap(newMatchAllQuery());
+    }
+
+    public static Filter newMatchNoDocsFilter() {
+        return wrap(newMatchNoDocsQuery());
+    }
+
+    /** Return a query that matches all documents but those that match the given query. */
+    public static Query not(Query q) {
+        BooleanQuery bq = new BooleanQuery();
+        bq.add(new MatchAllDocsQuery(), Occur.MUST);
+        bq.add(q, Occur.MUST_NOT);
+        return bq;
     }
 
     public static boolean isNegativeQuery(Query q) {
@@ -76,10 +91,11 @@ public class Queries {
 
     public static boolean isConstantMatchAllQuery(Query query) {
         if (query instanceof ConstantScoreQuery) {
-            ConstantScoreQuery scoreQuery = (ConstantScoreQuery) query;
-            if (scoreQuery.getQuery() instanceof MatchAllDocsFilter || scoreQuery.getQuery() instanceof MatchAllDocsQuery) {
-                return true;
-            }
+            return isConstantMatchAllQuery(((ConstantScoreQuery) query).getQuery());
+        } else if (query instanceof QueryWrapperFilter) {
+            return isConstantMatchAllQuery(((QueryWrapperFilter) query).getQuery());
+        } else if (query instanceof MatchAllDocsQuery) {
+            return true;
         }
         return false;
     }
@@ -151,10 +167,15 @@ public class Queries {
      */
     @SuppressForbidden(reason = "QueryWrapperFilter cachability")
     public static Filter wrap(Query query, QueryParseContext context) {
-        if (context.requireCustomQueryWrappingFilter() || CustomQueryWrappingFilter.shouldUseCustomQueryWrappingFilter(query)) {
+        if ((context != null && context.requireCustomQueryWrappingFilter()) || CustomQueryWrappingFilter.shouldUseCustomQueryWrappingFilter(query)) {
             return new CustomQueryWrappingFilter(query);
         } else {
             return new QueryWrapperFilter(query);
         }
+    }
+
+    /** Wrap as a {@link Filter}. */
+    public static Filter wrap(Query query) {
+        return wrap(query, null);
     }
 }

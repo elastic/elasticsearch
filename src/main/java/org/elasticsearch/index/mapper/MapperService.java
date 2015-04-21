@@ -31,11 +31,13 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.FilterClause;
-import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.queries.TermsFilter;
+import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -47,9 +49,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.lucene.search.AndFilter;
-import org.elasticsearch.common.lucene.search.NotFilter;
-import org.elasticsearch.common.lucene.search.XBooleanFilter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -446,18 +446,21 @@ public class MapperService extends AbstractIndexComponent  {
                 }
             }
         }
-        Filter excludePercolatorType = null;
+        Filter percolatorType = null;
         if (filterPercolateType) {
-            excludePercolatorType = new NotFilter(documentMapper(PercolatorService.TYPE_NAME).typeFilter());
+            percolatorType = documentMapper(PercolatorService.TYPE_NAME).typeFilter();
         }
 
         if (types == null || types.length == 0) {
             if (hasNested && filterPercolateType) {
-                return new AndFilter(ImmutableList.of(excludePercolatorType, NonNestedDocsFilter.INSTANCE));
+                BooleanQuery bq = new BooleanQuery();
+                bq.add(percolatorType, Occur.MUST_NOT);
+                bq.add(NonNestedDocsFilter.INSTANCE, Occur.MUST);
+                return Queries.wrap(bq);
             } else if (hasNested) {
                 return NonNestedDocsFilter.INSTANCE;
             } else if (filterPercolateType) {
-                return excludePercolatorType;
+                return Queries.wrap(Queries.not(percolatorType));
             } else {
                 return null;
             }
@@ -466,9 +469,12 @@ public class MapperService extends AbstractIndexComponent  {
         // since they have different types (starting with __)
         if (types.length == 1) {
             DocumentMapper docMapper = documentMapper(types[0]);
-            Filter filter = docMapper != null ? docMapper.typeFilter() : new TermFilter(new Term(types[0]));
-            if (hasNested) {
-                return new AndFilter(ImmutableList.of(filter, NonNestedDocsFilter.INSTANCE));
+            Filter filter = docMapper != null ? docMapper.typeFilter() : Queries.wrap(new TermQuery(new Term(TypeFieldMapper.NAME, types[0])));
+            if (filterPercolateType) {
+                BooleanQuery bq = new BooleanQuery();
+                bq.add(percolatorType, Occur.MUST_NOT);
+                bq.add(filter, Occur.MUST);
+                return Queries.wrap(bq);
             } else {
                 return filter;
             }
@@ -493,31 +499,34 @@ public class MapperService extends AbstractIndexComponent  {
             for (int i = 0; i < typesBytes.length; i++) {
                 typesBytes[i] = new BytesRef(types[i]);
             }
-            TermsFilter termsFilter = new TermsFilter(TypeFieldMapper.NAME, typesBytes);
+            TermsQuery termsFilter = new TermsQuery(TypeFieldMapper.NAME, typesBytes);
             if (filterPercolateType) {
-                return new AndFilter(ImmutableList.of(excludePercolatorType, termsFilter));
+                BooleanQuery bq = new BooleanQuery();
+                bq.add(percolatorType, Occur.MUST_NOT);
+                bq.add(termsFilter, Occur.MUST);
+                return Queries.wrap(bq);
             } else {
-                return termsFilter;
+                return Queries.wrap(termsFilter);
             }
         } else {
             // Current bool filter requires that at least one should clause matches, even with a must clause.
-            XBooleanFilter bool = new XBooleanFilter();
+            BooleanQuery bool = new BooleanQuery();
             for (String type : types) {
                 DocumentMapper docMapper = documentMapper(type);
                 if (docMapper == null) {
-                    bool.add(new FilterClause(new TermFilter(new Term(TypeFieldMapper.NAME, type)), BooleanClause.Occur.SHOULD));
+                    bool.add(new TermQuery(new Term(TypeFieldMapper.NAME, type)), BooleanClause.Occur.SHOULD);
                 } else {
-                    bool.add(new FilterClause(docMapper.typeFilter(), BooleanClause.Occur.SHOULD));
+                    bool.add(docMapper.typeFilter(), BooleanClause.Occur.SHOULD);
                 }
             }
             if (filterPercolateType) {
-                bool.add(excludePercolatorType, BooleanClause.Occur.MUST);
+                bool.add(percolatorType, BooleanClause.Occur.MUST_NOT);
             }
             if (hasNested) {
                 bool.add(NonNestedDocsFilter.INSTANCE, BooleanClause.Occur.MUST);
             }
 
-            return bool;
+            return Queries.wrap(bool);
         }
     }
 

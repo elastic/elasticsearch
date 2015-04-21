@@ -27,11 +27,16 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.join.BitDocIdSetCachingWrapperFilter;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext.NestedInnerHits.NestedChildrenFilter;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -74,8 +79,8 @@ public class NestedChildrenFilterTest extends ElasticsearchTestCase {
 
         IndexSearcher searcher = new IndexSearcher(reader);
         FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
-        BitDocIdSetFilter parentFilter = new BitDocIdSetCachingWrapperFilter(new TermFilter(new Term("type", "parent")));
-        Filter childFilter = new TermFilter(new Term("type", "child"));
+        BitDocIdSetFilter parentFilter = new BitDocIdSetCachingWrapperFilter(Queries.wrap(new TermQuery(new Term("type", "parent"))));
+        Filter childFilter = Queries.wrap(new TermQuery(new Term("type", "child")));
         int checkedParents = 0;
         for (LeafReaderContext leaf : reader.leaves()) {
             DocIdSetIterator parents = parentFilter.getDocIdSet(leaf).iterator();

@@ -20,8 +20,8 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterCachingPolicy;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -52,7 +52,7 @@ public class FQueryFilterParser implements FilterParser {
 
         Query query = null;
         boolean queryFound = false;
-        FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
+        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
         HashedBytesRef cacheKey = null;
 
         String filterName = null;

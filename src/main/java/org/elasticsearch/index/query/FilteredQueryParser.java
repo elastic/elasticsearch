@@ -19,20 +19,13 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterCachingPolicy;
 import org.apache.lucene.search.FilteredQuery;
-import org.apache.lucene.search.FilteredQuery.FilterStrategy;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.Bits;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -44,70 +37,6 @@ import java.io.IOException;
 public class FilteredQueryParser implements QueryParser {
 
     public static final String NAME = "filtered";
-
-    public static final FilterStrategy ALWAYS_RANDOM_ACCESS_FILTER_STRATEGY = new CustomRandomAccessFilterStrategy(0);
-
-    public static final CustomRandomAccessFilterStrategy CUSTOM_FILTER_STRATEGY = new CustomRandomAccessFilterStrategy();
-
-    /**
-     * Extends {@link org.apache.lucene.search.FilteredQuery.RandomAccessFilterStrategy}.
-     * <p/>
-     * Adds a threshold value, which defaults to -1. When set to -1, it will check if the filter docSet is
-     * *not*  a fast docSet, and if not, it will use {@link FilteredQuery#QUERY_FIRST_FILTER_STRATEGY} (since
-     * the assumption is that its a "slow" filter and better computed only on whatever matched the query).
-     * <p/>
-     * If the threshold value is 0, it always tries to pass "down" the filter as acceptDocs, and it the filter
-     * can't be represented as Bits (never really), then it uses {@link FilteredQuery#LEAP_FROG_QUERY_FIRST_STRATEGY}.
-     * <p/>
-     * If the above conditions are not met, then it reverts to the {@link FilteredQuery.RandomAccessFilterStrategy} logic,
-     * with the threshold used to control {@link #useRandomAccess(org.apache.lucene.util.Bits, int)}.
-     */
-    public static class CustomRandomAccessFilterStrategy extends FilteredQuery.RandomAccessFilterStrategy {
-
-        private final int threshold;
-
-        public CustomRandomAccessFilterStrategy() {
-            this.threshold = -1;
-        }
-
-        public CustomRandomAccessFilterStrategy(int threshold) {
-            this.threshold = threshold;
-        }
-
-        @Override
-        public Scorer filteredScorer(LeafReaderContext context, Weight weight, DocIdSet docIdSet) throws IOException {
-            // CHANGE: If threshold is 0, always pass down the accept docs, don't pay the price of calling nextDoc even...
-            final Bits filterAcceptDocs = docIdSet.bits();
-            if (threshold == 0) {
-                if (filterAcceptDocs != null) {
-                    return weight.scorer(context, filterAcceptDocs);
-                } else {
-                    return FilteredQuery.LEAP_FROG_QUERY_FIRST_STRATEGY.filteredScorer(context, weight, docIdSet);
-                }
-            }
-
-            // CHANGE: handle "default" value
-            if (threshold == -1) {
-                // default  value, don't iterate on only apply filter after query if its not a "fast" docIdSet
-                // TODO: is there a way we could avoid creating an iterator here?
-                if (filterAcceptDocs != null && DocIdSets.isBroken(docIdSet.iterator())) {
-                    return FilteredQuery.QUERY_FIRST_FILTER_STRATEGY.filteredScorer(context, weight, docIdSet);
-                }
-            }
-
-            return super.filteredScorer(context, weight, docIdSet);
-        }
-
-        @Override
-        protected boolean useRandomAccess(Bits bits, long filterCost) {
-          int multiplier = threshold;
-          if (threshold == -1) {
-              // default
-              multiplier = 100;
-          }
-          return filterCost * multiplier > bits.length();
-        }
-    }
 
     @Inject
     public FilteredQueryParser() {
@@ -126,13 +55,13 @@ public class FilteredQueryParser implements QueryParser {
         Filter filter = null;
         boolean filterFound = false;
         float boost = 1.0f;
-        FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
+        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
         HashedBytesRef cacheKey = null;
         String queryName = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
-        FilteredQuery.FilterStrategy filterStrategy = CUSTOM_FILTER_STRATEGY;
+        FilteredQuery.FilterStrategy filterStrategy = FilteredQuery.RANDOM_ACCESS_FILTER_STRATEGY;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -152,15 +81,13 @@ public class FilteredQueryParser implements QueryParser {
                     if ("query_first".equals(value) || "queryFirst".equals(value)) {
                         filterStrategy = FilteredQuery.QUERY_FIRST_FILTER_STRATEGY;
                     } else if ("random_access_always".equals(value) || "randomAccessAlways".equals(value)) {
-                        filterStrategy = ALWAYS_RANDOM_ACCESS_FILTER_STRATEGY;
+                        filterStrategy = FilteredQuery.RANDOM_ACCESS_FILTER_STRATEGY;
                     } else if ("leap_frog".equals(value) || "leapFrog".equals(value)) {
                         filterStrategy = FilteredQuery.LEAP_FROG_QUERY_FIRST_STRATEGY;
                     } else if (value.startsWith("random_access_")) {
-                        int threshold = Integer.parseInt(value.substring("random_access_".length()));
-                        filterStrategy = new CustomRandomAccessFilterStrategy(threshold);
+                        filterStrategy = FilteredQuery.RANDOM_ACCESS_FILTER_STRATEGY;
                     } else if (value.startsWith("randomAccess")) {
-                        int threshold = Integer.parseInt(value.substring("randomAccess".length()));
-                        filterStrategy = new CustomRandomAccessFilterStrategy(threshold);
+                        filterStrategy = FilteredQuery.RANDOM_ACCESS_FILTER_STRATEGY;
                     } else if ("leap_frog_query_first".equals(value) || "leapFrogQueryFirst".equals(value)) {
                         filterStrategy = FilteredQuery.LEAP_FROG_QUERY_FIRST_STRATEGY;
                     } else if ("leap_frog_filter_first".equals(value) || "leapFrogFilterFirst".equals(value)) {
@@ -197,7 +124,7 @@ public class FilteredQueryParser implements QueryParser {
                 return query;
             }
         }
-        if (filter == Queries.MATCH_ALL_FILTER) {
+        if (Queries.isConstantMatchAllQuery(filter)) {
             // this is an instance of match all filter, just execute the query
             return query;
         }

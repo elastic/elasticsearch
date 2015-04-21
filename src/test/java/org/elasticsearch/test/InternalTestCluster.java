@@ -77,8 +77,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.cache.filter.AutoFilterCachingPolicy;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
+import org.elasticsearch.index.cache.filter.FilterCacheModule.FilterCacheSettings;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.shard.IndexShardModule;
@@ -131,6 +131,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static junit.framework.Assert.fail;
 import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
+import static org.apache.lucene.util.LuceneTestCase.random;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.apache.lucene.util.LuceneTestCase.usually;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -454,18 +455,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         if (random.nextBoolean()) {
-            final int freqCacheable = 1 + random.nextInt(5);
-            final int freqCostly = 1 + random.nextInt(5);
-            final int freqOther = Math.max(freqCacheable, freqCostly) + random.nextInt(2);
-            int historySize = 3 + random.nextInt(100);
-            historySize = Math.max(historySize, freqCacheable);
-            historySize = Math.max(historySize, freqCostly);
-            historySize = Math.max(historySize, freqOther);
-            builder.put(AutoFilterCachingPolicy.HISTORY_SIZE, historySize);
-            builder.put(AutoFilterCachingPolicy.MIN_FREQUENCY_CACHEABLE, freqCacheable);
-            builder.put(AutoFilterCachingPolicy.MIN_FREQUENCY_COSTLY, freqCostly);
-            builder.put(AutoFilterCachingPolicy.MIN_FREQUENCY_OTHER, freqOther);
-            builder.put(AutoFilterCachingPolicy.MIN_SEGMENT_SIZE_RATIO, random.nextFloat());
+            builder.put(FilterCacheSettings.FILTER_CACHE_EVERYTHING, random.nextBoolean());
         }
 
         return builder.build();

@@ -28,7 +28,6 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -38,6 +37,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.ByteUtils;
@@ -209,20 +209,20 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     @Override
     public Filter termFilter(Object value, @Nullable QueryParseContext context) {
         double dValue = parseDoubleValue(value);
-        return NumericRangeFilter.newDoubleRange(names.indexName(), precisionStep,
-                dValue, dValue, true, true);
+        return Queries.wrap(NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,
+                dValue, dValue, true, true));
     }
 
     @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFilter.newDoubleRange(names.indexName(), precisionStep,
+        return Queries.wrap(NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseDoubleValue(lowerTerm),
                 upperTerm == null ? null : parseDoubleValue(upperTerm),
-                includeLower, includeUpper);
+                includeLower, includeUpper));
     }
 
     public Filter rangeFilter(Double lowerTerm, Double upperTerm, boolean includeLower, boolean includeUpper) {
-        return NumericRangeFilter.newDoubleRange(names.indexName(), precisionStep, lowerTerm, upperTerm, includeLower, includeUpper);
+        return Queries.wrap(NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep, lowerTerm, upperTerm, includeLower, includeUpper));
     }
 
     @Override
@@ -238,10 +238,10 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
         if (nullValue == null) {
             return null;
         }
-        return NumericRangeFilter.newDoubleRange(names.indexName(), precisionStep,
+        return Queries.wrap(NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,
                 nullValue,
                 nullValue,
-                true, true);
+                true, true));
     }
 
     @Override

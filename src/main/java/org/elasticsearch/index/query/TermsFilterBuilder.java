@@ -118,7 +118,9 @@ public class TermsFilterBuilder extends BaseFilterBuilder {
     /**
      * Sets the execution mode for the terms filter. Cane be either "plain", "bool"
      * "and". Defaults to "plain".
+     * @deprecated elasticsearch now makes better decisions on its own
      */
+    @Deprecated
     public TermsFilterBuilder execution(String execution) {
         this.execution = execution;
         return this;

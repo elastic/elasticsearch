@@ -21,11 +21,11 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.queries.TermsFilter;
+import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -350,8 +350,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
             uids.add(createUidAsBytes(item.type(), item.id()));
         }
         if (!uids.isEmpty()) {
-            TermsFilter filter = new TermsFilter(UidFieldMapper.NAME, uids.toArray(new BytesRef[0]));
-            ConstantScoreQuery query = new ConstantScoreQuery(filter);
+            TermsQuery query = new TermsQuery(UidFieldMapper.NAME, uids.toArray(new BytesRef[0]));
             boolQuery.add(query, BooleanClause.Occur.MUST_NOT);
         }
     }

@@ -77,7 +77,7 @@ import static org.hamcrest.core.IsNot.not;
 
 /**
  */
-@ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false)
+@ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, maxNumDataNodes = 3)
 public abstract class AbstractWatcherIntegrationTests extends ElasticsearchIntegrationTest {
 
     private static final boolean timeWarpEnabled = SystemPropertyUtil.getBoolean("tests.timewarp", true);

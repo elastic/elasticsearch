@@ -79,7 +79,7 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
     private void testNoConflictWhileMergingAndMappingChanged(XContentBuilder mapping, XContentBuilder mappingUpdate, XContentBuilder expectedMapping) throws IOException {
         IndexService indexService = createIndex("test", ImmutableSettings.settingsBuilder().build(), "type", mapping);
         // simulate like in MetaDataMappingService#putMapping
-        DocumentMapper.MergeResult mergeResult = indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedString(mappingUpdate.bytes()), true), DocumentMapper.MergeFlags.mergeFlags().simulate(false));
+        DocumentMapper.MergeResult mergeResult = indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedString(mappingUpdate.bytes()), true).mapping(), DocumentMapper.MergeFlags.mergeFlags().simulate(false));
         // assure we have no conflicts
         assertThat(mergeResult.conflicts().length, equalTo(0));
         // make sure mappings applied
@@ -103,7 +103,7 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
         IndexService indexService = createIndex("test", ImmutableSettings.settingsBuilder().build(), "type", mapping);
         CompressedString mappingBeforeUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         // simulate like in MetaDataMappingService#putMapping
-        DocumentMapper.MergeResult mergeResult = indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedString(mappingUpdate.bytes()), true), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
+        DocumentMapper.MergeResult mergeResult = indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedString(mappingUpdate.bytes()), true).mapping(), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
         // assure we have conflicts
         assertThat(mergeResult.conflicts().length, equalTo(1));
         // make sure simulate flag actually worked - no mappings applied

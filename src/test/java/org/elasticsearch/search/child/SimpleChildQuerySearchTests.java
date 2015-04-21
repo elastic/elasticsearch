@@ -1645,7 +1645,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                     .endObject().endObject()).get();
             fail();
         } catch (MergeMappingException e) {
-            assertThat(e.getMessage(), equalTo("Merge failed with failures {[The _parent field's type option can't be changed]}"));
+            assertThat(e.getMessage(), equalTo("Merge failed with failures {[The _parent field's type option can't be changed: [null]->[parent]]}"));
         }
     }
 

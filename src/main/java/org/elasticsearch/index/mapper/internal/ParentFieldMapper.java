@@ -366,7 +366,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         ParentFieldMapper other = (ParentFieldMapper) mergeWith;
         if (!Objects.equal(type, other.type)) {
-            mergeContext.addConflict("The _parent field's type option can't be changed");
+            mergeContext.addConflict("The _parent field's type option can't be changed: [" + type + "]->[" + other.type + "]");
         }
 
         if (!mergeContext.mergeFlags().simulate()) {

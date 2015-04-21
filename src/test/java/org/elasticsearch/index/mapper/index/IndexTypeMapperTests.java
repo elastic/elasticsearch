@@ -102,7 +102,7 @@ public class IndexTypeMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
         DocumentMapper mapperDisabled = parser.parse(mappingWithIndexDisabled);
 
-        mapperEnabled.merge(mapperDisabled, DocumentMapper.MergeFlags.mergeFlags().simulate(false));
+        mapperEnabled.merge(mapperDisabled.mapping(), DocumentMapper.MergeFlags.mergeFlags().simulate(false));
         assertThat(mapperEnabled.IndexFieldMapper().enabled(), is(false));
     }
     
@@ -118,7 +118,7 @@ public class IndexTypeMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
         DocumentMapper disabledMapper = parser.parse(disabledMapping);
 
-        enabledMapper.merge(disabledMapper, DocumentMapper.MergeFlags.mergeFlags().simulate(false));
+        enabledMapper.merge(disabledMapper.mapping(), DocumentMapper.MergeFlags.mergeFlags().simulate(false));
         assertThat(enabledMapper.indexMapper().enabled(), is(false));
     }
 

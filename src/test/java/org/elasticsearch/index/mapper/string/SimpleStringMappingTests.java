@@ -499,7 +499,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         String updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", false).endObject()
                 .endObject().endObject().endObject().endObject().string();
-        MergeResult mergeResult = defaultMapper.merge(parser.parse(updatedMapping), MergeFlags.mergeFlags().simulate(false));
+        MergeResult mergeResult = defaultMapper.merge(parser.parse(updatedMapping).mapping(), MergeFlags.mergeFlags().simulate(false));
         assertFalse(Arrays.toString(mergeResult.conflicts()), mergeResult.hasConflicts());
 
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
@@ -514,7 +514,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", true).endObject()
                 .endObject().endObject().endObject().endObject().string();
-        mergeResult = defaultMapper.merge(parser.parse(updatedMapping), MergeFlags.mergeFlags());
+        mergeResult = defaultMapper.merge(parser.parse(updatedMapping).mapping(), MergeFlags.mergeFlags());
         assertTrue(mergeResult.hasConflicts());
         assertEquals(1, mergeResult.conflicts().length);
         assertTrue(mergeResult.conflicts()[0].contains("cannot enable norms"));

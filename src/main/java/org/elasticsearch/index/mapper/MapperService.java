@@ -339,7 +339,7 @@ public class MapperService extends AbstractIndexComponent  {
             DocumentMapper oldMapper = mappers.get(mapper.type());
 
             if (oldMapper != null) {
-                DocumentMapper.MergeResult result = oldMapper.merge(mapper, mergeFlags().simulate(false));
+                DocumentMapper.MergeResult result = oldMapper.merge(mapper.mapping(), mergeFlags().simulate(false));
                 if (result.hasConflicts()) {
                     // TODO: What should we do???
                     if (logger.isDebugEnabled()) {
@@ -417,26 +417,19 @@ public class MapperService extends AbstractIndexComponent  {
     }
 
     /**
-     * Returns the document mapper created, including if the document mapper ended up
-     * being actually created or not in the second tuple value.
+     * Returns the document mapper created, including a mapping update if the
+     * type has been dynamically created.
      */
-    public Tuple<DocumentMapper, Boolean> documentMapperWithAutoCreate(String type) {
+    public Tuple<DocumentMapper, Mapping> documentMapperWithAutoCreate(String type) {
         DocumentMapper mapper = mappers.get(type);
         if (mapper != null) {
-            return Tuple.tuple(mapper, Boolean.FALSE);
+            return Tuple.tuple(mapper, null);
         }
         if (!dynamic) {
             throw new TypeMissingException(index, type, "trying to auto create mapping, but dynamic mapping is disabled");
         }
-        // go ahead and dynamically create it
-        synchronized (typeMutex) {
-            mapper = mappers.get(type);
-            if (mapper != null) {
-                return Tuple.tuple(mapper, Boolean.FALSE);
-            }
-            merge(type, null, true);
-            return Tuple.tuple(mappers.get(type), Boolean.TRUE);
-        }
+        mapper = parse(type, null, true);
+        return Tuple.tuple(mapper, mapper.mapping());
     }
 
     /**

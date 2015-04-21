@@ -50,6 +50,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.Mapping.SourceTransform;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
@@ -72,7 +73,6 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -81,8 +81,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  *
@@ -165,7 +163,7 @@ public class DocumentMapper implements ToXContent {
 
         private Map<Class<? extends RootMapper>, RootMapper> rootMappers = new LinkedHashMap<>();
 
-        private List<SourceTransform> sourceTransforms;
+        private List<SourceTransform> sourceTransforms = new ArrayList<>(1);
 
         private final String index;
 
@@ -213,9 +211,6 @@ public class DocumentMapper implements ToXContent {
         }
 
         public Builder transform(ScriptService scriptService, String script, ScriptType scriptType, String language, Map<String, Object> parameters) {
-            if (sourceTransforms == null) {
-                sourceTransforms = new ArrayList<>();
-            }
             sourceTransforms.add(new ScriptTransform(scriptService, script, scriptType, language, parameters));
             return this;
         }
@@ -243,15 +238,9 @@ public class DocumentMapper implements ToXContent {
 
     private final DocumentMapperParser docMapperParser;
 
-    private volatile ImmutableMap<String, Object> meta;
-
     private volatile CompressedString mappingSource;
 
-    private final RootObjectMapper rootObjectMapper;
-
-    private final ImmutableMap<Class<? extends RootMapper>, RootMapper> rootMappers;
-    private final RootMapper[] rootMappersOrdered;
-    private final RootMapper[] rootMappersNotIncludedInObject;
+    private final Mapping mapping;
 
     private volatile DocumentFieldMappers fieldMappers;
 
@@ -267,8 +256,6 @@ public class DocumentMapper implements ToXContent {
 
     private final Object mappersMutex = new Object();
 
-    private final List<SourceTransform> sourceTransforms;
-
     public DocumentMapper(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser,
                           RootObjectMapper rootObjectMapper,
                           ImmutableMap<String, Object> meta,
@@ -278,19 +265,11 @@ public class DocumentMapper implements ToXContent {
         this.type = rootObjectMapper.name();
         this.typeText = new StringAndBytesText(this.type);
         this.docMapperParser = docMapperParser;
-        this.meta = meta;
-        this.rootObjectMapper = rootObjectMapper;
-        this.sourceTransforms = sourceTransforms;
-
-        this.rootMappers = ImmutableMap.copyOf(rootMappers);
-        this.rootMappersOrdered = rootMappers.values().toArray(new RootMapper[rootMappers.values().size()]);
-        List<RootMapper> rootMappersNotIncludedInObjectLst = newArrayList();
-        for (RootMapper rootMapper : rootMappersOrdered) {
-            if (!rootMapper.includeInObject()) {
-                rootMappersNotIncludedInObjectLst.add(rootMapper);
-            }
-        }
-        this.rootMappersNotIncludedInObject = rootMappersNotIncludedInObjectLst.toArray(new RootMapper[rootMappersNotIncludedInObjectLst.size()]);
+        this.mapping = new Mapping(
+                rootObjectMapper,
+                rootMappers.values().toArray(new RootMapper[rootMappers.values().size()]),
+                sourceTransforms.toArray(new SourceTransform[sourceTransforms.size()]),
+                meta);
 
         this.typeFilter = typeMapper().termFilter(type, null);
 
@@ -300,13 +279,9 @@ public class DocumentMapper implements ToXContent {
         }
 
         FieldMapperListener.Aggregator fieldMappersAgg = new FieldMapperListener.Aggregator();
-        for (RootMapper rootMapper : rootMappersOrdered) {
-            if (rootMapper.includeInObject()) {
-                rootObjectMapper.putMapper(rootMapper);
-            } else {
-                if (rootMapper instanceof FieldMapper) {
-                    fieldMappersAgg.mappers.add((FieldMapper) rootMapper);
-                }
+        for (RootMapper rootMapper : this.mapping.rootMappers) {
+            if (rootMapper instanceof FieldMapper) {
+                fieldMappersAgg.mappers.add((FieldMapper) rootMapper);
             }
         }
 
@@ -332,6 +307,10 @@ public class DocumentMapper implements ToXContent {
         refreshSource();
     }
 
+    public Mapping mapping() {
+        return mapping;
+    }
+
     public String type() {
         return this.type;
     }
@@ -341,7 +320,7 @@ public class DocumentMapper implements ToXContent {
     }
 
     public ImmutableMap<String, Object> meta() {
-        return this.meta;
+        return mapping.meta;
     }
 
     public CompressedString mappingSource() {
@@ -349,7 +328,7 @@ public class DocumentMapper implements ToXContent {
     }
 
     public RootObjectMapper root() {
-        return this.rootObjectMapper;
+        return mapping.root;
     }
 
     public UidFieldMapper uidMapper() {
@@ -358,7 +337,7 @@ public class DocumentMapper implements ToXContent {
 
     @SuppressWarnings({"unchecked"})
     public <T extends RootMapper> T rootMapper(Class<T> type) {
-        return (T) rootMappers.get(type);
+        return mapping.rootMapper(type);
     }
 
     public IndexFieldMapper indexMapper() {
@@ -445,13 +424,12 @@ public class DocumentMapper implements ToXContent {
         }
         source.type(this.type);
 
-        boolean mappingsModified = false;
         XContentParser parser = source.parser();
         try {
             if (parser == null) {
                 parser = XContentHelper.createParser(source.source());
             }
-            if (sourceTransforms != null) {
+            if (mapping.sourceTransforms.length > 0) {
                 parser = transform(parser);
             }
             context.reset(parser, new ParseContext.Document(), source, listener);
@@ -471,35 +449,14 @@ public class DocumentMapper implements ToXContent {
                 throw new MapperParsingException("Malformed content, after first object, either the type field or the actual properties should exist");
             }
 
-            for (RootMapper rootMapper : rootMappersOrdered) {
+            for (RootMapper rootMapper : mapping.rootMappers) {
                 rootMapper.preParse(context);
             }
 
             if (!emptyDoc) {
-                Mapper update = rootObjectMapper.parse(context);
-                for (RootObjectMapper mapper : context.updates()) {
-                    if (update == null) {
-                        update = mapper;
-                    } else {
-                        MapperUtils.merge(update, mapper);
-                    }
-                }
+                Mapper update = mapping.root.parse(context);
                 if (update != null) {
-                    // TODO: validate the mapping update on the master node
-                    // lock to avoid concurrency issues with mapping updates coming from the API
-                    synchronized(this) {
-                        // simulate on the first time to check if the mapping update is applicable
-                        MergeContext mergeContext = newMergeContext(new MergeFlags().simulate(true));
-                        rootObjectMapper.merge(update, mergeContext);
-                        if (mergeContext.hasConflicts()) {
-                            throw new MapperParsingException("Could not apply generated dynamic mappings: " + Arrays.toString(mergeContext.buildConflicts()));
-                        } else {
-                            // then apply it for real
-                            mappingsModified = true;
-                            mergeContext = newMergeContext(new MergeFlags().simulate(false));
-                            rootObjectMapper.merge(update, mergeContext);
-                        }
-                    }
+                    context.addDynamicMappingsUpdate((RootObjectMapper) update);
                 }
             }
 
@@ -507,7 +464,7 @@ public class DocumentMapper implements ToXContent {
                 parser.nextToken();
             }
 
-            for (RootMapper rootMapper : rootMappersOrdered) {
+            for (RootMapper rootMapper : mapping.rootMappers) {
                 rootMapper.postParse(context);
             }
         } catch (Throwable e) {
@@ -548,8 +505,14 @@ public class DocumentMapper implements ToXContent {
             }
         }
 
+        Mapper rootDynamicUpdate = context.dynamicMappingsUpdate();
+        Mapping update = null;
+        if (rootDynamicUpdate != null) {
+            update = mapping.mappingUpdate(rootDynamicUpdate);
+        }
+
         ParsedDocument doc = new ParsedDocument(context.uid(), context.version(), context.id(), context.type(), source.routing(), source.timestamp(), source.ttl(), context.docs(),
-                context.source(), mappingsModified).parent(source.parent());
+                context.source(), update).parent(source.parent());
         // reset the context to free up memory
         context.reset(null, null, null, null);
         return doc;
@@ -600,10 +563,10 @@ public class DocumentMapper implements ToXContent {
      * @return transformed version of transformMe.  This may actually be the same object as sourceAsMap
      */
     public Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap) {
-        if (sourceTransforms == null) {
+        if (mapping.sourceTransforms.length == 0) {
             return sourceAsMap;
         }
-        for (SourceTransform transform : sourceTransforms) {
+        for (SourceTransform transform : mapping.sourceTransforms) {
             sourceAsMap = transform.transformSourceAsMap(sourceAsMap);
         }
         return sourceAsMap;
@@ -629,12 +592,12 @@ public class DocumentMapper implements ToXContent {
     }
 
     public void traverse(FieldMapperListener listener) {
-        for (RootMapper rootMapper : rootMappersOrdered) {
+        for (RootMapper rootMapper : mapping.rootMappers) {
             if (!rootMapper.includeInObject() && rootMapper instanceof FieldMapper) {
                 listener.fieldMapper((FieldMapper) rootMapper);
             }
         }
-        rootObjectMapper.traverse(listener);
+        mapping.root.traverse(listener);
     }
 
     public void addObjectMappers(Collection<ObjectMapper> objectMappers) {
@@ -662,7 +625,7 @@ public class DocumentMapper implements ToXContent {
     }
 
     public void traverse(ObjectMapperListener listener) {
-        rootObjectMapper.traverse(listener);
+        mapping.root.traverse(listener);
     }
 
     private MergeContext newMergeContext(MergeFlags mergeFlags) {
@@ -672,11 +635,13 @@ public class DocumentMapper implements ToXContent {
 
             @Override
             public void addFieldMappers(List<FieldMapper<?>> fieldMappers) {
+                assert mergeFlags().simulate() == false;
                 DocumentMapper.this.addFieldMappers(fieldMappers);
             }
 
             @Override
             public void addObjectMappers(Collection<ObjectMapper> objectMappers) {
+                assert mergeFlags().simulate() == false;
                 DocumentMapper.this.addObjectMappers(objectMappers);
             }
 
@@ -698,29 +663,13 @@ public class DocumentMapper implements ToXContent {
         };
     }
 
-    public synchronized MergeResult merge(DocumentMapper mergeWith, MergeFlags mergeFlags) {
+    public synchronized MergeResult merge(Mapping mapping, MergeFlags mergeFlags) {
         final MergeContext mergeContext = newMergeContext(mergeFlags);
-        assert rootMappers.size() == mergeWith.rootMappers.size();
-
-        rootObjectMapper.merge(mergeWith.rootObjectMapper, mergeContext);
-        for (Map.Entry<Class<? extends RootMapper>, RootMapper> entry : rootMappers.entrySet()) {
-            // root mappers included in root object will get merge in the rootObjectMapper
-            if (entry.getValue().includeInObject()) {
-                continue;
-            }
-            RootMapper mergeWithRootMapper = mergeWith.rootMappers.get(entry.getKey());
-            if (mergeWithRootMapper != null) {
-                entry.getValue().merge(mergeWithRootMapper, mergeContext);
-            }
-        }
-
-        if (!mergeFlags.simulate()) {
-            // let the merge with attributes to override the attributes
-            meta = mergeWith.meta();
-            // update the source of the merged one
+        final MergeResult mergeResult = this.mapping.merge(mapping, mergeContext);
+        if (mergeFlags.simulate() == false) {
             refreshSource();
         }
-        return new MergeResult(mergeContext.buildConflicts());
+        return mergeResult;
     }
 
     public CompressedString refreshSource() throws ElasticsearchGenerationException {
@@ -739,51 +688,15 @@ public class DocumentMapper implements ToXContent {
 
     public void close() {
         cache.close();
-        rootObjectMapper.close();
-        for (RootMapper rootMapper : rootMappersOrdered) {
+        mapping.root.close();
+        for (RootMapper rootMapper : mapping.rootMappers) {
             rootMapper.close();
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        rootObjectMapper.toXContent(builder, params, new ToXContent() {
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                if (sourceTransforms != null) {
-                    if (sourceTransforms.size() == 1) {
-                        builder.field("transform");
-                        sourceTransforms.get(0).toXContent(builder, params);
-                    } else {
-                        builder.startArray("transform");
-                        for (SourceTransform transform: sourceTransforms) {
-                            transform.toXContent(builder, params);
-                        }
-                        builder.endArray();
-                    }
-                }
-
-                if (meta != null && !meta.isEmpty()) {
-                    builder.field("_meta", meta());
-                }
-                return builder;
-            }
-            // no need to pass here id and boost, since they are added to the root object mapper
-            // in the constructor
-        }, rootMappersNotIncludedInObject);
-        return builder;
-    }
-
-    /**
-     * Transformations to be applied to the source before indexing and/or after loading.
-     */
-    private interface SourceTransform extends ToXContent {
-        /**
-         * Transform the source when it is expressed as a map.  This is public so it can be transformed the source is loaded.
-         * @param sourceAsMap source to transform.  This may be mutated by the script.
-         * @return transformed version of transformMe.  This may actually be the same object as sourceAsMap
-         */
-        Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap);
+        return mapping.toXContent(builder, params);
     }
 
     /**

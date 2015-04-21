@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
+import org.elasticsearch.search.aggregations.reducers.derivative.Derivative;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
@@ -193,6 +194,49 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
             if (i > 1) {
                 assertThat(docCount2ndDeriv, notNullValue());
                 assertThat(docCount2ndDeriv.value(), equalTo((double) secondDerivValueCounts[i - 2]));
+            } else {
+                assertThat(docCount2ndDeriv, nullValue());
+            }
+        }
+    }
+
+    /**
+     * test first and second derivative on the sing
+     */
+    @Test
+    public void singleValuedField_normalised() {
+
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
+                                .subAggregation(derivative("deriv").setBucketsPaths("_count").unit("1"))
+                                .subAggregation(derivative("2nd_deriv").setBucketsPaths("deriv").unit("10"))).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        InternalHistogram<Bucket> deriv = response.getAggregations().get("histo");
+        assertThat(deriv, notNullValue());
+        assertThat(deriv.getName(), equalTo("histo"));
+        List<? extends Bucket> buckets = deriv.getBuckets();
+        assertThat(buckets.size(), equalTo(numValueBuckets));
+
+        for (int i = 0; i < numValueBuckets; ++i) {
+            Histogram.Bucket bucket = buckets.get(i);
+            checkBucketKeyAndDocCount("Bucket " + i, bucket, i * interval, valueCounts[i]);
+            Derivative docCountDeriv = bucket.getAggregations().get("deriv");
+            if (i > 0) {
+                assertThat(docCountDeriv, notNullValue());
+                assertThat(docCountDeriv.value(), closeTo((double) (firstDerivValueCounts[i - 1]), 0.00001));
+                assertThat(docCountDeriv.normalizedValue(), closeTo((double) (firstDerivValueCounts[i - 1]) / 5, 0.00001));
+            } else {
+                assertThat(docCountDeriv, nullValue());
+            }
+            Derivative docCount2ndDeriv = bucket.getAggregations().get("2nd_deriv");
+            if (i > 1) {
+                assertThat(docCount2ndDeriv, notNullValue());
+                assertThat(docCount2ndDeriv.value(), closeTo((double) (secondDerivValueCounts[i - 2]), 0.00001));
+                assertThat(docCount2ndDeriv.normalizedValue(), closeTo((double) (secondDerivValueCounts[i - 2]) * 2, 0.00001));
             } else {
                 assertThat(docCount2ndDeriv, nullValue());
             }

@@ -53,7 +53,8 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
 
     private double value;
 
-    InternalSimpleValue() {} // for serialization
+    protected InternalSimpleValue() {
+    } // for serialization
 
     public InternalSimpleValue(String name, double value, @Nullable ValueFormatter formatter, List<Reducer> reducers, Map<String, Object> metaData) {
         super(name, reducers, metaData);

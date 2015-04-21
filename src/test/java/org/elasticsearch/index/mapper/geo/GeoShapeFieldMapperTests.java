@@ -189,7 +189,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
 
 
             DocumentMapper defaultMapper = parser.parse(mapping);
-            FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;

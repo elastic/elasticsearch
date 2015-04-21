@@ -26,9 +26,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
@@ -235,14 +233,17 @@ public class DefaultSearchContext extends SearchContext {
         if (queryBoost() != 1.0f) {
             parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new BoostScoreFunction(queryBoost)), parsedQuery()));
         }
-        Filter searchFilter = searchFilter(types());
+        Query searchFilter = searchFilter(types());
         if (searchFilter != null) {
             if (Queries.isConstantMatchAllQuery(query())) {
                 Query q = new ConstantScoreQuery(searchFilter);
                 q.setBoost(query().getBoost());
                 parsedQuery(new ParsedQuery(q, parsedQuery()));
             } else {
-                parsedQuery(new ParsedQuery(new FilteredQuery(query(), searchFilter), parsedQuery()));
+                BooleanQuery filtered = new BooleanQuery();
+                filtered.add(query(), Occur.MUST);
+                filtered.add(searchFilter, Occur.FILTER);
+                parsedQuery(new ParsedQuery(filtered, parsedQuery()));
             }
         }
     }

@@ -110,17 +110,15 @@ public class CustomQueryWrappingFilter extends NoCacheFilter implements Releasab
         if (o == this) {
             return true;
         }
-        if (o != null && o instanceof CustomQueryWrappingFilter &&
-                this.query.equals(((CustomQueryWrappingFilter)o).query)) {
-            return true;
+        if (super.equals(o) == false) {
+            return false;
         }
-
-        return false;
+        return query.equals(((CustomQueryWrappingFilter)o).query);
     }
 
     @Override
     public int hashCode() {
-        return query.hashCode() ^ 0x823D64C9;
+        return 31 * super.hashCode() + query.hashCode();
     }
 
     /** @return Whether {@link CustomQueryWrappingFilter} should be used. */

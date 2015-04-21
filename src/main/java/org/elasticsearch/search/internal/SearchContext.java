@@ -21,7 +21,7 @@ package org.elasticsearch.search.internal;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.MultimapBuilder;
-import org.apache.lucene.search.Filter;
+
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
@@ -43,7 +43,6 @@ import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -112,7 +111,7 @@ public abstract class SearchContext implements Releasable {
      */
     public abstract void preProcess();
 
-    public abstract Filter searchFilter(String[] types);
+    public abstract Query searchFilter(String[] types);
 
     public abstract long id();
 
@@ -243,7 +242,7 @@ public abstract class SearchContext implements Releasable {
 
     public abstract ParsedFilter parsedPostFilter();
 
-    public abstract Filter aliasFilter();
+    public abstract Query aliasFilter();
 
     public abstract SearchContext parsedQuery(ParsedQuery query);
 

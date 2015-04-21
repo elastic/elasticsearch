@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.internal;
 
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
@@ -79,7 +78,7 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public Filter searchFilter(String[] types) {
+    public Query searchFilter(String[] types) {
         return in.searchFilter(types);
     }
 
@@ -364,7 +363,7 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public Filter aliasFilter() {
+    public Query aliasFilter() {
         return in.aliasFilter();
     }
 

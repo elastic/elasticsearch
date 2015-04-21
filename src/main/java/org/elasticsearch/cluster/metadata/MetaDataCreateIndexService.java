@@ -337,8 +337,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     if (request.index().equals(ScriptService.SCRIPT_INDEX)) {
                         indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 0));
                         indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, "0-all");
-                    }
-                    else {
+                    } else {
                         if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
                             if (request.index().equals(riverIndexName)) {
                                 indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
@@ -425,7 +424,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
                     for (Alias alias : request.aliases()) {
                         AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
-                                .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
+                            .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
                         indexMetaDataBuilder.putAlias(aliasMetaData);
                     }
 
@@ -444,11 +443,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
 
                     indexService.indicesLifecycle().beforeIndexAddedToCluster(new Index(request.index()),
-                            indexMetaData.settings());
+                        indexMetaData.settings());
 
                     MetaData newMetaData = MetaData.builder(currentState.metaData())
-                            .put(indexMetaData, false)
-                            .build();
+                        .put(indexMetaData, false)
+                        .build();
 
                     logger.info("[{}] creating index, cause [{}], templates {}, shards [{}]/[{}], mappings {}", request.index(), request.cause(), templateNames, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), mappings.keySet());
 
@@ -550,22 +549,47 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws ElasticsearchException {
         validateIndexName(request.index(), state);
-        String customPath = request.settings().get(IndexMetaData.SETTING_DATA_PATH, null);
+        validateIndexSettings(request.index(), request.settings(), state);
+    }
+
+    public void validateIndexSettings(String indexName, Settings settings, ClusterState state) throws IndexCreationException {
+        String customPath = settings.get(IndexMetaData.SETTING_DATA_PATH, null);
+        List<String> validationErrors = Lists.newArrayList();
         if (customPath != null) {
             if (nodeEnv.isCustomPathsEnabled() == false) {
-                throw new IndexCreationException(new Index(request.index()),
-                        new ElasticsearchIllegalArgumentException("custom data_path for indices is disabled"));
-            }
+                validationErrors.add("custom data_paths for indices is disabled");            }
             // This checks for all nodes to be at least 1.5.0+ when creating an
             // index with a custom data_path. It will only work if the 1.5.0
             // node is the master in the cluster, but it is better protection
             // than nothing.
             if (Version.smallest(version, state.nodes().smallestNonClientNodeVersion()).onOrAfter(Version.V_1_5_0) == false) {
-                throw new IndexCreationException(new Index(request.index()),
-                        new ElasticsearchIllegalArgumentException("custom data_path is disabled unless all nodes are at least version "
-                                + Version.V_1_5_0));
+                validationErrors.add("custom data_path is disabled unless all nodes are at least version "
+                    + Version.V_1_5_0);
             }
         }
+
+        Integer number_of_primaries = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
+        Integer number_of_replicas = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null);
+        if (number_of_primaries != null && number_of_primaries <= 0) {
+            validationErrors.add("index must have 1 or more primary shards");
+        }
+        if (number_of_replicas != null && number_of_replicas < 0) {
+           validationErrors.add("index must have 0 or more replica shards");
+        }
+        if (validationErrors.isEmpty() == false) {
+            throw new IndexCreationException(new Index(indexName),
+                new ElasticsearchIllegalArgumentException(getMessage(validationErrors)));
+        }
+    }
+
+    private String getMessage(List<String> validationErrors) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Validation Failed: ");
+        int index = 0;
+        for (String error : validationErrors) {
+            sb.append(++index).append(": ").append(error).append(";");
+        }
+        return sb.toString();
     }
 
     private static class DefaultIndexTemplateFilter implements IndexTemplateFilter {

@@ -82,13 +82,11 @@ public class MatchAllQueryBuilder extends BaseQueryBuilder implements Streamable
         if (this == obj) {
             return true;
         }
-
-        if (getClass() != obj.getClass()) {
-            return false;
+        if (obj instanceof MatchAllQueryBuilder) {
+            MatchAllQueryBuilder other = (MatchAllQueryBuilder) obj;
+            return (Float.floatToIntBits(this.boost) == Float.floatToIntBits(other.boost()));
         }
-
-        MatchAllQueryBuilder other = (MatchAllQueryBuilder) obj;
-        return (Float.floatToIntBits(this.boost) == Float.floatToIntBits(other.boost()));
+        return false;
     }
 
     @Override

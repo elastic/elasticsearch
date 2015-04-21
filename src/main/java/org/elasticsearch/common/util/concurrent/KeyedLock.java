@@ -39,6 +39,19 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * */
 public class KeyedLock<T> {
 
+    private final boolean fair;
+
+    /**
+     * @param fair Use fair locking, ie threads get the lock in the order they requested it
+     */
+    public KeyedLock(boolean fair) {
+        this.fair = fair;
+    }
+
+    public KeyedLock() {
+        this(false);
+    }
+
     private final ConcurrentMap<T, KeyLock> map = ConcurrentCollections.newConcurrentMap();
 
     protected final ThreadLocal<KeyLock> threadLocal = new ThreadLocal<>();
@@ -52,7 +65,7 @@ public class KeyedLock<T> {
             }
             KeyLock perNodeLock = map.get(key);
             if (perNodeLock == null) {
-                KeyLock newLock = new KeyLock();
+                KeyLock newLock = new KeyLock(fair);
                 perNodeLock = map.putIfAbsent(key, newLock);
                 if (perNodeLock == null) {
                     newLock.lock();
@@ -92,6 +105,10 @@ public class KeyedLock<T> {
 
     @SuppressWarnings("serial")
     private final static class KeyLock extends ReentrantLock {
+        KeyLock(boolean fair) {
+            super(fair);
+        }
+
         private final AtomicInteger count = new AtomicInteger(1);
     }
 
@@ -105,7 +122,17 @@ public class KeyedLock<T> {
      */
     public final static class GlobalLockable<T> extends KeyedLock<T> {
 
-        private final ReadWriteLock lock = new ReentrantReadWriteLock();
+
+        private final ReadWriteLock lock;
+
+        public GlobalLockable(boolean fair){
+            super(fair);
+            lock = new ReentrantReadWriteLock(fair);
+        }
+
+        public GlobalLockable() {
+            this(false);
+        }
 
         @Override
         public void acquire(T key) {

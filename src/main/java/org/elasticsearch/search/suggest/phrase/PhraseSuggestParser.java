@@ -161,6 +161,8 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                             }
                         } else if ("preference".equals(fieldName)) {
                             suggestion.setPreference(parser.text());
+                        } else if ("routing".equals(fieldName)) {
+                            suggestion.setRouting(parser.text());
                         } else if ("params".equals(fieldName)) {
                             suggestion.setCollateScriptParams(parser.map());
                         } else if ("prune".equals(fieldName)) {

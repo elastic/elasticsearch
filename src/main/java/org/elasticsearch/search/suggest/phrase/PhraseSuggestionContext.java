@@ -27,6 +27,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.cluster.routing.Preference;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.Suggester;
@@ -47,6 +48,7 @@ class PhraseSuggestionContext extends SuggestionContext {
     private CompiledScript collateQueryScript;
     private CompiledScript collateFilterScript;
     private String preference = Preference.ONLY_LOCAL.type();
+    private String routing;
     private Map<String, Object> collateScriptParams = new HashMap<>(1);
 
     private WordScorer.WordScorerFactory scorer;
@@ -212,6 +214,14 @@ class PhraseSuggestionContext extends SuggestionContext {
 
     void setPreference(String preference) {
         this.preference = preference;
+    }
+
+    String getRouting() {
+        return routing;
+    }
+
+    void setRouting(String routing) {
+        this.routing = routing;
     }
 
     Map<String, Object> getCollateScriptParams() {

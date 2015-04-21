@@ -105,11 +105,10 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
 
             BytesRefBuilder byteSpare = new BytesRefBuilder();
 
-            MultiSearchResponse multiSearchResponse = collate(suggestion, checkerResult, byteSpare, spare);
-            final boolean collateEnabled = multiSearchResponse != null;
             final boolean collatePrune = suggestion.collatePrune();
-
+            MultiSearchResponse multiSearchResponse = collate(suggestion, checkerResult, byteSpare, spare);
             for (int i = 0; i < checkerResult.corrections.length; i++) {
+                //boolean collateMatch = collate(suggestion, checkerResult.corrections[i], byteSpare, spare);
                 boolean collateMatch = hasMatchingDocs(multiSearchResponse, i);
                 if (!collateMatch && !collatePrune) {
                     continue;
@@ -122,7 +121,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     spare.copyUTF8Bytes(correction.join(SEPARATOR, byteSpare, suggestion.getPreTag(), suggestion.getPostTag()));
                     highlighted = new StringText(spare.toString());
                 }
-                if (collateEnabled && collatePrune) {
+                if (collatePrune) {
                     resultEntry.addOption(new Suggestion.Entry.Option(phrase, highlighted, (float) (correction.score), collateMatch));
                 } else {
                     resultEntry.addOption(new Suggestion.Entry.Option(phrase, highlighted, (float) (correction.score)));
@@ -140,13 +139,15 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     }
 
     private MultiSearchResponse collate(PhraseSuggestionContext suggestion, Result checkerResult, BytesRefBuilder byteSpare, CharsRefBuilder spare) throws IOException {
-        CompiledScript collateQueryScript = suggestion.getCollateQueryScript();
-        CompiledScript collateFilterScript = suggestion.getCollateFilterScript();
         MultiSearchResponse multiSearchResponse = null;
-        if (collateQueryScript != null) {
-            multiSearchResponse = fetchMatchingDocCountResponses(checkerResult.corrections, collateQueryScript, false, suggestion, byteSpare, spare);
-        } else if (collateFilterScript != null) {
-            multiSearchResponse = fetchMatchingDocCountResponses(checkerResult.corrections, collateFilterScript, true, suggestion, byteSpare, spare);
+        synchronized (client) {
+            CompiledScript collateQueryScript = suggestion.getCollateQueryScript();
+            CompiledScript collateFilterScript = suggestion.getCollateFilterScript();
+            if (collateQueryScript != null) {
+                multiSearchResponse = fetchMatchingDocCountResponses(checkerResult.corrections, collateQueryScript, false, suggestion, byteSpare, spare);
+            } else if (collateFilterScript != null) {
+                multiSearchResponse = fetchMatchingDocCountResponses(checkerResult.corrections, collateFilterScript, true, suggestion, byteSpare, spare);
+            }
         }
         return multiSearchResponse;
     }
@@ -156,7 +157,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                                                                BytesRefBuilder byteSpare, CharsRefBuilder spare) throws IOException {
         Map<String, Object> vars = suggestions.getCollateScriptParams();
         MultiSearchResponse multiSearchResponse = null;
-        MultiSearchRequestBuilder multiSearchRequestBuilder = client.prepareMultiSearch();
+        final MultiSearchRequestBuilder multiSearchRequestBuilder = client.prepareMultiSearch();
         boolean requestAdded = false;
         SearchRequestBuilder req;
         for (Correction correction : corrections) {
@@ -167,23 +168,25 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             requestAdded = true;
             if (isFilter) {
                 req = client.prepareSearch()
-                        .setPreference(suggestions.getPreference())
                         .setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.bytesFilter(querySource)))
                         .setSize(0)
-                        .setTerminateAfter(1);
+                        .setTerminateAfter(1)
+                        .setRouting(suggestions.getRouting());
             } else {
                 req = client.prepareSearch()
-                        .setPreference(suggestions.getPreference())
                         .setQuery(querySource)
                         .setSize(0)
-                        .setTerminateAfter(1);
+                        .setTerminateAfter(1)
+                        .setRouting(suggestions.getRouting());
+            }
+            if (suggestions.getRouting() == null) {
+                req.setPreference(suggestions.getPreference());
             }
             multiSearchRequestBuilder.add(req);
         }
         if (requestAdded) {
             multiSearchResponse = multiSearchRequestBuilder.get();
         }
-
         return multiSearchResponse;
     }
 

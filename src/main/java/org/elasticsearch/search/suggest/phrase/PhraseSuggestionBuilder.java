@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest.phrase;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
@@ -45,6 +46,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     private String collateQuery;
     private String collateFilter;
     private String collatePreference;
+    private String collateRouting;
     private Map<String, Object> collateParams;
     private Boolean collatePrune;
 
@@ -196,6 +198,21 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     }
 
     /**
+     * A comma separated list of routing values to control the shards the collate search will be executed on.
+     */
+    public PhraseSuggestionBuilder collateRouting(String routing) {
+        this.collateRouting = routing;
+        return this;
+    }
+
+    /**
+     * The routing values to control the shards that the collate search will be executed on.
+     */
+    public PhraseSuggestionBuilder collateRouting(String... routing) {
+        this.collateRouting = Strings.arrayToCommaDelimitedString(routing);
+        return this;
+    }
+    /**
      * Sets additional params for collate script
      */
     public PhraseSuggestionBuilder collateParams(Map<String, Object> collateParams) {
@@ -265,6 +282,9 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
             }
             if (collatePreference != null) {
                 builder.field("preference", collatePreference);
+            }
+            if (collateRouting != null) {
+                builder.field("routing", collateRouting);
             }
             if (collateParams != null) {
                 builder.field("params", collateParams);

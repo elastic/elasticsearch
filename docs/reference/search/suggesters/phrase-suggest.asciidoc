@@ -171,12 +171,19 @@ can contain misspellings (See parameter descriptions below).
     template `params` -- the `suggestion` value will be added to the
     variables you specify. You can specify a `preference` to control
     on which shards the query is executed (see <<search-request-preference>>).
-    The default value is `_only_local`. Additionally, you can specify
+    The default value is `_only_local`. You can specify a `routing` to control
+    on which shards the collate `query` or `filter` should route to
+    (see <<search.html#search-routing>>). Specifying a `routing` value will
+    ignore the `preference` option. Additionally, you can specify
     a `prune` to control if all phrase suggestions will be
     returned, when set to `true` the suggestions will have an additional
     option `collate_match`, which will be `true` if matching documents
     for the phrase was found, `false` otherwise. The default value for
     `prune` is `false`.
+
+IMPORTANT: When using `collate` option, `preference` or `routing` has to be
+explicitly set for `collate`. The `preference` or `routing` value specified
+in the top level search will not be respected.
 
 [source,js]
 --------------------------------------------------

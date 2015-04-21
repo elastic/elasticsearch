@@ -22,10 +22,13 @@ package org.elasticsearch.search.suggest;
 import com.carrotsearch.randomizedtesting.annotations.Nightly;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import com.google.common.io.Resources;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.*;
@@ -43,6 +46,8 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -260,8 +265,8 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         ensureGreen();
 
         indexRandom(true, client().prepareIndex("test", "type1").setSource("name", "I like iced tea"),
-        client().prepareIndex("test", "type1").setSource("name", "I like tea."),
-        client().prepareIndex("test", "type1").setSource("name", "I like ice cream."));
+                client().prepareIndex("test", "type1").setSource("name", "I like tea."),
+                client().prepareIndex("test", "type1").setSource("name", "I like ice cream."));
         refresh();
 
         PhraseSuggestionBuilder phraseSuggestion = phraseSuggestion("did_you_mean").field("name.shingled")
@@ -303,12 +308,12 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
                 .suggestMode("always") // Always, otherwise the results can vary between requests.
                 .text("abcd")
                 .field("text");
-        Suggest suggest = searchSuggest( termSuggest);
+        Suggest suggest = searchSuggest(termSuggest);
         assertSuggestion(suggest, 0, "test", "aacd", "abbd", "abcc");
         assertThat(suggest.getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
 
         suggest = searchSuggest( termSuggest);
-        assertSuggestion(suggest, 0, "test", "aacd","abbd", "abcc");
+        assertSuggestion(suggest, 0, "test", "aacd", "abbd", "abcc");
         assertThat(suggest.getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
     }
 
@@ -1092,6 +1097,73 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testPhraseSuggesterRouting() throws Exception {
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+                .put(indexSettings())
+                .put(SETTING_NUMBER_OF_SHARDS, 2)
+                .put("index.analysis.analyzer.text.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.text.filter", "lowercase", "my_shingle")
+                .put("index.analysis.filter.my_shingle.type", "shingle")
+                .put("index.analysis.filter.my_shingle.output_unigrams", true)
+                .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
+                .put("index.analysis.filter.my_shingle.max_shingle_size", 3));
+
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type1")
+                .startObject("properties")
+                .startObject("title")
+                .field("type", "string")
+                .field("analyzer", "text")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+        assertAcked(builder.addMapping("type1", mapping));
+        ensureGreen();
+
+        ImmutableList.Builder<Map.Entry<String, String>> entries = ImmutableList.builder();
+        entries.add(new AbstractMap.SimpleEntry<>("United States House of Representatives Elections in Washington 2006", "r1"));
+        entries.add(new AbstractMap.SimpleEntry<>("United States House of Representatives Elections in Washington 2005", "r2"));
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (Map.Entry<String, String> entry : entries.build()) {
+            builders.add(client().prepareIndex("test", "type1").setSource("title", entry.getKey()).setRouting(entry.getValue()));
+        }
+        indexRandom(true, builders);
+
+        String filterString = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("match_phrase")
+                .field("title", "{{suggestion}}")
+                .endObject()
+                .endObject()
+                .string();
+        // only collate
+        PhraseSuggestionBuilder suggest = phraseSuggestion("title")
+                .field("title")
+                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("title")
+                                .suggestMode("always")
+                                .maxTermFreq(.99f)
+                                .size(10)
+                                .maxInspections(200)
+                )
+                .confidence(0f)
+                .maxErrors(2f)
+                .shardSize(30000)
+                .size(10)
+                .collateQuery(filterString);
+        Suggest searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", suggest);
+        assertSuggestionSize(searchSuggest, 0, 2, "title");
+
+        // collate with routing
+        PhraseSuggestionBuilder filteredQuerySuggest = suggest.collateRouting("r1");
+        searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", filteredQuerySuggest);
+        assertSuggestionSize(searchSuggest, 0, 1, "title");
+
+    }
+
+    @Test
     public void testPhraseSuggesterCollate() throws InterruptedException, ExecutionException, IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings())
@@ -1275,9 +1347,13 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
             for (SuggestionBuilder<?> suggestion : suggestions) {
                 builder.addSuggestion(suggestion);
             }
-            SearchResponse actionGet = builder.execute().actionGet();
-            assertThat(Arrays.toString(actionGet.getShardFailures()), actionGet.getFailedShards(), equalTo(expectShardsFailed));
-            return actionGet.getSuggest();
+            if (randomBoolean()) {
+                SearchResponse actionGet = builder.execute().actionGet();
+                assertThat(Arrays.toString(actionGet.getShardFailures()), actionGet.getFailedShards(), equalTo(expectShardsFailed));
+                return actionGet.getSuggest();
+            } else {
+                return concurrentSearchSuggest(builder, expectShardsFailed);
+            }
         } else {
             SuggestRequestBuilder builder = client().prepareSuggest();
             if (suggestText != null) {
@@ -1287,12 +1363,130 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
                 builder.addSuggestion(suggestion);
             }
 
-            SuggestResponse actionGet = builder.execute().actionGet();
-            assertThat(Arrays.toString(actionGet.getShardFailures()), actionGet.getFailedShards(), equalTo(expectShardsFailed));
-            if (expectShardsFailed > 0) {
-                throw new SearchPhaseExecutionException("suggest", "Suggest execution failed", new ShardSearchFailure[0]);
+            if (randomBoolean()) {
+                SuggestResponse actionGet = builder.execute().actionGet();
+                assertThat(Arrays.toString(actionGet.getShardFailures()), actionGet.getFailedShards(), equalTo(expectShardsFailed));
+                if (expectShardsFailed > 0) {
+                    throw new SearchPhaseExecutionException("suggest", "Suggest execution failed", new ShardSearchFailure[0]);
+                }
+                return actionGet.getSuggest();
+            } else {
+                return concurrentSearchSuggest(builder, expectShardsFailed);
             }
-            return actionGet.getSuggest();
         }
+    }
+
+    private Suggest concurrentSearchSuggest(SuggestRequestBuilder builder, int expectShardsFailed) {
+        int numRequest = randomIntBetween(25, 30);
+        final CountDownLatch latch = new CountDownLatch(numRequest);
+        final CopyOnWriteArrayList<Object> responses = Lists.newCopyOnWriteArrayList();
+        for (int i = 0; i < numRequest; i++) {
+            final int finalI = i;
+            builder.execute(new ActionListener<SuggestResponse>() {
+                @Override
+                public void onResponse(SuggestResponse suggestResponse) {
+                    logger.info(" --> got result " + finalI);
+                    responses.add(suggestResponse);
+                    latch.countDown();
+
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    responses.add(e);
+                    latch.countDown();
+                }
+            });
+        }
+        logger.info(" --> waiting for results");
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        assertThat(responses.size(), equalTo(numRequest));
+
+        Suggest suggest = null;
+        for (Object response : responses) {
+            if (response instanceof SuggestResponse) {
+                SuggestResponse searchResponse = (SuggestResponse) response;
+                Suggest suggest1 = searchResponse.getSuggest();
+                if (suggest == null) {
+                    suggest = suggest1;
+                }
+                assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(expectShardsFailed));
+                if (expectShardsFailed > 0) {
+                    throw new SearchPhaseExecutionException("suggest", "Suggest execution failed", new ShardSearchFailure[0]);
+                }
+            } else {
+                Throwable t = (Throwable) response;
+                Throwable unwrap = ExceptionsHelper.unwrapCause(t);
+                if (unwrap instanceof ElasticsearchIllegalStateException) {
+                    throw (ElasticsearchIllegalStateException) unwrap;
+                } else {
+                    throw new ElasticsearchException("Suggest response exception", t);
+                }
+            }
+        }
+        return suggest;
+    }
+
+    private Suggest concurrentSearchSuggest(SearchRequestBuilder builder, int expectShardsFailed) {
+        int numRequest = randomIntBetween(25, 30);
+        final CountDownLatch latch = new CountDownLatch(numRequest);
+        final CopyOnWriteArrayList<Object> responses = Lists.newCopyOnWriteArrayList();
+        for (int i = 0; i < numRequest; i++) {
+            final int finalI = i;
+            builder.execute(new ActionListener<SearchResponse>() {
+                @Override
+                public void onResponse(SearchResponse searchResponse) {
+                    logger.info(" --> got result " + finalI);
+                    responses.add(searchResponse);
+                    latch.countDown();
+
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    responses.add(e);
+                    latch.countDown();
+                }
+            });
+        }
+        logger.info(" --> waiting for results");
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        assertThat(responses.size(), equalTo(numRequest));
+
+        Suggest suggest = null;
+        int timedOut = 0;
+        for (Object response : responses) {
+            if (response instanceof SearchResponse) {
+                SearchResponse searchResponse = (SearchResponse) response;
+                Suggest suggest1 = searchResponse.getSuggest();
+                if (suggest == null) {
+                    suggest = suggest1;
+                }
+                assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(expectShardsFailed));
+                if (expectShardsFailed > 0) {
+                    throw new SearchPhaseExecutionException("suggest", "Suggest execution failed", new ShardSearchFailure[0]);
+                }
+            } else {
+                Throwable t = (Throwable) response;
+                Throwable unwrap = ExceptionsHelper.unwrapCause(t);
+                if (unwrap instanceof SearchPhaseExecutionException) {
+                    throw (SearchPhaseExecutionException) unwrap;
+                } else {
+                    throw new ElasticsearchException("Suggest response exception", t);
+                }
+            }
+        }
+        if (timedOut == numRequest) {
+            throw new ElasticsearchException("All requests have timed out");
+        }
+        return suggest;
     }
 }

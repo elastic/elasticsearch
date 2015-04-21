@@ -287,7 +287,7 @@ public class PercolatorService extends AbstractComponent {
                             doc.addDynamicMappingsUpdate(docMapper.v2());
                         }
                         if (doc.dynamicMappingsUpdate() != null) {
-                            mappingUpdatedAction.updateMappingOnMasterSynchronously(request.shardId().getIndex(), documentIndexService.indexUUID(), request.documentType(), doc.dynamicMappingsUpdate());
+                            mappingUpdatedAction.updateMappingOnMasterSynchronously(request.shardId().getIndex(), request.documentType(), doc.dynamicMappingsUpdate());
                         }
                         // the document parsing exists the "doc" object, so we need to set the new current field.
                         currentFieldName = parser.currentName();

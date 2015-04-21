@@ -165,7 +165,7 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
     private void validateMappingUpdate(final String type, Mapping update) {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Throwable> error = new AtomicReference<>();
-        mappingUpdatedAction.updateMappingOnMaster(indexService.index().name(), indexService.indexUUID(), type, update, new MappingUpdatedAction.MappingUpdateListener() {
+        mappingUpdatedAction.updateMappingOnMaster(indexService.index().name(), type, update, waitForMappingUpdatePostRecovery, new MappingUpdatedAction.MappingUpdateListener() {
             @Override
             public void onMappingUpdate() {
                 latch.countDown();

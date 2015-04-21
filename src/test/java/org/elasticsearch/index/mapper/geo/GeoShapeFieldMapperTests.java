@@ -51,7 +51,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
-        FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -76,7 +76,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
-        FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         ShapeBuilder.Orientation orientation = ((GeoShapeFieldMapper)fieldMapper).orientation();
@@ -93,7 +93,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         defaultMapper = createIndex("test2").mapperService().documentMapperParser().parse(mapping);
-        fieldMapper = defaultMapper.mappers().name("location").mapper();
+        fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         orientation = ((GeoShapeFieldMapper)fieldMapper).orientation();
@@ -114,7 +114,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
-        FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -137,7 +137,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
-        FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -165,7 +165,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
 
             
             DocumentMapper defaultMapper = parser.parse(mapping);
-            FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -215,7 +215,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                     .endObject().endObject().string();
 
             DocumentMapper defaultMapper = parser.parse(mapping);
-            FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -239,7 +239,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                     .endObject().endObject().string();
 
             DocumentMapper defaultMapper = parser.parse(mapping);
-            FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -262,7 +262,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                     .endObject().endObject().string();
 
             DocumentMapper defaultMapper = parser.parse(mapping);
-            FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -288,7 +288,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
 
             
             DocumentMapper defaultMapper = parser.parse(mapping);
-            FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -310,7 +310,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                     .endObject().endObject().string();
 
             DocumentMapper defaultMapper = parser.parse(mapping);
-            FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -347,7 +347,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
         assertThat("mapper [shape] has different tree_levels or precision", isIn(conflicts));
 
         // verify nothing changed
-        FieldMapper fieldMapper = stage1.mappers().name("shape").mapper();
+        FieldMapper fieldMapper = stage1.mappers().getMapper("shape");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -369,7 +369,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
         // verify mapping changes, and ensure no failures
         assertThat(mergeResult.hasConflicts(), equalTo(false));
 
-        fieldMapper = stage1.mappers().name("shape").mapper();
+        fieldMapper = stage1.mappers().getMapper("shape");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;

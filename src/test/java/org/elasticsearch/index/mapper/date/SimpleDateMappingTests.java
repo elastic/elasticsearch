@@ -360,17 +360,17 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         DocumentMapper defaultMapper = mapper("type", initialMapping);
         DocumentMapper mergeMapper = mapper("type", updatedMapping);
 
-        assertThat(defaultMapper.mappers().name("field").mapper(), is(instanceOf(DateFieldMapper.class)));
-        DateFieldMapper initialDateFieldMapper = (DateFieldMapper) defaultMapper.mappers().name("field").mapper();
+        assertThat(defaultMapper.mappers().getMapper("field"), is(instanceOf(DateFieldMapper.class)));
+        DateFieldMapper initialDateFieldMapper = (DateFieldMapper) defaultMapper.mappers().getMapper("field");
         Map<String, String> config = getConfigurationViaXContent(initialDateFieldMapper);
         assertThat(config.get("format"), is("EEE MMM dd HH:mm:ss.S Z yyyy||EEE MMM dd HH:mm:ss.SSS Z yyyy"));
 
         DocumentMapper.MergeResult mergeResult = defaultMapper.merge(mergeMapper.mapping(), DocumentMapper.MergeFlags.mergeFlags().simulate(false));
 
         assertThat("Merging resulting in conflicts: " + Arrays.asList(mergeResult.conflicts()), mergeResult.hasConflicts(), is(false));
-        assertThat(defaultMapper.mappers().name("field").mapper(), is(instanceOf(DateFieldMapper.class)));
+        assertThat(defaultMapper.mappers().getMapper("field"), is(instanceOf(DateFieldMapper.class)));
 
-        DateFieldMapper mergedFieldMapper = (DateFieldMapper) defaultMapper.mappers().name("field").mapper();
+        DateFieldMapper mergedFieldMapper = (DateFieldMapper) defaultMapper.mappers().getMapper("field");
         Map<String, String> mergedConfig = getConfigurationViaXContent(mergedFieldMapper);
         assertThat(mergedConfig.get("format"), is("EEE MMM dd HH:mm:ss.S Z yyyy||EEE MMM dd HH:mm:ss.SSS Z yyyy||yyyy-MM-dd'T'HH:mm:ss.SSSZZ"));
     }

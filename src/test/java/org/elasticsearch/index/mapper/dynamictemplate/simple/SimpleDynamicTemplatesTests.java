@@ -84,8 +84,8 @@ public class SimpleDynamicTemplatesTests extends ElasticsearchSingleNodeTest {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        FieldMappers fieldMappers = docMapper.mappers().fullName("name");
-        assertThat(fieldMappers.mappers().size(), equalTo(1));
+        FieldMapper fieldMapper = docMapper.mappers().getMapper("name");
+        assertNotNull(fieldMapper);
 
         f = doc.getField("multi1");
         assertThat(f.name(), equalTo("multi1"));
@@ -93,8 +93,8 @@ public class SimpleDynamicTemplatesTests extends ElasticsearchSingleNodeTest {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(true));
 
-        fieldMappers = docMapper.mappers().fullName("multi1");
-        assertThat(fieldMappers.mappers().size(), equalTo(1));
+        fieldMapper = docMapper.mappers().getMapper("multi1");
+        assertNotNull(fieldMapper);
 
         f = doc.getField("multi1.org");
         assertThat(f.name(), equalTo("multi1.org"));
@@ -102,8 +102,8 @@ public class SimpleDynamicTemplatesTests extends ElasticsearchSingleNodeTest {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        fieldMappers = docMapper.mappers().fullName("multi1.org");
-        assertThat(fieldMappers.mappers().size(), equalTo(1));
+        fieldMapper = docMapper.mappers().getMapper("multi1.org");
+        assertNotNull(fieldMapper);
 
         f = doc.getField("multi2");
         assertThat(f.name(), equalTo("multi2"));
@@ -111,8 +111,8 @@ public class SimpleDynamicTemplatesTests extends ElasticsearchSingleNodeTest {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(true));
 
-        fieldMappers = docMapper.mappers().fullName("multi2");
-        assertThat(fieldMappers.mappers().size(), equalTo(1));
+        fieldMapper = docMapper.mappers().getMapper("multi2");
+        assertNotNull(fieldMapper);
 
         f = doc.getField("multi2.org");
         assertThat(f.name(), equalTo("multi2.org"));
@@ -120,8 +120,8 @@ public class SimpleDynamicTemplatesTests extends ElasticsearchSingleNodeTest {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        fieldMappers = docMapper.mappers().fullName("multi2.org");
-        assertThat(fieldMappers.mappers().size(), equalTo(1));
+        fieldMapper = docMapper.mappers().getMapper("multi2.org");
+        assertNotNull(fieldMapper);
     }
 
     @Test
@@ -141,8 +141,8 @@ public class SimpleDynamicTemplatesTests extends ElasticsearchSingleNodeTest {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        FieldMappers fieldMappers = docMapper.mappers().fullName("name");
-        assertThat(fieldMappers.mappers().size(), equalTo(1));
+        FieldMapper fieldMapper = docMapper.mappers().getMapper("name");
+        assertNotNull(fieldMapper);
 
         f = doc.getField("multi1");
         assertThat(f.name(), equalTo("multi1"));
@@ -150,8 +150,8 @@ public class SimpleDynamicTemplatesTests extends ElasticsearchSingleNodeTest {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(true));
 
-        fieldMappers = docMapper.mappers().fullName("multi1");
-        assertThat(fieldMappers.mappers().size(), equalTo(1));
+        fieldMapper = docMapper.mappers().getMapper("multi1");
+        assertNotNull(fieldMapper);
 
         f = doc.getField("multi1.org");
         assertThat(f.name(), equalTo("multi1.org"));
@@ -159,8 +159,8 @@ public class SimpleDynamicTemplatesTests extends ElasticsearchSingleNodeTest {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        fieldMappers = docMapper.mappers().fullName("multi1.org");
-        assertThat(fieldMappers.mappers().size(), equalTo(1));
+        fieldMapper = docMapper.mappers().getMapper("multi1.org");
+        assertNotNull(fieldMapper);
 
         f = doc.getField("multi2");
         assertThat(f.name(), equalTo("multi2"));
@@ -168,8 +168,8 @@ public class SimpleDynamicTemplatesTests extends ElasticsearchSingleNodeTest {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(true));
 
-        fieldMappers = docMapper.mappers().fullName("multi2");
-        assertThat(fieldMappers.mappers().size(), equalTo(1));
+        fieldMapper = docMapper.mappers().getMapper("multi2");
+        assertNotNull(fieldMapper);
 
         f = doc.getField("multi2.org");
         assertThat(f.name(), equalTo("multi2.org"));
@@ -177,7 +177,7 @@ public class SimpleDynamicTemplatesTests extends ElasticsearchSingleNodeTest {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        fieldMappers = docMapper.mappers().fullName("multi2.org");
-        assertThat(fieldMappers.mappers().size(), equalTo(1));
+        fieldMapper = docMapper.mappers().getMapper("multi2.org");
+        assertNotNull(fieldMapper);
     }
 }

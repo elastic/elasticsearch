@@ -527,7 +527,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         DocumentMapper defaultMapper = parser.parse(mapping);
-        FieldMapper<?> mapper = defaultMapper.mappers().fullName("field").mapper();
+        FieldMapper<?> mapper = defaultMapper.mappers().getMapper("field");
         assertNotNull(mapper);
         assertTrue(mapper instanceof StringFieldMapper);
         assertEquals(Queries.newMatchNoDocsFilter(), mapper.termsFilter(Collections.emptyList(), null));

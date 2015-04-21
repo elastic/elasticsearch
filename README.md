@@ -101,6 +101,14 @@ The `cloud.aws.region` can be set to a region and will automatically use the rel
 * `sa-east` (`sa-east-1`)
 * `cn-north` (`cn-north-1`)
 
+
+### EC2/S3 Signer API
+
+If you are using a compatible EC2 or S3 service, they might be using an older API to sign the requests.
+You can set your compatible signer API using `cloud.aws.signer` (or `cloud.aws.ec2.signer` and `cloud.aws.s3.signer`)
+with the right signer to use. Defaults to `AWS4SignerType`.
+
+
 ## EC2 Discovery
 
 ec2 discovery allows to use the ec2 APIs to perform automatic discovery (similar to multicast in non hostile multicast environments). Here is a simple sample configuration:

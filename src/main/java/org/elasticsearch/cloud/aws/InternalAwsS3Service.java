@@ -122,6 +122,17 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             clientConfiguration.setMaxErrorRetry(maxRetries);
         }
 
+        // #155: we might have 3rd party users using older S3 API version
+        String awsSigner = settings.get("cloud.aws.s3.signer", settings.get("cloud.aws.signer"));
+        if (awsSigner != null) {
+            logger.debug("using AWS API signer [{}]", awsSigner);
+            try {
+                AwsSigner.configureSigner(awsSigner, clientConfiguration);
+            } catch (ElasticsearchIllegalArgumentException e) {
+                logger.warn("wrong signer set for [cloud.aws.s3.signer] or [cloud.aws.signer]: [{}]", awsSigner);
+            }
+        }
+
         AWSCredentialsProvider credentials;
 
         if (account == null && key == null) {

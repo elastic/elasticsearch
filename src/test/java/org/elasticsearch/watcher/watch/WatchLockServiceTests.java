@@ -11,6 +11,7 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.*;
@@ -66,6 +67,7 @@ public class WatchLockServiceTests extends ElasticsearchTestCase {
         class FairRunner implements Runnable {
 
             final int expectedValue;
+            final CountDownLatch startLatch = new CountDownLatch(1);
 
             FairRunner(int expectedValue) {
                 this.expectedValue = expectedValue;
@@ -73,6 +75,7 @@ public class WatchLockServiceTests extends ElasticsearchTestCase {
 
             @Override
             public void run() {
+                startLatch.countDown();
                 WatchLockService.Lock lock = lockService.acquire("_name");
                 try {
                     int actualValue = value.getAndIncrement();
@@ -85,13 +88,17 @@ public class WatchLockServiceTests extends ElasticsearchTestCase {
             }
         }
 
+        List<FairRunner> runners = new ArrayList<>();
+
         for(int i = 0; i < 100; ++i) {
             FairRunner f = new FairRunner(i);
+            runners.add(f);
             threads.add(new Thread(f));
         }
 
-        for(Thread t : threads) {
-            t.start();
+        for(int i = 0; i < threads.size(); ++i) {
+            threads.get(i).start();
+            runners.get(i).startLatch.await();
             Thread.sleep(10);
         }
 

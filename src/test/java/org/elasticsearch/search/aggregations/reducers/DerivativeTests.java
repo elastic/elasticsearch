@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Bucket;
+import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -39,6 +40,7 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.reducers.ReducerBuilders.derivative;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -159,7 +161,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
      * test first and second derivative on the sing
      */
     @Test
-    public void singleValuedField() {
+    public void docCountDerivative() {
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -197,7 +199,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void singleValuedField_WithSubAggregation() throws Exception {
+    public void singleValueAggDerivative() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -225,6 +227,52 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
             assertThat(sum, notNullValue());
             long expectedSum = valueCounts[i] * (i * interval);
             assertThat(sum.getValue(), equalTo((double) expectedSum));
+            SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
+            if (i > 0) {
+                assertThat(sumDeriv, notNullValue());
+                long sumDerivValue = expectedSum - expectedSumPreviousBucket;
+                assertThat(sumDeriv.value(), equalTo((double) sumDerivValue));
+                assertThat((double) bucket.getProperty("histo", AggregationPath.parse("deriv.value").getPathElementsAsStringList()),
+                        equalTo((double) sumDerivValue));
+            } else {
+                assertThat(sumDeriv, nullValue());
+            }
+            expectedSumPreviousBucket = expectedSum;
+            assertThat((long) propertiesKeys[i], equalTo((long) i * interval));
+            assertThat((long) propertiesDocCounts[i], equalTo(valueCounts[i]));
+            assertThat((double) propertiesSumCounts[i], equalTo((double) expectedSum));
+        }
+    }
+
+    @Test
+    public void multiValueAggDerivative() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
+                                .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
+                                .subAggregation(derivative("deriv").setBucketsPaths("stats.sum"))).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        InternalHistogram<Bucket> deriv = response.getAggregations().get("histo");
+        assertThat(deriv, notNullValue());
+        assertThat(deriv.getName(), equalTo("histo"));
+        assertThat(deriv.getBuckets().size(), equalTo(numValueBuckets));
+        Object[] propertiesKeys = (Object[]) deriv.getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) deriv.getProperty("_count");
+        Object[] propertiesSumCounts = (Object[]) deriv.getProperty("stats.sum");
+
+        List<Bucket> buckets = new ArrayList<Bucket>(deriv.getBuckets());
+        Long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
+                                                         // overwritten
+        for (int i = 0; i < numValueBuckets; ++i) {
+            Histogram.Bucket bucket = buckets.get(i);
+            checkBucketKeyAndDocCount("Bucket " + i, bucket, i * interval, valueCounts[i]);
+            Stats stats = bucket.getAggregations().get("stats");
+            assertThat(stats, notNullValue());
+            long expectedSum = valueCounts[i] * (i * interval);
+            assertThat(stats.getSum(), equalTo((double) expectedSum));
             SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
             if (i > 0) {
                 assertThat(sumDeriv, notNullValue());
@@ -288,7 +336,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void singleValuedFieldWithGaps() throws Exception {
+    public void docCountDerivativeWithGaps() throws Exception {
         SearchResponse searchResponse = client()
                 .prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
@@ -317,7 +365,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void singleValuedFieldWithGaps_random() throws Exception {
+    public void docCountDerivativeWithGaps_random() throws Exception {
         SearchResponse searchResponse = client()
                 .prepareSearch("empty_bucket_idx_rnd")
                 .setQuery(matchAllQuery())
@@ -336,7 +384,6 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         for (int i = 0; i < valueCounts_empty_rnd.length; i++) {
             Histogram.Bucket bucket = buckets.get(i);
-            System.out.println(bucket.getDocCount());
             checkBucketKeyAndDocCount("Bucket " + i, bucket, i, valueCounts_empty_rnd[i]);
             SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
             if (firstDerivValueCounts_empty_rnd[i] == null) {
@@ -348,7 +395,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void singleValuedFieldWithGaps_insertZeros() throws Exception {
+    public void docCountDerivativeWithGaps_insertZeros() throws Exception {
         SearchResponse searchResponse = client()
                 .prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())

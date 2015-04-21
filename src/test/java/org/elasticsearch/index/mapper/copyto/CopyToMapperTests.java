@@ -84,8 +84,7 @@ public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
         IndexService index = createIndex("test");
         client().admin().indices().preparePutMapping("test").setType("type1").setSource(mapping).get();
         DocumentMapper docMapper = index.mapperService().documentMapper("type1");
-        FieldMapper fieldMapper = docMapper.mappers().name("copy_test").mapper();
-        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
+        FieldMapper fieldMapper = docMapper.mappers().getMapper("copy_test");
 
         // Check json serialization
         StringFieldMapper stringFieldMapper = (StringFieldMapper) fieldMapper;
@@ -130,7 +129,7 @@ public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
         assertNotNull(parsedDoc.dynamicMappingsUpdate());
         client().admin().indices().preparePutMapping("test").setType("type1").setSource(parsedDoc.dynamicMappingsUpdate().toString()).get();
 
-        fieldMapper = docMapper.mappers().name("new_field").mapper();
+        fieldMapper = docMapper.mappers().getMapper("new_field");
         assertThat(fieldMapper, instanceOf(LongFieldMapper.class));
     }
 
@@ -221,7 +220,7 @@ public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         DocumentMapper docMapperBefore = parser.parse(mappingBefore);
 
-        ImmutableList<String> fields = docMapperBefore.mappers().name("copy_test").mapper().copyTo().copyToFields();
+        ImmutableList<String> fields = docMapperBefore.mappers().getMapper("copy_test").copyTo().copyToFields();
 
         assertThat(fields.size(), equalTo(2));
         assertThat(fields.get(0), equalTo("foo"));
@@ -236,7 +235,7 @@ public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
 
         docMapperBefore.merge(docMapperAfter.mapping(), mergeFlags().simulate(false));
 
-        fields = docMapperBefore.mappers().name("copy_test").mapper().copyTo().copyToFields();
+        fields = docMapperBefore.mappers().getMapper("copy_test").copyTo().copyToFields();
 
         assertThat(fields.size(), equalTo(2));
         assertThat(fields.get(0), equalTo("baz"));

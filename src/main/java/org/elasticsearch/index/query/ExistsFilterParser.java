@@ -84,7 +84,7 @@ public class ExistsFilterParser implements FilterParser {
     }
 
     public static Filter newFilter(QueryParseContext parseContext, String fieldPattern, String filterName) {
-        final FieldMappers fieldNamesMappers = parseContext.mapperService().indexName(FieldNamesFieldMapper.NAME);
+        final FieldMappers fieldNamesMappers = parseContext.mapperService().fullName(FieldNamesFieldMapper.NAME);
         final FieldNamesFieldMapper fieldNamesMapper = (FieldNamesFieldMapper)fieldNamesMappers.mapper();
 
         MapperService.SmartNameObjectMapper smartNameObjectMapper = parseContext.smartObjectMapper(fieldPattern);
@@ -98,14 +98,10 @@ public class ExistsFilterParser implements FilterParser {
             // no fields exists, so we should not match anything
             return Queries.newMatchNoDocsFilter();
         }
-        MapperService.SmartNameFieldMappers nonNullFieldMappers = null;
 
         BooleanQuery boolFilter = new BooleanQuery();
         for (String field : fields) {
             MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(field);
-            if (smartNameFieldMappers != null) {
-                nonNullFieldMappers = smartNameFieldMappers;
-            }
             Query filter = null;
             if (fieldNamesMapper!= null && fieldNamesMapper.enabled()) {
                 final String f;

@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -54,16 +55,14 @@ public class GenericStoreDynamicTemplateTests extends ElasticsearchSingleNodeTes
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.fieldType().stored(), equalTo(true));
 
-        FieldMappers fieldMappers = docMapper.mappers().fullName("name");
-        assertThat(fieldMappers.mappers().size(), equalTo(1));
-        assertThat(fieldMappers.mapper().fieldType().stored(), equalTo(true));
+        FieldMapper fieldMapper = docMapper.mappers().getMapper("name");
+        assertThat(fieldMapper.fieldType().stored(), equalTo(true));
 
         f = doc.getField("age");
         assertThat(f.name(), equalTo("age"));
         assertThat(f.fieldType().stored(), equalTo(true));
 
-        fieldMappers = docMapper.mappers().fullName("age");
-        assertThat(fieldMappers.mappers().size(), equalTo(1));
-        assertThat(fieldMappers.mapper().fieldType().stored(), equalTo(true));
+        fieldMapper = docMapper.mappers().getMapper("age");
+        assertThat(fieldMapper.fieldType().stored(), equalTo(true));
     }
 }

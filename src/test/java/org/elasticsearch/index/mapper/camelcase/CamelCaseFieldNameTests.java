@@ -50,13 +50,13 @@ public class CamelCaseFieldNameTests extends ElasticsearchSingleNodeTest {
         assertNotNull(doc.dynamicMappingsUpdate());
         client().admin().indices().preparePutMapping("test").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get();
 
-        assertThat(documentMapper.mappers().indexName("thisIsCamelCase").isEmpty(), equalTo(false));
-        assertThat(documentMapper.mappers().indexName("this_is_camel_case"), nullValue());
+        assertNotNull(documentMapper.mappers().getMapper("thisIsCamelCase"));
+        assertNull(documentMapper.mappers().getMapper("this_is_camel_case"));
 
         documentMapper.refreshSource();
         documentMapper = index.mapperService().documentMapperParser().parse(documentMapper.mappingSource().string());
 
-        assertThat(documentMapper.mappers().indexName("thisIsCamelCase").isEmpty(), equalTo(false));
-        assertThat(documentMapper.mappers().indexName("this_is_camel_case"), nullValue());
+        assertNotNull(documentMapper.mappers().getMapper("thisIsCamelCase"));
+        assertNull(documentMapper.mappers().getMapper("this_is_camel_case"));
     }
 }

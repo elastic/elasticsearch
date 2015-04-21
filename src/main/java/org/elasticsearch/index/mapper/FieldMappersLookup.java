@@ -34,68 +34,81 @@ import java.util.List;
  */
 class FieldMappersLookup implements Iterable<FieldMapper<?>> {
 
-    private static CopyOnWriteHashMap<String, FieldMappers> add(CopyOnWriteHashMap<String, FieldMappers> map, String key, FieldMapper<?> mapper) {
-        FieldMappers mappers = map.get(key);
-        if (mappers == null) {
-            mappers = new FieldMappers(mapper);
-        } else {
-            mappers = mappers.concat(mapper);
-        }
-        return map.copyAndPut(key, mappers);
-    }
-
-    private static class MappersLookup {
-
-        final CopyOnWriteHashMap<String, FieldMappers> indexName, fullName;
-
-        MappersLookup(CopyOnWriteHashMap<String, FieldMappers> indexName, CopyOnWriteHashMap<String, FieldMappers> fullName) {
-            this.indexName = indexName;
-            this.fullName = fullName;
-        }
-
-        MappersLookup addNewMappers(Iterable<? extends FieldMapper<?>> mappers) {
-            CopyOnWriteHashMap<String, FieldMappers> indexName = this.indexName;
-            CopyOnWriteHashMap<String, FieldMappers> fullName = this.fullName;
-            for (FieldMapper<?> mapper : mappers) {
-                indexName = add(indexName, mapper.names().indexName(), mapper);
-                fullName = add(fullName, mapper.names().fullName(), mapper);
-            }
-            return new MappersLookup(indexName, fullName);
-        }
-        
-    }
-
-    private final MappersLookup lookup;
+    /** Full field name to mappers */
+    private final CopyOnWriteHashMap<String, FieldMappers> mappers;
 
     /** Create a new empty instance. */
     public FieldMappersLookup() {
-        this(new MappersLookup(new CopyOnWriteHashMap<String, FieldMappers>(),
-                               new CopyOnWriteHashMap<String, FieldMappers>()));
+        mappers = new CopyOnWriteHashMap<>();
     }
 
-    private FieldMappersLookup(MappersLookup lookup) {
-        this.lookup = lookup;
+    private FieldMappersLookup(CopyOnWriteHashMap<String, FieldMappers> map) {
+        mappers = map;
     }
 
     /**
      * Return a new instance that contains the union of this instance and the provided mappers.
      */
     public FieldMappersLookup copyAndAddAll(Collection<? extends FieldMapper<?>> newMappers) {
-        return new FieldMappersLookup(lookup.addNewMappers(newMappers));
+        CopyOnWriteHashMap<String, FieldMappers> map = this.mappers;
+
+        for (FieldMapper<?> mapper : newMappers) {
+            String key = mapper.names().fullName();
+            FieldMappers mappers = map.get(key);
+
+            if (mappers == null) {
+                mappers = new FieldMappers(mapper);
+            } else {
+                mappers = mappers.concat(mapper);
+            }
+            map = map.copyAndPut(key, mappers);
+        }
+        return new FieldMappersLookup(map);
     }
 
     /**
      * Returns the field mappers based on the mapper index name.
+     * NOTE: this only exists for backcompat support and if the index name
+     * does not match it's field name, this is a linear time operation
+     * @deprecated Use {@link #get(String)}
      */
+    @Deprecated
     public FieldMappers indexName(String indexName) {
-        return lookup.indexName.get(indexName);
+        FieldMappers fieldMappers = fullName(indexName);
+        if (fieldMappers != null) {
+            if (fieldMappers.mapper().names().indexName().equals(indexName)) {
+                return fieldMappers;
+            }
+        }
+        fieldMappers = new FieldMappers();
+        for (FieldMapper mapper : this) {
+            if (mapper.names().indexName().equals(indexName)) {
+                fieldMappers = fieldMappers.concat(mapper);
+            }
+        }
+        if (fieldMappers.isEmpty()) {
+            return null;
+        }
+        return fieldMappers;
     }
 
     /**
      * Returns the field mappers based on the mapper full name.
      */
     public FieldMappers fullName(String fullName) {
-        return lookup.fullName.get(fullName);
+        return mappers.get(fullName);
+    }
+
+    /** Returns the mapper for the given field */
+    public FieldMapper get(String field) {
+        FieldMappers fieldMappers = mappers.get(field);
+        if (fieldMappers == null) {
+            return null;
+        }
+        if (fieldMappers.mappers().size() != 1) {
+            throw new IllegalStateException("Mapper for field [" + field + "] should be unique");
+        }
+        return fieldMappers.mapper();
     }
 
     /**
@@ -154,7 +167,7 @@ class FieldMappersLookup implements Iterable<FieldMapper<?>> {
     }
 
     public Iterator<FieldMapper<?>> iterator() {
-        final Iterator<FieldMappers> fieldsItr = lookup.fullName.values().iterator();
+        final Iterator<FieldMappers> fieldsItr = mappers.values().iterator();
         if (fieldsItr.hasNext() == false) {
             return Collections.emptyIterator();
         }

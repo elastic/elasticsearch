@@ -116,11 +116,11 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapper existing = parser.parse(mapping1);
         DocumentMapper changed = parser.parse(mapping2);
 
-        assertThat(((NamedAnalyzer) existing.mappers().name("field").mapper().searchAnalyzer()).name(), equalTo("whitespace"));
+        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").searchAnalyzer()).name(), equalTo("whitespace"));
         DocumentMapper.MergeResult mergeResult = existing.merge(changed.mapping(), mergeFlags().simulate(false));
 
         assertThat(mergeResult.hasConflicts(), equalTo(false));
-        assertThat(((NamedAnalyzer) existing.mappers().name("field").mapper().searchAnalyzer()).name(), equalTo("keyword"));
+        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").searchAnalyzer()).name(), equalTo("keyword"));
     }
 
     @Test
@@ -136,12 +136,12 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapper existing = parser.parse(mapping1);
         DocumentMapper changed = parser.parse(mapping2);
 
-        assertThat(((NamedAnalyzer) existing.mappers().name("field").mapper().searchAnalyzer()).name(), equalTo("whitespace"));
+        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").searchAnalyzer()).name(), equalTo("whitespace"));
         DocumentMapper.MergeResult mergeResult = existing.merge(changed.mapping(), mergeFlags().simulate(false));
 
         assertThat(mergeResult.hasConflicts(), equalTo(false));
-        assertThat(((NamedAnalyzer) existing.mappers().name("field").mapper().searchAnalyzer()).name(), equalTo("standard"));
-        assertThat(((StringFieldMapper) (existing.mappers().name("field").mapper())).getIgnoreAbove(), equalTo(14));
+        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").searchAnalyzer()).name(), equalTo("standard"));
+        assertThat(((StringFieldMapper) (existing.mappers().getMapper("field"))).getIgnoreAbove(), equalTo(14));
     }
 
 }

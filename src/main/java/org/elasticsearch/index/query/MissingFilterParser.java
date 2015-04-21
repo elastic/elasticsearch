@@ -95,7 +95,7 @@ public class MissingFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "missing must have either existence, or null_value, or both set to true");
         }
 
-        final FieldMappers fieldNamesMappers = parseContext.mapperService().indexName(FieldNamesFieldMapper.NAME);
+        final FieldMappers fieldNamesMappers = parseContext.mapperService().fullName(FieldNamesFieldMapper.NAME);
         final FieldNamesFieldMapper fieldNamesMapper = (FieldNamesFieldMapper)fieldNamesMappers.mapper();
         MapperService.SmartNameObjectMapper smartNameObjectMapper = parseContext.smartObjectMapper(fieldPattern);
         if (smartNameObjectMapper != null && smartNameObjectMapper.hasMapper()) {

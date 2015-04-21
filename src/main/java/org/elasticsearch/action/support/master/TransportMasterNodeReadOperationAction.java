@@ -36,8 +36,8 @@ public abstract class TransportMasterNodeReadOperationAction<Request extends Mas
 
     private Boolean forceLocal;
 
-    protected TransportMasterNodeReadOperationAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, actionName, transportService, clusterService, threadPool, actionFilters);
+    protected TransportMasterNodeReadOperationAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters, Class<Request> request) {
+        super(settings, actionName, transportService, clusterService, threadPool, actionFilters,request);
         this.forceLocal = settings.getAsBoolean(FORCE_LOCAL_SETTING, null);
     }
 

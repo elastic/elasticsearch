@@ -52,18 +52,13 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
 
     @Inject
     public TransportDeleteWarmerAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, DeleteWarmerAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, DeleteWarmerAction.NAME, transportService, clusterService, threadPool, actionFilters, DeleteWarmerRequest.class);
     }
 
     @Override
     protected String executor() {
         // we go async right away
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected DeleteWarmerRequest newRequest() {
-        return new DeleteWarmerRequest();
     }
 
     @Override

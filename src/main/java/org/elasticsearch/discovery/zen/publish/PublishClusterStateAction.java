@@ -52,9 +52,9 @@ public class PublishClusterStateAction extends AbstractComponent {
 
     public static final String ACTION_NAME = "internal:discovery/zen/publish";
 
-    public static interface NewClusterStateListener {
+    public interface NewClusterStateListener {
 
-        static interface NewStateProcessed {
+        interface NewStateProcessed {
 
             void onNewClusterStateProcessed();
 
@@ -76,7 +76,7 @@ public class PublishClusterStateAction extends AbstractComponent {
         this.nodesProvider = nodesProvider;
         this.listener = listener;
         this.discoverySettings = discoverySettings;
-        transportService.registerHandler(ACTION_NAME, new PublishClusterStateRequestHandler());
+        transportService.registerRequestHandler(ACTION_NAME, BytesTransportRequest.class, ThreadPool.Names.SAME, new PublishClusterStateRequestHandler());
     }
 
     public void close() {
@@ -171,12 +171,7 @@ public class PublishClusterStateAction extends AbstractComponent {
         }
     }
 
-    private class PublishClusterStateRequestHandler extends BaseTransportRequestHandler<BytesTransportRequest> {
-
-        @Override
-        public BytesTransportRequest newInstance() {
-            return new BytesTransportRequest();
-        }
+    private class PublishClusterStateRequestHandler implements TransportRequestHandler<BytesTransportRequest> {
 
         @Override
         public void messageReceived(BytesTransportRequest request, final TransportChannel channel) throws Exception {
@@ -219,11 +214,6 @@ public class PublishClusterStateAction extends AbstractComponent {
                     logger.debug("failed to send response on cluster state processed", e1);
                 }
             }
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 }

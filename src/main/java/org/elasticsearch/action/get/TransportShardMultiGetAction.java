@@ -48,7 +48,8 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
     @Inject
     public TransportShardMultiGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                         IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
+                MultiGetShardRequest.class, ThreadPool.Names.GET);
         this.indicesService = indicesService;
 
         this.realtime = settings.getAsBoolean("action.get.realtime", true);
@@ -57,16 +58,6 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
     @Override
     protected boolean isSubAction() {
         return true;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.GET;
-    }
-
-    @Override
-    protected MultiGetShardRequest newRequest() {
-        return new MultiGetShardRequest();
     }
 
     @Override

@@ -128,7 +128,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         this.allocationService = allocationService;
         this.createIndexService = createIndexService;
         this.dynamicSettings = dynamicSettings;
-        transportService.registerHandler(UPDATE_RESTORE_ACTION_NAME, new UpdateRestoreStateRequestHandler());
+        transportService.registerRequestHandler(UPDATE_RESTORE_ACTION_NAME, UpdateIndexShardRestoreStatusRequest.class, ThreadPool.Names.SAME, new UpdateRestoreStateRequestHandler());
         clusterService.add(this);
     }
 
@@ -937,7 +937,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
     /**
      * Internal class that is used to send notifications about finished shard restore operations to master node
      */
-    private static class UpdateIndexShardRestoreStatusRequest extends TransportRequest {
+    static class UpdateIndexShardRestoreStatusRequest extends TransportRequest {
         private SnapshotId snapshotId;
         private ShardId shardId;
         private ShardRestoreStatus status;
@@ -984,22 +984,11 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
     /**
      * Internal class that is used to send notifications about finished shard restore operations to master node
      */
-    private class UpdateRestoreStateRequestHandler extends BaseTransportRequestHandler<UpdateIndexShardRestoreStatusRequest> {
-
-        @Override
-        public UpdateIndexShardRestoreStatusRequest newInstance() {
-            return new UpdateIndexShardRestoreStatusRequest();
-        }
-
+    class UpdateRestoreStateRequestHandler implements TransportRequestHandler<UpdateIndexShardRestoreStatusRequest> {
         @Override
         public void messageReceived(UpdateIndexShardRestoreStatusRequest request, final TransportChannel channel) throws Exception {
             updateRestoreStateOnMaster(request);
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 }

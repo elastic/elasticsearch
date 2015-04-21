@@ -56,6 +56,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.river.RiverIndexName;
@@ -83,15 +84,11 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     public TransportShardBulkAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
                                     MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters);
+        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
+                BulkShardRequest.class, BulkShardRequest.class, ThreadPool.Names.BULK);
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.updateHelper = updateHelper;
         this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.BULK;
     }
 
     @Override
@@ -103,17 +100,6 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     protected TransportRequestOptions transportOptions() {
         return BulkAction.INSTANCE.transportOptions(settings);
     }
-
-    @Override
-    protected BulkShardRequest newRequestInstance() {
-        return new BulkShardRequest();
-    }
-
-    @Override
-    protected BulkShardRequest newReplicaRequestInstance() {
-        return newRequestInstance();
-    }
-
     @Override
     protected BulkShardResponse newResponseInstance() {
         return new BulkShardResponse();
@@ -546,10 +532,9 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
 
     @Override
-    protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) throws Exception {
-        IndexService indexService = indicesService.indexServiceSafe(shardRequest.shardId.getIndex());
-        IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
-        final BulkShardRequest request = shardRequest.request;
+    protected void shardOperationOnReplica(ShardId shardId, BulkShardRequest request) throws Exception {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        IndexShard indexShard = indexService.shardSafe(shardId.id());
         for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];
             if (item == null || item.isIgnoreOnReplica()) {

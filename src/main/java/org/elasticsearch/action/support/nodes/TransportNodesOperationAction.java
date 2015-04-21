@@ -25,7 +25,6 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.NoSuchNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -48,19 +47,18 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
     protected final TransportService transportService;
 
     final String transportNodeAction;
-    final String executor;
 
     protected TransportNodesOperationAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
-                                            ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
-        super(settings, actionName, threadPool, transportService, actionFilters);
+                                            ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
+                                            Class<Request> request, Class<NodeRequest> nodeRequest, String nodeExecutor) {
+        super(settings, actionName, threadPool, transportService, actionFilters, request);
         this.clusterName = clusterName;
         this.clusterService = clusterService;
         this.transportService = transportService;
 
         this.transportNodeAction = actionName + "[n]";
-        this.executor = executor();
 
-        transportService.registerHandler(transportNodeAction, new NodeTransportHandler());
+        transportService.registerRequestHandler(transportNodeAction, nodeRequest, nodeExecutor, new NodeTransportHandler());
     }
 
     @Override
@@ -72,11 +70,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
         return false;
     }
 
-    protected abstract String executor();
-
     protected abstract Response newResponse(Request request, AtomicReferenceArray nodesResponses);
-
-    protected abstract NodeRequest newNodeRequest();
 
     protected abstract NodeRequest newNodeRequest(String nodeId, Request request);
 
@@ -198,26 +192,11 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
         }
     }
 
-    private class NodeTransportHandler extends BaseTransportRequestHandler<NodeRequest> {
-
-        @Override
-        public NodeRequest newInstance() {
-            return newNodeRequest();
-        }
+    class NodeTransportHandler implements TransportRequestHandler<NodeRequest> {
 
         @Override
         public void messageReceived(final NodeRequest request, final TransportChannel channel) throws Exception {
             channel.sendResponse(nodeOperation(request));
-        }
-
-        @Override
-        public String toString() {
-            return transportNodeAction;
-        }
-
-        @Override
-        public String executor() {
-            return executor;
         }
     }
 }

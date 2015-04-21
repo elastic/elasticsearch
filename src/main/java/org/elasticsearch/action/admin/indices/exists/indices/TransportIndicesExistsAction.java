@@ -42,18 +42,13 @@ public class TransportIndicesExistsAction extends TransportMasterNodeReadOperati
     @Inject
     public TransportIndicesExistsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                         ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, IndicesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, IndicesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters, IndicesExistsRequest.class);
     }
 
     @Override
     protected String executor() {
         // lightweight in memory check
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected IndicesExistsRequest newRequest() {
-        return new IndicesExistsRequest();
     }
 
     @Override

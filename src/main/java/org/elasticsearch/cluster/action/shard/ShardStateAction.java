@@ -72,8 +72,8 @@ public class ShardStateAction extends AbstractComponent {
         this.allocationService = allocationService;
         this.routingService = routingService;
 
-        transportService.registerHandler(SHARD_STARTED_ACTION_NAME, new ShardStartedTransportHandler());
-        transportService.registerHandler(SHARD_FAILED_ACTION_NAME, new ShardFailedTransportHandler());
+        transportService.registerRequestHandler(SHARD_STARTED_ACTION_NAME, ShardRoutingEntry.class, ThreadPool.Names.SAME, new ShardStartedTransportHandler());
+        transportService.registerRequestHandler(SHARD_FAILED_ACTION_NAME, ShardRoutingEntry.class, ThreadPool.Names.SAME, new ShardFailedTransportHandler());
     }
 
     public void shardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason) throws ElasticsearchException {
@@ -287,41 +287,21 @@ public class ShardStateAction extends AbstractComponent {
                 });
     }
 
-    private class ShardFailedTransportHandler extends BaseTransportRequestHandler<ShardRoutingEntry> {
-
-        @Override
-        public ShardRoutingEntry newInstance() {
-            return new ShardRoutingEntry();
-        }
+    private class ShardFailedTransportHandler implements TransportRequestHandler<ShardRoutingEntry> {
 
         @Override
         public void messageReceived(ShardRoutingEntry request, TransportChannel channel) throws Exception {
             handleShardFailureOnMaster(request);
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
     }
 
-    class ShardStartedTransportHandler extends BaseTransportRequestHandler<ShardRoutingEntry> {
-
-        @Override
-        public ShardRoutingEntry newInstance() {
-            return new ShardRoutingEntry();
-        }
+    class ShardStartedTransportHandler implements TransportRequestHandler<ShardRoutingEntry> {
 
         @Override
         public void messageReceived(ShardRoutingEntry request, TransportChannel channel) throws Exception {
             shardStartedOnMaster(request);
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 
@@ -335,7 +315,7 @@ public class ShardStateAction extends AbstractComponent {
 
         volatile boolean processed; // state field, no need to serialize
 
-        private ShardRoutingEntry() {
+        ShardRoutingEntry() {
         }
 
         private ShardRoutingEntry(ShardRouting shardRouting, String indexUUID, String reason) {

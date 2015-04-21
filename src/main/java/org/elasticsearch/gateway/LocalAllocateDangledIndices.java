@@ -60,7 +60,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
-        transportService.registerHandler(ACTION_NAME, new AllocateDangledRequestHandler());
+        transportService.registerRequestHandler(ACTION_NAME, AllocateDangledRequest.class, ThreadPool.Names.SAME, new AllocateDangledRequestHandler());
     }
 
     public void allocateDangled(Collection<IndexMetaData> indices, final Listener listener) {
@@ -100,13 +100,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
         void onFailure(Throwable e);
     }
 
-    class AllocateDangledRequestHandler extends BaseTransportRequestHandler<AllocateDangledRequest> {
-
-        @Override
-        public AllocateDangledRequest newInstance() {
-            return new AllocateDangledRequest();
-        }
-
+    class AllocateDangledRequestHandler implements TransportRequestHandler<AllocateDangledRequest> {
         @Override
         public void messageReceived(final AllocateDangledRequest request, final TransportChannel channel) throws Exception {
             String[] indexNames = new String[request.indices.length];
@@ -172,11 +166,6 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                     }
                 }
             });
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 

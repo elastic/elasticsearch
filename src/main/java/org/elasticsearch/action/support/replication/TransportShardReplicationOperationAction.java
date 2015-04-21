@@ -78,7 +78,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     protected TransportShardReplicationOperationAction(Settings settings, String actionName, TransportService transportService,
                                                        ClusterService clusterService, IndicesService indicesService,
-                                                       ThreadPool threadPool, ShardStateAction shardStateAction, ActionFilters actionFilters) {
+                                                       ThreadPool threadPool, ShardStateAction shardStateAction, ActionFilters actionFilters,
+                                                       Class<Request> request, Class<ReplicaRequest> replicaRequest, String executor) {
         super(settings, actionName, threadPool, actionFilters);
         this.transportService = transportService;
         this.clusterService = clusterService;
@@ -86,11 +87,12 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         this.shardStateAction = shardStateAction;
 
         this.transportReplicaAction = actionName + "[r]";
-        this.executor = executor();
+        this.executor = executor;
         this.checkWriteConsistency = checkWriteConsistency();
 
-        transportService.registerHandler(actionName, new OperationTransportHandler());
-        transportService.registerHandler(transportReplicaAction, new ReplicaOperationTransportHandler());
+        transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, new OperationTransportHandler());
+         // we must never reject on because of thread pool capacity on replicas
+        transportService.registerRequestHandler(transportReplicaAction, replicaRequest, executor, true, new ReplicaOperationTransportHandler());
 
         this.transportOptions = transportOptions();
 
@@ -102,13 +104,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         new PrimaryPhase(request, listener).run();
     }
 
-    protected abstract Request newRequestInstance();
-
-    protected abstract ReplicaRequest newReplicaRequestInstance();
-
     protected abstract Response newResponseInstance();
-
-    protected abstract String executor();
 
     /**
      * @return A tuple containing not null values, as first value the result of the primary operation and as second value
@@ -116,7 +112,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
      */
     protected abstract Tuple<Response, ReplicaRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) throws Throwable;
 
-    protected abstract void shardOperationOnReplica(ReplicaOperationRequest shardRequest) throws Exception;
+    protected abstract void shardOperationOnReplica(ShardId shardId, ReplicaRequest shardRequest) throws Exception;
 
     protected abstract ShardIterator shards(ClusterState clusterState, InternalRequest request) throws ElasticsearchException;
 
@@ -175,18 +171,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         return false;
     }
 
-    class OperationTransportHandler extends BaseTransportRequestHandler<Request> {
-
-        @Override
-        public Request newInstance() {
-            return newRequestInstance();
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
+    class OperationTransportHandler implements TransportRequestHandler<Request> {
         @Override
         public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
             // no need to have a threaded listener since we just send back a response
@@ -215,30 +200,13 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         }
     }
 
-    class ReplicaOperationTransportHandler extends BaseTransportRequestHandler<ReplicaOperationRequest> {
-
+    class ReplicaOperationTransportHandler implements TransportRequestHandler<ReplicaRequest> {
         @Override
-        public ReplicaOperationRequest newInstance() {
-            return new ReplicaOperationRequest();
-        }
-
-        @Override
-        public String executor() {
-            return executor;
-        }
-
-        // we must never reject on because of thread pool capacity on replicas
-        @Override
-        public boolean isForceExecution() {
-            return true;
-        }
-
-        @Override
-        public void messageReceived(final ReplicaOperationRequest request, final TransportChannel channel) throws Exception {
+        public void messageReceived(final ReplicaRequest request, final TransportChannel channel) throws Exception {
             try {
-                shardOperationOnReplica(request);
+                shardOperationOnReplica(request.internalShardId, request);
             } catch (Throwable t) {
-                failReplicaIfNeeded(request.shardId.getIndex(), request.shardId.id(), t);
+                failReplicaIfNeeded(request.internalShardId.getIndex(), request.internalShardId.id(), t);
                 throw t;
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -252,46 +220,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         public PrimaryOperationRequest(int shardId, String index, Request request) {
             this.shardId = new ShardId(index, shardId);
             this.request = request;
-        }
-    }
-
-    protected class ReplicaOperationRequest extends TransportRequest implements IndicesRequest {
-
-        public ShardId shardId;
-        public ReplicaRequest request;
-
-        ReplicaOperationRequest() {
-        }
-
-        ReplicaOperationRequest(ShardId shardId, ReplicaRequest request) {
-            super(request);
-            this.shardId = shardId;
-            this.request = request;
-        }
-
-        @Override
-        public String[] indices() {
-            return request.indices();
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return request.indicesOptions();
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            shardId = ShardId.readShardId(in);
-            request = newReplicaRequestInstance();
-            request.readFrom(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            shardId.writeTo(out);
-            request.writeTo(out);
         }
     }
 
@@ -804,11 +732,11 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 return;
             }
 
-            final ReplicaOperationRequest shardRequest = new ReplicaOperationRequest(shardIt.shardId(), replicaRequest);
+            replicaRequest.internalShardId = shardIt.shardId();
 
             if (!nodeId.equals(observer.observedState().nodes().localNodeId())) {
                 final DiscoveryNode node = observer.observedState().nodes().get(nodeId);
-                transportService.sendRequest(node, transportReplicaAction, shardRequest,
+                transportService.sendRequest(node, transportReplicaAction, replicaRequest,
                         transportOptions, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                             @Override
                             public void handleResponse(TransportResponse.Empty vResponse) {
@@ -834,7 +762,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                             @Override
                             protected void doRun() {
                                 try {
-                                    shardOperationOnReplica(shardRequest);
+                                    shardOperationOnReplica(shard.shardId(), replicaRequest);
                                     onReplicaSuccess();
                                 } catch (Throwable e) {
                                     onReplicaFailure(nodeId, e);
@@ -859,7 +787,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     }
                 } else {
                     try {
-                        shardOperationOnReplica(shardRequest);
+                        shardOperationOnReplica(shard.shardId(), replicaRequest);
                         onReplicaSuccess();
                     } catch (Throwable e) {
                         failReplicaIfNeeded(shard.index(), shard.id(), e);

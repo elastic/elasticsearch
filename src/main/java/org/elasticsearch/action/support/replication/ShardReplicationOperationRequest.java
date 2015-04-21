@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -40,8 +41,9 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
-    protected TimeValue timeout = DEFAULT_TIMEOUT;
+    ShardId internalShardId;
 
+    protected TimeValue timeout = DEFAULT_TIMEOUT;
     protected String index;
 
     private boolean threadedOperation = true;
@@ -171,6 +173,9 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        if (in.readBoolean()) {
+            internalShardId = ShardId.readShardId(in);
+        }
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
         index = in.readString();
@@ -181,6 +186,7 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeOptionalStreamable(internalShardId);
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
         out.writeString(index);

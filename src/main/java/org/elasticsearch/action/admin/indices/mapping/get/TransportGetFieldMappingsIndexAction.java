@@ -53,7 +53,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.LinkedList;
 
 /**
  * Transport action used to retrieve the mappings related to fields that belong to a specific index
@@ -70,14 +69,9 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
                                                 TransportService transportService,
                                                 IndicesService indicesService,
                                                 ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, GetFieldMappingsIndexRequest.class, ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
     }
 
     @Override
@@ -124,11 +118,6 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
         }
 
         return new GetFieldMappingsResponse(ImmutableMap.of(shardId.getIndex(), typeMappings.immutableMap()));
-    }
-
-    @Override
-    protected GetFieldMappingsIndexRequest newRequest() {
-        return new GetFieldMappingsIndexRequest();
     }
 
     @Override

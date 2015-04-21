@@ -59,18 +59,9 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
     @Inject
     public TransportIndicesSegmentsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                           IndicesService indicesService, ActionFilters actionFilters) {
-        super(settings, IndicesSegmentsAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, IndicesSegmentsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                IndicesSegmentsRequest.class, TransportIndicesSegmentsAction.IndexShardSegmentRequest.class, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected IndicesSegmentsRequest newRequestInstance() {
-        return new IndicesSegmentsRequest();
     }
 
     /**
@@ -113,11 +104,6 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
             }
         }
         return new IndicesSegmentResponse(shards.toArray(new ShardSegments[shards.size()]), clusterState, shardsResponses.length(), successfulShards, failedShards, shardFailures);
-    }
-
-    @Override
-    protected IndexShardSegmentRequest newShardRequest() {
-        return new IndexShardSegmentRequest();
     }
 
     @Override

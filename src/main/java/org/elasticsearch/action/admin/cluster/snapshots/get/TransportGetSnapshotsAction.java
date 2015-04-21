@@ -46,18 +46,13 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeOperationAct
     @Inject
     public TransportGetSnapshotsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters) {
-        super(settings, GetSnapshotsAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, GetSnapshotsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetSnapshotsRequest.class);
         this.snapshotsService = snapshotsService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
-    protected GetSnapshotsRequest newRequest() {
-        return new GetSnapshotsRequest();
     }
 
     @Override

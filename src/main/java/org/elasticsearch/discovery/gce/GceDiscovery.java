@@ -24,6 +24,7 @@ import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
+import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
 import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Inject;
@@ -49,7 +50,7 @@ public class GceDiscovery extends ZenDiscovery {
                         ClusterService clusterService, NodeSettingsService nodeSettingsService, ZenPingService pingService,
                         DiscoveryNodeService discoveryNodeService, GceComputeService gceComputeService,
                         NetworkService networkService, DiscoverySettings discoverySettings,
-                        ElectMasterService electMasterService, DynamicSettings dynamicSettings,
+                        ElectMasterService electMasterService, @ClusterDynamicSettings DynamicSettings dynamicSettings,
                         Version version) {
         super(settings, clusterName, threadPool, transportService, clusterService, nodeSettingsService,
                 discoveryNodeService, pingService, electMasterService, discoverySettings, dynamicSettings);

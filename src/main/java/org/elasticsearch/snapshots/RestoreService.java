@@ -190,6 +190,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                 // Index doesn't exist - create it and start recovery
                                 // Make sure that the index we are about to create has a validate name
                                 createIndexService.validateIndexName(renamedIndex, currentState);
+                                createIndexService.validateIndexSettings(renamedIndex, snapshotIndexMetaData.settings());
                                 IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData).state(IndexMetaData.State.OPEN).index(renamedIndex);
                                 indexMdBuilder.settings(ImmutableSettings.settingsBuilder().put(snapshotIndexMetaData.settings()).put(IndexMetaData.SETTING_UUID, Strings.randomBase64UUID()));
                                 if (!request.includeAliases() && !snapshotIndexMetaData.aliases().isEmpty()) {

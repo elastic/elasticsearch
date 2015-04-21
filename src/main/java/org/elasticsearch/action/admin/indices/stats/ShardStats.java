@@ -81,9 +81,7 @@ public class ShardStats extends BroadcastShardOperationResponse implements ToXCo
         super.readFrom(in);
         shardRouting = readShardRoutingEntry(in);
         commonStats = CommonStats.readCommonStats(in);
-        if (in.readBoolean()) {
-            commitStats = CommitStats.readCommitStatsFrom(in);
-        }
+        commitStats = CommitStats.readOptionalCommitStatsFrom(in);
     }
 
     @Override
@@ -91,12 +89,7 @@ public class ShardStats extends BroadcastShardOperationResponse implements ToXCo
         super.writeTo(out);
         shardRouting.writeTo(out);
         commonStats.writeTo(out);
-        if (commitStats == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            commitStats.writeTo(out);
-        }
+        out.writeOptionalStreamable(commitStats);
     }
 
     @Override

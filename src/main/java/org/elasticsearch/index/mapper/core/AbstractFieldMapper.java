@@ -29,17 +29,14 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.queries.TermsFilter;
+import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.PrefixFilter;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TermRangeFilter;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -49,8 +46,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.MatchNoDocsFilter;
-import org.elasticsearch.common.lucene.search.RegexpFilter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -496,14 +492,14 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        return new TermFilter(names().createIndexNameTerm(indexedValueForSearch(value)));
+        return Queries.wrap(new TermQuery(names().createIndexNameTerm(indexedValueForSearch(value))));
     }
 
     @Override
     public Filter termsFilter(List values, @Nullable QueryParseContext context) {
         switch (values.size()) {
         case 0:
-            return new MatchNoDocsFilter();
+            return Queries.newMatchNoDocsFilter();
         case 1:
             // When there is a single term, it's important to return a term filter so that
             // it can return a DocIdSet that is directly backed by a postings list, instead
@@ -515,7 +511,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             for (int i = 0; i < bytesRefs.length; i++) {
                 bytesRefs[i] = indexedValueForSearch(values.get(i));
             }
-            return new TermsFilter(names.indexName(), bytesRefs);
+            return Queries.wrap(new TermsQuery(names.indexName(), bytesRefs));
             
         }
     }
@@ -545,10 +541,10 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return new TermRangeFilter(names.indexName(),
+        return Queries.wrap(new TermRangeQuery(names.indexName(),
                 lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                 upperTerm == null ? null : indexedValueForSearch(upperTerm),
-                includeLower, includeUpper);
+                includeLower, includeUpper));
     }
 
     @Override
@@ -567,7 +563,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public Filter prefixFilter(Object value, @Nullable QueryParseContext context) {
-        return new PrefixFilter(names().createIndexNameTerm(indexedValueForSearch(value)));
+        return Queries.wrap(new PrefixQuery(names().createIndexNameTerm(indexedValueForSearch(value))));
     }
 
     @Override
@@ -581,7 +577,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public Filter regexpFilter(Object value, int flags, int maxDeterminizedStates, @Nullable QueryParseContext parseContext) {
-        return new RegexpFilter(names().createIndexNameTerm(indexedValueForSearch(value)), flags, maxDeterminizedStates);
+        return Queries.wrap(new RegexpQuery(names().createIndexNameTerm(indexedValueForSearch(value)), flags, maxDeterminizedStates));
     }
 
     @Override

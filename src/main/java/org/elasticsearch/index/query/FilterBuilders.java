@@ -524,10 +524,18 @@ public abstract class FilterBuilders {
         return new BoolFilterBuilder();
     }
 
+    /**
+     * @deprecated Use {@link #boolFilter()} instead
+     */
+    @Deprecated
     public static AndFilterBuilder andFilter(FilterBuilder... filters) {
         return new AndFilterBuilder(filters);
     }
 
+    /**
+     * @deprecated Use {@link #boolFilter()} instead
+     */
+    @Deprecated
     public static OrFilterBuilder orFilter(FilterBuilder... filters) {
         return new OrFilterBuilder(filters);
     }

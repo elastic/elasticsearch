@@ -59,7 +59,7 @@ public class MatchAllDocsFilterTests extends ElasticsearchTestCase {
         IndexReader reader = DirectoryReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        ConstantScoreQuery query = new ConstantScoreQuery(Queries.MATCH_ALL_FILTER);
+        ConstantScoreQuery query = new ConstantScoreQuery(Queries.newMatchAllFilter());
         long count = Lucene.count(searcher, query);
         assertThat(count, equalTo(2l));
 

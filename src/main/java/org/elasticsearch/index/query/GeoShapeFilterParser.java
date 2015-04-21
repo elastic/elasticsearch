@@ -22,8 +22,9 @@ package org.elasticsearch.index.query;
 import com.spatial4j.core.shape.Shape;
 
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterCachingPolicy;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -31,7 +32,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.common.lucene.search.XBooleanFilter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -84,7 +85,7 @@ public class GeoShapeFilterParser implements FilterParser {
         ShapeRelation shapeRelation = ShapeRelation.INTERSECTS;
         String strategyName = null;
         ShapeBuilder shape = null;
-        FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
+        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
         HashedBytesRef cacheKey = null;
         String filterName = null;
 
@@ -183,12 +184,12 @@ public class GeoShapeFilterParser implements FilterParser {
         if (strategy instanceof RecursivePrefixTreeStrategy && shapeRelation == ShapeRelation.DISJOINT) {
             // this strategy doesn't support disjoint anymore: but it did before, including creating lucene fieldcache (!)
             // in this case, execute disjoint as exists && !intersects
-            XBooleanFilter bool = new XBooleanFilter();
+            BooleanQuery bool = new BooleanQuery();
             Filter exists = ExistsFilterParser.newFilter(parseContext, fieldName, null);
             Filter intersects = strategy.makeFilter(GeoShapeQueryParser.getArgs(shape, ShapeRelation.INTERSECTS));
             bool.add(exists, BooleanClause.Occur.MUST);
             bool.add(intersects, BooleanClause.Occur.MUST_NOT);
-            filter = bool;
+            filter = Queries.wrap(bool);
         } else {
             filter = strategy.makeFilter(GeoShapeQueryParser.getArgs(shape, shapeRelation));
         }

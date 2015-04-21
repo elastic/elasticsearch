@@ -1,6 +1,8 @@
 [[query-dsl-or-filter]]
 === Or Filter
 
+deprecated[2.0.0, Use the `bool` filter instead]
+
 A filter that matches documents using the `OR` boolean operator on other
 filters. Can be placed within queries that accept a filter.
 

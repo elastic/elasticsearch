@@ -21,6 +21,7 @@ package org.elasticsearch.index.query.functionscore;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
+
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
@@ -29,7 +30,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.MatchAllDocsFilter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
@@ -165,7 +165,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         }
         // handle cases where only one score function and no filter was
         // provided. In this case we create a FunctionScoreQuery.
-        if (filterFunctions.size() == 0 || filterFunctions.size() == 1 && (filterFunctions.get(0).filter == null || filterFunctions.get(0).filter instanceof MatchAllDocsFilter)) {
+        if (filterFunctions.size() == 0 || filterFunctions.size() == 1 && (filterFunctions.get(0).filter == null || Queries.isConstantMatchAllQuery(filterFunctions.get(0).filter))) {
             ScoreFunction function = filterFunctions.size() == 0 ? null : filterFunctions.get(0).function;
             FunctionScoreQuery theQuery = new FunctionScoreQuery(query, function, minScore);
             if (combineFunction != null) {
@@ -227,7 +227,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                 }
             }
             if (filter == null) {
-                filter = Queries.MATCH_ALL_FILTER;
+                filter = Queries.newMatchAllFilter();
             }
             if (scoreFunction == null) {
                 throw new ElasticsearchParseException("function_score: One entry in functions list is missing a function.");

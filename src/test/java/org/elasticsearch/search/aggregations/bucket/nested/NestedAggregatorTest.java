@@ -21,21 +21,24 @@ package org.elasticsearch.search.aggregations.bucket.nested;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.*;
-import org.apache.lucene.queries.TermFilter;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.FilterCachingPolicy;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedString;
-import org.elasticsearch.common.lucene.search.AndFilter;
-import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
-import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -120,7 +123,7 @@ public class NestedAggregatorTest extends ElasticsearchSingleNodeTest {
         AggregationContext context = new AggregationContext(searchContext);
 
         AggregatorFactories.Builder builder = AggregatorFactories.builder();
-        builder.add(new NestedAggregator.Factory("test", "nested_field", FilterCachingPolicy.ALWAYS_CACHE));
+        builder.add(new NestedAggregator.Factory("test", "nested_field", QueryCachingPolicy.ALWAYS_CACHE));
         AggregatorFactories factories = builder.build();
         searchContext.aggregations(new SearchContextAggregations(factories));
         Aggregator[] aggs = factories.createTopLevelAggregators(context);
@@ -129,7 +132,10 @@ public class NestedAggregatorTest extends ElasticsearchSingleNodeTest {
         // A regular search always exclude nested docs, so we use NonNestedDocsFilter.INSTANCE here (otherwise MatchAllDocsQuery would be sufficient)
         // We exclude root doc with uid type#2, this will trigger the bug if we don't reset the root doc when we process a new segment, because
         // root doc type#3 and root doc type#1 have the same segment docid
-        searcher.search(new ConstantScoreQuery(new AndFilter(Arrays.asList(NonNestedDocsFilter.INSTANCE, new NotFilter(new TermFilter(new Term(UidFieldMapper.NAME, "type#2")))))), collector);
+        BooleanQuery bq = new BooleanQuery();
+        bq.add(NonNestedDocsFilter.INSTANCE, Occur.MUST);
+        bq.add(new TermQuery(new Term(UidFieldMapper.NAME, "type#2")), Occur.MUST_NOT);
+        searcher.search(new ConstantScoreQuery(bq), collector);
         collector.postCollection();
 
         Nested nested = (Nested) aggs[0].buildAggregation(0);

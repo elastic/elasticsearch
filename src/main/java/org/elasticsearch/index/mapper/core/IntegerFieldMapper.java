@@ -25,7 +25,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -205,8 +205,8 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     @Override
     public Filter termFilter(Object value, @Nullable QueryParseContext context) {
         int iValue = parseValue(value);
-        return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
-                iValue, iValue, true, true);
+        return Queries.wrap(NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
+                iValue, iValue, true, true));
     }
 
     @Override
@@ -219,10 +219,10 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
 
     @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
+        return Queries.wrap(NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseValue(lowerTerm),
                 upperTerm == null ? null : parseValue(upperTerm),
-                includeLower, includeUpper);
+                includeLower, includeUpper));
     }
 
     @Override
@@ -238,10 +238,10 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         if (nullValue == null) {
             return null;
         }
-        return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
+        return Queries.wrap(NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 nullValue,
                 nullValue,
-                true, true);
+                true, true));
     }
 
     @Override

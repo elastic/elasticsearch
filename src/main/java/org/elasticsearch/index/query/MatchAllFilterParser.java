@@ -51,6 +51,6 @@ public class MatchAllFilterParser implements FilterParser {
         while (((token = parser.nextToken()) != XContentParser.Token.END_OBJECT && token != XContentParser.Token.END_ARRAY)) {
         }
 
-        return Queries.MATCH_ALL_FILTER;
+        return Queries.newMatchAllFilter();
     }
 }

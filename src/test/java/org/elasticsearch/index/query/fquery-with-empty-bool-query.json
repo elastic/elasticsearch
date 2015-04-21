@@ -3,7 +3,9 @@
     "query": {
       "filtered": {
         "query": {
-          "bool": {}
+          "term": {
+            "text": "apache"
+          }
         },
         "filter": {
           "term": {

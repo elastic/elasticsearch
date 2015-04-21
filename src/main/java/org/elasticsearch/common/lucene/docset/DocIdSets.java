@@ -22,8 +22,6 @@ package org.elasticsearch.common.lucene.docset;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.DocValuesDocIdSet;
-import org.apache.lucene.search.FilteredDocIdSetIterator;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
@@ -33,7 +31,6 @@ import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.search.XDocIdSetIterator;
 
 import java.io.IOException;
 
@@ -53,31 +50,6 @@ public class DocIdSets {
      */
     public static boolean isEmpty(@Nullable DocIdSet set) {
         return set == null || set == DocIdSet.EMPTY;
-    }
-
-    /**
-     * Check if the given iterator can nextDoc() or advance() in sub-linear time
-     * of the number of documents. For instance, an iterator that would need to
-     * iterate one document at a time to check for its value would be considered
-     * broken.
-     */
-    public static boolean isBroken(DocIdSetIterator iterator) {
-        while (iterator instanceof FilteredDocIdSetIterator) {
-            // this iterator is filtered (likely by some bits)
-            // unwrap in order to check if the underlying iterator is fast
-            iterator = ((FilteredDocIdSetIterator) iterator).getDelegate();
-        }
-        if (iterator instanceof XDocIdSetIterator) {
-            return ((XDocIdSetIterator) iterator).isBroken();
-        }
-        if (iterator instanceof MatchDocIdSetIterator) {
-            return true;
-        }
-        // DocValuesDocIdSet produces anonymous slow iterators
-        if (iterator != null && DocValuesDocIdSet.class.equals(iterator.getClass().getEnclosingClass())) {
-            return true;
-        }
-        return false;
     }
 
     /**

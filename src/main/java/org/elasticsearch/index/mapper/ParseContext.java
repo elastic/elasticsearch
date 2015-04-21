@@ -359,13 +359,13 @@ public abstract class ParseContext {
         }
 
         @Override
-        public void addRootObjectUpdate(RootObjectMapper update) {
-            in.addRootObjectUpdate(update);
+        public void addDynamicMappingsUpdate(Mapper update) {
+            in.addDynamicMappingsUpdate(update);
         }
 
         @Override
-        public List<RootObjectMapper> updates() {
-            return in.updates();
+        public Mapper dynamicMappingsUpdate() {
+            return in.dynamicMappingsUpdate();
         }
     }
 
@@ -401,13 +401,11 @@ public abstract class ParseContext {
 
         private Map<String, String> ignoredValues = new HashMap<>();
 
-        private boolean mappingsModified = false;
-
         private AllEntries allEntries = new AllEntries();
 
         private float docBoost = 1.0f;
 
-        private final List<RootObjectMapper> rootMapperDynamicUpdates = new ArrayList<>();
+        private Mapper dynamicMappingsUpdate = null;
 
         public InternalParseContext(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
             this.index = index;
@@ -432,12 +430,11 @@ public abstract class ParseContext {
             this.sourceToParse = source;
             this.source = source == null ? null : sourceToParse.source();
             this.path.reset();
-            this.mappingsModified = false;
             this.listener = listener == null ? DocumentMapper.ParseListener.EMPTY : listener;
             this.allEntries = new AllEntries();
             this.ignoredValues.clear();
             this.docBoost = 1.0f;
-            this.rootMapperDynamicUpdates.clear();
+            this.dynamicMappingsUpdate = null;
         }
 
         @Override
@@ -604,13 +601,18 @@ public abstract class ParseContext {
         }
 
         @Override
-        public void addRootObjectUpdate(RootObjectMapper mapper) {
-            rootMapperDynamicUpdates.add(mapper);
+        public void addDynamicMappingsUpdate(Mapper mapper) {
+            assert mapper instanceof RootObjectMapper : mapper;
+            if (dynamicMappingsUpdate == null) {
+                dynamicMappingsUpdate = mapper;
+            } else {
+                MapperUtils.merge(dynamicMappingsUpdate, mapper);
+            }
         }
 
         @Override
-        public List<RootObjectMapper> updates() {
-            return rootMapperDynamicUpdates;
+        public Mapper dynamicMappingsUpdate() {
+            return dynamicMappingsUpdate;
         }
     }
 
@@ -820,13 +822,11 @@ public abstract class ParseContext {
 
     /**
      * Add a dynamic update to the root object mapper.
-     * TODO: can we nuke it, it is only needed for copy_to
      */
-    public abstract void addRootObjectUpdate(RootObjectMapper update);
+    public abstract void addDynamicMappingsUpdate(Mapper update);
 
     /**
      * Get dynamic updates to the root object mapper.
-     * TODO: can we nuke it, it is only needed for copy_to
      */
-    public abstract List<RootObjectMapper> updates();
+    public abstract Mapper dynamicMappingsUpdate();
 }

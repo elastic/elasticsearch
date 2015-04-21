@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
@@ -46,10 +47,13 @@ public class SimpleDynamicTemplatesTests extends ElasticsearchSingleNodeTest {
                 .field("match_mapping_type", "string")
                 .startObject("mapping").field("index", "no").endObject()
                 .endObject().endObject().endArray().endObject().endObject();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(builder.string());
+        IndexService index = createIndex("test");
+        client().admin().indices().preparePutMapping("test").setType("person").setSource(builder.string()).get();
+        DocumentMapper docMapper = index.mapperService().documentMapper("person");
         builder = JsonXContent.contentBuilder();
         builder.startObject().field("_id", "1").field("s", "hello").field("l", 1).endObject();
-        docMapper.parse(builder.bytes());
+        ParsedDocument parsedDoc = docMapper.parse(builder.bytes());
+        client().admin().indices().preparePutMapping("test").setType("person").setSource(parsedDoc.dynamicMappingsUpdate().toString()).get();
 
         DocumentFieldMappers mappers = docMapper.mappers();
 
@@ -66,9 +70,13 @@ public class SimpleDynamicTemplatesTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testSimple() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-mapping.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        IndexService index = createIndex("test");
+        client().admin().indices().preparePutMapping("test").setType("person").setSource(mapping).get();
+        DocumentMapper docMapper = index.mapperService().documentMapper("person");
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
-        Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
+        ParsedDocument parsedDoc = docMapper.parse(new BytesArray(json));
+        client().admin().indices().preparePutMapping("test").setType("person").setSource(parsedDoc.dynamicMappingsUpdate().toString()).get();
+        Document doc = parsedDoc.rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
@@ -119,13 +127,13 @@ public class SimpleDynamicTemplatesTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testSimpleWithXContentTraverse() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-mapping.json");
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper docMapper = parser.parse(mapping);
-        docMapper.refreshSource();
-        docMapper = parser.parse(docMapper.mappingSource().string());
-
+        IndexService index = createIndex("test");
+        client().admin().indices().preparePutMapping("test").setType("person").setSource(mapping).get();
+        DocumentMapper docMapper = index.mapperService().documentMapper("person");
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
-        Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
+        ParsedDocument parsedDoc = docMapper.parse(new BytesArray(json));
+        client().admin().indices().preparePutMapping("test").setType("person").setSource(parsedDoc.dynamicMappingsUpdate().toString()).get();
+        Document doc = parsedDoc.rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));

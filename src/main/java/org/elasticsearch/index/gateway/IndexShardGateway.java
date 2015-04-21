@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
@@ -44,10 +45,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  *
@@ -61,7 +63,7 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
     private final TimeValue waitForMappingUpdatePostRecovery;
     private final TimeValue syncInterval;
 
-    private volatile ScheduledFuture flushScheduler;
+    private volatile ScheduledFuture<?> flushScheduler;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
 
 
@@ -74,7 +76,7 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
         this.indexService = indexService;
         this.indexShard = indexShard;
 
-        this.waitForMappingUpdatePostRecovery = indexSettings.getAsTime("index.gateway.wait_for_mapping_update_post_recovery", TimeValue.timeValueSeconds(30));
+        this.waitForMappingUpdatePostRecovery = indexSettings.getAsTime("index.gateway.wait_for_mapping_update_post_recovery", TimeValue.timeValueMinutes(15));
         syncInterval = indexSettings.getAsTime("index.gateway.sync", TimeValue.timeValueSeconds(5));
         if (syncInterval.millis() > 0) {
             this.indexShard.translog().syncOnEachOperation(false);
@@ -93,7 +95,7 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
     public void recover(boolean indexShouldExists, RecoveryState recoveryState) throws IndexShardGatewayRecoveryException {
         indexShard.prepareForIndexRecovery();
         long version = -1;
-        final Set<String> typesToUpdate;
+        final Map<String, Mapping> typesToUpdate;
         SegmentInfos si = null;
         indexShard.store().incRef();
         try {
@@ -149,41 +151,49 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
             typesToUpdate = indexShard.performTranslogRecovery();
 
             indexShard.finalizeRecovery();
+            for (Map.Entry<String, Mapping> entry : typesToUpdate.entrySet()) {
+                validateMappingUpdate(entry.getKey(), entry.getValue());
+            }
             indexShard.postRecovery("post recovery from gateway");
         } catch (EngineException e) {
             throw new IndexShardGatewayRecoveryException(shardId, "failed to recovery from gateway", e);
         } finally {
             indexShard.store().decRef();
         }
-        for (final String type : typesToUpdate) {
-            final CountDownLatch latch = new CountDownLatch(1);
-            mappingUpdatedAction.updateMappingOnMaster(indexService.index().name(), indexService.mapperService().documentMapper(type), indexService.indexUUID(), new MappingUpdatedAction.MappingUpdateListener() {
-                @Override
-                public void onMappingUpdate() {
-                    latch.countDown();
-                }
+    }
 
-                @Override
-                public void onFailure(Throwable t) {
-                    latch.countDown();
-                    logger.debug("failed to send mapping update post recovery to master for [{}]", t, type);
-                }
-            });
-            cancellableThreads.execute(new CancellableThreads.Interruptable() {
-                @Override
-                public void run() throws InterruptedException {
-                    try {
-                        if (latch.await(waitForMappingUpdatePostRecovery.millis(), TimeUnit.MILLISECONDS) == false) {
-                            logger.debug("waited for mapping update on master for [{}], yet timed out", type);
+    private void validateMappingUpdate(final String type, Mapping update) {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Throwable> error = new AtomicReference<>();
+        mappingUpdatedAction.updateMappingOnMaster(indexService.index().name(), indexService.indexUUID(), type, update, new MappingUpdatedAction.MappingUpdateListener() {
+            @Override
+            public void onMappingUpdate() {
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                latch.countDown();
+                error.set(t);
+            }
+        });
+        cancellableThreads.execute(new CancellableThreads.Interruptable() {
+            @Override
+            public void run() throws InterruptedException {
+                try {
+                    if (latch.await(waitForMappingUpdatePostRecovery.millis(), TimeUnit.MILLISECONDS) == false) {
+                        logger.debug("waited for mapping update on master for [{}], yet timed out", type);
+                    } else {
+                        if (error.get() != null) {
+                            throw new IndexShardGatewayRecoveryException(shardId, "Failed to propagate mappings on master post recovery", error.get());
                         }
-                    } catch (InterruptedException e) {
-                        logger.debug("interrupted while waiting for mapping update");
-                        throw e;
                     }
+                } catch (InterruptedException e) {
+                    logger.debug("interrupted while waiting for mapping update");
+                    throw e;
                 }
-            });
-
-        }
+            }
+        });
     }
 
     @Override

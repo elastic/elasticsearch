@@ -20,16 +20,17 @@
 package org.elasticsearch.search.aggregations.reducers.derivative;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.reducers.ReducerBuilder;
 
 import java.io.IOException;
-
-import static org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
 
 public class DerivativeBuilder extends ReducerBuilder<DerivativeBuilder> {
 
     private String format;
     private GapPolicy gapPolicy;
+    private String unit;
 
     public DerivativeBuilder(String name) {
         super(name, DerivativeReducer.TYPE.name());
@@ -45,6 +46,21 @@ public class DerivativeBuilder extends ReducerBuilder<DerivativeBuilder> {
         return this;
     }
 
+    public DerivativeBuilder unit(String unit) {
+        this.unit = unit;
+        return this;
+    }
+
+    /**
+     * Sets the unit using the provided {@link DateHistogramInterval}. This
+     * method is only useful when calculating the derivative using a
+     * `date_histogram`
+     */
+    public DerivativeBuilder unit(DateHistogramInterval unit) {
+        this.unit = unit.toString();
+        return this;
+    }
+
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         if (format != null) {
@@ -52,6 +68,9 @@ public class DerivativeBuilder extends ReducerBuilder<DerivativeBuilder> {
         }
         if (gapPolicy != null) {
             builder.field(DerivativeParser.GAP_POLICY.getPreferredName(), gapPolicy.getName());
+        }
+        if (unit != null) {
+            builder.field(DerivativeParser.UNIT.getPreferredName(), unit);
         }
         return builder;
     }

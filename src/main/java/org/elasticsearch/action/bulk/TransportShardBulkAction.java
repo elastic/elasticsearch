@@ -47,13 +47,13 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
@@ -129,7 +129,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     }
 
     @Override
-    protected PrimaryResponse<BulkShardResponse, BulkShardRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
+    protected Tuple<BulkShardResponse, BulkShardRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         final BulkShardRequest request = shardRequest.request;
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
@@ -351,7 +351,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             responses[i] = items[i].getPrimaryResponse();
         }
         BulkShardResponse response = new BulkShardResponse(shardRequest.shardId, responses);
-        return new PrimaryResponse<>(shardRequest.request, response);
+        return new Tuple<>(response, shardRequest.request);
     }
 
     private void setResponse(BulkItemRequest request, BulkItemResponse response) {

@@ -51,4 +51,9 @@ public class DummyTransportAddress implements TransportAddress {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
     }
+
+    @Override
+    public String toString() {
+        return "_dummy_addr_";
+    }
 }

@@ -612,8 +612,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         return engine == null ? null : engine.commitStats();
     }
 
-
-
     public IndexingStats indexingStats(String... types) {
         return indexingService.stats(types);
     }
@@ -1279,7 +1277,6 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
         }
     }
-
 
     private String getIndexUUID() {
         assert indexSettings.get(IndexMetaData.SETTING_UUID) != null

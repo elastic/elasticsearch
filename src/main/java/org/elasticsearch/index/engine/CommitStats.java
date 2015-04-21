@@ -32,7 +32,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /** a class the returns dynamic information with respect to the last commit point of this shard */
-public class CommitStats implements Streamable, ToXContent {
+public final class CommitStats implements Streamable, ToXContent {
 
     private Map<String, String> userData;
     private long generation;

@@ -168,6 +168,9 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
             if (response.getWatchServiceState() == WatchService.State.STOPPED) {
                 logger.info("[{}#{}]: starting watcher", getTestClass().getSimpleName(), getTestName());
                 startWatcher();
+            } else if (response.getWatchServiceState() == WatchService.State.STARTING) {
+                logger.info("[{}#{}]: watcher is starting, waiting for it to get in a started state", getTestClass().getSimpleName(), getTestName());
+                ensureWatcherStarted(false);
             } else {
                 logger.info("[{}#{}]: not starting watcher, because watcher is in state [{}]", getTestClass().getSimpleName(), getTestName(), response.getWatchServiceState());
             }

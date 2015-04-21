@@ -627,8 +627,7 @@
                                 <tests.security.manager>${tests.security.manager}</tests.security.manager>
                                 <tests.compatibility>${tests.compatibility}</tests.compatibility>
                                 <java.awt.headless>true</java.awt.headless>
-                                <!-- everything below is for security manager / test.policy -->
-                                <junit4.tempDir>${project.build.directory}</junit4.tempDir>
+                                <!-- security manager / test.policy -->
                                 <java.security.policy>${basedir}/dev-tools/tests.policy</java.security.policy>
                             </systemProperties>
                         </configuration>

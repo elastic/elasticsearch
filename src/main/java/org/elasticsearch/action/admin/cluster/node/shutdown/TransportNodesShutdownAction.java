@@ -59,13 +59,13 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
     @Inject
     public TransportNodesShutdownAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                         Node node, ClusterName clusterName, ActionFilters actionFilters) {
-        super(settings, NodesShutdownAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, NodesShutdownAction.NAME, transportService, clusterService, threadPool, actionFilters, NodesShutdownRequest.class);
         this.node = node;
         this.clusterName = clusterName;
         this.disabled = settings.getAsBoolean("action.disable_shutdown", this.settings.getAsBoolean("action.admin.cluster.node.shutdown.disabled", false));
         this.delay = this.settings.getAsTime("action.admin.cluster.node.shutdown.delay", TimeValue.timeValueMillis(200));
 
-        this.transportService.registerHandler(SHUTDOWN_NODE_ACTION_NAME, new NodeShutdownRequestHandler());
+        this.transportService.registerRequestHandler(SHUTDOWN_NODE_ACTION_NAME, NodeShutdownRequest.class, ThreadPool.Names.SAME, new NodeShutdownRequestHandler());
     }
 
     @Override
@@ -77,11 +77,6 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
     protected ClusterBlockException checkBlock(NodesShutdownRequest request, ClusterState state) {
         // Stopping a node impacts the cluster state, so we check for the METADATA_WRITE block here
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
-    }
-
-    @Override
-    protected NodesShutdownRequest newRequest() {
-        return new NodesShutdownRequest();
     }
 
     @Override
@@ -229,17 +224,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
         listener.onResponse(new NodesShutdownResponse(clusterName, nodes.toArray(DiscoveryNode.class)));
     }
 
-    private class NodeShutdownRequestHandler extends BaseTransportRequestHandler<NodeShutdownRequest> {
-
-        @Override
-        public NodeShutdownRequest newInstance() {
-            return new NodeShutdownRequest();
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
+    private class NodeShutdownRequestHandler implements TransportRequestHandler<NodeShutdownRequest> {
 
         @Override
         public void messageReceived(final NodeShutdownRequest request, TransportChannel channel) throws Exception {

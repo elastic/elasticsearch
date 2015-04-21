@@ -45,14 +45,9 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
 
     @Inject
     public TransportMultiGetAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService, TransportShardMultiGetAction shardAction, ActionFilters actionFilters) {
-        super(settings, MultiGetAction.NAME, threadPool, transportService, actionFilters);
+        super(settings, MultiGetAction.NAME, threadPool, transportService, actionFilters, MultiGetRequest.class);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
-    }
-
-    @Override
-    public MultiGetRequest newRequestInstance(){
-        return new MultiGetRequest();
     }
 
     @Override

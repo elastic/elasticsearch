@@ -49,15 +49,11 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
     @Inject
     public TransportGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
                               IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, GetAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, GetAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                GetRequest.class, ThreadPool.Names.GET);
         this.indicesService = indicesService;
 
         this.realtime = settings.getAsBoolean("action.get.realtime", true);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.GET;
     }
 
     @Override
@@ -104,11 +100,6 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         GetResult result = indexShard.getService().get(request.type(), request.id(), request.fields(),
                 request.realtime(), request.version(), request.versionType(), request.fetchSourceContext(), request.ignoreErrorsOnGeneratedFields());
         return new GetResponse(result);
-    }
-
-    @Override
-    protected GetRequest newRequest() {
-        return new GetRequest();
     }
 
     @Override

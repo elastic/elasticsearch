@@ -262,27 +262,27 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         transportServiceAdapter.onRequestReceived(requestId, action);
         final LocalTransportChannel transportChannel = new LocalTransportChannel(this, transportServiceAdapter, sourceTransport, action, requestId, version);
         try {
-            final TransportRequestHandler handler = transportServiceAdapter.handler(action);
-            if (handler == null) {
+            final RequestHandlerRegistry reg = transportServiceAdapter.getRequestHandler(action);
+            if (reg == null) {
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");
             }
-            final TransportRequest request = handler.newInstance();
+            final TransportRequest request = reg.newRequest();
             request.remoteAddress(sourceTransport.boundAddress.publishAddress());
             request.readFrom(stream);
-            if (ThreadPool.Names.SAME.equals(handler.executor())) {
+            if (ThreadPool.Names.SAME.equals(reg.getExecutor())) {
                 //noinspection unchecked
-                handler.messageReceived(request, transportChannel);
+                reg.getHandler().messageReceived(request, transportChannel);
             } else {
-                threadPool.executor(handler.executor()).execute(new AbstractRunnable() {
+                threadPool.executor(reg.getExecutor()).execute(new AbstractRunnable() {
                     @Override
                     protected void doRun() throws Exception {
                         //noinspection unchecked
-                        handler.messageReceived(request, transportChannel);
+                        reg.getHandler().messageReceived(request, transportChannel);
                     }
 
                     @Override
                     public boolean isForceExecution() {
-                        return handler.isForceExecution();
+                        return reg.isForceExecution();
                     }
 
                     @Override

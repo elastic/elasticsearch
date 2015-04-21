@@ -47,8 +47,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -60,7 +58,6 @@ import java.util.List;
 public class TransportAnalyzeAction extends TransportSingleCustomOperationAction<AnalyzeRequest, AnalyzeResponse> {
 
     private final IndicesService indicesService;
-
     private final IndicesAnalysisService indicesAnalysisService;
 
     private static final Settings DEFAULT_SETTINGS = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
@@ -68,20 +65,9 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
     @Inject
     public TransportAnalyzeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                   IndicesService indicesService, IndicesAnalysisService indicesAnalysisService, ActionFilters actionFilters) {
-        super(settings, AnalyzeAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, AnalyzeAction.NAME, threadPool, clusterService, transportService, actionFilters, AnalyzeRequest.class, ThreadPool.Names.INDEX);
         this.indicesService = indicesService;
         this.indicesAnalysisService = indicesAnalysisService;
-        transportService.registerHandler(AnalyzeAction.NAME, new TransportHandler());
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.INDEX;
-    }
-
-    @Override
-    protected AnalyzeRequest newRequest() {
-        return new AnalyzeRequest();
     }
 
     @Override
@@ -259,45 +245,5 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
         }
 
         return new AnalyzeResponse(tokens);
-    }
-
-    private class TransportHandler extends BaseTransportRequestHandler<AnalyzeRequest> {
-
-        @Override
-        public AnalyzeRequest newInstance() {
-            return newRequest();
-        }
-
-        @Override
-        public void messageReceived(AnalyzeRequest request, final TransportChannel channel) throws Exception {
-            // no need to have a threaded listener since we just send back a response
-            request.listenerThreaded(false);
-            // if we have a local operation, execute it on a thread since we don't spawn
-            request.operationThreaded(true);
-            execute(request, new ActionListener<AnalyzeResponse>() {
-                @Override
-                public void onResponse(AnalyzeResponse result) {
-                    try {
-                        channel.sendResponse(result);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send response for get", e1);
-                    }
-                }
-            });
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
     }
 }

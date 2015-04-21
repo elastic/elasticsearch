@@ -914,8 +914,8 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         }
 
         @Override
-        public void registerHandler(String action, TransportRequestHandler handler) {
-            super.registerHandler(action, new InterceptingRequestHandler(action, handler));
+        public <Request extends TransportRequest> void registerRequestHandler(String action, Class<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
+            super.registerRequestHandler(action, request, executor, forceExecution, new InterceptingRequestHandler(action, handler));
         }
 
         private class InterceptingRequestHandler implements TransportRequestHandler {
@@ -926,11 +926,6 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
             InterceptingRequestHandler(String action, TransportRequestHandler requestHandler) {
                 this.requestHandler = requestHandler;
                 this.action = action;
-            }
-
-            @Override
-            public TransportRequest newInstance() {
-                return requestHandler.newInstance();
             }
 
             @Override
@@ -948,16 +943,6 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
                     }
                 }
                 requestHandler.messageReceived(request, channel);
-            }
-
-            @Override
-            public String executor() {
-                return requestHandler.executor();
-            }
-
-            @Override
-            public boolean isForceExecution() {
-                return requestHandler.isForceExecution();
             }
         }
     }

@@ -60,16 +60,11 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
     public TransportMultiPercolateAction(Settings settings, ThreadPool threadPool, TransportShardMultiPercolateAction shardMultiPercolateAction,
                                          ClusterService clusterService, TransportService transportService, PercolatorService percolatorService,
                                          TransportMultiGetAction multiGetAction, ActionFilters actionFilters) {
-        super(settings, MultiPercolateAction.NAME, threadPool, transportService, actionFilters);
+        super(settings, MultiPercolateAction.NAME, threadPool, transportService, actionFilters, MultiPercolateRequest.class);
         this.shardMultiPercolateAction = shardMultiPercolateAction;
         this.clusterService = clusterService;
         this.percolatorService = percolatorService;
         this.multiGetAction = multiGetAction;
-    }
-
-    @Override
-    public MultiPercolateRequest newRequestInstance() {
-        return new MultiPercolateRequest();
     }
 
     @Override

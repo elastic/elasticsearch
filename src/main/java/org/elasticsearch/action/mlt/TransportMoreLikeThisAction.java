@@ -69,29 +69,20 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLikeThisRequest, SearchResponse> {
 
     private final TransportSearchAction searchAction;
-
     private final TransportGetAction getAction;
-
     private final IndicesService indicesService;
-
     private final ClusterService clusterService;
-
     private final TransportService transportService;
 
     @Inject
     public TransportMoreLikeThisAction(Settings settings, ThreadPool threadPool, TransportSearchAction searchAction, TransportGetAction getAction,
                                        ClusterService clusterService, IndicesService indicesService, TransportService transportService, ActionFilters actionFilters) {
-        super(settings, MoreLikeThisAction.NAME, threadPool, transportService, actionFilters);
+        super(settings, MoreLikeThisAction.NAME, threadPool, transportService, actionFilters, MoreLikeThisRequest.class);
         this.searchAction = searchAction;
         this.getAction = getAction;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.transportService = transportService;
-    }
-
-    @Override
-    public MoreLikeThisRequest newRequestInstance(){
-        return new MoreLikeThisRequest();
     }
 
     @Override

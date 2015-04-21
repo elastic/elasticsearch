@@ -118,7 +118,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         this.indicesService = indicesService;
         this.transportService = transportService;
 
-        transportService.registerHandler(UPDATE_SNAPSHOT_ACTION_NAME, new UpdateSnapshotStateRequestHandler());
+        transportService.registerRequestHandler(UPDATE_SNAPSHOT_ACTION_NAME, UpdateIndexShardSnapshotStatusRequest.class, ThreadPool.Names.SAME, new UpdateSnapshotStateRequestHandler());
 
         // addLast to make sure that Repository will be created before snapshot
         clusterService.addLast(this);
@@ -1604,25 +1604,12 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     /**
      * Transport request handler that is used to send changes in snapshot status to master
      */
-    private class UpdateSnapshotStateRequestHandler extends BaseTransportRequestHandler<UpdateIndexShardSnapshotStatusRequest> {
-
-        @Override
-        public UpdateIndexShardSnapshotStatusRequest newInstance() {
-            return new UpdateIndexShardSnapshotStatusRequest();
-        }
-
+    class UpdateSnapshotStateRequestHandler implements TransportRequestHandler<UpdateIndexShardSnapshotStatusRequest> {
         @Override
         public void messageReceived(UpdateIndexShardSnapshotStatusRequest request, final TransportChannel channel) throws Exception {
             innerUpdateSnapshotState(request);
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
     }
-
-
 }
 

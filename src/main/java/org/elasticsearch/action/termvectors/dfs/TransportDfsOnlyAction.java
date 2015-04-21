@@ -63,7 +63,8 @@ public class TransportDfsOnlyAction extends TransportBroadcastOperationAction<Df
     @Inject
     public TransportDfsOnlyAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                   ActionFilters actionFilters, SearchService searchService, SearchPhaseController searchPhaseController) {
-        super(settings, NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, NAME, threadPool, clusterService, transportService, actionFilters,
+                DfsOnlyRequest.class, ShardDfsOnlyRequest.class, ThreadPool.Names.SEARCH);
         this.searchService = searchService;
         this.searchPhaseController = searchPhaseController;
     }
@@ -72,21 +73,6 @@ public class TransportDfsOnlyAction extends TransportBroadcastOperationAction<Df
     protected void doExecute(DfsOnlyRequest request, ActionListener<DfsOnlyResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
         super.doExecute(request, listener);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SEARCH;
-    }
-
-    @Override
-    protected DfsOnlyRequest newRequestInstance() {
-        return new DfsOnlyRequest();
-    }
-
-    @Override
-    protected ShardDfsOnlyRequest newShardRequest() {
-        return new ShardDfsOnlyRequest();
     }
 
     @Override

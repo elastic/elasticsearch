@@ -515,27 +515,12 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
                ThreadPool threadPool) {
             super(settings, actionName, transportService, clusterService, null, threadPool,
                     new ShardStateAction(settings, clusterService, transportService, null, null),
-                    new ActionFilters(new HashSet<ActionFilter>()));
-        }
-
-        @Override
-        protected Request newRequestInstance() {
-            return new Request();
-        }
-
-        @Override
-        protected Request newReplicaRequestInstance() {
-            return new Request();
+                    new ActionFilters(new HashSet<ActionFilter>()), Request.class, Request.class, ThreadPool.Names.SAME);
         }
 
         @Override
         protected Response newResponseInstance() {
             return new Response();
-        }
-
-        @Override
-        protected String executor() {
-            return ThreadPool.Names.SAME;
         }
 
         @Override
@@ -546,8 +531,8 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         }
 
         @Override
-        protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
-            shardRequest.request.processedOnReplicas.incrementAndGet();
+        protected void shardOperationOnReplica(ShardId shardId, Request request) {
+            request.processedOnReplicas.incrementAndGet();
         }
 
         @Override

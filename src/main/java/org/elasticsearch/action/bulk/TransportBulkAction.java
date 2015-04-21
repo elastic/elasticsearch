@@ -67,30 +67,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
 
     private final AutoCreateIndex autoCreateIndex;
-
     private final boolean allowIdGeneration;
-
     private final ClusterService clusterService;
-
     private final TransportShardBulkAction shardBulkAction;
-
     private final TransportCreateIndexAction createIndexAction;
 
     @Inject
     public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
                                TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction, ActionFilters actionFilters) {
-        super(settings, BulkAction.NAME, threadPool, transportService, actionFilters);
+        super(settings, BulkAction.NAME, threadPool, transportService, actionFilters, BulkRequest.class);
         this.clusterService = clusterService;
         this.shardBulkAction = shardBulkAction;
         this.createIndexAction = createIndexAction;
 
         this.autoCreateIndex = new AutoCreateIndex(settings);
         this.allowIdGeneration = this.settings.getAsBoolean("action.bulk.action.allow_id_generation", true);
-    }
-
-    @Override
-    public BulkRequest newRequestInstance(){
-        return new BulkRequest();
     }
 
     @Override

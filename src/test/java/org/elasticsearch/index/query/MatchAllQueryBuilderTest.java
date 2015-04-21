@@ -22,8 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
 import java.io.IOException;
 
@@ -42,15 +40,8 @@ public class MatchAllQueryBuilderTest extends BaseQueryTestCase<MatchAllQueryBui
     }
 
     @Override
-    public void doSerialize(BytesStreamOutput output) throws IOException {
-        testQuery.writeTo(output);
-    }
-
-    @Override
-    public QueryBuilder doDeserialize(BytesStreamInput in) throws IOException {
-        MatchAllQueryBuilder query = new MatchAllQueryBuilder();
-        query.readFrom(in);
-        return query;
+    public MatchAllQueryBuilder createEmptyBuilder() {
+        return new MatchAllQueryBuilder();
     }
 
     /**

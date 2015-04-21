@@ -29,6 +29,7 @@ import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -59,7 +60,7 @@ import org.junit.Test;
 import java.io.IOException;
 
 @Ignore
-public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder> extends ElasticsearchTestCase {
+public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable> extends ElasticsearchTestCase {
 
     private static Injector injector;
     private static IndexQueryParserService queryParserService;
@@ -69,6 +70,10 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder> extends Ela
 
     protected QB testQuery;
 
+    /**
+     * Setup for the whole base test class.
+     * @throws IOException
+     */
     @BeforeClass
     public static void init() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
@@ -101,6 +106,9 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder> extends Ela
         queryParserService = injector.getInstance(IndexQueryParserService.class);
     }
 
+    /**
+     * Setup for the individual tests, creating test query, context and XContentparser
+     */
     @Before
     @Override
     public void setUp() throws Exception {
@@ -119,29 +127,18 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder> extends Ela
     public abstract QB createRandomTestQuery();
 
     /**
-     * Do assertions on a lucene query produced by the query builder under test
+     * Subclass should put assertions on the lucene query produced by the query builder under test here
      * @param query
      */
     public abstract void doQueryAsserts(Query query) throws IOException;
 
     /**
-     * Write the test query to the specified output stream.
-     * This method can be removed once all queries are Streamable writeTo/readFrom
-     * @param output
-     * @throws IOException
+     * Creates an empty builder of the type of query under test
      */
-    public abstract void doSerialize(BytesStreamOutput output) throws IOException;
+    public abstract QB createEmptyBuilder();
 
     /**
-     * Read query builder from the specified input stream.
-     * This method can be removed once all queries are Streamable writeTo/readFrom
-     * @param input
-     * @throws IOException
-     */
-    public abstract QueryBuilder doDeserialize(BytesStreamInput bytesStreamInput) throws IOException;
-
-    /**
-     * Generic test that creates new query from the randomly creates test query from setup
+     * Generic test that creates new query from the test query and checks both for equality
      * and asserts equality on the two queries.
      * @throws IOException
      */
@@ -152,6 +149,11 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder> extends Ela
         assertEquals(newQuery, testQuery);
     }
 
+    /**
+     * Test creates the @link {@link Query} from the {@link QueryBuilder} under test and delegated the
+     * assertions beeing made on the result to the implementing subclass.
+     * @throws IOException
+     */
     @Test
     public void testToQuery() throws IOException {
         QueryBuilder newMatchAllQuery = queryParserService.queryParser(testQuery.parserName()).fromXContent(context);
@@ -159,13 +161,18 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder> extends Ela
         doQueryAsserts(query);
     }
 
+    /**
+     * Test serialization and deserialization of the test query.
+     * @throws IOException
+     */
     @Test
     public void testSerialization() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        doSerialize(output);
+        testQuery.writeTo(output);
 
-        BytesStreamInput bytesStreamInput = new BytesStreamInput(output.bytes());
-        QueryBuilder deserializedQuery = doDeserialize(bytesStreamInput);
+        BytesStreamInput in = new BytesStreamInput(output.bytes());
+        QB deserializedQuery = createEmptyBuilder();
+        deserializedQuery.readFrom(in);
 
         assertEquals(deserializedQuery, testQuery);
         assertNotSame(deserializedQuery, testQuery);

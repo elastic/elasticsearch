@@ -197,15 +197,15 @@ public abstract class SearchContext implements Releasable {
     public abstract SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext);
 
     public boolean hasTermVectorsContext() {
-        throw new UnsupportedOperationException("Returning term vectors is only supported in the search API.");
+        return false; // only available for DefaultSearchContext
     }
 
     public TermVectorsContext termVectorsContext() {
-        throw new UnsupportedOperationException("Returning term vectors is only supported in the search API.");
+        return null; // only available for DefaultSearchContext
     }
 
     public SearchContext termVectorsContext(TermVectorsContext termVectorsContext) {
-        throw new UnsupportedOperationException("Returning term vectors is only supported in the search API.");
+        return null; // only available for DefaultSearchContext
     }
 
     public abstract ContextIndexSearcher searcher();
@@ -223,7 +223,7 @@ public abstract class SearchContext implements Releasable {
     public abstract ScriptService scriptService();
 
     public ShardTermVectorsService termVectorsService() {
-        throw new UnsupportedOperationException("Returning term vectors is only supported in the search API.");
+        return null; // only available for DefaultSearchContext
     }
 
     public abstract PageCacheRecycler pageCacheRecycler();

@@ -99,7 +99,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     @Override
     protected void doExecute(Request request, ActionListener<Response> listener) {
-        new PrimaryShardOperation(request, listener).start();
+        new PrimaryPhase(request, listener).start();
     }
 
     protected abstract Request newRequestInstance();
@@ -305,16 +305,16 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
      * Responsible for performing all operations up to the point we start starting sending requests to replica shards.
      * Including forwarding the request to another node if the primary is not assinged locally.
      * <p/>
-     * Note that as soon as we start sending request to replicas, state responsibility is transfered to {@link TransportShardReplicationOperationAction.ReplicationState}
+     * Note that as soon as we start sending request to replicas, state responsibility is transfered to {@link ReplicationPhase}
      */
-    protected final class PrimaryShardOperation {
+    final class PrimaryPhase {
         private final ActionListener<Response> listener;
         private final InternalRequest internalRequest;
         private final ClusterStateObserver observer;
         private final AtomicBoolean finished = new AtomicBoolean(false);
 
 
-        PrimaryShardOperation(Request request, ActionListener<Response> listener) {
+        PrimaryPhase(Request request, ActionListener<Response> listener) {
             this.internalRequest = new InternalRequest(request);
             this.listener = listener;
             this.observer = new ClusterStateObserver(clusterService, internalRequest.request().timeout(), logger);
@@ -485,9 +485,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             });
         }
 
-        void finishAndMoveToReplication(ReplicationState replicationState) {
+        void finishAndMoveToReplication(ReplicationPhase replicationPhase) {
             if (finished.compareAndSet(false, true)) {
-                replicationState.start();
+                replicationPhase.start();
             } else {
                 // no commit: do we really need this?
                 assert false : "finishAndMoveToReplication called but operation is already finished";
@@ -522,12 +522,12 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 retryBecauseUnavailable(primary.shardId(), writeConsistencyFailure);
                 return;
             }
-            final ReplicationState replicationState;
+            final ReplicationPhase replicationPhase;
             try {
                 PrimaryOperationRequest por = new PrimaryOperationRequest(primary.id(), internalRequest.concreteIndex(), internalRequest.request());
                 Tuple<Response, ReplicaRequest> primaryResponse = shardOperationOnPrimary(clusterState, por);
                 logger.trace("operation completed on primary [{}]", primary);
-                replicationState = new ReplicationState(shardsIt, primaryResponse.v2(), primaryResponse.v1(), observer, primary, internalRequest, listener);
+                replicationPhase = new ReplicationPhase(shardsIt, primaryResponse.v2(), primaryResponse.v1(), observer, primary, internalRequest, listener);
             } catch (Throwable e) {
                 internalRequest.request.setCanHaveDuplicates();
                 // shard has not been allocated yet, retry it here
@@ -548,7 +548,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 finishAsFailed(e);
                 return;
             }
-            finishAndMoveToReplication(replicationState);
+            finishAndMoveToReplication(replicationPhase);
         }
 
         /**
@@ -628,7 +628,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         }
     }
 
-    public final class ReplicationState {
+    public final class ReplicationPhase {
 
         private final ReplicaRequest replicaRequest;
         private final Response finalResponse;
@@ -643,7 +643,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         private final int numberOfShardInstances;
         private final ClusterStateObserver observer;
 
-        public ReplicationState(ShardIterator originalShardIt, ReplicaRequest replicaRequest, Response finalResponse,
+        public ReplicationPhase(ShardIterator originalShardIt, ReplicaRequest replicaRequest, Response finalResponse,
                                 ClusterStateObserver observer, ShardRouting originalPrimaryShard,
                                 InternalRequest internalRequest, ActionListener<Response> listener) {
             this.replicaRequest = replicaRequest;

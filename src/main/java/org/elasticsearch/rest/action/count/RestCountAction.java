@@ -60,17 +60,12 @@ public class RestCountAction extends BaseRestHandler {
         CountRequest countRequest = new CountRequest(Strings.splitStringByCommaToArray(request.param("index")));
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
         countRequest.listenerThreaded(false);
-        if (request.hasContent()) {
-            countRequest.source(request.content());
+        if (RestActions.hasBodyContent(request)) {
+            countRequest.source(RestActions.getRestContent(request));
         } else {
-            String source = request.param("source");
-            if (source != null) {
-                countRequest.source(source);
-            } else {
-                QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
-                if (querySourceBuilder != null) {
-                    countRequest.source(querySourceBuilder);
-                }
+            QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
+            if (querySourceBuilder != null) {
+                countRequest.source(querySourceBuilder);
             }
         }
         countRequest.routing(request.param("routing"));

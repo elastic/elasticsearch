@@ -83,7 +83,7 @@ setup() {
 ##################################
 # Check that Elasticsearch is working
 ##################################
-@test "[TEST] test elasticsearch" {
+@test "[RPM] test elasticsearch" {
     skip_not_rpm
 
     start_elasticsearch_service
@@ -116,8 +116,10 @@ setup() {
     # The removal must disable the service
     # see prerm file
     if is_systemd; then
+        # Redhat based systemd distros usually returns exit code 1
+        # OpenSUSE13 returns 0
         run systemctl status elasticsearch.service
-        echo "$output" | grep "Active:" | grep 'inactive\|failed'
+        [ "$status" -eq 1 ] || [ "$status" -eq 0 ]
 
         run systemctl is-enabled elasticsearch.service
         [ "$status" -eq 1 ]

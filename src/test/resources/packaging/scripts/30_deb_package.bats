@@ -84,7 +84,7 @@ setup() {
 ##################################
 # Check that Elasticsearch is working
 ##################################
-@test "[TEST] test elasticsearch" {
+@test "[DEB] test elasticsearch" {
     skip_not_dpkg
 
     start_elasticsearch_service
@@ -118,6 +118,7 @@ setup() {
     # The removal must disable the service
     # see prerm file
     if is_systemd; then
+        # Debian systemd distros usually returns exit code 3
         run systemctl status elasticsearch.service
         [ "$status" -eq 3 ]
 

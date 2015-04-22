@@ -29,6 +29,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -106,12 +107,12 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
             blacklistPathMatchers = new PathMatcher[0];
         }
     }
-    
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
-            .put(InternalNode.HTTP_ENABLED, true)
-            .put(super.nodeSettings(nodeOrdinal)).build();
+                .put(InternalNode.HTTP_ENABLED, true)
+                .put(super.nodeSettings(nodeOrdinal)).build();
     }
 
     @ParametersFactory
@@ -150,10 +151,10 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
                 //tests distribution disabled for now since it causes reporting problems,
                 // due to the non unique suite name
                 //if (mustExecute(yamlFile.getAbsolutePath())) {
-                    RestTestSuite restTestSuite = restTestSuiteParser.parse(api, yamlFile);
-                    for (TestSection testSection : restTestSuite.getTestSections()) {
-                        testCandidates.add(new RestTestCandidate(restTestSuite, testSection));
-                    }
+                RestTestSuite restTestSuite = restTestSuiteParser.parse(api, yamlFile);
+                for (TestSection testSection : restTestSuite.getTestSections()) {
+                    testCandidates.add(new RestTestCandidate(restTestSuite, testSection));
+                }
                 //}
             }
         }
@@ -265,6 +266,8 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected void afterTestFailed() {
+        logger.info("Stash dump on failure [{}]", XContentHelper.toString(restTestExecutionContext.stash()));
+
         //after we reset the global cluster, we have to make sure the client gets re-initialized too
         restTestExecutionContext.resetClient();
     }

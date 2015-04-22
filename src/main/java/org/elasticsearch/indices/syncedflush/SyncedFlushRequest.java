@@ -17,56 +17,70 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.synccommit;
+package org.elasticsearch.indices.syncedflush;
 
-import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
-import org.elasticsearch.cluster.routing.ImmutableShardRouting;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * A response to pre synced flush action.
  */
-public class PreSyncedFlushResponse extends BroadcastOperationResponse {
+public class SyncedFlushRequest extends ShardReplicationOperationRequest<SyncedFlushRequest> {
 
-    Map<String, byte[]> commitIds = new HashMap<>();
+    private String syncId;
+    private Map<String, byte[]> commitIds;
+    private ShardId shardId;
 
-    PreSyncedFlushResponse() {
+    public SyncedFlushRequest() {
     }
 
-    public PreSyncedFlushResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, AtomicReferenceArray shardsResponses) {
-        super(totalShards, successfulShards, failedShards, shardFailures);
-        for (int i = 0; i < shardsResponses.length(); i++) {
-            PreSyncedShardFlushResponse preSyncedShardFlushResponse = (PreSyncedShardFlushResponse) shardsResponses.get(i);
-            commitIds.put(preSyncedShardFlushResponse.shardRouting().currentNodeId(), preSyncedShardFlushResponse.id());
-        }
+    public SyncedFlushRequest(ShardId shardId, String syncId, Map<String, byte[]> commitIds) {
+        this.commitIds = commitIds;
+        this.shardId = shardId;
+        this.syncId = syncId;
+        this.index(shardId.index().getName());
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        shardId = ShardId.readShardId(in);
+        commitIds = new HashMap<>();
         int numCommitIds = in.readVInt();
         for (int i = 0; i < numCommitIds; i++) {
             commitIds.put(in.readString(), in.readByteArray());
         }
+        syncId = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        shardId.writeTo(out);
         out.writeVInt(commitIds.size());
         for (Map.Entry<String, byte[]> entry : commitIds.entrySet()) {
             out.writeString(entry.getKey());
             out.writeByteArray(entry.getValue());
         }
+        out.writeString(syncId);
+    }
+
+    @Override
+    public String toString() {
+        return "write sync commit {" + shardId + "}";
+    }
+
+    public ShardId shardId() {
+        return shardId;
+    }
+
+    public String syncId() {
+        return syncId;
     }
 
     public Map<String, byte[]> commitIds() {

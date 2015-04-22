@@ -16,10 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.indices.synccommit;
+package org.elasticsearch.indices.syncedflush;
 
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.synccommit.SyncedFlushRequest;
 import org.elasticsearch.cluster.routing.ImmutableShardRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;

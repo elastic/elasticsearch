@@ -18,12 +18,9 @@
  */
 
 
-
-package org.elasticsearch.action.admin.indices.synccommit;
-//TODO: renam epackage to synced flush and put all the other stuff there, don't know where is should finally go
+package org.elasticsearch.indices.syncedflush;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -33,7 +30,6 @@ import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAct
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;

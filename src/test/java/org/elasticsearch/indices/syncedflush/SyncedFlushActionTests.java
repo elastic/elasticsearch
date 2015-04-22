@@ -18,12 +18,14 @@
  */
 
 
-package org.elasticsearch.action.admin.indices.synccommit;
+package org.elasticsearch.indices.syncedflush;
 
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.admin.indices.synccommit.PreSyncedFlushRequest;
+import org.elasticsearch.action.admin.indices.synccommit.TransportPreSyncedFlushAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;

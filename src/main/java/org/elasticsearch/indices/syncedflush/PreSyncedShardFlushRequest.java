@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.synccommit;
+package org.elasticsearch.indices.syncedflush;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.cluster.routing.ImmutableShardRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,35 +30,40 @@ import java.io.IOException;
 /**
  *
  */
-class PreSyncedShardFlushResponse extends BroadcastShardOperationResponse {
-    byte[] id;
-    private ShardRouting shardRouting;
+class PreSyncedShardFlushRequest extends BroadcastShardOperationRequest {
 
-    PreSyncedShardFlushResponse() {
+    private ShardRouting shardRouting;
+    // we need our own request because it has to include the shard routing
+    private PreSyncedFlushRequest request = new PreSyncedFlushRequest();
+
+    PreSyncedShardFlushRequest() {
     }
 
-    PreSyncedShardFlushResponse(byte[] id, ShardRouting shardRouting) {
-        super(shardRouting.shardId());
-        this.id = id;
+    PreSyncedShardFlushRequest(ShardRouting shardRouting, PreSyncedFlushRequest request) {
+        super(shardRouting.shardId(), request);
+        this.request = request;
         this.shardRouting = shardRouting;
     }
+
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        id = in.readByteArray();
+        request.readFrom(in);
         shardRouting = ImmutableShardRouting.readShardRoutingEntry(in);
+
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeByteArray(id);
+        request.writeTo(out);
         shardRouting.writeTo(out);
+
     }
 
-    byte[] id() {
-        return id;
+    PreSyncedFlushRequest getRequest() {
+        return request;
     }
 
     public ShardRouting shardRouting() {

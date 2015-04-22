@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.indices.synccommit;
+package org.elasticsearch.indices.syncedflush;
 
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.ElasticsearchIllegalStateException;

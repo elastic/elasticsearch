@@ -18,7 +18,7 @@
  */
 
 
-package org.elasticsearch.action.synccommit;
+package org.elasticsearch.indices.syncedflush;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

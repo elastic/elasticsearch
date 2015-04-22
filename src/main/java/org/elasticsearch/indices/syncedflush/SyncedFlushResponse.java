@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.synccommit;
+package org.elasticsearch.indices.syncedflush;
 
 import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;

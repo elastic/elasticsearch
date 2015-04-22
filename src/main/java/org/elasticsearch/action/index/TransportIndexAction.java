@@ -49,6 +49,7 @@ import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.river.RiverIndexName;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 /**
@@ -61,7 +62,7 @@ import org.elasticsearch.transport.TransportService;
  * <li><b>allowIdGeneration</b>: If the id is set not, should it be generated. Defaults to <tt>true</tt>.
  * </ul>
  */
-public class TransportIndexAction extends TransportShardReplicationOperationAction<IndexRequest, IndexRequest, IndexResponse> {
+public class TransportIndexAction extends TransportShardReplicationOperationAction<IndexRequest, IndexRequest, IndexResponse, TransportResponse.Empty> {
 
     private final AutoCreateIndex autoCreateIndex;
 
@@ -157,6 +158,11 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     }
 
     @Override
+    protected TransportResponse.Empty newReplicaResponseInstance() {
+        return TransportResponse.Empty.INSTANCE;
+    }
+
+    @Override
     protected String executor() {
         return ThreadPool.Names.INDEX;
     }
@@ -239,7 +245,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     }
 
     @Override
-    protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
+    protected TransportResponse.Empty shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId.getIndex()).shardSafe(shardRequest.shardId.id());
         IndexRequest request = shardRequest.request;
         SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, request.source()).type(request.type()).id(request.id())
@@ -259,5 +265,10 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                 // ignore
             }
         }
+        return newReplicaResponseInstance();
+    }
+
+    public String getReplicaActionName() {
+        return IndexAction.NAME + "[r]";
     }
 }

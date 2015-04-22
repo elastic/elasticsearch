@@ -701,6 +701,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         commitID = engine.flush();
         assertTrue("should succeed to flush commit with right id and no pending doc", engine.syncFlushIfNoPendingChanges(syncId, commitID));
         assertThat(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncId));
+        assertThat(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncId));
     }
 
     @Test

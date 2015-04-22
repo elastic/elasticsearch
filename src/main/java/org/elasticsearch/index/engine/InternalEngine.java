@@ -599,7 +599,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public boolean syncFlushIfNoPendingChanges(String syncId, byte[] expectedCommitId) throws EngineException {
-        // best effort attempt before we aquire locks
+        // best effort attempt before we acquire locks
         ensureOpen();
         if (indexWriter.hasUncommittedChanges()) {
             logger.trace("can't sync commit [{}]. have pending changes", syncId);
@@ -627,6 +627,7 @@ public class InternalEngine extends Engine {
             indexWriter.setCommitData(commitData);
             commitIndexWriter(indexWriter);
             logger.debug("successfully sync committed. sync id [{}].", syncId);
+            lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
             return true;
         } catch (IOException ex) {
             maybeFailEngine("sync commit", ex);

@@ -687,17 +687,22 @@ public class IndexShard extends AbstractIndexShardComponent {
         return engine().syncFlushIfNoPendingChanges(syncId, expectedCommitId);
     }
 
-    public void flush(FlushRequest request) throws ElasticsearchException {
+    public byte[] flush(FlushRequest request) throws ElasticsearchException {
+        boolean waitIfOngoing = request.waitIfOngoing();
+        boolean force = request.force();
+        if (logger.isTraceEnabled()) {
+            logger.trace("flush with {}", request);
+        }
         // we allows flush while recovering, since we allow for operations to happen
         // while recovering, and we want to keep the translog at bay (up to deletes, which
         // we don't gc).
         verifyStartedOrRecovering();
-        if (logger.isTraceEnabled()) {
-            logger.trace("flush with {}", request);
-        }
+
         long time = System.nanoTime();
-        engine().flush(request.force(), request.waitIfOngoing());
+        byte[] commitId = engine().flush(force, waitIfOngoing);
         flushMetric.inc(System.nanoTime() - time);
+        return commitId;
+
     }
 
     public void optimize(OptimizeRequest optimize) throws ElasticsearchException {

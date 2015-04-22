@@ -59,12 +59,14 @@ import org.elasticsearch.transport.*;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
  */
-public abstract class TransportShardReplicationOperationAction<Request extends ShardReplicationOperationRequest, ReplicaRequest extends ShardReplicationOperationRequest, Response extends ActionWriteResponse> extends TransportAction<Request, Response> {
+public abstract class TransportShardReplicationOperationAction<Request extends ShardReplicationOperationRequest, ReplicaRequest extends ShardReplicationOperationRequest, Response extends ActionWriteResponse, ReplicaResponse extends TransportResponse> extends TransportAction<Request, Response> {
 
     protected final TransportService transportService;
     protected final ClusterService clusterService;
@@ -86,16 +88,20 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         this.indicesService = indicesService;
         this.shardStateAction = shardStateAction;
 
-        this.transportReplicaAction = actionName + "[r]";
+        this.transportReplicaAction = actionName + getReplicaOperationNameSuffix();
         this.executor = executor();
         this.checkWriteConsistency = checkWriteConsistency();
 
         transportService.registerHandler(actionName, new OperationTransportHandler());
-        transportService.registerHandler(transportReplicaAction, new ReplicaOperationTransportHandler());
+        transportService.registerHandler(transportReplicaAction,  new ReplicaOperationTransportHandler());
 
         this.transportOptions = transportOptions();
 
         this.defaultWriteConsistencyLevel = WriteConsistencyLevel.fromString(settings.get("action.write_consistency", "quorum"));
+    }
+
+    public static String getReplicaOperationNameSuffix() {
+        return "[r]";
     }
 
     @Override
@@ -109,15 +115,17 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     protected abstract Response newResponseInstance();
 
+    protected abstract ReplicaResponse newReplicaResponseInstance();
+
     protected abstract String executor();
 
     /**
-     * @return  A tuple containing not null values, as first value the result of the primary operation and as second value
-     *          the request to be executed on the replica shards.
+     * @return A tuple containing not null values, as first value the result of the primary operation and as second value
+     * the request to be executed on the replica shards.
      */
-    protected abstract Tuple<Response, ReplicaRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest)  throws Throwable;
+    protected abstract Tuple<Response, ReplicaRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) throws Throwable;
 
-    protected abstract void shardOperationOnReplica(ReplicaOperationRequest shardRequest);
+    protected abstract ReplicaResponse shardOperationOnReplica(ReplicaOperationRequest shardRequest);
 
     protected abstract ShardIterator shards(ClusterState clusterState, InternalRequest request) throws ElasticsearchException;
 
@@ -216,7 +224,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         }
     }
 
-    class ReplicaOperationTransportHandler extends BaseTransportRequestHandler<ReplicaOperationRequest> {
+    private class ReplicaOperationTransportHandler extends BaseTransportRequestHandler<ReplicaOperationRequest> {
 
         @Override
         public ReplicaOperationRequest newInstance() {
@@ -236,13 +244,14 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         @Override
         public void messageReceived(final ReplicaOperationRequest request, final TransportChannel channel) throws Exception {
+            ReplicaResponse response;
             try {
-                shardOperationOnReplica(request);
+                response = shardOperationOnReplica(request);
             } catch (Throwable t) {
                 failReplicaIfNeeded(request.shardId.getIndex(), request.shardId.id(), t);
                 throw t;
             }
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            channel.sendResponse(response);
         }
     }
 
@@ -260,14 +269,20 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         public ShardId shardId;
         public ReplicaRequest request;
+        private String nodeId;
 
         ReplicaOperationRequest() {
         }
 
-        ReplicaOperationRequest(ShardId shardId, ReplicaRequest request) {
+        public String getNodeId() {
+            return nodeId;
+        }
+
+        ReplicaOperationRequest(ShardId shardId, ReplicaRequest request, String nodeId) {
             super(request);
             this.shardId = shardId;
             this.request = request;
+            this.nodeId = nodeId;
         }
 
         @Override
@@ -292,6 +307,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 //older nodes will send the concrete index as part of the request
                 shardId = new ShardId(request.index(), shard);
             }
+            nodeId = in.readString();
         }
 
         @Override
@@ -299,6 +315,12 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             super.writeTo(out);
             shardId.writeTo(out);
             request.writeTo(out);
+            out.writeString(nodeId);
+        }
+
+        public ReplicaOperationRequest setNodeId(String nodeId) {
+            this.nodeId = nodeId;
+            return this;
         }
     }
 
@@ -613,7 +635,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 return;
             }
 
-            final ReplicaOperationRequest shardRequest = new ReplicaOperationRequest(shardIt.shardId(), state.replicaRequest());
+            final ReplicaOperationRequest shardRequest = new ReplicaOperationRequest(shardIt.shardId(), state.replicaRequest(), shard.currentNodeId());
 
             // If the replicas use shadow replicas, there is no reason to
             // perform the action on the replica, so skip it and
@@ -623,31 +645,41 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 // to wait until they get the new mapping through the cluster
                 // state, which is why we recommend pre-defined mappings for
                 // indices using shadow replicas
-                state.onReplicaSuccess();
+                state.onReplicaSuccess(newReplicaResponseInstance());
                 return;
             }
 
             if (!nodeId.equals(observer.observedState().nodes().localNodeId())) {
                 final DiscoveryNode node = observer.observedState().nodes().get(nodeId);
                 transportService.sendRequest(node, transportReplicaAction, shardRequest,
-                        transportOptions, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
-                    @Override
-                    public void handleResponse(TransportResponse.Empty vResponse) {
-                        state.onReplicaSuccess();
-                    }
+                        transportOptions, new TransportResponseHandler<ReplicaResponse>() {
+                            @Override
+                            public ReplicaResponse newInstance() {
+                                return newReplicaResponseInstance();
+                            }
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        state.onReplicaFailure(nodeId, exp);
-                        logger.trace("[{}] Transport failure during replica request [{}] ", exp, node, internalRequest.request());
-                        if (!ignoreReplicaException(exp)) {
-                            logger.warn("Failed to perform " + actionName + " on remote replica " + node + shardIt.shardId(), exp);
-                            shardStateAction.shardFailed(shard, indexMetaData.getUUID(),
-                                    "Failed to perform [" + actionName + "] on replica, message [" + ExceptionsHelper.detailedMessage(exp) + "]");
-                        }
-                    }
+                            @Override
+                            public void handleResponse(ReplicaResponse vResponse) {
+                                state.onReplicaSuccess(vResponse);
+                            }
 
-                });
+                            @Override
+                            public void handleException(TransportException exp) {
+                                state.onReplicaFailure(nodeId, exp);
+                                logger.trace("[{}] Transport failure during replica request [{}] ", exp, node, internalRequest.request());
+                                if (!ignoreReplicaException(exp)) {
+                                    logger.warn("Failed to perform " + actionName + " on remote replica " + node + shardIt.shardId(), exp);
+                                    shardStateAction.shardFailed(shard, indexMetaData.getUUID(),
+                                            "Failed to perform [" + actionName + "] on replica, message [" + ExceptionsHelper.detailedMessage(exp) + "]");
+                                }
+                            }
+
+                            @Override
+                            public String executor() {
+                                return ThreadPool.Names.SAME;
+                            }
+
+                        });
             } else {
                 if (internalRequest.request().operationThreaded()) {
                     try {
@@ -655,8 +687,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                             @Override
                             protected void doRun() {
                                 try {
-                                    shardOperationOnReplica(shardRequest);
-                                    state.onReplicaSuccess();
+                                    ReplicaResponse response = shardOperationOnReplica(shardRequest);
+                                    state.onReplicaSuccess(response);
                                 } catch (Throwable e) {
                                     state.onReplicaFailure(nodeId, e);
                                     failReplicaIfNeeded(shard.index(), shard.id(), e);
@@ -680,8 +712,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     }
                 } else {
                     try {
-                        shardOperationOnReplica(shardRequest);
-                        state.onReplicaSuccess();
+                        ReplicaResponse response = shardOperationOnReplica(shardRequest);
+                        state.onReplicaSuccess(response);
                     } catch (Throwable e) {
                         failReplicaIfNeeded(shard.index(), shard.id(), e);
                         state.onReplicaFailure(nodeId, e);
@@ -703,11 +735,11 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
             final int sizeActive;
             final int requiredNumber;
-            IndexRoutingTable indexRoutingTable =  state.getRoutingTable().index(shard.index());
+            IndexRoutingTable indexRoutingTable = state.getRoutingTable().index(shard.index());
             if (indexRoutingTable != null) {
                 IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shard.getId());
                 if (shardRoutingTable != null) {
-                    sizeActive =  shardRoutingTable.activeShards().size();
+                    sizeActive = shardRoutingTable.activeShards().size();
                     if (consistencyLevel == WriteConsistencyLevel.QUORUM && shardRoutingTable.getSize() > 2) {
                         // only for more than 2 in the number of shardIt it makes sense, otherwise its 1 shard with 1 replica, quorum is 1 (which is what it is initialized to)
                         requiredNumber = (shardRoutingTable.getSize() / 2) + 1;
@@ -738,7 +770,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         }
 
         void retryBecauseUnavailable(ShardId shardId, String message) {
-            retry(new UnavailableShardsException(shardId, message + " Timeout: [" + internalRequest.request().timeout() +"], request: " +  internalRequest.request().toString()));
+            retry(new UnavailableShardsException(shardId, message + " Timeout: [" + internalRequest.request().timeout() + "], request: " + internalRequest.request().toString()));
         }
 
     }
@@ -770,6 +802,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         private final AtomicBoolean finished = new AtomicBoolean(false);
         private final AtomicInteger success = new AtomicInteger(1); // We already wrote into the primary shard
         private final ConcurrentMap<String, Throwable> shardReplicaFailures = ConcurrentCollections.newConcurrentMap();
+        // nocommit the Broadcast operations use AtomicReferencArray, Boaz wants to figure out why, this here is just a hack
+        private final CopyOnWriteArrayList<ReplicaResponse> replicaResponses = new CopyOnWriteArrayList<>();
 
         private final AtomicInteger pending;
         private final int numberOfShardInstances;
@@ -800,8 +834,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             finishIfNeeded();
         }
 
-        public void onReplicaSuccess() {
+        public void onReplicaSuccess(ReplicaResponse replicaResponse) {
             success.incrementAndGet();
+            replicaResponses.add(replicaResponse);
             finishIfNeeded();
         }
 
@@ -839,10 +874,14 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
                         )
                 );
-                listener.onResponse(finalResponse);
+                listener.onResponse(onAllReplicasResponded(finalResponse, replicaResponses));
             }
         }
 
+    }
+
+    protected Response onAllReplicasResponded(Response finalResponse, CopyOnWriteArrayList<ReplicaResponse> replicaResponses) {
+        return finalResponse;
     }
 
     /**

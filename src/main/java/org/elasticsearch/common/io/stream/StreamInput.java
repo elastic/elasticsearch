@@ -419,35 +419,44 @@ public abstract class StreamInput extends InputStream {
     public int[] readIntArray() throws IOException {
         int length = readVInt();
         int[] values = new int[length];
-        for(int i=0; i<length; i++) {
+        for (int i = 0; i < length; i++) {
             values[i] = readInt();
         }
         return values;
     }
-    
+
     public long[] readLongArray() throws IOException {
         int length = readVInt();
         long[] values = new long[length];
-        for(int i=0; i<length; i++) {
+        for (int i = 0; i < length; i++) {
             values[i] = readLong();
         }
         return values;
     }
-    
+
     public float[] readFloatArray() throws IOException {
         int length = readVInt();
         float[] values = new float[length];
-        for(int i=0; i<length; i++) {
+        for (int i = 0; i < length; i++) {
             values[i] = readFloat();
         }
         return values;
     }
-    
+
     public double[] readDoubleArray() throws IOException {
         int length = readVInt();
         double[] values = new double[length];
-        for(int i=0; i<length; i++) {
+        for (int i = 0; i < length; i++) {
             values[i] = readDouble();
+        }
+        return values;
+    }
+
+    public byte[] readByteArray() throws IOException {
+        int length = readVInt();
+        byte[] values = new byte[length];
+        for (int i = 0; i < length; i++) {
+            values[i] = readByte();
         }
         return values;
     }

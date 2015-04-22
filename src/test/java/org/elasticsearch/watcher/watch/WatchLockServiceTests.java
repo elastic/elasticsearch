@@ -6,12 +6,14 @@
 package org.elasticsearch.watcher.watch;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.*;
@@ -22,7 +24,7 @@ public class WatchLockServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testLocking_notStarted() {
-        WatchLockService lockService = new WatchLockService();
+        WatchLockService lockService = new WatchLockService(new TimeValue(1, TimeUnit.SECONDS));
         try {
             lockService.acquire("_name");
             fail("exception expected");
@@ -33,7 +35,7 @@ public class WatchLockServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testLocking() {
-        WatchLockService lockService = new WatchLockService();
+        WatchLockService lockService = new WatchLockService(new TimeValue(1, TimeUnit.SECONDS));
         lockService.start();
         WatchLockService.Lock lock = lockService.acquire("_name");
         assertThat(lockService.getWatchLocks().hasLockedKeys(), is(true));
@@ -44,7 +46,7 @@ public class WatchLockServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testLocking_alreadyHeld() {
-        WatchLockService lockService = new WatchLockService();
+        WatchLockService lockService = new WatchLockService(new TimeValue(1, TimeUnit.SECONDS));
         lockService.start();
         WatchLockService.Lock lock1 = lockService.acquire("_name");
         try {
@@ -57,9 +59,18 @@ public class WatchLockServiceTests extends ElasticsearchTestCase {
         lockService.stop();
     }
 
+    @Test(expected = WatchLockService.TimedOutException.class)
+    public void testLocking_stopTimeout(){
+        final WatchLockService lockService = new WatchLockService(new TimeValue(1, TimeUnit.SECONDS));
+        lockService.start();
+        lockService.acquire("_name");
+        lockService.stop();
+        fail();
+    }
+
     @Test
     public void testLocking_fair() throws Exception {
-        final WatchLockService lockService = new WatchLockService();
+        final WatchLockService lockService = new WatchLockService(new TimeValue(1, TimeUnit.SECONDS));
         lockService.start();
         final AtomicInteger value = new AtomicInteger(0);
         List<Thread> threads = new ArrayList<>();

@@ -85,7 +85,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
     @Override
     public final boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof NumericRangeFieldDataFilter)) return false;
+        if (super.equals(o) == false) return false;
         NumericRangeFieldDataFilter other = (NumericRangeFieldDataFilter) o;
 
         if (!this.indexFieldData.getFieldNames().indexName().equals(other.indexFieldData.getFieldNames().indexName())
@@ -101,7 +101,8 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
 
     @Override
     public final int hashCode() {
-        int h = indexFieldData.getFieldNames().indexName().hashCode();
+        int h = super.hashCode();
+        h = 31 * h + indexFieldData.getFieldNames().indexName().hashCode();
         h ^= (lowerVal != null) ? lowerVal.hashCode() : 550356204;
         h = (h << 1) | (h >>> 31);  // rotate to distinguish lower from upper
         h ^= (upperVal != null) ? upperVal.hashCode() : -1674416163;

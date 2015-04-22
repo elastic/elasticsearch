@@ -64,7 +64,6 @@ import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.functionscore.fieldvaluefactor.FieldValueFactorFunctionBuilder;
-import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.TestSearchContext;
@@ -114,7 +113,7 @@ public class ChildrenQueryTests extends AbstractChildTests {
         int minChildren = random().nextInt(10);
         int maxChildren = scaledRandomIntBetween(minChildren, 10);
         Query query = new ChildrenQuery(parentChildIndexFieldData, "parent", "child", parentFilter, childQuery, scoreType, minChildren,
-                maxChildren, 12, wrapWithBitSetFilter(NonNestedDocsFilter.INSTANCE));
+                maxChildren, 12, wrapWithBitSetFilter(Queries.newNonNestedFilter()));
         QueryUtils.check(query);
     }
 

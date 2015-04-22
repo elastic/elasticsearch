@@ -40,7 +40,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.NoopCollector;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
 import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.search.internal.SearchContext;
@@ -202,7 +201,7 @@ public class ChildrenConstantScoreQuery extends Query {
 
         @Override
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-            return new Explanation(getBoost(), "not implemented yet...");
+            return Explanation.match(getBoost(), "not implemented yet...");
         }
 
         @Override

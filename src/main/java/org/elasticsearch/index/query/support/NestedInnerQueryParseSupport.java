@@ -23,6 +23,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,7 +32,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
-import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -195,7 +195,7 @@ public class NestedInnerQueryParseSupport {
     private void setPathLevel() {
         ObjectMapper objectMapper = parseContext.nestedScope().getObjectMapper();
         if (objectMapper == null) {
-            parentFilter = parseContext.bitsetFilter(NonNestedDocsFilter.INSTANCE);
+            parentFilter = parseContext.bitsetFilter(Queries.newNonNestedFilter());
         } else {
             parentFilter = parseContext.bitsetFilter(objectMapper.nestedTypeFilter());
         }

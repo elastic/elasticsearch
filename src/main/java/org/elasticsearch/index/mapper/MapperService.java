@@ -36,7 +36,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
@@ -61,7 +60,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.indices.InvalidTypeNameException;
@@ -72,7 +70,6 @@ import org.elasticsearch.script.ScriptService;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -455,10 +452,10 @@ public class MapperService extends AbstractIndexComponent  {
             if (hasNested && filterPercolateType) {
                 BooleanQuery bq = new BooleanQuery();
                 bq.add(percolatorType, Occur.MUST_NOT);
-                bq.add(NonNestedDocsFilter.INSTANCE, Occur.MUST);
+                bq.add(Queries.newNonNestedFilter(), Occur.MUST);
                 return Queries.wrap(bq);
             } else if (hasNested) {
-                return NonNestedDocsFilter.INSTANCE;
+                return Queries.newNonNestedFilter();
             } else if (filterPercolateType) {
                 return Queries.wrap(Queries.not(percolatorType));
             } else {
@@ -523,7 +520,7 @@ public class MapperService extends AbstractIndexComponent  {
                 bool.add(percolatorType, BooleanClause.Occur.MUST_NOT);
             }
             if (hasNested) {
-                bool.add(NonNestedDocsFilter.INSTANCE, BooleanClause.Occur.MUST);
+                bool.add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST);
             }
 
             return Queries.wrap(bool);

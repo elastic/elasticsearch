@@ -35,10 +35,10 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -133,7 +133,7 @@ public class NestedAggregatorTest extends ElasticsearchSingleNodeTest {
         // We exclude root doc with uid type#2, this will trigger the bug if we don't reset the root doc when we process a new segment, because
         // root doc type#3 and root doc type#1 have the same segment docid
         BooleanQuery bq = new BooleanQuery();
-        bq.add(NonNestedDocsFilter.INSTANCE, Occur.MUST);
+        bq.add(Queries.newNonNestedFilter(), Occur.MUST);
         bq.add(new TermQuery(new Term(UidFieldMapper.NAME, "type#2")), Occur.MUST_NOT);
         searcher.search(new ConstantScoreQuery(bq), collector);
         collector.postCollection();

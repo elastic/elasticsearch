@@ -640,7 +640,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         private final IndexMetaData indexMetaData;
         private final ShardRouting originalPrimaryShard;
         private final AtomicInteger pending;
-        private final int numberOfShardInstances;
+        private final int totalShards;
         private final ClusterStateObserver observer;
 
         public ReplicationPhase(ShardIterator originalShardIt, ReplicaRequest replicaRequest, Response finalResponse,
@@ -709,16 +709,28 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
 
             // one for the primary already done
-            this.numberOfShardInstances = 1 + numberOfPendingShardInstances + numberOfUnassignedReplicas;
+            this.totalShards = 1 + numberOfPendingShardInstances + numberOfUnassignedReplicas;
             this.pending = new AtomicInteger(numberOfPendingShardInstances);
             this.indexMetaData = observer.observedState().metaData().index(internalRequest.concreteIndex());
         }
 
-        /** restart sending current requests to replicas */
+        int totalShards() {
+            return totalShards;
+        }
+
+        int succesful() {
+            return success.get();
+        }
+
+        int pending() {
+            return pending.get();
+        }
+
+        /** start sending current requests to replicas */
         public void start() {
             try {
                 if (pending.get() == 0) {
-                    finishIfNeeded();
+                    doFinish();
                     return;
                 }
                 ShardRouting shard;
@@ -841,16 +853,16 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             if (e != null && !ignoreReplicaException(e)) {
                 shardReplicaFailures.put(nodeId, e);
             }
-            finishIfNeeded();
+            decPendingAndFinishIfNeeded();
         }
 
         void onReplicaSuccess() {
             success.incrementAndGet();
-            finishIfNeeded();
+            decPendingAndFinishIfNeeded();
         }
 
-        private void finishIfNeeded() {
-            if (pending.get() <= 0) {
+        private void decPendingAndFinishIfNeeded() {
+            if (pending.decrementAndGet() <= 0) {
                 doFinish();
             }
         }
@@ -878,9 +890,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 } else {
                     failuresArray = ActionWriteResponse.EMPTY;
                 }
-                finalResponse.setShardInfo(
-                        new ActionWriteResponse.ShardInfo(
-                                numberOfShardInstances,
+                finalResponse.setShardInfo(new ActionWriteResponse.ShardInfo(
+                                totalShards,
                                 success.get(),
                                 failuresArray
 

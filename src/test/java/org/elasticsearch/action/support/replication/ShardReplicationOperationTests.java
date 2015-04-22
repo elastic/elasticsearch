@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.support.replication;
 
+import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionWriteResponse;
@@ -28,6 +29,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -44,12 +46,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.index.shard.IndexShardNotStartedException;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -70,7 +75,273 @@ import static org.hamcrest.Matchers.*;
 
 public class ShardReplicationOperationTests extends ElasticsearchTestCase {
 
+    private static ThreadPool threadPool;
+
     private TransportService transportService;
+    private TestClusterService clusterService;
+    private CapturingTransport transport;
+    private Action action;
+
+
+    @BeforeClass
+    public static void beforeClass() {
+        threadPool = new ThreadPool("ShardReplicationOperationTests");
+    }
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        transport = new CapturingTransport();
+        clusterService = new TestClusterService(threadPool);
+        transportService = new TransportService(transport, threadPool);
+        transportService.start();
+        action = new Action(ImmutableSettings.EMPTY, "testAction", transportService, clusterService, threadPool);
+    }
+
+    @AfterClass
+    public static void afterClass() {
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+    }
+
+
+    <T> void assertListenerThrows(String msg, PlainActionFuture<T> listener, Class<?> klass) throws InterruptedException {
+        try {
+            listener.get();
+            fail(msg);
+        } catch (ExecutionException ex) {
+            assertThat(ex.getCause(), instanceOf(klass));
+        }
+
+    }
+
+    @Test
+    public void testBlocks() throws ExecutionException, InterruptedException {
+        Request request = new Request();
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+
+        ClusterBlocks.Builder block = ClusterBlocks.builder()
+                .addGlobalBlock(new ClusterBlock(1, "non retryable", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
+        clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
+        TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
+        assertFalse("primary phase should stop execution", primaryPhase.checkBlocks());
+        assertListenerThrows("primary phase should fail operation", listener, ClusterBlockException.class);
+
+        block = ClusterBlocks.builder()
+                .addGlobalBlock(new ClusterBlock(1, "retryable", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
+        clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
+        listener = new PlainActionFuture<>();
+        primaryPhase = action.new PrimaryPhase(new Request().timeout("5ms"), listener);
+        assertFalse("primary phase should stop execution on retryable block", primaryPhase.checkBlocks());
+        assertListenerThrows("failed to timeout on retryable block", listener, ClusterBlockException.class);
+
+
+        listener = new PlainActionFuture<>();
+        primaryPhase = action.new PrimaryPhase(new Request(), listener);
+        assertFalse("primary phase should stop execution on retryable block", primaryPhase.checkBlocks());
+        assertFalse("primary phase should wait on retryable block", listener.isDone());
+
+        block = ClusterBlocks.builder()
+                .addGlobalBlock(new ClusterBlock(1, "non retryable", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
+        clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
+        assertListenerThrows("primary phase should fail operation when moving from a retryable block a non-retryable one", listener, ClusterBlockException.class);
+    }
+
+    ClusterState stateWithUnassingedShards(String index, int numberOfReplicas) {
+        ShardRoutingState[] replicaStates = new ShardRoutingState[numberOfReplicas];
+        for (int i = 0; i < replicaStates.length; i++) {
+            replicaStates[i] = ShardRoutingState.UNASSIGNED;
+        }
+        return state(index, false, ShardRoutingState.UNASSIGNED, replicaStates);
+    }
+
+
+    ClusterState stateWithStartedPrimary(String index, boolean primaryLocal, int numberOfReplicas) {
+        ShardRoutingState primaryState;
+        ShardRoutingState[] replicaStates = new ShardRoutingState[numberOfReplicas];
+        int assignedReplicas = randomIntBetween(0, replicaStates.length);
+        // no point in randomizing - node assignment later on does it too.
+        for (int i = 0; i < assignedReplicas; i++) {
+            replicaStates[i] = randomBoolean() ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING;
+        }
+        for (int i = assignedReplicas; i < replicaStates.length; i++) {
+            replicaStates[i] = ShardRoutingState.UNASSIGNED;
+        }
+        return state(index, primaryLocal, ShardRoutingState.STARTED, replicaStates);
+
+    }
+
+    ClusterState state(String index, boolean primaryLocal, ShardRoutingState primaryState, ShardRoutingState... replicaStates) {
+        final int numberOfReplicas = replicaStates.length;
+        final int numberOfNodes = Math.max(2, numberOfReplicas + 1); // we need a non-local master to test shard failures
+        final ShardId shardId = new ShardId(index, 0);
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        Set<String> unassignedNodes = new HashSet<>();
+        for (int i = 0; i < numberOfNodes + 1; i++) {
+            final DiscoveryNode node = newNode(i);
+            discoBuilder = discoBuilder.put(node);
+            unassignedNodes.add(node.id());
+        }
+        discoBuilder.localNodeId(newNode(0).id());
+        discoBuilder.masterNodeId(newNode(1).id()); // we need a non-local master to test shard failures
+        IndexMetaData indexMetaData = IndexMetaData.builder(index).settings(ImmutableSettings.builder()
+                .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
+                .put(SETTING_CREATION_DATE, System.currentTimeMillis())).build();
+
+        RoutingTable.Builder routing = new RoutingTable.Builder();
+        routing.addAsNew(indexMetaData);
+        IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId, false);
+
+        String primaryNode = null;
+        if (primaryState != ShardRoutingState.UNASSIGNED) {
+            primaryNode = primaryLocal ? newNode(0).id() : randomFrom(unassignedNodes.toArray(new String[unassignedNodes.size()]));
+            unassignedNodes.remove(primaryNode);
+        }
+        indexShardRoutingBuilder.addShard(new ImmutableShardRouting(index, 0, primaryNode, true, primaryState, 0));
+
+        for (ShardRoutingState replicaState : replicaStates) {
+            String replicaNode = null;
+            if (replicaState != ShardRoutingState.UNASSIGNED) {
+                assert primaryNode != null : "a replica is assigned but the primary isn't";
+                replicaNode = randomFrom(unassignedNodes.toArray(new String[unassignedNodes.size()]));
+                unassignedNodes.remove(replicaNode);
+            }
+            indexShardRoutingBuilder.addShard(
+                    new ImmutableShardRouting(index, shardId.id(), replicaNode, false, replicaState, 0));
+
+        }
+
+        ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
+        state.nodes(discoBuilder);
+        state.metaData(MetaData.builder().put(indexMetaData, false).generateUuidIfNeeded());
+        state.routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(index).addIndexShard(indexShardRoutingBuilder.build())));
+        return state.build();
+    }
+
+    @Test
+    public void testNotStartedPrimary() throws InterruptedException, ExecutionException {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, 0);
+        // no replicas in oder to skip the replication part
+        clusterService.setState(state(index, true,
+                randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.UNASSIGNED));
+
+        logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
+
+        Request request = new Request(shardId).timeout("1ms");
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
+        primaryPhase.start();
+        assertListenerThrows("unassigned primary didn't cause a timeout", listener, UnavailableShardsException.class);
+
+        request = new Request(shardId);
+        listener = new PlainActionFuture<>();
+        primaryPhase = action.new PrimaryPhase(request, listener);
+        primaryPhase.start();
+        assertFalse("unassigned primary didn't cause a retry", listener.isDone());
+
+        clusterService.setState(state(index, true, ShardRoutingState.STARTED));
+        logger.debug("--> primary assigned state:\n{}", clusterService.state().prettyPrint());
+
+        listener.get();
+        assertTrue("request wasn't processed on primary, despite of it being assigned", request.processedOnPrimary.get());
+    }
+
+    @Test
+    public void testRoutingToPrimary() {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, 0);
+
+        clusterService.setState(stateWithStartedPrimary(index, randomBoolean(), 3));
+
+        logger.debug("using state: \n{}", clusterService.state().prettyPrint());
+
+        final IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().index(index).shard(shardId.id());
+        final String primaryNodeId = shardRoutingTable.primaryShard().currentNodeId();
+        Request request = new Request(shardId);
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+
+        TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
+        assertTrue(primaryPhase.checkBlocks());
+        primaryPhase.routeRequestOrPerformLocally(shardRoutingTable.primaryShard(), shardRoutingTable.shardsIt());
+        if (primaryNodeId.equals(clusterService.localNode().id())) {
+            logger.info("--> primary is assigned locally, testing for execution");
+            assertTrue("request failed to be processed on a local primary", request.processedOnPrimary.get());
+        } else {
+            logger.info("--> primary is assigned to [{}], checking request forwarded", primaryNodeId);
+            final List<CapturingTransport.CapturedRequest> capturedRequests = transport.capturedRequestsByTargetNode().get(primaryNodeId);
+            assertThat(capturedRequests, notNullValue());
+            assertThat(capturedRequests.size(), equalTo(1));
+            assertThat(capturedRequests.get(0).action, equalTo("testAction"));
+        }
+    }
+
+    @Test
+    public void testReplication() throws ExecutionException, InterruptedException {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, 0);
+
+        clusterService.setState(stateWithStartedPrimary(index, true, randomInt(5)));
+        logger.debug("using state: \n{}", clusterService.state().prettyPrint());
+
+        final IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().index(index).shard(shardId.id());
+        final int assignedReplicas = shardRoutingTable.assignedShards().size() - 1; // -1 for primary
+        final Request request = new Request();
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+
+        final TransportShardReplicationOperationAction<Request, Request, Response>.InternalRequest internalRequest = action.new InternalRequest(request);
+        internalRequest.concreteIndex(index);
+        TransportShardReplicationOperationAction<Request, Request, Response>.ReplicationPhase replicationPhase =
+                action.new ReplicationPhase(shardRoutingTable.shardsIt(), request,
+                        new Response(), new ClusterStateObserver(clusterService, logger),
+                        shardRoutingTable.primaryShard(), internalRequest, listener);
+
+        assertThat(replicationPhase.totalShards(), equalTo(shardRoutingTable.size()));
+        assertThat(replicationPhase.pending(), equalTo(assignedReplicas));
+        replicationPhase.start();
+        final CapturingTransport.CapturedRequest[] capturedRequests = transport.capturedRequests();
+        transport.clear();
+        assertThat(capturedRequests.length, equalTo(assignedReplicas));
+        if (assignedReplicas > 0) {
+            assertThat("listener is done, but there are outstanding replicas", listener.isDone(), equalTo(false));
+        }
+        int pending = replicationPhase.pending();
+        int failures = 0;
+        int criticalFailures = 0; // failures that should fail the shard
+        int successfull = 1;
+        for (CapturingTransport.CapturedRequest capturedRequest : capturedRequests) {
+            if (randomBoolean()) {
+                Throwable t;
+                if (randomBoolean()) {
+                    t = new CorruptIndexException("simulated", (String) null);
+                    criticalFailures++;
+                } else {
+                    t = new IndexShardNotStartedException(shardId, IndexShardState.RECOVERING);
+                }
+                failures++;
+                logger.debug("--> simulating failure on {} with [{}]", capturedRequest.node, t.getClass().getSimpleName());
+                transport.handleResponse(capturedRequest.requestId, t);
+            } else {
+                successfull++;
+                transport.handleResponse(capturedRequest.requestId, TransportResponse.Empty.INSTANCE);
+            }
+            pending--;
+            assertThat(replicationPhase.pending(), equalTo(pending));
+            assertThat(replicationPhase.succesful(), equalTo(successfull));
+        }
+        assertThat(listener.isDone(), equalTo(true));
+        Response response = listener.get();
+        final ActionWriteResponse.ShardInfo shardInfo = response.getShardInfo();
+        assertThat(shardInfo.getFailed(), equalTo(criticalFailures));
+        assertThat(shardInfo.getFailures(), arrayWithSize(criticalFailures));
+        assertThat(shardInfo.getSuccessful(), equalTo(successfull));
+        assertThat(shardInfo.getTotal(), equalTo(shardRoutingTable.size()));
+
+        assertThat("failed to see enough shard failures", transport.capturedRequests().length, equalTo(criticalFailures));
+        for (CapturingTransport.CapturedRequest capturedRequest : transport.capturedRequests()) {
+            assertThat(capturedRequest.action, equalTo(ShardStateAction.SHARD_FAILED_ACTION_NAME));
+        }
+    }
 
     static class Request extends ShardReplicationOperationRequest<Request> {
         int shardId;
@@ -168,213 +439,4 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
     }
 
 
-    static ThreadPool threadPool;
-
-    TestClusterService clusterService;
-    CapturingTransport transport;
-
-
-    @BeforeClass
-    public static void beforeClass() {
-        threadPool = new ThreadPool("ShardReplicationOperationTests");
-    }
-
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        transport = new CapturingTransport();
-        clusterService = new TestClusterService(threadPool);
-        transportService = new TransportService(transport, threadPool);
-        transportService.start();
-    }
-
-    @AfterClass
-    public static void afterClass() {
-        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-    }
-
-
-    <T> void assertListenerThrows(String msg, PlainActionFuture<T> listener, Class<?> klass) throws InterruptedException {
-        try {
-            listener.get();
-            fail(msg);
-        } catch (ExecutionException ex) {
-            assertThat(ex.getCause(), instanceOf(klass));
-        }
-
-    }
-
-    @Test
-    public void testBlocks() throws ExecutionException, InterruptedException {
-        Action action = new Action(ImmutableSettings.EMPTY, "test",
-                new TransportService(transport, threadPool), clusterService, threadPool);
-
-        Request request = new Request();
-        PlainActionFuture<Response> listener = new PlainActionFuture<>();
-
-        ClusterBlocks.Builder block = ClusterBlocks.builder()
-                .addGlobalBlock(new ClusterBlock(1, "non retryable", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
-        clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
-        TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
-        assertFalse("primary phase should stop execution", primaryPhase.checkBlocks());
-        assertListenerThrows("primary phase should fail operation", listener, ClusterBlockException.class);
-
-        block = ClusterBlocks.builder()
-                .addGlobalBlock(new ClusterBlock(1, "retryable", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
-        clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
-        listener = new PlainActionFuture<>();
-        primaryPhase = action.new PrimaryPhase(new Request().timeout("5ms"), listener);
-        assertFalse("primary phase should stop execution on retryable block", primaryPhase.checkBlocks());
-        assertListenerThrows("failed to timeout on retryable block", listener, ClusterBlockException.class);
-
-
-        listener = new PlainActionFuture<>();
-        primaryPhase = action.new PrimaryPhase(new Request(), listener);
-        assertFalse("primary phase should stop execution on retryable block", primaryPhase.checkBlocks());
-        assertFalse("primary phase should wait on retryable block", listener.isDone());
-
-        block = ClusterBlocks.builder()
-                .addGlobalBlock(new ClusterBlock(1, "non retryable", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
-        clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
-        assertListenerThrows("primary phase should fail operation when moving from a retryable block a non-retryable one", listener, ClusterBlockException.class);
-    }
-
-    ClusterState createStateWithSingleShardIndex(String index, boolean primaryAssigned, int numberOfReplicas) {
-        ShardRoutingState primaryState;
-        ShardRoutingState[] replicaStates = new ShardRoutingState[numberOfReplicas];
-        if (primaryAssigned) {
-            primaryState = randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.STARTED;
-        } else {
-            primaryState = ShardRoutingState.UNASSIGNED;
-        }
-        if (primaryState == ShardRoutingState.STARTED) {
-            int assignedReplicas = randomIntBetween(0, replicaStates.length);
-            // no point in randomizing - node assignment later on does it too.
-            for (int i = 0; i < assignedReplicas; i++) {
-                replicaStates[i] = randomBoolean() ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING;
-            }
-            for (int i = assignedReplicas; i < replicaStates.length; i++) {
-                replicaStates[i] = ShardRoutingState.UNASSIGNED;
-            }
-
-        } else {
-            for (int i = 0; i < replicaStates.length; i++) {
-                replicaStates[i] = ShardRoutingState.UNASSIGNED;
-            }
-        }
-        return createStateWithSingleShardIndex(index, randomBoolean(), primaryState, replicaStates);
-
-    }
-
-    ClusterState createStateWithSingleShardIndex(String index, boolean primaryLocal, ShardRoutingState primaryState, ShardRoutingState... replicaStates) {
-        final int numberOfReplicas = replicaStates.length;
-        final int numberOfNodes = numberOfReplicas + 1;
-        final ShardId shardId = new ShardId(index, 0);
-        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
-        Set<String> unassignedNodes = new HashSet<>();
-        for (int i = 0; i < numberOfNodes + 1; i++) {
-            final DiscoveryNode node = newNode(i);
-            discoBuilder = discoBuilder.put(node);
-            unassignedNodes.add(node.id());
-        }
-        discoBuilder.localNodeId(newNode(0).id());
-        IndexMetaData indexMetaData = IndexMetaData.builder(index).settings(ImmutableSettings.builder()
-                .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-                .put(SETTING_CREATION_DATE, System.currentTimeMillis())).build();
-
-        RoutingTable.Builder routing = new RoutingTable.Builder();
-        routing.addAsNew(indexMetaData);
-        IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId, false);
-
-        String primaryNode = null;
-        if (primaryState != ShardRoutingState.UNASSIGNED) {
-            primaryNode = primaryLocal ? newNode(0).id() : randomFrom(unassignedNodes.toArray(new String[unassignedNodes.size()]));
-            unassignedNodes.remove(primaryNode);
-        }
-        indexShardRoutingBuilder.addShard(new ImmutableShardRouting(index, 0, primaryNode, true, primaryState, 0));
-
-        for (ShardRoutingState replicaState : replicaStates) {
-            String replicaNode = null;
-            if (replicaState != ShardRoutingState.UNASSIGNED) {
-                assert primaryNode != null : "a replica is assigned but the primary isn't";
-                replicaNode = randomFrom(unassignedNodes.toArray(new String[unassignedNodes.size()]));
-                unassignedNodes.remove(replicaNode);
-            }
-            indexShardRoutingBuilder.addShard(
-                    new ImmutableShardRouting(index, shardId.id(), replicaNode, false, replicaState, 0));
-
-        }
-
-        ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
-        state.nodes(discoBuilder);
-        state.metaData(MetaData.builder().put(indexMetaData, false).generateUuidIfNeeded());
-        state.routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(index).addIndexShard(indexShardRoutingBuilder.build())));
-        return state.build();
-    }
-
-    @Test
-    public void testNotStartedPrimary() throws InterruptedException, ExecutionException {
-        final String index = "test";
-        final ShardId shardId = new ShardId(index, 0);
-        // no replicas in oder to skip the replication part
-        clusterService.setState(createStateWithSingleShardIndex(index, true,
-                randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.UNASSIGNED));
-
-        logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
-
-        Request request = new Request(shardId).timeout("1ms");
-        PlainActionFuture<Response> listener = new PlainActionFuture<>();
-        Action action = new Action(ImmutableSettings.EMPTY, "testAction", transportService, clusterService, threadPool);
-        TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
-        primaryPhase.start();
-        assertListenerThrows("unassigned primary didn't cause a timeout", listener, UnavailableShardsException.class);
-
-        request = new Request(shardId);
-        listener = new PlainActionFuture<>();
-        primaryPhase = action.new PrimaryPhase(request, listener);
-        primaryPhase.start();
-        assertFalse("unassigned primary didn't cause a retry", listener.isDone());
-
-        clusterService.setState(createStateWithSingleShardIndex(index, true, ShardRoutingState.STARTED));
-        logger.debug("--> primary assigned state:\n{}", clusterService.state().prettyPrint());
-
-        listener.get();
-        assertTrue("request wasn't processed on primary, despite of it being assigned", request.processedOnPrimary.get());
-    }
-
-    @Test
-    public void testRoutingToPrimary() {
-        final String index = "test";
-        final ShardId shardId = new ShardId(index, 0);
-
-        clusterService.setState(createStateWithSingleShardIndex(index, true, 3));
-
-        logger.debug("using state: \n{}", clusterService.state().prettyPrint());
-
-        final IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().index(index).shard(shardId.id());
-        final String primaryNodeId = shardRoutingTable.primaryShard().currentNodeId();
-        Request request = new Request(shardId);
-        PlainActionFuture<Response> listener = new PlainActionFuture<>();
-        Action action = new Action(ImmutableSettings.EMPTY, "testAction", transportService, clusterService, threadPool);
-
-        TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
-        assertTrue(primaryPhase.checkBlocks());
-        primaryPhase.routeRequestOrPerformLocally(shardRoutingTable.primaryShard(), shardRoutingTable.shardsIt());
-        if (primaryNodeId.equals(clusterService.localNode().id())) {
-            logger.info("--> primary is assigned locally, testing for execution");
-            assertTrue("request failed to be processed on a local primary", request.processedOnPrimary.get());
-        } else {
-            logger.info("--> primary is assigned to [{}], checking request forwarded", primaryNodeId);
-            final List<CapturingTransport.CapturedRequest> capturedRequests = transport.capturedRequestsByTargetNode().get(primaryNodeId);
-            assertThat(capturedRequests, notNullValue());
-            assertThat(capturedRequests.size(), equalTo(1));
-            assertThat(capturedRequests.get(0).action, equalTo("testAction"));
-        }
-    }
-
-    @Test
-    public void testReplicationWithNoFailures() {
-
-    }
 }

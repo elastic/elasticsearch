@@ -79,6 +79,10 @@ public class CapturingTransport implements Transport {
         adapter.onResponseReceived(requestId).handleResponse(response);
     }
 
+    public void handleResponse(final long requestId, final Throwable t) {
+        adapter.onResponseReceived(requestId).handleException(new RemoteTransportException("remote failure", t));
+    }
+
 
     @Override
     public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {

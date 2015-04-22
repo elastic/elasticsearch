@@ -19,6 +19,7 @@
 package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.FloatArrayList;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
@@ -30,13 +31,13 @@ import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
@@ -180,7 +181,7 @@ abstract class QueryCollector extends SimpleCollector {
                 }
 
                 if (isNestedDoc) {
-                    Lucene.exists(searcher, query, NonNestedDocsFilter.INSTANCE, collector);
+                    Lucene.exists(searcher, query, Queries.newNonNestedFilter(), collector);
                 } else {
                     Lucene.exists(searcher, query, collector);
                 }
@@ -239,7 +240,7 @@ abstract class QueryCollector extends SimpleCollector {
             // run the query
             try {
                 if (isNestedDoc) {
-                    Lucene.exists(searcher, query, NonNestedDocsFilter.INSTANCE, collector);
+                    Lucene.exists(searcher, query, Queries.newNonNestedFilter(), collector);
                 } else {
                     Lucene.exists(searcher, query, collector);
                 }
@@ -311,7 +312,7 @@ abstract class QueryCollector extends SimpleCollector {
                     context.hitContext().cache().clear();
                 }
                 if (isNestedDoc) {
-                    Lucene.exists(searcher, query, NonNestedDocsFilter.INSTANCE, collector);
+                    Lucene.exists(searcher, query, Queries.newNonNestedFilter(), collector);
                 } else {
                     Lucene.exists(searcher, query, collector);
                 }
@@ -372,7 +373,7 @@ abstract class QueryCollector extends SimpleCollector {
             // run the query
             try {
                 if (isNestedDoc) {
-                    Lucene.exists(searcher, query, NonNestedDocsFilter.INSTANCE, collector);
+                    Lucene.exists(searcher, query, Queries.newNonNestedFilter(), collector);
                 } else {
                     Lucene.exists(searcher, query, collector);
                 }

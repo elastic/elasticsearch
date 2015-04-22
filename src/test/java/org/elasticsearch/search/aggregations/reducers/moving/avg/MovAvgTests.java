@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.reducers.moving.avg;
 
 
 import com.google.common.collect.EvictingQueue;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -30,22 +29,21 @@ import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Bucket;
+import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregationBuilder;
 import org.elasticsearch.search.aggregations.reducers.BucketHelpers;
 import org.elasticsearch.search.aggregations.reducers.SimpleValue;
 import org.elasticsearch.search.aggregations.reducers.movavg.models.*;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
-import static org.elasticsearch.search.aggregations.reducers.ReducerBuilders.smooth;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.reducers.ReducerBuilders.movingAvg;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @ElasticsearchIntegrationTest.SuiteScopeTest
@@ -62,16 +60,16 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
     static BucketHelpers.GapPolicy gapPolicy;
 
     static long[] docCounts;
-    static long[] valueCounts;
-    static Double[] simpleMovAvgCounts;
-    static Double[] linearMovAvgCounts;
-    static Double[] singleExpMovAvgCounts;
-    static Double[] doubleExpMovAvgCounts;
+    static long[] docValues;
+    static Double[] simpleDocCounts;
+    static Double[] linearDocCounts;
+    static Double[] singleDocCounts;
+    static Double[] doubleDocCounts;
 
-    static Double[] simpleMovAvgValueCounts;
-    static Double[] linearMovAvgValueCounts;
-    static Double[] singleExpMovAvgValueCounts;
-    static Double[] doubleExpMovAvgValueCounts;
+    static Double[] simpleDocValues;
+    static Double[] linearDocValues;
+    static Double[] singleDocValues;
+    static Double[] doubleDocValues;
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -83,13 +81,14 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         numValueBuckets = randomIntBetween(6, 80);
         numFilledValueBuckets = numValueBuckets;
         windowSize = randomIntBetween(3,10);
-        gapPolicy = BucketHelpers.GapPolicy.INSERT_ZEROS; // TODO randomBoolean() ? BucketHelpers.GapPolicy.IGNORE : BucketHelpers.GapPolicy.INSERT_ZEROS;
-
+        gapPolicy = randomBoolean() ? BucketHelpers.GapPolicy.IGNORE : BucketHelpers.GapPolicy.INSERT_ZEROS;
+                
+                
         docCounts = new long[numValueBuckets];
-        valueCounts = new long[numValueBuckets];
+        docValues = new long[numValueBuckets];
         for (int i = 0; i < numValueBuckets; i++) {
             docCounts[i] = randomIntBetween(0, 20);
-            valueCounts[i] = randomIntBetween(1,20);    //this will be used as a constant for all values within a bucket
+            docValues[i] = randomIntBetween(1,20);    //this will be used as a constant for all values within a bucket
         }
 
         // Used for the gap tests
@@ -104,14 +103,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         this.setupLinear();
         this.setupSingle();
         this.setupDouble();
-
-
-
+        
         for (int i = 0; i < numValueBuckets; i++) {
             for (int docs = 0; docs < docCounts[i]; docs++) {
                 builders.add(client().prepareIndex("idx", "type").setSource(jsonBuilder().startObject()
                         .field(SINGLE_VALUED_FIELD_NAME, i * interval)
-                        .field(SINGLE_VALUED_VALUE_FIELD_NAME, 1).endObject()));
+                        .field(SINGLE_VALUED_VALUE_FIELD_NAME, docValues[i]).endObject()));
             }
         }
 
@@ -120,24 +117,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
     }
 
     private void setupSimple() {
-        simpleMovAvgCounts = new Double[numValueBuckets];
+        simpleDocCounts = new Double[numValueBuckets];
         EvictingQueue<Double> window = EvictingQueue.create(windowSize);
         for (int i = 0; i < numValueBuckets; i++) {
-            double thisValue = docCounts[i];
-            window.offer(thisValue);
-
-            double movAvg = 0;
-            for (double value : window) {
-                movAvg += value;
+            if (docCounts[i] == 0 && gapPolicy.equals(BucketHelpers.GapPolicy.IGNORE)) {
+                continue;
             }
-            movAvg /= window.size();
-
-            simpleMovAvgCounts[i] = movAvg;
-        }
-
-        window.clear();
-        simpleMovAvgValueCounts = new Double[numValueBuckets];
-        for (int i = 0; i < numValueBuckets; i++) {
             window.offer((double)docCounts[i]);
 
             double movAvg = 0;
@@ -146,7 +131,34 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             }
             movAvg /= window.size();
 
-            simpleMovAvgValueCounts[i] = movAvg;
+            simpleDocCounts[i] = movAvg;
+        }
+
+        window.clear();
+        simpleDocValues = new Double[numValueBuckets];
+        for (int i = 0; i < numValueBuckets; i++) {
+            if (docCounts[i] == 0) {
+                // If there was a gap in doc counts and we are ignoring, just skip this bucket
+                if (gapPolicy.equals(BucketHelpers.GapPolicy.IGNORE)) {
+                    continue;
+                } else if (gapPolicy.equals(BucketHelpers.GapPolicy.INSERT_ZEROS)) {
+                    // otherwise insert a zero instead of the true value
+                    window.offer(0.0);
+                } else {
+                    window.offer((double) docValues[i]);
+                }
+            } else {
+                //if there are docs in this bucket, insert the regular value
+                window.offer((double) docValues[i]);
+            }
+
+            double movAvg = 0;
+            for (double value : window) {
+                movAvg += value;
+            }
+            movAvg /= window.size();
+
+            simpleDocValues[i] = movAvg;
 
         }
 
@@ -154,14 +166,13 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
 
     private void setupLinear() {
         EvictingQueue<Double> window = EvictingQueue.create(windowSize);
-        linearMovAvgCounts = new Double[numValueBuckets];
+        linearDocCounts = new Double[numValueBuckets];
         window.clear();
         for (int i = 0; i < numValueBuckets; i++) {
-            double thisValue = docCounts[i];
-            if (thisValue == -1) {
-                thisValue = 0;
+            if (docCounts[i] == 0 && gapPolicy.equals(BucketHelpers.GapPolicy.IGNORE)) {
+                continue;
             }
-            window.offer(thisValue);
+            window.offer((double)docCounts[i]);
 
             double avg = 0;
             long totalWeight = 1;
@@ -172,15 +183,27 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                 totalWeight += current;
                 current += 1;
             }
-            linearMovAvgCounts[i] = avg / totalWeight;
+            linearDocCounts[i] = avg / totalWeight;
         }
 
         window.clear();
-        linearMovAvgValueCounts = new Double[numValueBuckets];
+        linearDocValues = new Double[numValueBuckets];
 
         for (int i = 0; i < numValueBuckets; i++) {
-            double thisValue = docCounts[i];
-            window.offer(thisValue);
+            if (docCounts[i] == 0) {
+                // If there was a gap in doc counts and we are ignoring, just skip this bucket
+                if (gapPolicy.equals(BucketHelpers.GapPolicy.IGNORE)) {
+                    continue;
+                } else if (gapPolicy.equals(BucketHelpers.GapPolicy.INSERT_ZEROS)) {
+                    // otherwise insert a zero instead of the true value
+                    window.offer(0.0);
+                } else {
+                    window.offer((double) docValues[i]);
+                }
+            } else {
+                //if there are docs in this bucket, insert the regular value
+                window.offer((double) docValues[i]);
+            }
 
             double avg = 0;
             long totalWeight = 1;
@@ -191,39 +214,17 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                 totalWeight += current;
                 current += 1;
             }
-            linearMovAvgValueCounts[i] = avg / totalWeight;
+            linearDocValues[i] = avg / totalWeight;
         }
     }
 
     private void setupSingle() {
         EvictingQueue<Double> window = EvictingQueue.create(windowSize);
-        singleExpMovAvgCounts = new Double[numValueBuckets];
+        singleDocCounts = new Double[numValueBuckets];
         for (int i = 0; i < numValueBuckets; i++) {
-            double thisValue = docCounts[i];
-            if (thisValue == -1) {
-                thisValue = 0;
+            if (docCounts[i] == 0 && gapPolicy.equals(BucketHelpers.GapPolicy.IGNORE)) {
+                continue;
             }
-            window.offer(thisValue);
-
-            double avg = 0;
-            double alpha = 0.5;
-            boolean first = true;
-
-            for (double value : window) {
-                if (first) {
-                    avg = value;
-                    first = false;
-                } else {
-                    avg = (value * alpha) + (avg * (1 - alpha));
-                }
-            }
-            singleExpMovAvgCounts[i] = avg ;
-        }
-
-        singleExpMovAvgValueCounts = new Double[numValueBuckets];
-        window.clear();
-
-        for (int i = 0; i < numValueBuckets; i++) {
             window.offer((double)docCounts[i]);
 
             double avg = 0;
@@ -238,56 +239,53 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                     avg = (value * alpha) + (avg * (1 - alpha));
                 }
             }
-            singleExpMovAvgCounts[i] = avg ;
+            singleDocCounts[i] = avg ;
+        }
+
+        singleDocValues = new Double[numValueBuckets];
+        window.clear();
+
+        for (int i = 0; i < numValueBuckets; i++) {
+            if (docCounts[i] == 0) {
+                // If there was a gap in doc counts and we are ignoring, just skip this bucket
+                if (gapPolicy.equals(BucketHelpers.GapPolicy.IGNORE)) {
+                    continue;
+                } else if (gapPolicy.equals(BucketHelpers.GapPolicy.INSERT_ZEROS)) {
+                    // otherwise insert a zero instead of the true value
+                    window.offer(0.0);
+                } else {
+                    window.offer((double) docValues[i]);
+                }
+            } else {
+                //if there are docs in this bucket, insert the regular value
+                window.offer((double) docValues[i]);
+            }
+
+            double avg = 0;
+            double alpha = 0.5;
+            boolean first = true;
+
+            for (double value : window) {
+                if (first) {
+                    avg = value;
+                    first = false;
+                } else {
+                    avg = (value * alpha) + (avg * (1 - alpha));
+                }
+            }
+            singleDocValues[i] = avg ;
         }
 
     }
 
     private void setupDouble() {
         EvictingQueue<Double> window = EvictingQueue.create(windowSize);
-        doubleExpMovAvgCounts = new Double[numValueBuckets];
+        doubleDocCounts = new Double[numValueBuckets];
 
         for (int i = 0; i < numValueBuckets; i++) {
-            double thisValue = docCounts[i];
-            if (thisValue == -1) {
-                thisValue = 0;
+            if (docCounts[i] == 0 && gapPolicy.equals(BucketHelpers.GapPolicy.IGNORE)) {
+                continue;
             }
-            window.offer(thisValue);
-
-            double s = 0;
-            double last_s = 0;
-
-            // Trend value
-            double b = 0;
-            double last_b = 0;
-
-            double alpha = 0.5;
-            double beta = 0.5;
-            int counter = 0;
-
-            double last;
-            for (double value : window) {
-                last = value;
-                if (counter == 1) {
-                    s = value;
-                    b = value - last;
-                } else {
-                    s = alpha * value + (1.0d - alpha) * (last_s + last_b);
-                    b = beta * (s - last_s) + (1 - beta) * last_b;
-                }
-
-                counter += 1;
-                last_s = s;
-                last_b = b;
-            }
-
-            doubleExpMovAvgCounts[i] = s + (0 * b) ;
-        }
-
-        doubleExpMovAvgValueCounts = new Double[numValueBuckets];
-        window.clear();
-
-        for (int i = 0; i < numValueBuckets; i++) {
             window.offer((double)docCounts[i]);
 
             double s = 0;
@@ -317,7 +315,56 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                 last_b = b;
             }
 
-            doubleExpMovAvgValueCounts[i] = s + (0 * b) ;
+            doubleDocCounts[i] = s + (0 * b) ;
+        }
+
+        doubleDocValues = new Double[numValueBuckets];
+        window.clear();
+
+        for (int i = 0; i < numValueBuckets; i++) {
+            if (docCounts[i] == 0) {
+                // If there was a gap in doc counts and we are ignoring, just skip this bucket
+                if (gapPolicy.equals(BucketHelpers.GapPolicy.IGNORE)) {
+                    continue;
+                } else if (gapPolicy.equals(BucketHelpers.GapPolicy.INSERT_ZEROS)) {
+                    // otherwise insert a zero instead of the true value
+                    window.offer(0.0);
+                } else {
+                    window.offer((double) docValues[i]);
+                }
+            } else {
+                //if there are docs in this bucket, insert the regular value
+                window.offer((double) docValues[i]);
+            }
+
+            double s = 0;
+            double last_s = 0;
+
+            // Trend value
+            double b = 0;
+            double last_b = 0;
+
+            double alpha = 0.5;
+            double beta = 0.5;
+            int counter = 0;
+
+            double last;
+            for (double value : window) {
+                last = value;
+                if (counter == 1) {
+                    s = value;
+                    b = value - last;
+                } else {
+                    s = alpha * value + (1.0d - alpha) * (last_s + last_b);
+                    b = beta * (s - last_s) + (1 - beta) * last_b;
+                }
+
+                counter += 1;
+                last_s = s;
+                last_b = b;
+            }
+
+            doubleDocValues[i] = s + (0 * b) ;
         }
     }
 
@@ -332,8 +379,8 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                 .addAggregation(
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
                                 .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
-                                .subAggregation(sum("the_sum").field(SINGLE_VALUED_VALUE_FIELD_NAME))
-                                .subAggregation(movingAvg("movingAvg")
+                                .subAggregation(randomMetric("the_metric", SINGLE_VALUED_VALUE_FIELD_NAME))
+                                .subAggregation(movingAvg("movavg_counts")
                                         .window(windowSize)
                                         .modelBuilder(new SimpleModel.SimpleModelBuilder())
                                         .gapPolicy(gapPolicy)
@@ -342,7 +389,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                                         .window(windowSize)
                                         .modelBuilder(new SimpleModel.SimpleModelBuilder())
                                         .gapPolicy(gapPolicy)
-                                        .setBucketsPaths("the_sum"))
+                                        .setBucketsPaths("the_metric"))
                 ).execute().actionGet();
 
         assertSearchResponse(response);
@@ -356,13 +403,13 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             checkBucketKeyAndDocCount("Bucket " + i, bucket, i * interval, docCounts[i]);
-            SimpleValue docCountMovAvg = bucket.getAggregations().get("movingAvg");
+            SimpleValue docCountMovAvg = bucket.getAggregations().get("movavg_counts");
             assertThat(docCountMovAvg, notNullValue());
-            assertThat(docCountMovAvg.value(), equalTo(simpleMovAvgCounts[i]));
+            assertThat(docCountMovAvg.value(), equalTo(simpleDocCounts[i]));
 
             SimpleValue valuesMovAvg = bucket.getAggregations().get("movavg_values");
             assertThat(valuesMovAvg, notNullValue());
-            assertThat(valuesMovAvg.value(), equalTo(simpleMovAvgCounts[i]));
+            assertThat(valuesMovAvg.value(), equalTo(simpleDocValues[i]));
         }
     }
 
@@ -377,8 +424,8 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                 .addAggregation(
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
                                 .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
-                                .subAggregation(sum("the_sum").field(SINGLE_VALUED_VALUE_FIELD_NAME))
-                                .subAggregation(movingAvg("movingAvg")
+                                .subAggregation(randomMetric("the_metric", SINGLE_VALUED_VALUE_FIELD_NAME))
+                                .subAggregation(movingAvg("movavg_counts")
                                         .window(windowSize)
                                         .modelBuilder(new LinearModel.LinearModelBuilder())
                                         .gapPolicy(gapPolicy)
@@ -387,7 +434,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                                         .window(windowSize)
                                         .modelBuilder(new LinearModel.LinearModelBuilder())
                                         .gapPolicy(gapPolicy)
-                                        .setBucketsPaths("the_sum"))
+                                        .setBucketsPaths("the_metric"))
                 ).execute().actionGet();
 
         assertSearchResponse(response);
@@ -401,13 +448,13 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             checkBucketKeyAndDocCount("Bucket " + i, bucket, i * interval, docCounts[i]);
-            SimpleValue docCountMovAvg = bucket.getAggregations().get("movingAvg");
+            SimpleValue docCountMovAvg = bucket.getAggregations().get("movavg_counts");
             assertThat(docCountMovAvg, notNullValue());
-            assertThat(docCountMovAvg.value(), equalTo(linearMovAvgCounts[i]));
+            assertThat(docCountMovAvg.value(), equalTo(linearDocCounts[i]));
 
             SimpleValue valuesMovAvg = bucket.getAggregations().get("movavg_values");
             assertThat(valuesMovAvg, notNullValue());
-            assertThat(valuesMovAvg.value(), equalTo(linearMovAvgCounts[i]));
+            assertThat(valuesMovAvg.value(), equalTo(linearDocValues[i]));
         }
     }
 
@@ -422,8 +469,8 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                 .addAggregation(
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
                                 .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
-                                .subAggregation(sum("the_sum").field(SINGLE_VALUED_VALUE_FIELD_NAME))
-                                .subAggregation(movingAvg("movingAvg")
+                                .subAggregation(randomMetric("the_metric", SINGLE_VALUED_VALUE_FIELD_NAME))
+                                .subAggregation(movingAvg("movavg_counts")
                                         .window(windowSize)
                                         .modelBuilder(new SingleExpModel.SingleExpModelBuilder().alpha(0.5))
                                         .gapPolicy(gapPolicy)
@@ -432,7 +479,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                                         .window(windowSize)
                                         .modelBuilder(new SingleExpModel.SingleExpModelBuilder().alpha(0.5))
                                         .gapPolicy(gapPolicy)
-                                        .setBucketsPaths("the_sum"))
+                                        .setBucketsPaths("the_metric"))
                 ).execute().actionGet();
 
         assertSearchResponse(response);
@@ -446,13 +493,13 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             checkBucketKeyAndDocCount("Bucket " + i, bucket, i * interval, docCounts[i]);
-            SimpleValue docCountMovAvg = bucket.getAggregations().get("movingAvg");
+            SimpleValue docCountMovAvg = bucket.getAggregations().get("movavg_counts");
             assertThat(docCountMovAvg, notNullValue());
-            assertThat(docCountMovAvg.value(), equalTo(singleExpMovAvgCounts[i]));
+            assertThat(docCountMovAvg.value(), equalTo(singleDocCounts[i]));
 
             SimpleValue valuesMovAvg = bucket.getAggregations().get("movavg_values");
             assertThat(valuesMovAvg, notNullValue());
-            assertThat(valuesMovAvg.value(), equalTo(singleExpMovAvgCounts[i]));
+            assertThat(valuesMovAvg.value(), equalTo(singleDocValues[i]));
         }
     }
 
@@ -467,8 +514,8 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                 .addAggregation(
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
                                 .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
-                                .subAggregation(sum("the_sum").field(SINGLE_VALUED_VALUE_FIELD_NAME))
-                                .subAggregation(movingAvg("movingAvg")
+                                .subAggregation(randomMetric("the_metric", SINGLE_VALUED_VALUE_FIELD_NAME))
+                                .subAggregation(movingAvg("movavg_counts")
                                         .window(windowSize)
                                         .modelBuilder(new DoubleExpModel.DoubleExpModelBuilder().alpha(0.5).beta(0.5))
                                         .gapPolicy(gapPolicy)
@@ -477,7 +524,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                                         .window(windowSize)
                                         .modelBuilder(new DoubleExpModel.DoubleExpModelBuilder().alpha(0.5).beta(0.5))
                                         .gapPolicy(gapPolicy)
-                                        .setBucketsPaths("the_sum"))
+                                        .setBucketsPaths("the_metric"))
                 ).execute().actionGet();
 
         assertSearchResponse(response);
@@ -491,13 +538,13 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             checkBucketKeyAndDocCount("Bucket " + i, bucket, i * interval, docCounts[i]);
-            SimpleValue docCountMovAvg = bucket.getAggregations().get("movingAvg");
+            SimpleValue docCountMovAvg = bucket.getAggregations().get("movavg_counts");
             assertThat(docCountMovAvg, notNullValue());
-            assertThat(docCountMovAvg.value(), equalTo(doubleExpMovAvgCounts[i]));
+            assertThat(docCountMovAvg.value(), equalTo(doubleDocCounts[i]));
 
             SimpleValue valuesMovAvg = bucket.getAggregations().get("movavg_values");
             assertThat(valuesMovAvg, notNullValue());
-            assertThat(valuesMovAvg.value(), equalTo(doubleExpMovAvgCounts[i]));
+            assertThat(valuesMovAvg.value(), equalTo(doubleDocValues[i]));
         }
     }
 
@@ -509,12 +556,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                     .addAggregation(
                             histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
                                     .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
-                                    .subAggregation(sum("the_sum").field(SINGLE_VALUED_VALUE_FIELD_NAME))
-                                    .subAggregation(movingAvg("movingAvg")
+                                    .subAggregation(randomMetric("the_metric", SINGLE_VALUED_VALUE_FIELD_NAME))
+                                    .subAggregation(movingAvg("movavg_counts")
                                             .window(0)
                                             .modelBuilder(new SimpleModel.SimpleModelBuilder())
                                             .gapPolicy(gapPolicy)
-                                            .setBucketsPaths("the_sum"))
+                                            .setBucketsPaths("the_metric"))
                     ).execute().actionGet();
             fail("MovingAvg should not accept a window that is zero");
 
@@ -531,13 +578,13 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             client()
                     .prepareSearch("idx")
                     .addAggregation(
-                            range("histo").field(SINGLE_VALUED_FIELD_NAME).addRange(0,10)
-                                    .subAggregation(sum("the_sum").field(SINGLE_VALUED_VALUE_FIELD_NAME))
-                                    .subAggregation(movingAvg("movingAvg")
+                            range("histo").field(SINGLE_VALUED_FIELD_NAME).addRange(0, 10)
+                                    .subAggregation(randomMetric("the_metric", SINGLE_VALUED_VALUE_FIELD_NAME))
+                                    .subAggregation(movingAvg("movavg_counts")
                                             .window(0)
                                             .modelBuilder(new SimpleModel.SimpleModelBuilder())
                                             .gapPolicy(gapPolicy)
-                                            .setBucketsPaths("the_sum"))
+                                            .setBucketsPaths("the_metric"))
                     ).execute().actionGet();
             fail("MovingAvg should not accept non-histogram as parent");
 
@@ -554,8 +601,8 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                     .addAggregation(
                             histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
                                     .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
-                                    .subAggregation(sum("the_sum").field(SINGLE_VALUED_VALUE_FIELD_NAME))
-                                    .subAggregation(movingAvg("movingAvg")
+                                    .subAggregation(randomMetric("the_metric", SINGLE_VALUED_VALUE_FIELD_NAME))
+                                    .subAggregation(movingAvg("movavg_counts")
                                             .window(-10)
                                             .modelBuilder(new SimpleModel.SimpleModelBuilder())
                                             .gapPolicy(gapPolicy)
@@ -578,12 +625,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                 .addAggregation(
                         histogram("histo").field("test").interval(interval).minDocCount(0)
                                 .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
-                                .subAggregation(sum("the_sum").field(SINGLE_VALUED_VALUE_FIELD_NAME))
-                                .subAggregation(movingAvg("movingAvg")
+                                .subAggregation(randomMetric("the_metric", SINGLE_VALUED_VALUE_FIELD_NAME))
+                                .subAggregation(movingAvg("movavg_counts")
                                         .window(windowSize)
                                         .modelBuilder(new SimpleModel.SimpleModelBuilder())
                                         .gapPolicy(gapPolicy)
-                                        .setBucketsPaths("the_sum"))
+                                        .setBucketsPaths("the_metric"))
                 ).execute().actionGet();
 
         assertSearchResponse(response);
@@ -603,13 +650,13 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                     .addAggregation(
                             histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
                                     .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
-                                    .subAggregation(sum("the_sum").field(SINGLE_VALUED_VALUE_FIELD_NAME))
-                                    .subAggregation(movingAvg("movingAvg")
+                                    .subAggregation(randomMetric("the_metric", SINGLE_VALUED_VALUE_FIELD_NAME))
+                                    .subAggregation(movingAvg("movavg_counts")
                                             .window(windowSize)
                                             .modelBuilder(randomModelBuilder())
                                             .gapPolicy(gapPolicy)
                                             .predict(0)
-                                            .setBucketsPaths("the_sum"))
+                                            .setBucketsPaths("the_metric"))
                     ).execute().actionGet();
             fail("MovingAvg should not accept a prediction size that is zero");
 
@@ -626,13 +673,13 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                     .addAggregation(
                             histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
                                     .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
-                                    .subAggregation(sum("the_sum").field(SINGLE_VALUED_VALUE_FIELD_NAME))
-                                    .subAggregation(movingAvg("movingAvg")
+                                    .subAggregation(randomMetric("the_metric", SINGLE_VALUED_VALUE_FIELD_NAME))
+                                    .subAggregation(movingAvg("movavg_counts")
                                             .window(windowSize)
                                             .modelBuilder(randomModelBuilder())
                                             .gapPolicy(gapPolicy)
                                             .predict(-10)
-                                            .setBucketsPaths("the_sum"))
+                                            .setBucketsPaths("the_metric"))
                     ).execute().actionGet();
             fail("MovingAvg should not accept a prediction size that is negative");
 
@@ -655,12 +702,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                 .addAggregation(
                         histogram("histo").field("gap_test").interval(interval).minDocCount(0)
                                 .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
-                                .subAggregation(sum("the_sum").field(GAP_FIELD))
-                                .subAggregation(movingAvg("movingAvg")
+                                .subAggregation(randomMetric("the_metric", GAP_FIELD))
+                                .subAggregation(movingAvg("movavg_counts")
                                         .window(windowSize)
                                         .modelBuilder(randomModelBuilder())
                                         .gapPolicy(gapPolicy)
-                                        .setBucketsPaths("the_sum"))
+                                        .setBucketsPaths("the_metric"))
                 ).execute().actionGet();
 
         assertSearchResponse(response);
@@ -671,12 +718,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         List<? extends Bucket> buckets = histo.getBuckets();
         assertThat(buckets.size(), equalTo(numValueBuckets));
 
-        double lastValue = ((SimpleValue)(buckets.get(0).getAggregations().get("movingAvg"))).value();
+        double lastValue = ((SimpleValue)(buckets.get(0).getAggregations().get("movavg_counts"))).value();
         assertThat(Double.compare(lastValue, 0.0d), greaterThanOrEqualTo(0));
 
         double currentValue;
         for (int i = 1; i < numValueBuckets - 2; i++) {
-            currentValue = ((SimpleValue)(buckets.get(i).getAggregations().get("movingAvg"))).value();
+            currentValue = ((SimpleValue)(buckets.get(i).getAggregations().get("movavg_counts"))).value();
 
             // Since there are only two values in this test, at the beginning and end, the moving average should
             // decrease every step (until it reaches zero).  Crude way to check that it's doing the right thing
@@ -687,7 +734,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         }
 
         // The last bucket has a real value, so this should always increase the moving avg
-        currentValue = ((SimpleValue)(buckets.get(numValueBuckets - 1).getAggregations().get("movingAvg"))).value();
+        currentValue = ((SimpleValue)(buckets.get(numValueBuckets - 1).getAggregations().get("movavg_counts"))).value();
         assertThat(Double.compare(lastValue, currentValue), equalTo(-1));
     }
 
@@ -698,19 +745,19 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
     public void testGiantGapWithPredict() {
 
         MovAvgModelBuilder model = randomModelBuilder();
-        int numPredictions = randomIntBetween(0, 10);
+        int numPredictions = randomIntBetween(1, 10);
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
                         histogram("histo").field("gap_test").interval(interval).minDocCount(0)
                                 .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
-                                .subAggregation(sum("the_sum").field(GAP_FIELD))
-                                .subAggregation(movingAvg("movingAvg")
+                                .subAggregation(randomMetric("the_metric", GAP_FIELD))
+                                .subAggregation(movingAvg("movavg_counts")
                                         .window(windowSize)
                                         .modelBuilder(model)
                                         .gapPolicy(gapPolicy)
                                         .predict(numPredictions)
-                                        .setBucketsPaths("the_sum"))
+                                        .setBucketsPaths("the_metric"))
                 ).execute().actionGet();
 
         assertSearchResponse(response);
@@ -721,12 +768,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         List<? extends Bucket> buckets = histo.getBuckets();
         assertThat(buckets.size(), equalTo(numValueBuckets + numPredictions));
 
-        double lastValue = ((SimpleValue)(buckets.get(0).getAggregations().get("movingAvg"))).value();
+        double lastValue = ((SimpleValue)(buckets.get(0).getAggregations().get("movavg_counts"))).value();
         assertThat(Double.compare(lastValue, 0.0d), greaterThanOrEqualTo(0));
 
         double currentValue;
         for (int i = 1; i < numValueBuckets - 2; i++) {
-            currentValue = ((SimpleValue)(buckets.get(i).getAggregations().get("movingAvg"))).value();
+            currentValue = ((SimpleValue)(buckets.get(i).getAggregations().get("movavg_counts"))).value();
 
             // Since there are only two values in this test, at the beginning and end, the moving average should
             // decrease every step (until it reaches zero).  Crude way to check that it's doing the right thing
@@ -737,15 +784,15 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         }
 
         // The last bucket has a real value, so this should always increase the moving avg
-        currentValue = ((SimpleValue)(buckets.get(numValueBuckets - 1).getAggregations().get("movingAvg"))).value();
+        currentValue = ((SimpleValue)(buckets.get(numValueBuckets - 1).getAggregations().get("movavg_counts"))).value();
         assertThat(Double.compare(lastValue, currentValue), equalTo(-1));
 
         // Now check predictions
         for (int i = numValueBuckets; i < numValueBuckets + numPredictions; i++) {
             // Unclear at this point which direction the predictions will go, just verify they are
-            // not null, and that we don't have the_sum anymore
-            assertThat((buckets.get(i).getAggregations().get("movingAvg")), notNullValue());
-            assertThat((buckets.get(i).getAggregations().get("the_sum")), nullValue());
+            // not null, and that we don't have the_metric anymore
+            assertThat((buckets.get(i).getAggregations().get("movavg_counts")), notNullValue());
+            assertThat((buckets.get(i).getAggregations().get("the_metric")), nullValue());
         }
     }
 
@@ -763,12 +810,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                         filter("filtered").filter(new RangeFilterBuilder("gap_test").from(1)).subAggregation(
                                 histogram("histo").field("gap_test").interval(interval).minDocCount(0)
                                         .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
-                                        .subAggregation(sum("the_sum").field(GAP_FIELD))
-                                        .subAggregation(movingAvg("movingAvg")
+                                        .subAggregation(randomMetric("the_metric", GAP_FIELD))
+                                        .subAggregation(movingAvg("movavg_counts")
                                                 .window(windowSize)
                                                 .modelBuilder(randomModelBuilder())
                                                 .gapPolicy(gapPolicy)
-                                                .setBucketsPaths("the_sum"))
+                                                .setBucketsPaths("the_metric"))
                         )
 
                 ).execute().actionGet();
@@ -789,7 +836,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         double currentValue;
         double lastValue = 0.0;
         for (int i = 0; i < numValueBuckets - 1; i++) {
-            currentValue = ((SimpleValue)(buckets.get(i).getAggregations().get("movingAvg"))).value();
+            currentValue = ((SimpleValue)(buckets.get(i).getAggregations().get("movavg_counts"))).value();
 
             assertThat(Double.compare(lastValue, currentValue), lessThanOrEqualTo(0));
             lastValue = currentValue;
@@ -808,13 +855,13 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                         filter("filtered").filter(new RangeFilterBuilder("gap_test").from(1)).subAggregation(
                                 histogram("histo").field("gap_test").interval(interval).minDocCount(0)
                                         .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
-                                        .subAggregation(sum("the_sum").field(GAP_FIELD))
-                                        .subAggregation(movingAvg("movingAvg")
+                                        .subAggregation(randomMetric("the_metric", GAP_FIELD))
+                                        .subAggregation(movingAvg("movavg_counts")
                                                 .window(windowSize)
                                                 .modelBuilder(randomModelBuilder())
                                                 .gapPolicy(gapPolicy)
                                                 .predict(numPredictions)
-                                                .setBucketsPaths("the_sum"))
+                                                .setBucketsPaths("the_metric"))
                         )
 
                 ).execute().actionGet();
@@ -835,7 +882,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         double currentValue;
         double lastValue = 0.0;
         for (int i = 0; i < numValueBuckets - 1; i++) {
-            currentValue = ((SimpleValue)(buckets.get(i).getAggregations().get("movingAvg"))).value();
+            currentValue = ((SimpleValue)(buckets.get(i).getAggregations().get("movavg_counts"))).value();
 
             assertThat(Double.compare(lastValue, currentValue), lessThanOrEqualTo(0));
             lastValue = currentValue;
@@ -844,9 +891,9 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         // Now check predictions
         for (int i = numValueBuckets; i < numValueBuckets + numPredictions; i++) {
             // Unclear at this point which direction the predictions will go, just verify they are
-            // not null, and that we don't have the_sum anymore
-            assertThat((buckets.get(i).getAggregations().get("movingAvg")), notNullValue());
-            assertThat((buckets.get(i).getAggregations().get("the_sum")), nullValue());
+            // not null, and that we don't have the_metric anymore
+            assertThat((buckets.get(i).getAggregations().get("movavg_counts")), notNullValue());
+            assertThat((buckets.get(i).getAggregations().get("the_metric")), nullValue());
         }
     }
 
@@ -864,12 +911,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                         filter("filtered").filter(new RangeFilterBuilder("gap_test").to((interval * (numValueBuckets - 1) - interval))).subAggregation(
                                 histogram("histo").field("gap_test").interval(interval).minDocCount(0)
                                         .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
-                                        .subAggregation(sum("the_sum").field(GAP_FIELD))
-                                        .subAggregation(movingAvg("movingAvg")
+                                        .subAggregation(randomMetric("the_metric", GAP_FIELD))
+                                        .subAggregation(movingAvg("movavg_counts")
                                                 .window(windowSize)
                                                 .modelBuilder(randomModelBuilder())
                                                 .gapPolicy(gapPolicy)
-                                                .setBucketsPaths("the_sum"))
+                                                .setBucketsPaths("the_metric"))
                         )
 
                 ).execute().actionGet();
@@ -888,9 +935,9 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         assertThat(buckets.size(), equalTo(numValueBuckets));
 
         double currentValue;
-        double lastValue = ((SimpleValue)(buckets.get(0).getAggregations().get("movingAvg"))).value();
+        double lastValue = ((SimpleValue)(buckets.get(0).getAggregations().get("movavg_counts"))).value();
         for (int i = 1; i < numValueBuckets - 1; i++) {
-            currentValue = ((SimpleValue)(buckets.get(i).getAggregations().get("movingAvg"))).value();
+            currentValue = ((SimpleValue)(buckets.get(i).getAggregations().get("movavg_counts"))).value();
 
             assertThat(Double.compare(lastValue, currentValue), greaterThanOrEqualTo(0));
             lastValue = currentValue;
@@ -909,13 +956,13 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                         filter("filtered").filter(new RangeFilterBuilder("gap_test").to((interval * (numValueBuckets - 1) - interval))).subAggregation(
                                 histogram("histo").field("gap_test").interval(interval).minDocCount(0)
                                         .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
-                                        .subAggregation(sum("the_sum").field(GAP_FIELD))
-                                        .subAggregation(movingAvg("movingAvg")
+                                        .subAggregation(randomMetric("the_metric", GAP_FIELD))
+                                        .subAggregation(movingAvg("movavg_counts")
                                                 .window(windowSize)
                                                 .modelBuilder(randomModelBuilder())
                                                 .gapPolicy(gapPolicy)
                                                 .predict(numPredictions)
-                                                .setBucketsPaths("the_sum"))
+                                                .setBucketsPaths("the_metric"))
                         )
 
                 ).execute().actionGet();
@@ -934,9 +981,9 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         assertThat(buckets.size(), equalTo(numValueBuckets + numPredictions));
 
         double currentValue;
-        double lastValue = ((SimpleValue)(buckets.get(0).getAggregations().get("movingAvg"))).value();
+        double lastValue = ((SimpleValue)(buckets.get(0).getAggregations().get("movavg_counts"))).value();
         for (int i = 1; i < numValueBuckets - 1; i++) {
-            currentValue = ((SimpleValue)(buckets.get(i).getAggregations().get("movingAvg"))).value();
+            currentValue = ((SimpleValue)(buckets.get(i).getAggregations().get("movavg_counts"))).value();
 
             assertThat(Double.compare(lastValue, currentValue), greaterThanOrEqualTo(0));
             lastValue = currentValue;
@@ -945,9 +992,9 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         // Now check predictions
         for (int i = numValueBuckets; i < numValueBuckets + numPredictions; i++) {
             // Unclear at this point which direction the predictions will go, just verify they are
-            // not null, and that we don't have the_sum anymore
-            assertThat((buckets.get(i).getAggregations().get("movingAvg")), notNullValue());
-            assertThat((buckets.get(i).getAggregations().get("the_sum")), nullValue());
+            // not null, and that we don't have the_metric anymore
+            assertThat((buckets.get(i).getAggregations().get("movavg_counts")), notNullValue());
+            assertThat((buckets.get(i).getAggregations().get("the_metric")), nullValue());
         }
     }
 
@@ -962,13 +1009,13 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                         // Filter so we are above all values
                         filter("filtered").filter(new RangeFilterBuilder("gap_test").from((interval * (numValueBuckets - 1) + interval))).subAggregation(
                                 histogram("histo").field("gap_test").interval(interval).minDocCount(0)
-                                        .subAggregation(sum("the_sum").field(GAP_FIELD))
-                                        .subAggregation(movingAvg("movingAvg")
+                                        .subAggregation(randomMetric("the_metric", GAP_FIELD))
+                                        .subAggregation(movingAvg("movavg_counts")
                                                 .window(windowSize)
                                                 .modelBuilder(randomModelBuilder())
                                                 .gapPolicy(gapPolicy)
                                                 .predict(numPredictions)
-                                                .setBucketsPaths("the_sum"))
+                                                .setBucketsPaths("the_metric"))
                         )
 
                 ).execute().actionGet();
@@ -1013,6 +1060,21 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             default:
                 return new SimpleModel.SimpleModelBuilder();
         }
+    }
+    
+    private ValuesSourceMetricsAggregationBuilder randomMetric(String name, String field) {
+        int rand = randomIntBetween(0,3);
+
+        switch (rand) {
+            case 0:
+                return min(name).field(field);
+            case 2:
+                return max(name).field(field);
+            case 3:
+                return avg(name).field(field);
+            default:
+                return avg(name).field(field);
+        }    
     }
 
 }

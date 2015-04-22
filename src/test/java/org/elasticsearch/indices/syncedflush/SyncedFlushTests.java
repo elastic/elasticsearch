@@ -27,8 +27,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -51,7 +53,7 @@ public class SyncedFlushTests extends ElasticsearchIntegrationTest {
     static final String TYPE = "test";
 
     @Test
-    public void testCommitIdsReturnedCorrectly() throws InterruptedException, IOException, ExecutionException {
+    public void testCommitIdsAndSyncIdsReturnedCorrectly() throws InterruptedException, IOException, ExecutionException {
         assertAcked(client().admin().indices().prepareCreate(INDEX).setSettings(
                 ImmutableSettings.builder().put("index.number_of_replicas", internalCluster().numDataNodes() - 1)
                         .put("index.number_of_shards", 1)
@@ -60,14 +62,26 @@ public class SyncedFlushTests extends ElasticsearchIntegrationTest {
         for (int j = 0; j < 10; j++) {
             client().prepareIndex(INDEX, TYPE).setSource("{}").get();
         }
+        ShardId shardId = new ShardId("test", 0);
         TransportPreSyncedFlushAction transportPreSyncedFlushAction = getPreSyncedFlushAction();
-        PreSyncedFlushResponse preSyncedFlushResponse = transportPreSyncedFlushAction.execute(new PreSyncedFlushRequest(new ShardId("test", 0))).get();
+        PreSyncedFlushResponse preSyncedFlushResponse = transportPreSyncedFlushAction.execute(new PreSyncedFlushRequest(shardId)).get();
         assertThat(preSyncedFlushResponse.getFailedShards(), equalTo(0));
         assertThat(preSyncedFlushResponse.commitIds.size(), equalTo(internalCluster().numDataNodes()));
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(INDEX).get();
         assertThat(indicesStatsResponse.getIndex(INDEX).getShards().length, equalTo(internalCluster().numDataNodes()));
         for (ShardStats shardStats : indicesStatsResponse.getIndex(INDEX).getShards()) {
             assertThat(shardStats.getCommitStats().getId(), equalTo(Base64.encodeBytes(preSyncedFlushResponse.commitIds.get(shardStats.getShardRouting().currentNodeId()))));
+        }
+
+        TransportSyncedFlushAction transportSyncedFlushAction = getSyncedFlushAction();
+        String syncId = Strings.base64UUID();
+        SyncedFlushResponse syncedFlushResponse = transportSyncedFlushAction.execute(new SyncedFlushRequest(shardId, syncId, preSyncedFlushResponse.commitIds)).get();
+        assertTrue(syncedFlushResponse.success());
+        assertThat(syncedFlushResponse.getSyncId(), equalTo(syncId));
+        indicesStatsResponse = client().admin().indices().prepareStats(INDEX).get();
+        assertThat(indicesStatsResponse.getIndex(INDEX).getShards().length, equalTo(internalCluster().numDataNodes()));
+        for (ShardStats shardStats : indicesStatsResponse.getIndex(INDEX).getShards()) {
+            assertThat(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncedFlushResponse.getSyncId()));
         }
     }
 
@@ -83,7 +97,7 @@ public class SyncedFlushTests extends ElasticsearchIntegrationTest {
         PreSyncedFlushResponse preSyncedFlushResponse = transportPreSyncedFlushAction.execute(new PreSyncedFlushRequest(shardId)).get();
         String result = randomFrom(preSyncedFlushResponse.commitIds().keySet().toArray(new String[preSyncedFlushResponse.commitIds().size()]));
         byte[] wrongCommitId = preSyncedFlushResponse.commitIds().get(result);
-        wrongCommitId[0] ^= 1;
+        wrongCommitId[0] = (byte) (~wrongCommitId[0] & 0xff);
         try {
             TransportSyncedFlushAction transportSyncedFlushAction = getSyncedFlushAction();
             assertNotNull(preSyncedFlushResponse.commitIds().put(result, wrongCommitId));
@@ -166,7 +180,7 @@ public class SyncedFlushTests extends ElasticsearchIntegrationTest {
         PreSyncedFlushResponse preSyncedFlushResponse = transportPreSyncedFlushAction.execute(new PreSyncedFlushRequest(shardId)).get();
         String result = randomFrom(preSyncedFlushResponse.commitIds().keySet().toArray(new String[preSyncedFlushResponse.commitIds().size()]));
         byte[] wrongCommitId = preSyncedFlushResponse.commitIds().get(result);
-        wrongCommitId[0] ^= 1;
+        wrongCommitId[0] = (byte) (~wrongCommitId[0] & 0xff);
         try {
             TransportSyncedFlushAction transportSyncedFlushAction = getSyncedFlushAction();
             assertNotNull(preSyncedFlushResponse.commitIds().put(result, wrongCommitId));

@@ -248,7 +248,7 @@ public class RoutingTableTest extends ElasticsearchAllocationTestCase {
     }
 
     @Test
-    public void testAllShardCopiesGrouped() {
+    public void testAllActiveShardCopiesGrouped() {
         assertThat(this.testRoutingTable.allActiveShardCopiesGrouped(new ShardId(TEST_INDEX_1, randomInt(numberOfShards - 1))).size(), is(0));
         try {
             this.testRoutingTable.allActiveShardCopiesGrouped(new ShardId(TEST_INDEX_1, numberOfShards)).size();

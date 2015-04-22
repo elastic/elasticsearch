@@ -98,10 +98,10 @@ public class SyncedFlushActionTests extends ElasticsearchSingleNodeTest {
         SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(new ShardId(INDEX, 0), syncId, commitIds);
         SyncedFlushResponse syncedFlushResponse = transportSyncCommitAction.execute(syncedFlushRequest).get();
         assertTrue(syncedFlushResponse.success());
-        assertEquals(syncId, getLastWritenSyncId());
+        assertEquals(syncId, getLastWrittenSyncId());
         // no see if fails if commit id is wrong
         byte[] invalid = getLastWrittenCommitId();
-        invalid[0] = (byte) (invalid[0] ^ Byte.MAX_VALUE);
+        invalid[0] = (byte) (~invalid[0] & 0xff);
         commitIds.put(getPrimaryShardRouting().currentNodeId(), invalid);
         String newSyncId = syncId + syncId;
         syncedFlushRequest = new SyncedFlushRequest(new ShardId(INDEX, 0), newSyncId, commitIds);
@@ -111,7 +111,7 @@ public class SyncedFlushActionTests extends ElasticsearchSingleNodeTest {
         } catch (ExecutionException e) {
             assertTrue(e.getCause() instanceof ElasticsearchIllegalStateException);
         }
-        assertEquals(syncId, getLastWritenSyncId());
+        assertEquals(syncId, getLastWrittenSyncId());
     }
 
     @Test
@@ -133,7 +133,7 @@ public class SyncedFlushActionTests extends ElasticsearchSingleNodeTest {
             logger.info("got a ", e);
             assertTrue(e.getCause() instanceof ElasticsearchIllegalStateException);
         }
-        assertNull(getLastWritenSyncId());
+        assertNull(getLastWrittenSyncId());
     }
 
     @Test
@@ -158,7 +158,7 @@ public class SyncedFlushActionTests extends ElasticsearchSingleNodeTest {
             logger.info("got a ", e);
             assertTrue(e.getCause() instanceof ElasticsearchIllegalStateException);
         }
-        assertNull(getLastWritenSyncId());
+        assertNull(getLastWrittenSyncId());
         delayedTransportIndexAction.beginIndexLatch.countDown();
         indexResponse.get();
     }
@@ -181,8 +181,8 @@ public class SyncedFlushActionTests extends ElasticsearchSingleNodeTest {
         return Base64.decode(client().admin().indices().prepareStats(INDEX).get().getIndex(INDEX).getShards()[0].getCommitStats().getId());
     }
 
-    public String getLastWritenSyncId() throws IOException {
-        IndexStats indexStats =  client().admin().indices().prepareStats(INDEX).get().getIndex(INDEX);
+    public String getLastWrittenSyncId() throws IOException {
+        IndexStats indexStats = client().admin().indices().prepareStats(INDEX).get().getIndex(INDEX);
         return indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID);
     }
 

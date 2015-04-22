@@ -36,11 +36,10 @@ import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.nullValue;
-
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RoutingTableTest extends ElasticsearchAllocationTestCase {
 
@@ -250,17 +249,17 @@ public class RoutingTableTest extends ElasticsearchAllocationTestCase {
 
     @Test
     public void testAllShardCopiesGrouped() {
-        assertThat(this.testRoutingTable.allShardCopiesGrouped(new ShardId(TEST_INDEX_1, randomInt(numberOfShards - 1))).size(), is(0));
+        assertThat(this.testRoutingTable.allActiveShardCopiesGrouped(new ShardId(TEST_INDEX_1, randomInt(numberOfShards - 1))).size(), is(0));
         try {
-            this.testRoutingTable.allShardCopiesGrouped(new ShardId(TEST_INDEX_1, numberOfShards)).size();
+            this.testRoutingTable.allActiveShardCopiesGrouped(new ShardId(TEST_INDEX_1, numberOfShards)).size();
             fail();
         } catch (ElasticsearchIllegalStateException e) {
         }
         initPrimaries();
-        assertThat(this.testRoutingTable.allShardCopiesGrouped(new ShardId(TEST_INDEX_1, randomInt(numberOfShards - 1))).size(), is(0));
+        assertThat(this.testRoutingTable.allActiveShardCopiesGrouped(new ShardId(TEST_INDEX_1, randomInt(numberOfShards - 1))).size(), is(0));
         startInitializingShards(TEST_INDEX_1);
-        assertThat(this.testRoutingTable.allShardCopiesGrouped(new ShardId(TEST_INDEX_1, randomInt(numberOfShards - 1))).size(), is(1));
+        assertThat(this.testRoutingTable.allActiveShardCopiesGrouped(new ShardId(TEST_INDEX_1, randomInt(numberOfShards - 1))).size(), is(1));
         startInitializingShards(TEST_INDEX_1);
-        assertThat(this.testRoutingTable.allShardCopiesGrouped(new ShardId(TEST_INDEX_1, randomInt(numberOfShards - 1))).size(), is(numberOfReplicas + 1));
+        assertThat(this.testRoutingTable.allActiveShardCopiesGrouped(new ShardId(TEST_INDEX_1, randomInt(numberOfShards - 1))).size(), is(numberOfReplicas + 1));
     }
 }

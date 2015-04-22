@@ -120,7 +120,7 @@ public class TransportPreSyncedFlushAction extends TransportBroadcastOperationAc
      */
     @Override
     protected GroupShardsIterator shards(ClusterState clusterState, PreSyncedFlushRequest request, String[] concreteIndices) {
-        return clusterState.routingTable().allShardCopiesGrouped(request.shardId());
+        return clusterState.routingTable().allActiveShardCopiesGrouped(request.shardId());
     }
 
     @Override

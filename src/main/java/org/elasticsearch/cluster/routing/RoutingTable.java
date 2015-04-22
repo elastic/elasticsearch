@@ -264,8 +264,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
      * @throws IndexMissingException If an index passed does not exists
      * @see IndexRoutingTable#groupByAllIt()
      */
-    // TODO: make this return assigned only and rename
-    public GroupShardsIterator allShardCopiesGrouped(ShardId shardId) throws IndexMissingException {
+    public GroupShardsIterator allActiveShardCopiesGrouped(ShardId shardId) throws IndexMissingException {
         // use list here since we need to maintain identity across shards
         ArrayList<ShardIterator> set = new ArrayList<>();
         IndexRoutingTable indexRoutingTable = index(shardId.index().name());

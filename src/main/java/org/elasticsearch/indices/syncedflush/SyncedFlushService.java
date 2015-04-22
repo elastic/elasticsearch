@@ -18,12 +18,6 @@
  */
 package org.elasticsearch.indices.syncedflush;
 
-import org.elasticsearch.action.admin.indices.synccommit.PreSyncedFlushRequest;
-import org.elasticsearch.action.admin.indices.synccommit.PreSyncedFlushResponse;
-import org.elasticsearch.action.admin.indices.synccommit.TransportPreSyncedFlushAction;
-import org.elasticsearch.action.synccommit.TransportSyncedFlushAction;
-import org.elasticsearch.action.synccommit.SyncedFlushRequest;
-import org.elasticsearch.action.synccommit.SyncedFlushResponse;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;

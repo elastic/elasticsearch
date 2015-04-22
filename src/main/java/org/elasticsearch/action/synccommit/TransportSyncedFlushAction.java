@@ -53,7 +53,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class TransportSyncedFlushAction extends TransportShardReplicationOperationAction<SyncedFlushRequest, SyncedFlushRequest, SyncedFlushResponse, SyncedFlushReplicaResponse> {
 
-    public static final String NAME = "indices:data/write/syncedflush";
+    public static final String NAME = "indices:admin/syncedflush";
 
     @Inject
     public TransportSyncedFlushAction(Settings settings, TransportService transportService, ClusterService clusterService,
@@ -79,7 +79,7 @@ public class TransportSyncedFlushAction extends TransportShardReplicationOperati
 
     @Override
     protected SyncedFlushRequest newReplicaRequestInstance() {
-        return newRequestInstance();
+        return new SyncedFlushRequest();
     }
 
     @Override
@@ -105,12 +105,9 @@ public class TransportSyncedFlushAction extends TransportShardReplicationOperati
 
     @Override
     protected Tuple<SyncedFlushResponse, SyncedFlushRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) throws Throwable {
-        byte[] commitId = null;
-        for (Map.Entry<ShardRouting, byte[]> entry : shardRequest.request.commitIds().entrySet()) {
-            if (entry.getKey().shardsIt().nextOrNull().primary()) {
-                commitId = entry.getValue();
-            }
-        }
+        ShardRouting shardRouting = clusterState.routingTable().index(shardRequest.shardId.index().name()).shard(shardRequest.shardId.id()).primaryShard();
+
+        byte[] commitId = shardRequest.request.commitIds().get(shardRouting);
         IndexService indexService = indicesService.indexServiceSafe(shardRequest.shardId.getIndex());
         IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
         SyncedFlushResponse syncedFlushResponse = new SyncedFlushResponse(indexShard.syncFlushIfNoPendingChanges(shardRequest.request.syncId(), commitId));
@@ -123,6 +120,8 @@ public class TransportSyncedFlushAction extends TransportShardReplicationOperati
     @Override
     protected SyncedFlushReplicaResponse shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         byte[] commitId = null;
+
+        // TODO: maybe key by nodeId becasue we do not need the routing anyway
         for (Map.Entry<ShardRouting, byte[]> entry : shardRequest.request.commitIds().entrySet()) {
             if (entry.getKey().shardsIt().nextOrNull().currentNodeId().equals(clusterService.localNode().getId())) {
                 commitId = entry.getValue();

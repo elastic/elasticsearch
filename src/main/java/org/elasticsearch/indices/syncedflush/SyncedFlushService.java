@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.indices;
+package org.elasticsearch.indices.syncedflush;
 
 import org.elasticsearch.action.admin.indices.synccommit.PreSyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.synccommit.PreSyncedFlushResponse;
@@ -45,8 +45,11 @@ public class SyncedFlushService extends AbstractComponent {
 
     public SyncedFlushResponse attemptSyncedFlush(ShardId shardId) throws ExecutionException, InterruptedException {
         PreSyncedFlushResponse preSyncedFlushResponse = transportPreSyncedFlushAction.execute(new PreSyncedFlushRequest(shardId)).get();
+        // exit if this did not work
         // nocommit
         String syncId = "123";
+
+        //TODO: use Strings.base64UUID
         SyncedFlushResponse syncedFlushResponse = transportSyncedFlushAction.execute(new SyncedFlushRequest(shardId, syncId, preSyncedFlushResponse.commitIds())).get();
         return syncedFlushResponse;
     }

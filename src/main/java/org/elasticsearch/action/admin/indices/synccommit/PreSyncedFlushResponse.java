@@ -33,16 +33,14 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * A response to sync commit action.
+ * A response to pre synced flush action.
  */
 public class PreSyncedFlushResponse extends BroadcastOperationResponse {
 
     Map<ShardRouting, byte[]> commitIds = new HashMap<>();
 
     PreSyncedFlushResponse() {
-
     }
-
 
     public PreSyncedFlushResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, AtomicReferenceArray shardsResponses) {
         super(totalShards, successfulShards, failedShards, shardFailures);
@@ -55,7 +53,7 @@ public class PreSyncedFlushResponse extends BroadcastOperationResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        int numCommitIds = in.readInt();
+        int numCommitIds = in.readVInt();
         for (int i = 0; i < numCommitIds; i++) {
             ImmutableShardRouting shardRouting = ImmutableShardRouting.readShardRoutingEntry(in);
             byte[] id = in.readByteArray();
@@ -66,7 +64,7 @@ public class PreSyncedFlushResponse extends BroadcastOperationResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeInt(commitIds.size());
+        out.writeVInt(commitIds.size());
         for (Map.Entry<ShardRouting, byte[]> entry : commitIds.entrySet()) {
             entry.getKey().writeTo(out);
             out.writeByteArray(entry.getValue());

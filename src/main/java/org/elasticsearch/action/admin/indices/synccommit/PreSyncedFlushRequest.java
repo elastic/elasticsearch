@@ -31,8 +31,6 @@ import java.util.Arrays;
  */
 public class PreSyncedFlushRequest extends BroadcastOperationRequest<PreSyncedFlushRequest> {
     private ShardId shardId;
-    private boolean force = true;
-    private boolean waitIfOngoing = true;
 
 
     PreSyncedFlushRequest() {
@@ -43,58 +41,22 @@ public class PreSyncedFlushRequest extends BroadcastOperationRequest<PreSyncedFl
         this.shardId = shardId;
     }
 
-    /**
-     * Returns <tt>true</tt> iff a flush should block
-     * if a another flush operation is already running. Otherwise <tt>false</tt>
-     */
-    public boolean waitIfOngoing() {
-        return this.waitIfOngoing;
-    }
-
-    /**
-     * if set to <tt>true</tt> the flush will block
-     * if a another flush operation is already running until the flush can be performed.
-     */
-    public PreSyncedFlushRequest waitIfOngoing(boolean waitIfOngoing) {
-        this.waitIfOngoing = waitIfOngoing;
-        return this;
-    }
-
-    /**
-     * Force flushing, even if one is possibly not needed.
-     */
-    public boolean force() {
-        return force;
-    }
-
-    /**
-     * Force flushing, even if one is possibly not needed.
-     */
-    public PreSyncedFlushRequest force(boolean force) {
-        this.force = force;
-        return this;
-    }
-
     @Override
     public String toString() {
-        return "SyncCommit{" +
-                "waitIfOngoing=" + waitIfOngoing() +
-                ", force=" + force() + "}";
+        return "PreSyncedFlushRequest{" +
+                "shardId=" + shardId +
+                '}';
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(force);
-        out.writeBoolean(waitIfOngoing);
         shardId.writeTo(out);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        force = in.readBoolean();
-        waitIfOngoing = in.readBoolean();
         this.shardId = ShardId.readShardId(in);
     }
 

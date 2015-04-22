@@ -17,7 +17,10 @@
  * under the License.
  */
 
+
+
 package org.elasticsearch.action.admin.indices.synccommit;
+//TODO: renam epackage to synced flush and put all the other stuff there, don't know where is should finally go
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -53,7 +56,7 @@ public class TransportPreSyncedFlushAction extends TransportBroadcastOperationAc
 
     private final IndicesService indicesService;
 
-    public static final String NAME = "indices:admin/synccommit";
+    public static final String NAME = "indices:admin/presyncedflush";
 
     @Inject
     public TransportPreSyncedFlushAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService, ActionFilters actionFilters) {
@@ -111,7 +114,7 @@ public class TransportPreSyncedFlushAction extends TransportBroadcastOperationAc
     @Override
     protected PreSyncedShardFlushResponse shardOperation(PreSyncedShardFlushRequest request) throws ElasticsearchException {
         IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).shardSafe(request.shardId().id());
-        FlushRequest flushRequest = new FlushRequest().force(true).waitIfOngoing(true);
+        FlushRequest flushRequest = new FlushRequest().force(false).waitIfOngoing(true);
         byte[] id = indexShard.flush(flushRequest);
         return new PreSyncedShardFlushResponse(id, request.shardRouting());
     }
@@ -126,11 +129,11 @@ public class TransportPreSyncedFlushAction extends TransportBroadcastOperationAc
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, PreSyncedFlushRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        return null;
     }
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, PreSyncedFlushRequest countRequest, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, concreteIndices);
+        return null;
     }
 }

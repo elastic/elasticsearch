@@ -71,7 +71,7 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
     }
 
     @Override
-    protected NodesStatsRequest newRequest() {
+    protected NodesStatsRequest newRequestInstance() {
         return new NodesStatsRequest();
     }
 

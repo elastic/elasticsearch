@@ -40,7 +40,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-
 public class UpdateMappingOnClusterTests extends ElasticsearchIntegrationTest {
 
     private static final String INDEX = "index";

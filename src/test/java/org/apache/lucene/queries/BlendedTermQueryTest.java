@@ -41,7 +41,7 @@ import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class BlendedTermQueryTest extends ElasticsearchLuceneTestCase {
+public class BlendedTermQueryTest extends ElasticsearchTestCase {
 
     @Test
     public void testBooleanQuery() throws IOException {

@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -40,12 +41,13 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 /**
  * see issue #9023
  */
+@Slow
 public class BalanceUnbalancedClusterTest extends CatAllocationTestBase {
 
     @Override
     protected Path getCatPath() throws IOException {
-        Path tmp = newTempDirPath();
-        try (InputStream stream = Files.newInputStream(getResourcePath("/org/elasticsearch/cluster/routing/issue_9023.zip"))) {
+        Path tmp = createTempDir();
+        try (InputStream stream = Files.newInputStream(getDataPath("/org/elasticsearch/cluster/routing/issue_9023.zip"))) {
             TestUtil.unzip(stream, tmp);
         }
         return tmp.resolve("issue_9023");

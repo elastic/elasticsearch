@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest;
 
 import com.google.common.collect.Sets;
+
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestRequest;
@@ -40,6 +41,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestionFuzzyBuil
 import org.elasticsearch.search.suggest.context.ContextBuilder;
 import org.elasticsearch.search.suggest.context.ContextMapping;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -51,6 +53,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertDistance;
 import static org.hamcrest.Matchers.containsString;
 
+@SuppressCodecs("*") // requires custom completion format
 public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     private static final String INDEX = "test";

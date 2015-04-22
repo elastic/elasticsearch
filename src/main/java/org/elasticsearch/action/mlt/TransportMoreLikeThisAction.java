@@ -148,9 +148,9 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
                     final Set<String> fields = newHashSet();
                     if (request.fields() != null) {
                         for (String field : request.fields()) {
-                            FieldMappers fieldMappers = docMapper.mappers().smartName(field);
-                            if (fieldMappers != null) {
-                                fields.add(fieldMappers.mapper().names().indexName());
+                            FieldMapper fieldMapper = docMapper.mappers().smartNameFieldMapper(field);
+                            if (fieldMapper != null) {
+                                fields.add(fieldMapper.names().indexName());
                             } else {
                                 fields.add(field);
                             }

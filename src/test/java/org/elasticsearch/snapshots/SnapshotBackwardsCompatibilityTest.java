@@ -59,7 +59,7 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
         logger.info("-->  creating repository");
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", newTempDirPath(LifecycleScope.SUITE).toAbsolutePath())
+                        .put("location", createTempDir().toAbsolutePath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000))));
         String[] indicesBefore = new String[randomIntBetween(2,5)];
@@ -165,7 +165,7 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
 
     public void testSnapshotMoreThanOnce() throws ExecutionException, InterruptedException, IOException {
         Client client = client();
-        final Path tempDir = newTempDirPath(LifecycleScope.SUITE).toAbsolutePath();
+        final Path tempDir = createTempDir().toAbsolutePath();
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()

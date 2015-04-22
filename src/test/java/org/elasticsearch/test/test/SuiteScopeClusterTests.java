@@ -19,6 +19,7 @@
 package org.elasticsearch.test.test;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.TestCluster;
 import org.junit.Test;

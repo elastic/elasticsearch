@@ -33,6 +33,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
@@ -41,6 +43,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -66,7 +69,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
     }
 
     @Override
-    protected IndicesSegmentsRequest newRequest() {
+    protected IndicesSegmentsRequest newRequestInstance() {
         return new IndicesSegmentsRequest();
     }
 
@@ -135,7 +138,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
     }
 
     static class IndexShardSegmentRequest extends BroadcastShardOperationRequest {
-        final boolean verbose;
+        boolean verbose;
         
         IndexShardSegmentRequest() {
             verbose = false;
@@ -144,6 +147,18 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
         IndexShardSegmentRequest(ShardId shardId, IndicesSegmentsRequest request) {
             super(shardId, request);
             verbose = request.verbose();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeBoolean(verbose);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            verbose = in.readBoolean();
         }
     }
 }

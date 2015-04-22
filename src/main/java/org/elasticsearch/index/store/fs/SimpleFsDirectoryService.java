@@ -26,6 +26,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.IndexStore;
 
 import java.io.File;
@@ -37,8 +38,8 @@ import java.nio.file.Path;
 public class SimpleFsDirectoryService extends FsDirectoryService {
 
     @Inject
-    public SimpleFsDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore) {
-        super(shardId, indexSettings, indexStore);
+    public SimpleFsDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, ShardPath shardPath) {
+        super(shardId, indexSettings, indexStore, shardPath);
     }
 
     @Override

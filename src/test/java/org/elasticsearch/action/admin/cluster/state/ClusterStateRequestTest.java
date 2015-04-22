@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -42,7 +43,7 @@ public class ClusterStateRequestTest extends ElasticsearchTestCase {
             ClusterStateRequest clusterStateRequest = new ClusterStateRequest().routingTable(randomBoolean()).metaData(randomBoolean())
                     .nodes(randomBoolean()).blocks(randomBoolean()).indices("testindex", "testindex2").indicesOptions(indicesOptions);
 
-            Version testVersion = randomVersionBetween(Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
+            Version testVersion = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
             BytesStreamOutput output = new BytesStreamOutput();
             output.setVersion(testVersion);
             clusterStateRequest.writeTo(output);

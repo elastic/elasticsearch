@@ -70,7 +70,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesOperationAction
     }
 
     @Override
-    protected Request newRequest() {
+    protected Request newRequestInstance() {
         return new Request();
     }
 

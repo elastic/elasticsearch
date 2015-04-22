@@ -46,9 +46,6 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
     public static final String INDEX_STORE_THROTTLE_TYPE = "index.store.throttle.type";
     public static final String INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC = "index.store.throttle.max_bytes_per_sec";
 
-    public static final String INDEX_FOLDER_NAME = "index";
-    public static final String TRANSLOG_FOLDER_NAME = "translog";
-
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
@@ -114,6 +111,7 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
         } else {
             this.locations = null;
         }
+
     }
 
     @Override
@@ -124,37 +122,5 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
     @Override
     public StoreRateLimiting rateLimiting() {
         return nodeRateLimiting ? indicesStore.rateLimiting() : this.rateLimiting;
-    }
-
-    /**
-     * Return an array of all index folder locations for a given shard. Uses
-     * the index settings to determine if a custom data path is set for the
-     * index and uses that if applicable.
-     */
-    @Override
-    public Path[] shardIndexLocations(ShardId shardId) {
-        Path[] shardLocations = nodeEnv.shardDataPaths(shardId, indexSettings);
-        Path[] locations = new Path[shardLocations.length];
-        for (int i = 0; i < shardLocations.length; i++) {
-            locations[i] = shardLocations[i].resolve(INDEX_FOLDER_NAME);
-        }
-        logger.debug("using [{}] as shard's index location", locations);
-        return locations;
-    }
-
-    /**
-     * Return an array of all translog folder locations for a given shard. Uses
-     * the index settings to determine if a custom data path is set for the
-     * index and uses that if applicable.
-     */
-    @Override
-    public Path[] shardTranslogLocations(ShardId shardId) {
-        Path[] shardLocations = nodeEnv.shardDataPaths(shardId, indexSettings);
-        Path[] locations = new Path[shardLocations.length];
-        for (int i = 0; i < shardLocations.length; i++) {
-            locations[i] = shardLocations[i].resolve(TRANSLOG_FOLDER_NAME);
-        }
-        logger.debug("using [{}] as shard's translog location", locations);
-        return locations;
     }
 }

@@ -101,7 +101,7 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
     }
 
     @Override
-    protected PercolateRequest newRequest() {
+    protected PercolateRequest newRequestInstance() {
         return new PercolateRequest();
     }
 

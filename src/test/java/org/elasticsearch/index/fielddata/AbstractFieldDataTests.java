@@ -25,7 +25,6 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.store.RAMDirectory;
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -41,9 +40,6 @@ import org.junit.Before;
 
 import static org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 
-// we might wanna cut this over to LuceneTestCase
-@SuppressCodecs({"Lucene3x", "Lucene40", "Lucene41", "Lucene42", "Lucene45", "Lucene46"}) 
-// avoid codecs that do not support SortedNumerics, SortedSet, etc
 public abstract class AbstractFieldDataTests extends ElasticsearchSingleNodeTest {
 
     protected IndexService indexService;

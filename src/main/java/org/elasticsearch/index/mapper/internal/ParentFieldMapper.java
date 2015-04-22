@@ -24,11 +24,11 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.queries.TermsFilter;
+import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
@@ -275,7 +275,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         }
         BytesRef bValue = BytesRefs.toBytesRef(value);
         if (Uid.hasDelimiter(bValue)) {
-            return new TermFilter(new Term(names.indexName(), bValue));
+            return Queries.wrap(new TermQuery(new Term(names.indexName(), bValue)));
         }
 
         List<String> types = new ArrayList<>(context.mapperService().types().size());
@@ -286,16 +286,16 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         }
 
         if (types.isEmpty()) {
-            return Queries.MATCH_NO_FILTER;
+            return Queries.newMatchNoDocsFilter();
         } else if (types.size() == 1) {
-            return new TermFilter(new Term(names.indexName(), Uid.createUidAsBytes(types.get(0), bValue)));
+            return Queries.wrap(new TermQuery(new Term(names.indexName(), Uid.createUidAsBytes(types.get(0), bValue))));
         } else {
             // we use all non child types, cause we don't know if its exact or not...
             List<BytesRef> typesValues = new ArrayList<>(types.size());
             for (String type : context.mapperService().types()) {
                 typesValues.add(Uid.createUidAsBytes(type, bValue));
             }
-            return new TermsFilter(names.indexName(), typesValues);
+            return Queries.wrap(new TermsQuery(names.indexName(), typesValues));
         }
     }
 
@@ -328,7 +328,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
                 }
             }
         }
-        return new TermsFilter(names.indexName(), bValues);
+        return Queries.wrap(new TermsQuery(names.indexName(), bValues));
     }
 
     /**
@@ -366,7 +366,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         ParentFieldMapper other = (ParentFieldMapper) mergeWith;
         if (!Objects.equal(type, other.type)) {
-            mergeContext.addConflict("The _parent field's type option can't be changed");
+            mergeContext.addConflict("The _parent field's type option can't be changed: [" + type + "]->[" + other.type + "]");
         }
 
         if (!mergeContext.mergeFlags().simulate()) {

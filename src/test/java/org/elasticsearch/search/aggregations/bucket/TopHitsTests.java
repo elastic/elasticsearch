@@ -63,13 +63,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.emptyArray;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -826,7 +820,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
         assertThat(version, equalTo(1l));
 
         // Can't use named queries for the same reason explain doesn't work:
-        assertThat(searchHit.matchedQueries(), emptyArray());
+        assertThat(searchHit.matchedQueries(), arrayContaining("test"));
 
         SearchHitField field = searchHit.field("comments.user");
         assertThat(field.getValue().toString(), equalTo("a"));

@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.SpawnModules;
@@ -38,6 +39,7 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeParser;
 import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeParser;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceParser;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IpRangeParser;
+import org.elasticsearch.search.aggregations.bucket.sampler.SamplerParser;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsParser;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificantTermsHeuristicModule;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsParser;
@@ -80,6 +82,7 @@ public class AggregationModule extends AbstractModule implements SpawnModules{
         parsers.add(MissingParser.class);
         parsers.add(FilterParser.class);
         parsers.add(FiltersParser.class);
+        parsers.add(SamplerParser.class);
         parsers.add(TermsParser.class);
         parsers.add(SignificantTermsParser.class);
         parsers.add(RangeParser.class);

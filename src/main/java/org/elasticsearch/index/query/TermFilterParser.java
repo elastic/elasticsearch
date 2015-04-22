@@ -20,12 +20,13 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterCachingPolicy;
+import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.HashedBytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -51,7 +52,7 @@ public class TermFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
+        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
         HashedBytesRef cacheKey = null;
         String fieldName = null;
         Object value = null;
@@ -112,7 +113,7 @@ public class TermFilterParser implements FilterParser {
             filter = smartNameFieldMappers.mapper().termFilter(value, parseContext);
         }
         if (filter == null) {
-            filter = new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(value)));
+            filter = Queries.wrap(new TermQuery(new Term(fieldName, BytesRefs.toBytesRef(value))));
         }
 
         if (cache != null) {

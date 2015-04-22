@@ -438,11 +438,11 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
     public void testRecoveryDifferentNodeOrderStartup() throws Exception {
         // we need different data paths so we make sure we start the second node fresh
 
-        final String node_1 = internalCluster().startNode(settingsBuilder().put("path.data", newTempDirPath()).build());
+        final String node_1 = internalCluster().startNode(settingsBuilder().put("path.data", createTempDir()).build());
 
         client().prepareIndex("test", "type1", "1").setSource("field", "value").execute().actionGet();
 
-        internalCluster().startNode(settingsBuilder().put("path.data", newTempDirPath()).build());
+        internalCluster().startNode(settingsBuilder().put("path.data", createTempDir()).build());
 
         ensureGreen();
 

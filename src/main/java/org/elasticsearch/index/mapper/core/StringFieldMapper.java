@@ -382,7 +382,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         if (includeDefaults || positionOffsetGap != Defaults.POSITION_OFFSET_GAP) {
             builder.field("position_offset_gap", positionOffsetGap);
         }
-        if (searchQuotedAnalyzer != null && searchAnalyzer != searchQuotedAnalyzer) {
+        if (searchQuotedAnalyzer != null && !searchQuotedAnalyzer.name().equals(searchAnalyzer.name())) {
             builder.field("search_quote_analyzer", searchQuotedAnalyzer.name());
         } else if (includeDefaults) {
             if (searchQuotedAnalyzer == null) {

@@ -21,7 +21,8 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
-import org.apache.lucene.queries.TermsFilter;
+
+import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
@@ -99,7 +100,7 @@ public class IdsFilterParser implements FilterParser {
         }
 
         if (ids.isEmpty()) {
-            return Queries.MATCH_NO_FILTER;
+            return Queries.newMatchNoDocsFilter();
         }
 
         if (types == null || types.isEmpty()) {
@@ -108,7 +109,7 @@ public class IdsFilterParser implements FilterParser {
             types = parseContext.mapperService().types();
         }
 
-        TermsFilter filter = new TermsFilter(UidFieldMapper.NAME, Uid.createTypeUids(types, ids));
+        Filter filter = Queries.wrap(new TermsQuery(UidFieldMapper.NAME, Uid.createTypeUids(types, ids)));
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

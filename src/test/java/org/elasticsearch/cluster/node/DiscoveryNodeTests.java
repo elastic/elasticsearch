@@ -33,6 +33,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.test.VersionUtils.randomVersion;
+
 public class DiscoveryNodeTests extends ElasticsearchTestCase {
 
 
@@ -49,7 +51,7 @@ public class DiscoveryNodeTests extends ElasticsearchTestCase {
             for (int a = randomInt(10); a > 0; a--) {
                 attributes.put(randomUnicodeOfLengthBetween(3, 20), randomUnicodeOfLengthBetween(3, 20));
             }
-            final Version version = randomVersion();
+            final Version version = randomVersion(random());
             DiscoveryNode discoveryNode = new DiscoveryNode(nodeName, id, hostName, hostAddress, transportAddress, attributes, version);
             BytesStreamOutput bytesOutput = new BytesStreamOutput();
             ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(bytesOutput);

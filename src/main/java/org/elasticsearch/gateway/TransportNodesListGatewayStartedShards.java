@@ -74,7 +74,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     }
 
     @Override
-    protected Request newRequest() {
+    protected Request newRequestInstance() {
         return new Request();
     }
 
@@ -117,7 +117,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
             final ShardId shardId = request.getShardId();
             final String indexUUID = request.getIndexUUID();
             logger.trace("{} loading local shard state info", shardId);
-            final ShardStateMetaData shardStateMetaData = ShardStateMetaData.FORMAT.loadLatestState(logger, nodeEnv.shardPaths(request.shardId));
+            ShardStateMetaData shardStateMetaData = ShardStateMetaData.FORMAT.loadLatestState(logger, nodeEnv.availableShardPaths(request.shardId));
             if (shardStateMetaData != null) {
                 // old shard metadata doesn't have the actual index UUID so we need to check if the actual uuid in the metadata
                 // is equal to IndexMetaData.INDEX_UUID_NA_VALUE otherwise this shard doesn't belong to the requested index.
@@ -154,6 +154,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
             this.shardId = shardId;
             this.indexUUID = indexUUID;
         }
+
 
         public ShardId shardId() {
             return this.shardId;

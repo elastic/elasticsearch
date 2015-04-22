@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.search.aggregations.bucket.BestBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
@@ -136,7 +137,7 @@ public abstract class AggregatorBase extends Aggregator {
         for (int i = 0; i < subAggregators.length; ++i) {
             if (shouldDefer(subAggregators[i])) {
                 if (recordingWrapper == null) {
-                    recordingWrapper = new DeferringBucketCollector();
+                    recordingWrapper = getDeferringCollector();
                 }
                 deferredCollectors.add(subAggregators[i]);
                 subAggregators[i] = recordingWrapper.wrap(subAggregators[i]);
@@ -151,6 +152,12 @@ public abstract class AggregatorBase extends Aggregator {
         collectableSubAggregators = BucketCollector.wrap(collectors);
         doPreCollection();
         collectableSubAggregators.preCollection();
+    }
+
+    public DeferringBucketCollector getDeferringCollector() {
+        // Default impl is a collector that selects the best buckets
+        // but an alternative defer policy may be based on best docs.
+        return new BestBucketsDeferringCollector();
     }
 
     /**

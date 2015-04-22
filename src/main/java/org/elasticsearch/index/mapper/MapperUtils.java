@@ -19,10 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -44,12 +42,8 @@ public enum MapperUtils {
         return mapper;
     }
 
-    /**
-     * Merge {@code mergeWith} into {@code mergeTo}. Note: this method only
-     * merges mappings, not lookup structures. Conflicts are returned as exceptions.
-     */
-    public static void merge(Mapper mergeInto, Mapper mergeWith) {
-        MergeContext ctx = new MergeContext(new DocumentMapper.MergeFlags().simulate(false)) {
+    private static MergeContext newStrictMergeContext() {
+        return new MergeContext(new DocumentMapper.MergeFlags().simulate(false)) {
 
             @Override
             public boolean hasConflicts() {
@@ -73,10 +67,25 @@ public enum MapperUtils {
 
             @Override
             public void addConflict(String mergeFailure) {
-                throw new ElasticsearchIllegalStateException("Merging dynamic updates triggered a conflict: " + mergeFailure);
+                throw new MapperParsingException("Merging dynamic updates triggered a conflict: " + mergeFailure);
             }
         };
-        mergeInto.merge(mergeWith, ctx);
+    }
+
+    /**
+     * Merge {@code mergeWith} into {@code mergeTo}. Note: this method only
+     * merges mappings, not lookup structures. Conflicts are returned as exceptions.
+     */
+    public static void merge(Mapper mergeInto, Mapper mergeWith) {
+        mergeInto.merge(mergeWith, newStrictMergeContext());
+    }
+
+    /**
+     * Merge {@code mergeWith} into {@code mergeTo}. Note: this method only
+     * merges mappings, not lookup structures. Conflicts are returned as exceptions.
+     */
+    public static void merge(Mapping mergeInto, Mapping mergeWith) {
+        mergeInto.merge(mergeWith, newStrictMergeContext());
     }
 
 }

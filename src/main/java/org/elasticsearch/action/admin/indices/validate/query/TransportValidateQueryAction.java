@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.MatchNoDocsFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
@@ -96,7 +95,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
     }
 
     @Override
-    protected ValidateQueryRequest newRequest() {
+    protected ValidateQueryRequest newRequestInstance() {
         return new ValidateQueryRequest();
     }
 
@@ -219,7 +218,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
 
     private String getRewrittenQuery(IndexSearcher searcher, Query query) throws IOException {
         Query queryRewrite = searcher.rewrite(query);
-        if (queryRewrite instanceof MatchNoDocsQuery || queryRewrite instanceof MatchNoDocsFilter) {
+        if (queryRewrite instanceof MatchNoDocsQuery) {
             return query.toString();
         } else {
             return queryRewrite.toString();

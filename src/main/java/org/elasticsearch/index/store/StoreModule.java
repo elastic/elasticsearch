@@ -21,12 +21,8 @@ package org.elasticsearch.index.store;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.env.ShardLock;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.distributor.Distributor;
-import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
-import org.elasticsearch.index.store.distributor.RandomWeightedDistributor;
+import org.elasticsearch.index.shard.ShardPath;
 
 /**
  *
@@ -39,48 +35,26 @@ public class StoreModule extends AbstractModule {
 
     private final Settings settings;
 
-    private final IndexStore indexStore;
     private final ShardLock lock;
     private final Store.OnClose closeCallback;
+    private final ShardPath path;
+    private final Class<? extends DirectoryService> shardDirectory;
 
-    private Class<? extends Distributor> distributor;
 
-    public StoreModule(Settings settings, IndexStore indexStore, ShardLock lock, Store.OnClose closeCallback) {
-        this.indexStore = indexStore;
+    public StoreModule(Settings settings,  Class<? extends DirectoryService> shardDirectory, ShardLock lock, Store.OnClose closeCallback, ShardPath path) {
+        this.shardDirectory = shardDirectory;
         this.settings = settings;
         this.lock = lock;
         this.closeCallback = closeCallback;
-    }
-
-    public void setDistributor(Class<? extends Distributor> distributor) {
-        this.distributor = distributor;
+        this.path = path;
     }
 
     @Override
     protected void configure() {
-        bind(DirectoryService.class).to(indexStore.shardDirectory()).asEagerSingleton();
+        bind(DirectoryService.class).to(shardDirectory).asEagerSingleton();
         bind(Store.class).asEagerSingleton();
         bind(ShardLock.class).toInstance(lock);
         bind(Store.OnClose.class).toInstance(closeCallback);
-
-        if (distributor == null) {
-            distributor = loadDistributor(settings);
-        }
-        bind(Distributor.class).to(distributor).asEagerSingleton();
+        bind(ShardPath.class).toInstance(path);
     }
-
-    private Class<? extends Distributor> loadDistributor(Settings settings) {
-        final Class<? extends Distributor> distributor;
-        final String type = settings.get(DISTIBUTOR_KEY);
-        if ("least_used".equals(type)) {
-            distributor = LeastUsedDistributor.class;
-        } else if ("random".equals(type)) {
-            distributor = RandomWeightedDistributor.class;
-        } else {
-            distributor = settings.getAsClass(DISTIBUTOR_KEY, LeastUsedDistributor.class,
-                    "org.elasticsearch.index.store.distributor.", "Distributor");
-        }
-        return distributor;
-    }
-
 }

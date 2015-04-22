@@ -64,9 +64,9 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.engine.AssertingSearcher;
-import org.elasticsearch.test.engine.MockInternalEngine;
-import org.elasticsearch.test.engine.MockShadowEngine;
+import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -82,6 +82,7 @@ import java.util.concurrent.TimeUnit;
 
 import static com.google.common.base.Predicates.isNull;
 import static org.elasticsearch.test.ElasticsearchTestCase.*;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -585,8 +586,8 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertVersionSerializable(Streamable streamable) {
-        assertTrue(Version.CURRENT.after(getPreviousVersion()));
-        assertVersionSerializable(randomVersion(), streamable);
+        assertTrue(Version.CURRENT.after(VersionUtils.getPreviousVersion()));
+        assertVersionSerializable(randomVersion(random()), streamable);
     }
 
     public static void assertVersionSerializable(Version version, Streamable streamable) {
@@ -651,34 +652,27 @@ public class ElasticsearchAssertions {
             if (awaitBusy(new Predicate<Object>() {
                 @Override
                 public boolean apply(Object o) {
-                    return MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty() &&
-                            MockShadowEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty();
+                    return MockEngineSupport.INFLIGHT_ENGINE_SEARCHERS.isEmpty();
                 }
             }, 5, TimeUnit.SECONDS)) {
                 return;
             }
         } catch (InterruptedException ex) {
-            if (MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty() &&
-                    MockShadowEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty()) {
+            if (MockEngineSupport.INFLIGHT_ENGINE_SEARCHERS.isEmpty()) {
                 return;
             }
         }
         try {
             RuntimeException ex = null;
             StringBuilder builder = new StringBuilder("Unclosed Searchers instance for shards: [");
-            for (Map.Entry<AssertingSearcher, RuntimeException> entry : MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
-                ex = entry.getValue();
-                builder.append(entry.getKey().shardId()).append(",");
-            }
-            for (Map.Entry<AssertingSearcher, RuntimeException> entry : MockShadowEngine.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
+            for (Map.Entry<AssertingSearcher, RuntimeException> entry : MockEngineSupport.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
                 ex = entry.getValue();
                 builder.append(entry.getKey().shardId()).append(",");
             }
             builder.append("]");
             throw new RuntimeException(builder.toString(), ex);
         } finally {
-            MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.clear();
-            MockShadowEngine.INFLIGHT_ENGINE_SEARCHERS.clear();
+            MockEngineSupport.INFLIGHT_ENGINE_SEARCHERS.clear();
         }
     }
 

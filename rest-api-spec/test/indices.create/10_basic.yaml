@@ -12,7 +12,7 @@
       indices.get_mapping:
         index: test_index
 
-  - match: { test_index.mappings.type_1.properties: {}}
+  - match: { test_index.mappings.type_1: {}}
 
 ---
 "Create index with settings":
@@ -106,7 +106,7 @@
       indices.get_mapping:
         index: test_index
 
-  - match: { test_index.mappings.type_1.properties: {}}
+  - match: { test_index.mappings.type_1: {}}
 
   - do:
       indices.get_settings:

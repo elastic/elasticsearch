@@ -63,7 +63,7 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
     }
 
     @Override
-    protected OptimizeRequest newRequest() {
+    protected OptimizeRequest newRequestInstance() {
         return new OptimizeRequest();
     }
 

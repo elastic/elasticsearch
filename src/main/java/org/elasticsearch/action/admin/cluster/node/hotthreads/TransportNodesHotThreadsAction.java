@@ -67,7 +67,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesOperationActio
     }
 
     @Override
-    protected NodesHotThreadsRequest newRequest() {
+    protected NodesHotThreadsRequest newRequestInstance() {
         return new NodesHotThreadsRequest();
     }
 

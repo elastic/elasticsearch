@@ -427,7 +427,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         logger.info("--> create repository");
         assertAcked(client().admin().cluster().preparePutRepository(REPO_NAME)
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                                .put("location", newTempDir(LifecycleScope.SUITE))
+                                .put("location", createTempDir())
                                 .put("compress", false)
                 ).get());
 

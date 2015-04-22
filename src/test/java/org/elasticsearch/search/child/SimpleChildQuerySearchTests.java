@@ -38,8 +38,8 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.cache.filter.AutoFilterCachingPolicy;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
+import org.elasticsearch.index.cache.filter.FilterCacheModule.FilterCacheSettings;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
@@ -128,7 +128,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 // aggressive filter caching so that we can assert on the filter cache size
                 .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, WeightedFilterCache.class)
-                .put(AutoFilterCachingPolicy.AGGRESSIVE_CACHING_SETTINGS)
+                .put(FilterCacheSettings.FILTER_CACHE_EVERYTHING, true)
                 .build();
     }
 
@@ -852,7 +852,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreType("max"))
                 .get();
         assertThat(explainResponse.isExists(), equalTo(true));
-        assertThat(explainResponse.getExplanation().getDescription(), equalTo("not implemented yet..."));
+        assertThat(explainResponse.getExplanation().toString(), equalTo("1.0 = (MATCH) sum of:\n  1.0 = not implemented yet...\n  0.0 = match on required clause, product of:\n    0.0 = # clause\n    0.0 = (MATCH) Match on id 0\n"));
     }
 
     List<IndexRequestBuilder> createDocBuilders() {
@@ -1115,7 +1115,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                     )).get();
             assertSearchHit(searchResponse, 1, hasId("1"));
             // Can't start with ConstantScore(cache(BooleanFilter(
-            assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), startsWith("ConstantScore(BooleanFilter("));
+            assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), startsWith("ConstantScore(CustomQueryWrappingFilter("));
 
             searchResponse = client().prepareSearch("test")
                     .setExplain(true)
@@ -1125,7 +1125,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                     )).get();
             assertSearchHit(searchResponse, 1, hasId("1"));
             // Can't start with ConstantScore(cache(BooleanFilter(
-            assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), startsWith("ConstantScore(BooleanFilter("));
+            assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), startsWith("ConstantScore(CustomQueryWrappingFilter("));
         }
     }
 
@@ -1645,11 +1645,11 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                     .endObject().endObject()).get();
             fail();
         } catch (MergeMappingException e) {
-            assertThat(e.getMessage(), equalTo("Merge failed with failures {[The _parent field's type option can't be changed]}"));
+            assertThat(e.getMessage(), equalTo("Merge failed with failures {[The _parent field's type option can't be changed: [null]->[parent]]}"));
         }
     }
 
-    @Test
+    @Test @Slow
     // The SimpleIdReaderTypeCache#docById method used lget, which can't be used if a map is shared.
     public void testTopChildrenBug_concurrencyIssue() throws Exception {
         assertAcked(prepareCreate("test")

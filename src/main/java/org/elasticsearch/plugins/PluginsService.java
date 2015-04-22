@@ -21,6 +21,7 @@ package org.elasticsearch.plugins;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.*;
+
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -61,7 +63,7 @@ public class PluginsService extends AbstractComponent {
     public static final String ES_PLUGIN_PROPERTIES = "es-plugin.properties";
     public static final String LOAD_PLUGIN_FROM_CLASSPATH = "plugins.load_classpath_plugins";
 
-    private static final PathMatcher PLUGIN_LIB_MATCHER = FileSystems.getDefault().getPathMatcher("glob:**.{jar,zip}");
+    static final String PLUGIN_LIB_PATTERN = "glob:**.{jar,zip}";
     public static final String PLUGINS_CHECK_LUCENE_KEY = "plugins.check_lucene";
     public static final String PLUGINS_INFO_REFRESH_INTERVAL_KEY = "plugins.info_refresh_interval";
 
@@ -393,9 +395,11 @@ public class PluginsService extends AbstractComponent {
                         libFiles.addAll(Arrays.asList(files(libLocation)));
                     }
 
+                    PathMatcher matcher = PathUtils.getDefaultFileSystem().getPathMatcher(PLUGIN_LIB_PATTERN);
+
                     // if there are jars in it, add it as well
                     for (Path libFile : libFiles) {
-                        if (!hasLibExtension(libFile)) {
+                        if (!matcher.matches(libFile)) {
                             continue;
                         }
                         addURL.invoke(classLoader, libFile.toUri().toURL());
@@ -405,10 +409,6 @@ public class PluginsService extends AbstractComponent {
                 }
             }
         }
-    }
-
-    protected static boolean hasLibExtension(Path lib) {
-        return PLUGIN_LIB_MATCHER.matches(lib);
     }
 
     private Path[] files(Path from) throws IOException {

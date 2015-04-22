@@ -19,6 +19,7 @@
 
 package org.elasticsearch.aliases;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -69,6 +70,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
+@Slow
 public class IndexAliasesTests extends ElasticsearchIntegrationTest {
 
     @Test

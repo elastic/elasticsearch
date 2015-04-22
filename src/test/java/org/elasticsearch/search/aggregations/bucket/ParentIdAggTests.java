@@ -34,7 +34,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-
 public class ParentIdAggTests extends ElasticsearchIntegrationTest {
 
     @Test

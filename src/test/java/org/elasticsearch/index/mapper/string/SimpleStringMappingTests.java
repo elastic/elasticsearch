@@ -20,20 +20,23 @@
 package org.elasticsearch.index.mapper.string;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.queries.TermsFilter;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -52,6 +55,7 @@ import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -215,6 +219,79 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         fieldType = doc.rootDoc().getField("field").fieldType();
         assertThat(fieldType.omitNorms(), equalTo(false));
         assertParseIdemPotent(fieldType, defaultMapper);
+    }
+    
+    @Test
+    public void testSearchQuoteAnalyzerSerialization() throws Exception {
+        // Cases where search_quote_analyzer should not be added to the mapping.
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("field1")
+                    .field("type", "string")
+                    .field("position_offset_gap", 1000)
+                .endObject()
+                .startObject("field2")
+                    .field("type", "string")
+                    .field("position_offset_gap", 1000)
+                    .field("analyzer", "standard")
+                .endObject()
+                .startObject("field3")
+                    .field("type", "string")
+                    .field("position_offset_gap", 1000)
+                    .field("analyzer", "standard")
+                    .field("search_analyzer", "simple")
+                .endObject()
+                .startObject("field4")
+                    .field("type", "string")
+                    .field("position_offset_gap", 1000)
+                    .field("analyzer", "standard")
+                    .field("search_analyzer", "simple")
+                    .field("search_quote_analyzer", "simple")
+                .endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse(mapping);
+        for (String fieldName : Lists.newArrayList("field1", "field2", "field3", "field4")) {
+            Map<String, Object> serializedMap = getSerializedMap(fieldName, mapper);
+            assertFalse(serializedMap.containsKey("search_quote_analyzer"));
+        }
+        
+        // Cases where search_quote_analyzer should be present.
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("field1")
+                    .field("type", "string")
+                    .field("position_offset_gap", 1000)
+                    .field("search_quote_analyzer", "simple")
+                .endObject()
+                .startObject("field2")
+                    .field("type", "string")
+                    .field("position_offset_gap", 1000)
+                    .field("analyzer", "standard")
+                    .field("search_analyzer", "standard")
+                    .field("search_quote_analyzer", "simple")
+                .endObject()
+                .endObject()
+                .endObject().endObject().string();
+        
+        mapper = parser.parse(mapping);
+        for (String fieldName : Lists.newArrayList("field1", "field2")) {
+            Map<String, Object> serializedMap = getSerializedMap(fieldName, mapper);
+            assertEquals(serializedMap.get("search_quote_analyzer"), "simple");
+        }
+    }
+    
+    private Map<String, Object> getSerializedMap(String fieldName, DocumentMapper mapper) throws Exception {
+        FieldMapper<?> fieldMapper = mapper.mappers().smartNameFieldMapper(fieldName);
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        fieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
+        builder.close();
+        
+        Map<String, Object> fieldMap = JsonXContent.jsonXContent.createParser(builder.bytes()).mapAndClose();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> result = (Map<String, Object>) fieldMap.get(fieldName);
+        return result;
     }
 
     @Test
@@ -423,7 +500,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         String updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", false).endObject()
                 .endObject().endObject().endObject().endObject().string();
-        MergeResult mergeResult = defaultMapper.merge(parser.parse(updatedMapping), MergeFlags.mergeFlags().simulate(false));
+        MergeResult mergeResult = defaultMapper.merge(parser.parse(updatedMapping).mapping(), MergeFlags.mergeFlags().simulate(false));
         assertFalse(Arrays.toString(mergeResult.conflicts()), mergeResult.hasConflicts());
 
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
@@ -438,7 +515,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", true).endObject()
                 .endObject().endObject().endObject().endObject().string();
-        mergeResult = defaultMapper.merge(parser.parse(updatedMapping), MergeFlags.mergeFlags());
+        mergeResult = defaultMapper.merge(parser.parse(updatedMapping).mapping(), MergeFlags.mergeFlags());
         assertTrue(mergeResult.hasConflicts());
         assertEquals(1, mergeResult.conflicts().length);
         assertTrue(mergeResult.conflicts()[0].contains("cannot enable norms"));
@@ -450,12 +527,12 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         DocumentMapper defaultMapper = parser.parse(mapping);
-        FieldMapper<?> mapper = defaultMapper.mappers().fullName("field").mapper();
+        FieldMapper<?> mapper = defaultMapper.mappers().getMapper("field");
         assertNotNull(mapper);
         assertTrue(mapper instanceof StringFieldMapper);
-        assertEquals(Queries.MATCH_NO_FILTER, mapper.termsFilter(Collections.emptyList(), null));
-        assertEquals(new TermFilter(new Term("field", "value")), mapper.termsFilter(Collections.singletonList("value"), null));
-        assertEquals(new TermsFilter(new Term("field", "value1"), new Term("field", "value2")), mapper.termsFilter(Arrays.asList("value1", "value2"), null));
+        assertEquals(Queries.newMatchNoDocsFilter(), mapper.termsFilter(Collections.emptyList(), null));
+        assertEquals(new QueryWrapperFilter(new TermQuery(new Term("field", "value"))), mapper.termsFilter(Collections.singletonList("value"), null));
+        assertEquals(new QueryWrapperFilter(new TermsQuery(new Term("field", "value1"), new Term("field", "value2"))), mapper.termsFilter(Arrays.asList("value1", "value2"), null));
     }
 
 }

@@ -79,7 +79,7 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
     }
 
     @Override
-    protected SuggestRequest newRequest() {
+    protected SuggestRequest newRequestInstance() {
         return new SuggestRequest();
     }
 

@@ -19,43 +19,23 @@
 
 package org.elasticsearch.test.engine;
 
-import org.apache.lucene.index.AssertingDirectoryReader;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherManager;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.ShadowEngine;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import java.io.IOException;
-import java.lang.reflect.Constructor;
 import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
-public class MockShadowEngine extends ShadowEngine {
+final class MockShadowEngine extends ShadowEngine {
+    private final MockEngineSupport support;
 
-    private final MockInternalEngine.MockContext mockContext;
-    public static final ConcurrentMap<AssertingSearcher, RuntimeException> INFLIGHT_ENGINE_SEARCHERS = new ConcurrentHashMap<>();
-
-    public MockShadowEngine(EngineConfig config) {
+    MockShadowEngine(EngineConfig config) {
         super(config);
-        Settings indexSettings = config.getIndexSettings();
-        final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.SETTING_INDEX_SEED, 0l);
-        Random random = new Random(seed);
-        final double ratio = indexSettings.getAsDouble(MockInternalEngine.WRAP_READER_RATIO, 0.0d); // DISABLED by default - AssertingDR is crazy slow
-        Class<? extends AssertingDirectoryReader> wrapper = indexSettings.getAsClass(MockInternalEngine.READER_WRAPPER_TYPE, AssertingDirectoryReader.class);
-        boolean wrapReader = random.nextDouble() < ratio;
-        logger.trace("Using [{}] for shard [{}] seed: [{}] wrapReader: [{}]", this.getClass().getName(), shardId, seed, wrapReader);
-        mockContext = new MockInternalEngine.MockContext(random, wrapReader, wrapper, indexSettings);
+        this.support = new MockEngineSupport(config);
     }
-
 
     @Override
     public void close() throws IOException {
@@ -64,7 +44,7 @@ public class MockShadowEngine extends ShadowEngine {
         } finally {
             if (logger.isTraceEnabled()) {
                 // log debug if we have pending searchers
-                for (Map.Entry<AssertingSearcher, RuntimeException> entry : INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
+                for (Map.Entry<AssertingSearcher, RuntimeException> entry : MockEngineSupport.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
                     logger.trace("Unreleased Searchers instance for shard [{}]", entry.getValue(), entry.getKey().shardId());
                 }
             }
@@ -73,48 +53,13 @@ public class MockShadowEngine extends ShadowEngine {
 
     @Override
     protected Searcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) throws EngineException {
-
-        IndexReader reader = searcher.getIndexReader();
-        IndexReader wrappedReader = reader;
-        if (reader instanceof DirectoryReader && mockContext.wrapReader) {
-            wrappedReader = wrapReader((DirectoryReader) reader);
-        }
-        // this executes basic query checks and asserts that weights are normalized only once etc.
-        final AssertingIndexSearcher assertingIndexSearcher = new AssertingIndexSearcher(mockContext.random, wrappedReader);
+        final AssertingIndexSearcher assertingIndexSearcher = support.newSearcher(this, source, searcher, manager);
         assertingIndexSearcher.setSimilarity(searcher.getSimilarity());
-        // pass the original searcher to the super.newSearcher() method to make
-        // sure this is the searcher that will be released later on. If we wrap
-        // an index reader here must not pass the wrapped version to the manager
-        // on release otherwise the reader will be closed too early. - good
-        // news, stuff will fail all over the place if we don't get this
-        // right here
+        // pass the original searcher to the super.newSearcher() method to make sure this is the searcher that will
+        // be released later on. If we wrap an index reader here must not pass the wrapped version to the manager
+        // on release otherwise the reader will be closed too early. - good news, stuff will fail all over the place if we don't get this right here
         return new AssertingSearcher(assertingIndexSearcher,
-                super.newSearcher(source, searcher, manager), shardId,
-                INFLIGHT_ENGINE_SEARCHERS, logger);
-    }
-
-    private DirectoryReader wrapReader(DirectoryReader reader) {
-        try {
-            Constructor<?>[] constructors = mockContext.wrapper.getConstructors();
-            Constructor<?> nonRandom = null;
-            for (Constructor<?> constructor : constructors) {
-                Class<?>[] parameterTypes = constructor.getParameterTypes();
-                if (parameterTypes.length > 0 && parameterTypes[0] == DirectoryReader.class) {
-                    if (parameterTypes.length == 1) {
-                        nonRandom = constructor;
-                    } else if (parameterTypes.length == 2 && parameterTypes[1] == Settings.class) {
-
-                        return (DirectoryReader) constructor.newInstance(reader, mockContext.indexSettings);
-                    }
-                }
-            }
-            if (nonRandom != null) {
-                return (DirectoryReader) nonRandom.newInstance(reader);
-            }
-        } catch (Exception e) {
-            throw new ElasticsearchException("Can not wrap reader", e);
-        }
-        return reader;
+                super.newSearcher(source, searcher, manager), shardId, MockEngineSupport.INFLIGHT_ENGINE_SEARCHERS, logger);
     }
 
 }

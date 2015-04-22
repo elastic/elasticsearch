@@ -32,7 +32,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.*;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.junit.Test;
@@ -45,6 +44,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -76,7 +76,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         SignificanceHeuristicStreams.registerStream(GND.STREAM, GND.STREAM.getName());
         SignificanceHeuristicStreams.registerStream(ChiSquare.STREAM, ChiSquare.STREAM.getName());
         SignificanceHeuristicStreams.registerStream(ScriptHeuristic.STREAM, ScriptHeuristic.STREAM.getName());
-        Version version = ElasticsearchIntegrationTest.randomVersion();
+        Version version = randomVersion(random());
         InternalSignificantTerms[] sigTerms = getRandomSignificantTerms(getRandomSignificanceheuristic());
 
         // write

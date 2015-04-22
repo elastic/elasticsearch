@@ -55,19 +55,33 @@ results.
 
 [source,js]
 --------------------------------------------------
-curl -XGET <1> 'localhost:9200/_search/scroll?scroll=1m' <2> <3> \
-     -d       'c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1' <4>
+curl -XGET <1> 'localhost:9200/_search/scroll' <2> -d'
+{
+    "scroll" : "1m", <3>
+    "scroll_id" : "c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1" <4>
+}
+'
 --------------------------------------------------
+
+coming[2.0.0, body based parameters were added in 2.0.0]
+
 <1> `GET` or `POST` can be used.
 <2> The URL should not include the `index` or `type` name -- these
     are specified in the original `search` request instead.
 <3> The `scroll` parameter tells Elasticsearch to keep the search context open
     for another `1m`.
-<4> The `scroll_id` can be passed in the request body or in the
-    query string as `?scroll_id=....`
+<4> The `scroll_id` parameter
 
 Each call to the `scroll` API returns the next batch of results until there
 are no more results left to return, ie the `hits` array is empty.
+
+For backwards compatibility, `scroll_id` and `scroll` can be passed in the query string.
+And the `scroll_id` can be passed in the request body
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_search/scroll?scroll=1m' -d 'c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1'
+--------------------------------------------------
 
 IMPORTANT: The initial search request and each subsequent scroll request
 returns a new `scroll_id` -- only the most recent `scroll_id` should be
@@ -92,9 +106,9 @@ cost.
 
 Normally, you just want to retrieve all results and the order doesn't matter.
 Scrolling can be combined with the <<scan,`scan`>> search type to disable
-sorting and to return results in the most efficient way possible.  All that is
-needed is to add `search_type=scan` to the query string of the initial search
-request:
+any scoring or sorting and to return results in the most efficient way
+possible.  All that is needed is to add `search_type=scan` to the query string
+of the initial search request:
 
 [source,js]
 --------------------------------------------------
@@ -114,7 +128,8 @@ curl 'localhost:9200/twitter/tweet/_search?scroll=1m&search_type=scan' <1> -d '
 A scanning scroll request differs from a standard scroll request in four
 ways:
 
-* Sorting is disabled. Results are returned in the order they appear in the index.
+* No score is calculated and sorting is disabled. Results are returned in
+  the order they appear in the index.
 
 * Aggregations are not supported.
 
@@ -125,6 +140,9 @@ ways:
 * The <<search-request-from-size,`size` parameter>> controls the number of
   results *per shard*, not per request, so a `size` of `10` which hits 5
   shards will return a maximum of 50 results per `scroll` request.
+
+If you want the scoring to happen, even without sorting on it, set the
+`track_scores` parameter to `true`.
 
 [[scroll-search-context]]
 ==== Keeping the search context alive
@@ -164,23 +182,39 @@ clear a search context manually with the `clear-scroll` API:
 
 [source,js]
 ---------------------------------------
-curl -XDELETE localhost:9200/_search/scroll \
-     -d 'c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1' <1>
+curl -XDELETE localhost:9200/_search/scroll -d '
+{
+    "scroll_id" : ["c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1"]
+}'
 ---------------------------------------
-<1> The `scroll_id` can be passed in the request body or in the query string.
 
-Multiple scroll IDs can be passed as comma separated values:
+coming[2.0.0, Body based parameters were added in 2.0.0]
+
+Multiple scroll IDs can be passed as array:
 
 [source,js]
 ---------------------------------------
-curl -XDELETE localhost:9200/_search/scroll \
-     -d 'c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1,aGVuRmV0Y2g7NTsxOnkxaDZ' <1>
+curl -XDELETE localhost:9200/_search/scroll -d '
+{
+    "scroll_id" : ["c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1", "aGVuRmV0Y2g7NTsxOnkxaDZ"]
+}'
 ---------------------------------------
+
+coming[2.0.0, Body based parameters were added in 2.0.0]
 
 All search contexts can be cleared with the `_all` parameter:
 
 [source,js]
 ---------------------------------------
 curl -XDELETE localhost:9200/_search/scroll/_all
+---------------------------------------
+
+The `scroll_id` can also be passed as a query string parameter or in the request body.
+Multiple scroll IDs can be passed as comma separated values:
+
+[source,js]
+---------------------------------------
+curl -XDELETE localhost:9200/_search/scroll \
+     -d 'c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1,aGVuRmV0Y2g7NTsxOnkxaDZ'
 ---------------------------------------
 

@@ -76,7 +76,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
     }
 
     @Override
-    protected Request newRequest() {
+    protected Request newRequestInstance() {
         return new Request();
     }
 

@@ -22,25 +22,20 @@ package org.apache.lucene.search.vectorhighlight;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
-import org.apache.lucene.queries.FilterClause;
-import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
-import org.apache.lucene.search.MultiTermQueryWrapperFilter;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.List;
 
@@ -48,18 +43,8 @@ import java.util.List;
  *
  */
 // LUCENE MONITOR
+// TODO: remove me!
 public class CustomFieldQuery extends FieldQuery {
-
-    private static Field multiTermQueryWrapperFilterQueryField;
-
-    static {
-        try {
-            multiTermQueryWrapperFilterQueryField = MultiTermQueryWrapperFilter.class.getDeclaredField("query");
-            multiTermQueryWrapperFilterQueryField.setAccessible(true);
-        } catch (NoSuchFieldException e) {
-            // ignore
-        }
-    }
 
     public static final ThreadLocal<Boolean> highlightFilters = new ThreadLocal<>();
 
@@ -140,25 +125,8 @@ public class CustomFieldQuery extends FieldQuery {
         if (highlight == null || highlight.equals(Boolean.FALSE)) {
             return;
         }
-        if (sourceFilter instanceof TermFilter) {
-            // TermFilter is just a deprecated wrapper over QWF
-            TermQuery actualQuery = (TermQuery) ((TermFilter) sourceFilter).getQuery();
-            flatten(new TermQuery(actualQuery.getTerm()), reader, flatQueries);
-        } else if (sourceFilter instanceof MultiTermQueryWrapperFilter) {
-            if (multiTermQueryWrapperFilterQueryField != null) {
-                try {
-                    flatten((Query) multiTermQueryWrapperFilterQueryField.get(sourceFilter), reader, flatQueries);
-                } catch (IllegalAccessException e) {
-                    // ignore
-                }
-            }
-        } else if (sourceFilter instanceof XBooleanFilter) {
-            XBooleanFilter booleanFilter = (XBooleanFilter) sourceFilter;
-            for (FilterClause clause : booleanFilter.clauses()) {
-                if (clause.getOccur() == BooleanClause.Occur.MUST || clause.getOccur() == BooleanClause.Occur.SHOULD) {
-                    flatten(clause.getFilter(), reader, flatQueries);
-                }
-            }
+        if (sourceFilter instanceof QueryWrapperFilter) {
+            flatten(((QueryWrapperFilter) sourceFilter).getQuery(), reader, flatQueries);
         }
     }
 }

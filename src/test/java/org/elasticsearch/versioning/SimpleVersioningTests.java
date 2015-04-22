@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.ActionResponse;
@@ -556,7 +557,7 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
         }
 
         int numIDs;
-        if (isNightly()) {
+        if (TEST_NIGHTLY) {
             numIDs = scaledRandomIntBetween(300, 1000);
         } else {
             numIDs = scaledRandomIntBetween(50, 100);
@@ -572,7 +573,7 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
 
         // Attach random versions to them:
         long version = 0;
-        final IDAndVersion[] idVersions = new IDAndVersion[TestUtil.nextInt(random, numIDs/2, numIDs*(isNightly() ? 8 : 2))];
+        final IDAndVersion[] idVersions = new IDAndVersion[TestUtil.nextInt(random, numIDs/2, numIDs*(TEST_NIGHTLY ? 8 : 2))];
         final Map<String,IDAndVersion> truth = new HashMap<>();
 
         if (VERBOSE) {
@@ -615,7 +616,7 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
 
         final AtomicInteger upto = new AtomicInteger();
         final CountDownLatch startingGun = new CountDownLatch(1);
-        Thread[] threads = new Thread[TestUtil.nextInt(random, 1, isNightly() ? 20 : 5)];
+        Thread[] threads = new Thread[TestUtil.nextInt(random, 1, TEST_NIGHTLY ? 20 : 5)];
         final long startTime = System.nanoTime();
         for(int i=0;i<threads.length;i++) {
             final int threadID = i;

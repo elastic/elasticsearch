@@ -33,7 +33,6 @@ import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -315,8 +314,8 @@ public class MergePolicySettingsTest extends ElasticsearchTestCase {
     protected Store createStore(Settings settings) throws IOException {
         final DirectoryService directoryService = new DirectoryService(shardId, EMPTY_SETTINGS) {
             @Override
-            public Directory[] build() throws IOException {
-                return new Directory[] { new RAMDirectory() } ;
+            public Directory newDirectory() throws IOException {
+                return  new RAMDirectory() ;
             }
 
             @Override
@@ -324,7 +323,7 @@ public class MergePolicySettingsTest extends ElasticsearchTestCase {
                 return 0;
             }
         };
-        return new Store(shardId, settings, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
+        return new Store(shardId, settings, directoryService, new DummyShardLock(shardId));
     }
 
 }

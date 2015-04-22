@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.functionscore;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -60,6 +61,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
+@Slow
 public class FunctionScoreTests extends ElasticsearchIntegrationTest {
 
     static final String TYPE = "type";
@@ -177,7 +179,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
                         ).explain(true))).actionGet();
 
         assertThat(responseWithWeights.getHits().getAt(0).getExplanation().toString(),
-                equalTo("6.0 = (MATCH) function score, product of:\n  1.0 = (MATCH) ConstantScore(text_field:value), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  6.0 = (MATCH) Math.min of\n    6.0 = (MATCH) function score, score mode [multiply]\n      1.0 = (MATCH) function score, product of:\n        1.0 = match filter: *:*\n        1.0 = (MATCH) Function for field geo_point_field:\n          1.0 = exp(-0.5*pow(MIN of: [Math.max(arcDistance([10.0, 20.0](=doc value),[10.0, 20.0](=origin)) - 0.0(=offset), 0)],2.0)/7.213475204444817E11)\n      2.0 = (MATCH) function score, product of:\n        1.0 = match filter: *:*\n        2.0 = (MATCH) product of:\n          1.0 = field value function: ln(doc['double_field'].value * factor=1.0)\n          2.0 = weight\n      3.0 = (MATCH) function score, product of:\n        1.0 = match filter: *:*\n        3.0 = (MATCH) product of:\n          1.0 = script score function, computed with script:\"_index['text_field']['value'].tf()\n            1.0 = _score: \n              1.0 = (MATCH) ConstantScore(text_field:value), product of:\n                1.0 = boost\n                1.0 = queryNorm\n          3.0 = weight\n    3.4028235E38 = maxBoost\n  1.0 = queryBoost\n")
+                equalTo("6.0 = (MATCH) function score, product of:\n  1.0 = (MATCH) ConstantScore(text_field:value), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  6.0 = (MATCH) Math.min of\n    6.0 = (MATCH) function score, score mode [multiply]\n      1.0 = (MATCH) function score, product of:\n        1.0 = match filter: QueryWrapperFilter(*:*)\n        1.0 = (MATCH) Function for field geo_point_field:\n          1.0 = exp(-0.5*pow(MIN of: [Math.max(arcDistance([10.0, 20.0](=doc value),[10.0, 20.0](=origin)) - 0.0(=offset), 0)],2.0)/7.213475204444817E11)\n      2.0 = (MATCH) function score, product of:\n        1.0 = match filter: QueryWrapperFilter(*:*)\n        2.0 = (MATCH) product of:\n          1.0 = field value function: ln(doc['double_field'].value * factor=1.0)\n          2.0 = weight\n      3.0 = (MATCH) function score, product of:\n        1.0 = match filter: QueryWrapperFilter(*:*)\n        3.0 = (MATCH) product of:\n          1.0 = script score function, computed with script:\"_index['text_field']['value'].tf()\n            1.0 = _score: \n              1.0 = (MATCH) ConstantScore(text_field:value), product of:\n                1.0 = boost\n                1.0 = queryNorm\n          3.0 = weight\n    3.4028235E38 = maxBoost\n  1.0 = queryBoost\n")
         );
         responseWithWeights = client().search(
                 searchRequest().source(

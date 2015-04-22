@@ -253,7 +253,7 @@ public class GeolocationContextMapping extends ContextMapping {
     public ContextConfig parseContext(ParseContext parseContext, XContentParser parser) throws IOException, ElasticsearchParseException {
 
         if(fieldName != null) {
-            FieldMapper<?> mapper = parseContext.docMapper().mappers().fullName(fieldName).mapper();
+            FieldMapper<?> mapper = parseContext.docMapper().mappers().getMapper(fieldName);
             if(!(mapper instanceof GeoPointFieldMapper)) {
                 throw new ElasticsearchParseException("referenced field must be mapped to geo_point");
             }

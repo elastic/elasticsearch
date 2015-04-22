@@ -414,8 +414,9 @@ The parameter `shard_min_doc_count` regulates the _certainty_ a shard has if the
 
 
 NOTE:    Setting `min_doc_count`=`0` will also return buckets for terms that didn't match any hit. However, some of
-         the returned terms which have a document count of zero might only belong to deleted documents, so there is
-         no warranty that a `match_all` query would find a positive document count for those terms.
+         the returned terms which have a document count of zero might only belong to deleted documents or documents
+         from other types, so there is no warranty that a `match_all` query would find a positive document count for
+         those terms.
 
 WARNING: When NOT sorting on `doc_count` descending, high values of `min_doc_count` may return a number of buckets
          which is less than `size` because not enough data was gathered from the shards. Missing buckets can be

@@ -70,7 +70,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
     }
 
     @Override
-    protected IndicesStatsRequest newRequest() {
+    protected IndicesStatsRequest newRequestInstance() {
         return new IndicesStatsRequest();
     }
 

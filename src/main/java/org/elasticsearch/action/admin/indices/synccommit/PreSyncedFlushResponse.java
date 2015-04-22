@@ -37,7 +37,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class PreSyncedFlushResponse extends BroadcastOperationResponse {
 
-    Map<ShardRouting, byte[]> commitIds = new HashMap<>();
+    Map<String, byte[]> commitIds = new HashMap<>();
 
     PreSyncedFlushResponse() {
     }
@@ -46,7 +46,7 @@ public class PreSyncedFlushResponse extends BroadcastOperationResponse {
         super(totalShards, successfulShards, failedShards, shardFailures);
         for (int i = 0; i < shardsResponses.length(); i++) {
             PreSyncedShardFlushResponse preSyncedShardFlushResponse = (PreSyncedShardFlushResponse) shardsResponses.get(i);
-            commitIds.put(preSyncedShardFlushResponse.shardRouting(), preSyncedShardFlushResponse.id());
+            commitIds.put(preSyncedShardFlushResponse.shardRouting().currentNodeId(), preSyncedShardFlushResponse.id());
         }
     }
 
@@ -55,9 +55,7 @@ public class PreSyncedFlushResponse extends BroadcastOperationResponse {
         super.readFrom(in);
         int numCommitIds = in.readVInt();
         for (int i = 0; i < numCommitIds; i++) {
-            ImmutableShardRouting shardRouting = ImmutableShardRouting.readShardRoutingEntry(in);
-            byte[] id = in.readByteArray();
-            commitIds.put(shardRouting, id);
+            commitIds.put(in.readString(), in.readByteArray());
         }
     }
 
@@ -65,13 +63,13 @@ public class PreSyncedFlushResponse extends BroadcastOperationResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(commitIds.size());
-        for (Map.Entry<ShardRouting, byte[]> entry : commitIds.entrySet()) {
-            entry.getKey().writeTo(out);
+        for (Map.Entry<String, byte[]> entry : commitIds.entrySet()) {
+            out.writeString(entry.getKey());
             out.writeByteArray(entry.getValue());
         }
     }
 
-    public Map<ShardRouting, byte[]> commitIds() {
+    public Map<String, byte[]> commitIds() {
         return commitIds;
     }
 }

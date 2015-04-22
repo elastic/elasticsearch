@@ -41,10 +41,9 @@ public class SyncedFlushReadWriteTests extends ElasticsearchTestCase {
     @Test
     public void streamWriteSyncResponse() throws InterruptedException, IOException {
         ShardId shardId = new ShardId("test", 0);
-        ShardRouting shardRouting = new ImmutableShardRouting("test", 0, "test_node",
-                "other_test_node", randomBoolean(), ShardRoutingState.STARTED, randomInt());
-        Map<ShardRouting, byte[]> commitIds = new HashMap<>();
-        commitIds.put(shardRouting, generateRandomId(randomInt(100)));
+        Map<String, byte[]> commitIds = new HashMap<>();
+        final String nodeId = "node_id";
+        commitIds.put(nodeId, generateRandomId(randomInt(100)));
         SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(shardId, randomAsciiOfLength(5), commitIds);
         BytesStreamOutput out = new BytesStreamOutput();
         syncedFlushRequest.writeTo(out);
@@ -52,7 +51,7 @@ public class SyncedFlushReadWriteTests extends ElasticsearchTestCase {
         StreamInput in = new BytesStreamInput(out.bytes());
         SyncedFlushRequest request = new SyncedFlushRequest();
         request.readFrom(in);
-        assertArrayEquals(request.commitIds().get(shardRouting), syncedFlushRequest.commitIds().get(shardRouting));
+        assertArrayEquals(request.commitIds().get(nodeId), syncedFlushRequest.commitIds().get(nodeId));
     }
 
     @Test

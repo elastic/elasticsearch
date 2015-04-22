@@ -105,9 +105,8 @@ public class TransportSyncedFlushAction extends TransportShardReplicationOperati
 
     @Override
     protected Tuple<SyncedFlushResponse, SyncedFlushRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) throws Throwable {
-        ShardRouting shardRouting = clusterState.routingTable().index(shardRequest.shardId.index().name()).shard(shardRequest.shardId.id()).primaryShard();
-
-        byte[] commitId = shardRequest.request.commitIds().get(shardRouting);
+        String nodeId = clusterState.routingTable().index(shardRequest.shardId.index().name()).shard(shardRequest.shardId.id()).primaryShard().currentNodeId();
+        byte[] commitId = shardRequest.request.commitIds().get(nodeId);
         IndexService indexService = indicesService.indexServiceSafe(shardRequest.shardId.getIndex());
         IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
         SyncedFlushResponse syncedFlushResponse = new SyncedFlushResponse(indexShard.syncFlushIfNoPendingChanges(shardRequest.request.syncId(), commitId));
@@ -120,10 +119,8 @@ public class TransportSyncedFlushAction extends TransportShardReplicationOperati
     @Override
     protected SyncedFlushReplicaResponse shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         byte[] commitId = null;
-
-        // TODO: maybe key by nodeId becasue we do not need the routing anyway
-        for (Map.Entry<ShardRouting, byte[]> entry : shardRequest.request.commitIds().entrySet()) {
-            if (entry.getKey().shardsIt().nextOrNull().currentNodeId().equals(clusterService.localNode().getId())) {
+        for (Map.Entry<String, byte[]> entry : shardRequest.request.commitIds().entrySet()) {
+            if (entry.getKey().equals(clusterService.localNode().getId())) {
                 commitId = entry.getValue();
             }
         }

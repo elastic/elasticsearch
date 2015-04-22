@@ -95,8 +95,8 @@ public class SyncedFlushActionTests extends ElasticsearchSingleNodeTest {
         client().admin().indices().prepareFlush(INDEX).get();
         TransportSyncedFlushAction transportSyncCommitAction = getInstanceFromNode(TransportSyncedFlushAction.class);
         String syncId = randomUnicodeOfLength(10);
-        Map<ShardRouting, byte[]> commitIds = new HashMap<>();
-        commitIds.put(getShardRouting(), readCommitIdFromDisk());
+        Map<String, byte[]> commitIds = new HashMap<>();
+        commitIds.put(getShardRouting().currentNodeId(), readCommitIdFromDisk());
         SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(new ShardId(INDEX, 0), syncId, commitIds);
         SyncedFlushResponse syncedFlushResponse = transportSyncCommitAction.execute(syncedFlushRequest).get();
         assertTrue(syncedFlushResponse.success());
@@ -104,7 +104,7 @@ public class SyncedFlushActionTests extends ElasticsearchSingleNodeTest {
         // no see if fails if commit id is wrong
         byte[] invalid = readCommitIdFromDisk();
         invalid[0] = (byte) (invalid[0] ^ Byte.MAX_VALUE);
-        commitIds.put(getShardRouting(), invalid);
+        commitIds.put(getShardRouting().currentNodeId(), invalid);
         String newSyncId = syncId + syncId;
         syncedFlushRequest = new SyncedFlushRequest(new ShardId(INDEX, 0), newSyncId, commitIds);
         try {
@@ -125,8 +125,8 @@ public class SyncedFlushActionTests extends ElasticsearchSingleNodeTest {
         client().admin().indices().prepareFlush(INDEX).get();
         TransportSyncedFlushAction transportSyncCommitAction = getInstanceFromNode(TransportSyncedFlushAction.class);
         String syncId = randomUnicodeOfLength(10);
-        Map<ShardRouting, byte[]> commitIds = new HashMap<>();
-        commitIds.put(getShardRouting(), readCommitIdFromDisk());
+        Map<String, byte[]> commitIds = new HashMap<>();
+        commitIds.put(getShardRouting().currentNodeId(), readCommitIdFromDisk());
         client().prepareIndex(INDEX, TYPE).setSource("foo", "bar").get();
         SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(new ShardId(INDEX, 0), syncId, commitIds);
         try {
@@ -147,9 +147,9 @@ public class SyncedFlushActionTests extends ElasticsearchSingleNodeTest {
         client().admin().indices().prepareFlush(INDEX).get();
         TransportSyncedFlushAction transportSyncCommitAction = getInstanceFromNode(TransportSyncedFlushAction.class);
         String syncId = randomUnicodeOfLength(10);
-        Map<ShardRouting, byte[]> commitIds = new HashMap<>();
+        Map<String, byte[]> commitIds = new HashMap<>();
         byte[] commitId = readCommitIdFromDisk();
-        commitIds.put(getShardRouting(), commitId);
+        commitIds.put(getShardRouting().currentNodeId(), commitId);
         DelayedTransportIndexAction delayedTransportIndexAction = getDelayedTransportIndexAction();
         Future<IndexResponse> indexResponse = delayedTransportIndexAction.execute(new IndexRequest("test", "doc").source("{\"foo\":\"bar\"}"));
 

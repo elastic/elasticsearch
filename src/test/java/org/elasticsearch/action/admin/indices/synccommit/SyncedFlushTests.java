@@ -71,8 +71,8 @@ public class SyncedFlushTests extends ElasticsearchIntegrationTest {
         assertThat(preSyncedFlushResponse.getFailedShards(), equalTo(0));
         assertThat(preSyncedFlushResponse.commitIds.size(), equalTo(internalCluster().numDataNodes()));
         // TODO: use stats api once it is in
-        for (Map.Entry<ShardRouting, byte[]> entry : preSyncedFlushResponse.commitIds.entrySet()) {
-            String nodeName = getNodeNameFromShardRouting(entry.getKey());
+        for (Map.Entry<String, byte[]> entry : preSyncedFlushResponse.commitIds.entrySet()) {
+            String nodeName = getNodeNameFromNodeId(entry.getKey());
             IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
             IndexShard indexShard = indicesService.indexService("test").shard(0);
             Store store = indexShard.engine().config().getStore();
@@ -97,11 +97,9 @@ public class SyncedFlushTests extends ElasticsearchIntegrationTest {
         TransportPreSyncedFlushAction transportPreSyncedFlushAction = internalCluster().getInstance(TransportPreSyncedFlushAction.class);
         ShardId shardId = new ShardId(INDEX, randomInt(numberOfShards - 1));
         PreSyncedFlushResponse preSyncedFlushResponse = transportPreSyncedFlushAction.execute(new PreSyncedFlushRequest(shardId)).get();
-        ShardRouting result = randomFrom(preSyncedFlushResponse.commitIds().keySet().toArray(new ShardRouting[preSyncedFlushResponse.commitIds().size()]));
+        String result = randomFrom(preSyncedFlushResponse.commitIds().keySet().toArray(new String[preSyncedFlushResponse.commitIds().size()]));
         byte[] wrongCommitId = preSyncedFlushResponse.commitIds().get(result);
-        logger.info("changing commit point {} for node {} on shard {}, primary: {}", wrongCommitId, getNodeNameFromShardRouting(result), shardId, result.primary());
         wrongCommitId[0] ^= 1;
-        logger.info("will try to write sync id with commit point {} ", wrongCommitId);
         try {
             TransportSyncedFlushAction transportSyncedFlushAction = internalCluster().getInstance(TransportSyncedFlushAction.class);
             assertNotNull(preSyncedFlushResponse.commitIds().put(result, wrongCommitId));
@@ -187,11 +185,9 @@ public class SyncedFlushTests extends ElasticsearchIntegrationTest {
         TransportPreSyncedFlushAction transportPreSyncedFlushAction = internalCluster().getInstance(TransportPreSyncedFlushAction.class);
         ShardId shardId = new ShardId(INDEX, randomInt(numberOfShards - 1));
         PreSyncedFlushResponse preSyncedFlushResponse = transportPreSyncedFlushAction.execute(new PreSyncedFlushRequest(shardId)).get();
-        ShardRouting result = randomFrom(preSyncedFlushResponse.commitIds().keySet().toArray(new ShardRouting[preSyncedFlushResponse.commitIds().size()]));
+        String result = randomFrom(preSyncedFlushResponse.commitIds().keySet().toArray(new String[preSyncedFlushResponse.commitIds().size()]));
         byte[] wrongCommitId = preSyncedFlushResponse.commitIds().get(result);
-        logger.info("changing commit point {} for node {} on shard {}, primary: {}", wrongCommitId, getNodeNameFromShardRouting(result), shardId, result.primary());
         wrongCommitId[0] ^= 1;
-        logger.info("will try to write sync id with commit point {} ", wrongCommitId);
         try {
             TransportSyncedFlushAction transportSyncedFlushAction = internalCluster().getInstance(TransportSyncedFlushAction.class);
             assertNotNull(preSyncedFlushResponse.commitIds().put(result, wrongCommitId));
@@ -217,10 +213,10 @@ public class SyncedFlushTests extends ElasticsearchIntegrationTest {
 
     //TODO: add test for in flight on replica, with mock transport similar to https://github.com/elastic/elasticsearch/pull/10610/files ?
 
-    private String getNodeNameFromShardRouting(ShardRouting shardRouting) {
+    private String getNodeNameFromNodeId(String nodeId) {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
         for (RoutingNode routingNode : clusterStateResponse.getState().getRoutingNodes()) {
-            if (routingNode.nodeId().equals(shardRouting.currentNodeId())) {
+            if (routingNode.nodeId().equals(nodeId)) {
                 return routingNode.node().name();
             }
         }

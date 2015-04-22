@@ -36,13 +36,13 @@ import java.util.Map;
 public class SyncedFlushRequest extends ShardReplicationOperationRequest<SyncedFlushRequest> {
 
     private String syncId;
-    private Map<ShardRouting, byte[]> commitIds;
+    private Map<String, byte[]> commitIds;
     private ShardId shardId;
 
     public SyncedFlushRequest() {
     }
 
-    public SyncedFlushRequest(ShardId shardId, String syncId, Map<ShardRouting, byte[]> commitIds) {
+    public SyncedFlushRequest(ShardId shardId, String syncId, Map<String, byte[]> commitIds) {
         this.commitIds = commitIds;
         this.shardId = shardId;
         this.syncId = syncId;
@@ -54,11 +54,9 @@ public class SyncedFlushRequest extends ShardReplicationOperationRequest<SyncedF
         super.readFrom(in);
         shardId = ShardId.readShardId(in);
         commitIds = new HashMap<>();
-        int numCommitIds = in.readInt();
+        int numCommitIds = in.readVInt();
         for (int i = 0; i < numCommitIds; i++) {
-            ShardRouting shardRouting = ImmutableShardRouting.readShardRoutingEntry(in);
-            byte[] id = in.readByteArray();
-            commitIds.put(shardRouting, id);
+            commitIds.put(in.readString(), in.readByteArray());
         }
         syncId = in.readString();
     }
@@ -67,9 +65,9 @@ public class SyncedFlushRequest extends ShardReplicationOperationRequest<SyncedF
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         shardId.writeTo(out);
-        out.writeInt(commitIds.size());
-        for (Map.Entry<ShardRouting, byte[]> entry : commitIds.entrySet()) {
-            entry.getKey().writeTo(out);
+        out.writeVInt(commitIds.size());
+        for (Map.Entry<String, byte[]> entry : commitIds.entrySet()) {
+            out.writeString(entry.getKey());
             out.writeByteArray(entry.getValue());
         }
         out.writeString(syncId);
@@ -88,7 +86,7 @@ public class SyncedFlushRequest extends ShardReplicationOperationRequest<SyncedF
         return syncId;
     }
 
-    public Map<ShardRouting, byte[]> commitIds() {
+    public Map<String, byte[]> commitIds() {
         return commitIds;
     }
 }

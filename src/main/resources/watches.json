@@ -11,6 +11,9 @@
   "mappings": {
     "watch": {
       "dynamic" : "strict",
+      "_all" : {
+        "enabled" : false
+      },
       "properties": {
         "trigger" : {
           "type": "object",

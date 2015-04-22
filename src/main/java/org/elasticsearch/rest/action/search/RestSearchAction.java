@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.exists.RestExistsAction;
+import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -87,20 +88,11 @@ public class RestSearchAction extends BaseRestHandler {
         // get the content, and put it in the body
         // add content/source as template if template flag is set
         boolean isTemplateRequest = request.path().endsWith("/template");
-        if (request.hasContent()) {
+        if (RestActions.hasBodyContent(request)) {
             if (isTemplateRequest) {
-                searchRequest.templateSource(request.content());
+                searchRequest.templateSource(RestActions.getRestContent(request));
             } else {
-                searchRequest.source(request.content());
-            }
-        } else {
-            String source = request.param("source");
-            if (source != null) {
-                if (isTemplateRequest) {
-                    searchRequest.templateSource(source);
-                } else {
-                    searchRequest.source(source);
-                }
+                searchRequest.source(RestActions.getRestContent(request));
             }
         }
 

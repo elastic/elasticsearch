@@ -35,6 +35,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
@@ -63,12 +64,9 @@ public class RestExplainAction extends BaseRestHandler {
         explainRequest.parent(request.param("parent"));
         explainRequest.routing(request.param("routing"));
         explainRequest.preference(request.param("preference"));
-        String sourceString = request.param("source");
         String queryString = request.param("q");
-        if (request.hasContent()) {
-            explainRequest.source(request.content());
-        } else if (sourceString != null) {
-            explainRequest.source(new BytesArray(request.param("source")));
+        if (RestActions.hasBodyContent(request)) {
+            explainRequest.source(RestActions.getRestContent(request));
         } else if (queryString != null) {
             QueryStringQueryBuilder queryStringBuilder = QueryBuilders.queryStringQuery(queryString);
             queryStringBuilder.defaultField(request.param("df"));

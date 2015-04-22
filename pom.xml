@@ -43,6 +43,9 @@
         <packaging.elasticsearch.log.dir>/var/log/elasticsearch</packaging.elasticsearch.log.dir>
         <packaging.elasticsearch.plugins.dir>${packaging.elasticsearch.home.dir}/plugins</packaging.elasticsearch.plugins.dir>
         <packaging.elasticsearch.pid.dir>/var/run/elasticsearch</packaging.elasticsearch.pid.dir>
+        <packaging.elasticsearch.systemd.dir>/usr/lib/systemd/system</packaging.elasticsearch.systemd.dir>
+        <packaging.elasticsearch.systemd.sysctl.dir>/usr/lib/sysctl.d</packaging.elasticsearch.systemd.sysctl.dir>
+        <packaging.elasticsearch.tmpfilesd.dir>/usr/lib/tmpfiles.d</packaging.elasticsearch.tmpfilesd.dir>
         <deb.sign>false</deb.sign>
         <deb.sign.method>dpkg-sig</deb.sign.method>
     </properties>
@@ -800,7 +803,19 @@
                                 <!-- Adds systemd file -->
                                 <data>
                                     <src>${project.build.directory}/generated-packaging/deb/systemd/elasticsearch.service</src>
-                                    <dst>/usr/lib/systemd/system/elasticsearch.service</dst>
+                                    <dst>${packaging.elasticsearch.systemd.dir}/elasticsearch.service</dst>
+                                    <type>file</type>
+                                </data>
+                                <!-- Adds systemd/sysctl.d configuration file -->
+                                <data>
+                                    <src>${project.build.directory}/generated-packaging/deb/systemd/sysctl/elasticsearch.conf</src>
+                                    <dst>${packaging.elasticsearch.systemd.sysctl.dir}/elasticsearch.conf</dst>
+                                    <type>file</type>
+                                </data>
+                                <!-- Adds systemd/tmpfiles.d configuration file -->
+                                <data>
+                                    <src>${project.build.directory}/generated-packaging/deb/systemd/elasticsearch.conf</src>
+                                    <dst>${packaging.elasticsearch.tmpfilesd.dir}/elasticsearch.conf</dst>
                                     <type>file</type>
                                 </data>
                                 <!-- Add lintian files  -->
@@ -978,8 +993,8 @@
                         </mapping>
                         <!-- Adds systemd file -->
                         <mapping>
-                            <directory>/usr/lib/systemd/system/</directory>
-                            <filemode>755</filemode>
+                            <directory>${packaging.elasticsearch.systemd.dir}</directory>
+                            <directoryIncluded>false</directoryIncluded>
                             <configuration>true</configuration>
                             <sources>
                                 <source>
@@ -990,21 +1005,22 @@
                                 </source>
                             </sources>
                         </mapping>
+                        <!-- Adds systemd/sysctl.d configuration file -->
                         <mapping>
-                            <directory>/usr/lib/sysctl.d/</directory>
-                            <filemode>755</filemode>
+                            <directory>${packaging.elasticsearch.systemd.sysctl.dir}</directory>
                             <configuration>true</configuration>
                             <sources>
                                 <source>
-                                    <location>${project.build.directory}/generated-packaging/rpm/systemd/sysctl.d</location>
+                                    <location>${project.build.directory}/generated-packaging/rpm/systemd/sysctl</location>
                                     <includes>
                                         <include>elasticsearch.conf</include>
                                     </includes>
                                 </source>
                             </sources>
                         </mapping>
+                        <!-- Adds systemd/tmpfiles.d configuration file -->
                         <mapping>
-                            <directory>/usr/lib/tmpfiles.d/</directory>
+                            <directory>${packaging.elasticsearch.tmpfilesd.dir}</directory>
                             <configuration>true</configuration>
                             <sources>
                                 <source>

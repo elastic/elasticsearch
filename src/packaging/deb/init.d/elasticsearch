@@ -94,6 +94,9 @@ MAX_MAP_COUNT=262144
 # Path to the GC log file
 #ES_GC_LOG_FILE=/var/log/elasticsearch/gc.log
 
+# Elasticsearch PID file directory
+PID_DIR="${packaging.elasticsearch.pid.dir}"
+
 # End of variables that can be overwritten in $DEFAULT
 
 # overwrite settings from default file
@@ -102,7 +105,7 @@ if [ -f "$DEFAULT" ]; then
 fi
 
 # Define other required variables
-PID_FILE=/var/run/$NAME.pid
+PID_FILE="$PID_DIR/$NAME.pid"
 DAEMON=$ES_HOME/bin/elasticsearch
 DAEMON_OPTS="-d -p $PID_FILE --default.config=$CONF_FILE --default.path.home=$ES_HOME --default.path.logs=$LOG_DIR --default.path.data=$DATA_DIR --default.path.conf=$CONF_DIR"
 

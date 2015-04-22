@@ -38,6 +38,7 @@ import org.elasticsearch.indices.recovery.RecoverySource;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
+import org.elasticsearch.indices.syncedflush.SyncedFlushService;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 
 /**

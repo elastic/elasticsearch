@@ -42,12 +42,13 @@ import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 /**
  *
  */
-public class TransportShardDeleteByQueryAction extends TransportShardReplicationOperationAction<ShardDeleteByQueryRequest, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> {
+public class TransportShardDeleteByQueryAction extends TransportShardReplicationOperationAction<ShardDeleteByQueryRequest, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse, TransportResponse.Empty> {
 
     public final static String DELETE_BY_QUERY_API = "delete_by_query";
 
@@ -94,6 +95,11 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
     }
 
     @Override
+    protected TransportResponse.Empty newReplicaResponseInstance() {
+        return TransportResponse.Empty.INSTANCE;
+    }
+
+    @Override
     protected boolean resolveIndex() {
         return false;
     }
@@ -121,7 +127,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
 
 
     @Override
-    protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
+    protected TransportResponse.Empty shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         ShardDeleteByQueryRequest request = shardRequest.request;
         IndexService indexService = indicesService.indexServiceSafe(shardRequest.shardId.getIndex());
         IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
@@ -138,6 +144,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
                 SearchContext.removeCurrent();
             }
         }
+        return newReplicaResponseInstance();
     }
 
     @Override

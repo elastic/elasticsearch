@@ -21,6 +21,7 @@ package org.elasticsearch.index.search;
 import com.carrotsearch.hppc.DoubleOpenHashSet;
 import com.carrotsearch.hppc.LongOpenHashSet;
 import com.carrotsearch.hppc.ObjectOpenHashSet;
+
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSet;
@@ -85,16 +86,17 @@ public abstract class FieldDataTermsFilter extends Filter {
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || !(obj instanceof FieldDataTermsFilter)) return false;
+        if (obj == null || getClass() != obj.getClass()) return false;
 
         FieldDataTermsFilter that = (FieldDataTermsFilter) obj;
         if (!fieldData.getFieldNames().indexName().equals(that.fieldData.getFieldNames().indexName())) return false;
-        if (this.hashCode() != obj.hashCode()) return false;
         return true;
     }
 
     @Override
-    public abstract int hashCode();
+    public int hashCode() {
+        return 31 * getClass().hashCode() + fieldData.getFieldNames().indexName().hashCode();
+    }
 
     @Override
     public abstract String toString();
@@ -112,9 +114,17 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
+        public boolean equals(Object obj) {
+            if (super.equals(obj) == false) {
+                return false;
+            }
+            return terms.equals(((BytesFieldDataFilter) obj).terms);
+        }
+
+        @Override
         public int hashCode() {
-            int hashcode = fieldData.getFieldNames().indexName().hashCode();
-            hashcode += terms != null ? terms.hashCode() : 0;
+            int hashcode = super.hashCode();
+            hashcode = 31 * hashcode + (terms != null ? terms.hashCode() : 0);
             return hashcode;
         }
 
@@ -164,9 +174,17 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
+        public boolean equals(Object obj) {
+            if (super.equals(obj) == false) {
+                return false;
+            }
+            return terms.equals(((BytesFieldDataFilter) obj).terms);
+        }
+
+        @Override
         public int hashCode() {
-            int hashcode = fieldData.getFieldNames().indexName().hashCode();
-            hashcode += terms != null ? terms.hashCode() : 0;
+            int hashcode = super.hashCode();
+            hashcode = 31 * hashcode + (terms != null ? terms.hashCode() : 0);
             return hashcode;
         }
 
@@ -223,9 +241,17 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
+        public boolean equals(Object obj) {
+            if (super.equals(obj) == false) {
+                return false;
+            }
+            return terms.equals(((BytesFieldDataFilter) obj).terms);
+        }
+
+        @Override
         public int hashCode() {
-            int hashcode = fieldData.getFieldNames().indexName().hashCode();
-            hashcode += terms != null ? terms.hashCode() : 0;
+            int hashcode = super.hashCode();
+            hashcode = 31 * hashcode + (terms != null ? terms.hashCode() : 0);
             return hashcode;
         }
 

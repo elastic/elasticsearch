@@ -91,7 +91,7 @@ public class MatchAllQueryBuilder extends BaseQueryBuilder implements Streamable
 
     @Override
     public int hashCode() {
-        return (boost != +0.0f ? Float.floatToIntBits(boost) : 0);
+        return boost != +0.0f ? Float.floatToIntBits(boost) : 0;
     }
 
     @Override

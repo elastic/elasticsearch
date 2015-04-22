@@ -44,7 +44,8 @@ import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.template.xmustache.XMustacheTemplateEngine;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
-import org.elasticsearch.watcher.transform.SearchTransform;
+import org.elasticsearch.watcher.transform.search.ExecutableSearchTransform;
+import org.elasticsearch.watcher.transform.search.SearchTransform;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.CronSchedule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
@@ -131,7 +132,7 @@ public final class WatcherTestUtils {
 
         SearchRequest conditionRequest = newInputSearchRequest("my-condition-index").source(searchSource().query(matchAllQuery()));
         SearchRequest transformRequest = newInputSearchRequest("my-payload-index").source(searchSource().query(matchAllQuery()));
-        transformRequest.searchType(SearchTransform.DEFAULT_SEARCH_TYPE);
+        transformRequest.searchType(ExecutableSearchTransform.DEFAULT_SEARCH_TYPE);
         conditionRequest.searchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE);
 
         List<ActionWrapper> actions = new ArrayList<>();
@@ -181,7 +182,7 @@ public final class WatcherTestUtils {
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
                 new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(inputData)), logger),
                 new ExecutableScriptCondition(new ScriptCondition(new Script("return true")), logger, scriptService),
-                new SearchTransform(logger, scriptService, client, transformRequest),
+                new ExecutableSearchTransform(new SearchTransform(transformRequest), logger, scriptService, client),
                 new ExecutableActions(actions),
                 metadata,
                 new TimeValue(0),

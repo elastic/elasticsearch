@@ -9,7 +9,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
-import org.elasticsearch.watcher.transform.SearchTransform;
+import org.elasticsearch.watcher.transform.search.ExecutableSearchTransform;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
@@ -43,7 +43,7 @@ public class TransformSearchTests extends AbstractWatcherIntegrationTests {
 
         SearchRequest inputRequest = WatcherTestUtils.newInputSearchRequest("my-condition-index").source(searchSource().query(matchAllQuery()));
         SearchRequest transformRequest = WatcherTestUtils.newInputSearchRequest("my-payload-index").source(searchSource().query(matchAllQuery()));
-        transformRequest.searchType(SearchTransform.DEFAULT_SEARCH_TYPE);
+        transformRequest.searchType(ExecutableSearchTransform.DEFAULT_SEARCH_TYPE);
 
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("foo", "bar");

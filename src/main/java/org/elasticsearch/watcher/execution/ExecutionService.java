@@ -26,6 +26,7 @@ import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.support.Callback;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.throttle.Throttler;
+import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
@@ -267,9 +268,9 @@ public class ExecutionService extends AbstractComponent {
             }
 
             if (!throttleResult.throttle()) {
-                Transform transform = watch.transform();
+                ExecutableTransform transform = watch.transform();
                 if (transform != null) {
-                    Transform.Result result = watch.transform().apply(ctx, inputResult.payload());
+                    Transform.Result result = watch.transform().execute(ctx, inputResult.payload());
                     ctx.onTransformResult(result);
                 }
                 for (ActionWrapper action : watch.actions()) {

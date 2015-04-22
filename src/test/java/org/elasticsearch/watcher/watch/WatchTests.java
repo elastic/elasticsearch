@@ -68,7 +68,18 @@ import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
-import org.elasticsearch.watcher.transform.*;
+import org.elasticsearch.watcher.transform.ExecutableTransform;
+import org.elasticsearch.watcher.transform.TransformFactory;
+import org.elasticsearch.watcher.transform.TransformRegistry;
+import org.elasticsearch.watcher.transform.chain.ChainTransform;
+import org.elasticsearch.watcher.transform.chain.ChainTransformFactory;
+import org.elasticsearch.watcher.transform.chain.ExecutableChainTransform;
+import org.elasticsearch.watcher.transform.script.ExecutableScriptTransform;
+import org.elasticsearch.watcher.transform.script.ScriptTransform;
+import org.elasticsearch.watcher.transform.script.ScriptTransformFactory;
+import org.elasticsearch.watcher.transform.search.ExecutableSearchTransform;
+import org.elasticsearch.watcher.transform.search.SearchTransform;
+import org.elasticsearch.watcher.transform.search.SearchTransformFactory;
 import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
 import org.elasticsearch.watcher.trigger.TriggerService;
@@ -124,7 +135,7 @@ public class WatchTests extends ElasticsearchTestCase {
         ExecutableCondition condition = randomCondition();
         ConditionRegistry conditionRegistry = registry(condition);
 
-        Transform transform = randomTransform();
+        ExecutableTransform transform = randomTransform();
 
         ExecutableActions actions = randomActions();
         ActionRegistry actionRegistry = registry(actions, transformRegistry);
@@ -252,27 +263,30 @@ public class WatchTests extends ElasticsearchTestCase {
         }
     }
 
-    private Transform randomTransform() {
+    private ExecutableTransform randomTransform() {
         String type = randomFrom(ScriptTransform.TYPE, SearchTransform.TYPE, ChainTransform.TYPE);
         switch (type) {
             case ScriptTransform.TYPE:
-                return new ScriptTransform(scriptService, new Script("_script"));
+                return new ExecutableScriptTransform(new ScriptTransform(new Script("_script")), logger, scriptService);
             case SearchTransform.TYPE:
-                return new SearchTransform(logger, scriptService, client, matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS));
+                return new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS)), logger, scriptService, client);
             default: // chain
-                return new ChainTransform(ImmutableList.<Transform>of(
-                        new SearchTransform(logger, scriptService, client, matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS)),
-                        new ScriptTransform(scriptService, new Script("_script"))));
+                ChainTransform chainTransform = new ChainTransform(ImmutableList.of(
+                        new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS)),
+                        new ScriptTransform(new Script("_script"))));
+                return new ExecutableChainTransform(chainTransform, logger, ImmutableList.<ExecutableTransform>of(
+                        new ExecutableSearchTransform(new SearchTransform(matchAllRequest(WatcherUtils.DEFAULT_INDICES_OPTIONS)), logger, scriptService, client),
+                        new ExecutableScriptTransform(new ScriptTransform(new Script("_script")), logger, scriptService)));
         }
     }
 
     private TransformRegistry transformRegistry() {
-        ImmutableMap.Builder<String, Transform.Parser> parsers = ImmutableMap.builder();
-        ChainTransform.Parser parser = new ChainTransform.Parser();
-        parsers.put(ChainTransform.TYPE, parser);
-        parsers.put(ScriptTransform.TYPE, new ScriptTransform.Parser(scriptService));
-        parsers.put(SearchTransform.TYPE, new SearchTransform.Parser(settings, scriptService, client));
-        TransformRegistry registry = new TransformRegistry(parsers.build());
+        ImmutableMap.Builder<String, TransformFactory> factories = ImmutableMap.builder();
+        ChainTransformFactory parser = new ChainTransformFactory();
+        factories.put(ChainTransform.TYPE, parser);
+        factories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
+        factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, scriptService, client));
+        TransformRegistry registry = new TransformRegistry(factories.build());
         parser.init(registry);
         return registry;
     }
@@ -280,7 +294,7 @@ public class WatchTests extends ElasticsearchTestCase {
     private ExecutableActions randomActions() {
         ImmutableList.Builder<ActionWrapper> list = ImmutableList.builder();
         if (randomBoolean()) {
-            Transform transform = randomTransform();
+            ExecutableTransform transform = randomTransform();
             EmailAction action = new EmailAction(EmailTemplate.builder().build(), null, null, Profile.STANDARD, randomBoolean());
             list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), transform, new ExecutableEmailAction(action, logger, emailService, templateEngine)));
         }

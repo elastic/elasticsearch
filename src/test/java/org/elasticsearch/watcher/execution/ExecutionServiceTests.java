@@ -23,6 +23,7 @@ import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.throttle.Throttler;
+import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.*;
@@ -77,8 +78,8 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
         when(condition.execute(any(WatchExecutionContext.class))).thenReturn(conditionResult);
         Throttler throttler = mock(Throttler.class);
         when(throttler.throttle(any(WatchExecutionContext.class))).thenReturn(throttleResult);
-        Transform transform = mock(Transform.class);
-        when(transform.apply(any(WatchExecutionContext.class), same(payload))).thenReturn(transformResult);
+        ExecutableTransform transform = mock(ExecutableTransform.class);
+        when(transform.execute(any(WatchExecutionContext.class), same(payload))).thenReturn(transformResult);
         ActionWrapper action = mock(ActionWrapper.class);
         when(action.execute(any(WatchExecutionContext.class))).thenReturn(watchActionResult);
         ExecutableActions actions = new ExecutableActions(Arrays.asList(action));
@@ -104,7 +105,7 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
 
         verify(condition, times(1)).execute(any(WatchExecutionContext.class));
         verify(throttler, times(1)).throttle(any(WatchExecutionContext.class));
-        verify(transform, times(1)).apply(any(WatchExecutionContext.class), same(payload));
+        verify(transform, times(1)).execute(any(WatchExecutionContext.class), same(payload));
         verify(action, times(1)).execute(any(WatchExecutionContext.class));
     }
 
@@ -123,8 +124,8 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
         when(condition.execute(any(WatchExecutionContext.class))).thenReturn(conditionResult);
         Throttler throttler = mock(Throttler.class);
         when(throttler.throttle(any(WatchExecutionContext.class))).thenReturn(throttleResult);
-        Transform transform = mock(Transform.class);
-        when(transform.apply(any(WatchExecutionContext.class), same(payload))).thenReturn(transformResult);
+        ExecutableTransform transform = mock(ExecutableTransform.class);
+        when(transform.execute(any(WatchExecutionContext.class), same(payload))).thenReturn(transformResult);
         ActionWrapper action = mock(ActionWrapper.class);
         when(action.execute(any(WatchExecutionContext.class))).thenReturn(actionResult);
         ExecutableActions actions = new ExecutableActions(Arrays.asList(action));
@@ -151,7 +152,7 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
 
         verify(condition, times(1)).execute(any(WatchExecutionContext.class));
         verify(throttler, times(1)).throttle(any(WatchExecutionContext.class));
-        verify(transform, never()).apply(any(WatchExecutionContext.class), same(payload));
+        verify(transform, never()).execute(any(WatchExecutionContext.class), same(payload));
         verify(action, never()).execute(any(WatchExecutionContext.class));
     }
 
@@ -169,8 +170,8 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
         when(condition.execute(any(WatchExecutionContext.class))).thenReturn(conditionResult);
         Throttler throttler = mock(Throttler.class);
         when(throttler.throttle(any(WatchExecutionContext.class))).thenReturn(throttleResult);
-        Transform transform = mock(Transform.class);
-        when(transform.apply(any(WatchExecutionContext.class), same(payload))).thenReturn(transformResult);
+        ExecutableTransform transform = mock(ExecutableTransform.class);
+        when(transform.execute(any(WatchExecutionContext.class), same(payload))).thenReturn(transformResult);
         ActionWrapper action = mock(ActionWrapper.class);
         when(action.execute(any(WatchExecutionContext.class))).thenReturn(actionResult);
         ExecutableActions actions = new ExecutableActions(Arrays.asList(action));
@@ -197,7 +198,7 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
 
         verify(condition, times(1)).execute(any(WatchExecutionContext.class));
         verify(throttler, never()).throttle(any(WatchExecutionContext.class));
-        verify(transform, never()).apply(any(WatchExecutionContext.class), same(payload));
+        verify(transform, never()).execute(any(WatchExecutionContext.class), same(payload));
         verify(action, never()).execute(any(WatchExecutionContext.class));
     }
 

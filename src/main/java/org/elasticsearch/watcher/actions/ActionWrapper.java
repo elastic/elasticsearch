@@ -11,6 +11,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.execution.Wid;
+import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.transform.TransformRegistry;
 import org.elasticsearch.watcher.watch.Payload;
@@ -23,14 +24,14 @@ import java.io.IOException;
 public class ActionWrapper implements ToXContent {
 
     private String id;
-    private final @Nullable Transform transform;
+    private final @Nullable ExecutableTransform transform;
     private final ExecutableAction action;
 
     public ActionWrapper(String id, ExecutableAction action) {
         this(id, null, action);
     }
 
-    public ActionWrapper(String id, @Nullable Transform transform, ExecutableAction action) {
+    public ActionWrapper(String id, @Nullable ExecutableTransform transform, ExecutableAction action) {
         this.id = id;
         this.transform = transform;
         this.action = action;
@@ -40,7 +41,7 @@ public class ActionWrapper implements ToXContent {
         return id;
     }
 
-    public Transform transform() {
+    public ExecutableTransform transform() {
         return transform;
     }
 
@@ -52,7 +53,7 @@ public class ActionWrapper implements ToXContent {
         Payload payload = ctx.payload();
         Transform.Result transformResult = null;
         if (transform != null) {
-            transformResult = transform.apply(ctx, payload);
+            transformResult = transform.execute(ctx, payload);
             payload = transformResult.payload();
 
         }
@@ -84,7 +85,7 @@ public class ActionWrapper implements ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (transform != null) {
-            builder.startObject(Transform.Parser.TRANSFORM_FIELD.getPreferredName())
+            builder.startObject(Transform.Field.TRANSFORM.getPreferredName())
                     .field(transform.type(), transform)
                     .endObject();
         }
@@ -95,7 +96,7 @@ public class ActionWrapper implements ToXContent {
     static ActionWrapper parse(String watchId, String actionId, XContentParser parser, ActionRegistry actionRegistry, TransformRegistry transformRegistry) throws IOException {
         assert parser.currentToken() == XContentParser.Token.START_OBJECT;
 
-        Transform transform = null;
+        ExecutableTransform transform = null;
         ExecutableAction action = null;
 
         String currentFieldName = null;
@@ -104,8 +105,8 @@ public class ActionWrapper implements ToXContent {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else {
-                if (Transform.Parser.TRANSFORM_FIELD.match(currentFieldName)) {
-                    transform = transformRegistry.parse(parser);
+                if (Transform.Field.TRANSFORM.match(currentFieldName)) {
+                    transform = transformRegistry.parse(watchId, parser);
                 } else {
                     // it's the type of the action
                     ActionFactory actionFactory = actionRegistry.factory(currentFieldName);
@@ -174,7 +175,7 @@ public class ActionWrapper implements ToXContent {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             if (transform != null) {
-                builder.startObject(Transform.Parser.TRANSFORM_RESULT_FIELD.getPreferredName())
+                builder.startObject(Transform.Field.TRANSFORM_RESULT.getPreferredName())
                         .field(transform.type(), transform)
                         .endObject();
             }
@@ -194,8 +195,8 @@ public class ActionWrapper implements ToXContent {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else {
-                    if (Transform.Parser.TRANSFORM_FIELD.match(currentFieldName)) {
-                        transformResult = transformRegistry.parseResult(parser);
+                    if (Transform.Field.TRANSFORM.match(currentFieldName)) {
+                        transformResult = transformRegistry.parseResult(wid.watchId(), parser);
                     } else {
                         // it's the type of the action
                         ActionFactory actionFactory = actionRegistry.factory(currentFieldName);

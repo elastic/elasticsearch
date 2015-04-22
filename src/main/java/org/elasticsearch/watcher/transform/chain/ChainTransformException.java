@@ -3,20 +3,20 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.transform;
+package org.elasticsearch.watcher.transform.chain;
 
-import org.elasticsearch.watcher.WatcherException;
+import org.elasticsearch.watcher.transform.TransformException;
 
 /**
  *
  */
-public class TransformException extends WatcherException {
+public class ChainTransformException extends TransformException {
 
-    public TransformException(String msg, Object... args) {
+    public ChainTransformException(String msg, Object... args) {
         super(msg, args);
     }
 
-    public TransformException(String msg, Throwable cause, Object... args) {
+    public ChainTransformException(String msg, Throwable cause, Object... args) {
         super(msg, cause, args);
     }
 }

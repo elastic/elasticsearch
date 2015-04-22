@@ -7,12 +7,17 @@ package org.elasticsearch.watcher.transform;
 
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.watcher.transform.chain.ChainTransform;
+import org.elasticsearch.watcher.transform.chain.ChainTransformFactory;
+import org.elasticsearch.watcher.transform.chain.ExecutableChainTransform;
+import org.elasticsearch.watcher.watch.Payload;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -33,14 +38,19 @@ public class ChainTransformTests extends ElasticsearchTestCase {
     @Test
     public void testApply() throws Exception {
         ChainTransform transform = new ChainTransform(ImmutableList.<Transform>of(
-                new NamedTransform("name1"),
-                new NamedTransform("name2"),
-                new NamedTransform("name3")));
+                new NamedExecutableTransform.Transform("name1"),
+                new NamedExecutableTransform.Transform("name2"),
+                new NamedExecutableTransform.Transform("name3")
+        ));
+        ExecutableChainTransform executable = new ExecutableChainTransform(transform, logger, ImmutableList.<ExecutableTransform>of(
+                new NamedExecutableTransform("name1"),
+                new NamedExecutableTransform("name2"),
+                new NamedExecutableTransform("name3")));
 
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
         Payload payload = new Payload.Simple(new HashMap<String, Object>());
 
-        Transform.Result result = transform.apply(ctx, payload);
+        Transform.Result result = executable.execute(ctx, payload);
 
         Map<String, Object> data = result.payload().data();
         assertThat(data, notNullValue());
@@ -53,12 +63,12 @@ public class ChainTransformTests extends ElasticsearchTestCase {
 
     @Test
     public void testParser() throws Exception {
-        Map<String, Transform.Parser> parsers = ImmutableMap.<String, Transform.Parser>builder()
-                .put("named", new NamedTransform.Parser())
+        Map<String, TransformFactory> factories = ImmutableMap.<String, TransformFactory>builder()
+                .put("named", new NamedExecutableTransform.Factory(logger))
                 .build();
-        TransformRegistry registry = new TransformRegistry(parsers);
+        TransformRegistry registry = new TransformRegistry(factories);
 
-        ChainTransform.Parser transformParser = new ChainTransform.Parser(registry);
+        ChainTransformFactory transformParser = new ChainTransformFactory(registry);
 
         XContentBuilder builder = jsonBuilder().startArray()
                 .startObject().startObject("named").field("name", "name1").endObject().endObject()
@@ -68,45 +78,57 @@ public class ChainTransformTests extends ElasticsearchTestCase {
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
-        ChainTransform transform = transformParser.parse(parser);
-        assertThat(transform, notNullValue());
-        assertThat(transform.transforms(), notNullValue());
-        assertThat(transform.transforms(), hasSize(3));
-        for (int i = 0; i < transform.transforms().size(); i++) {
-            assertThat(transform.transforms().get(i), instanceOf(NamedTransform.class));
-            assertThat(((NamedTransform) transform.transforms().get(i)).name, is("name" + (i + 1)));
+        ExecutableChainTransform executable = transformParser.parseExecutable("_id", parser);
+        assertThat(executable, notNullValue());
+        assertThat(executable.transform.getTransforms(), notNullValue());
+        assertThat(executable.transform.getTransforms(), hasSize(3));
+        for (int i = 0; i < executable.transform.getTransforms().size(); i++) {
+            assertThat(executable.executableTransforms().get(i), instanceOf(NamedExecutableTransform.class));
+            assertThat(((NamedExecutableTransform) executable.executableTransforms().get(i)).transform().name, is("name" + (i + 1)));
         }
     }
 
-    private static class NamedTransform extends Transform<NamedTransform.Result> {
+    private static class NamedExecutableTransform extends ExecutableTransform<NamedExecutableTransform.Transform, NamedExecutableTransform.Result> {
 
-        private final String name;
+        private static final String TYPE = "named";
 
-        public NamedTransform(String name) {
-            this.name = name;
+        public NamedExecutableTransform(String name) {
+            this(new Transform(name));
+        }
+
+        public NamedExecutableTransform(Transform transform) {
+            super(transform, Loggers.getLogger(NamedExecutableTransform.class));
         }
 
         @Override
-        public String type() {
-            return "noop";
-        }
-
-        @Override
-        public Result apply(WatchExecutionContext ctx, Payload payload) throws IOException {
-
+        public Result execute(WatchExecutionContext ctx, Payload payload) throws IOException {
             Map<String, Object> data = new HashMap<>(payload.data());
             List<String> names = (List<String>) data.get("names");
             if (names == null) {
                 names = new ArrayList<>();
                 data.put("names", names);
             }
-            names.add(name);
+            names.add(transform.name);
             return new Result("named", new Payload.Simple(data));
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().field("name", name).endObject();
+        public static class Transform implements org.elasticsearch.watcher.transform.Transform {
+
+            private final String name;
+
+            public Transform(String name) {
+                this.name = name;
+            }
+
+            @Override
+            public String type() {
+                return TYPE;
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return builder.startObject().field("name", name).endObject();
+            }
         }
 
         public static class Result extends Transform.Result {
@@ -121,15 +143,19 @@ public class ChainTransformTests extends ElasticsearchTestCase {
             }
         }
 
-        public static class Parser implements Transform.Parser<Result, NamedTransform> {
+        public static class Factory extends TransformFactory<Transform, Result, NamedExecutableTransform> {
 
-            @Override
-            public String type() {
-                return "named";
+            public Factory(ESLogger transformLogger) {
+                super(transformLogger);
             }
 
             @Override
-            public NamedTransform parse(XContentParser parser) throws IOException {
+            public String type() {
+                return TYPE;
+            }
+
+            @Override
+            public Transform parseTransform(String watchId, XContentParser parser) throws IOException {
                 assert parser.currentToken() == XContentParser.Token.START_OBJECT;
                 XContentParser.Token token = parser.nextToken();
                 assert token == XContentParser.Token.FIELD_NAME; // the "name" field
@@ -138,11 +164,11 @@ public class ChainTransformTests extends ElasticsearchTestCase {
                 String name = parser.text();
                 token = parser.nextToken();
                 assert token == XContentParser.Token.END_OBJECT;
-                return new NamedTransform(name);
+                return new Transform(name);
             }
 
             @Override
-            public Result parseResult(XContentParser parser) throws IOException {
+            public Result parseResult(String watchId, XContentParser parser) throws IOException {
                 assert parser.currentToken() == XContentParser.Token.START_OBJECT;
                 XContentParser.Token token = parser.nextToken();
                 assert token == XContentParser.Token.FIELD_NAME; // the "payload" field
@@ -152,6 +178,11 @@ public class ChainTransformTests extends ElasticsearchTestCase {
                 token = parser.nextToken();
                 assert token == XContentParser.Token.END_OBJECT;
                 return new Result("named", payload);
+            }
+
+            @Override
+            public NamedExecutableTransform createExecutable(Transform transform) {
+                return new NamedExecutableTransform(transform);
             }
         }
 

@@ -28,7 +28,8 @@ import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
-import org.elasticsearch.watcher.transform.SearchTransform;
+import org.elasticsearch.watcher.transform.search.ExecutableSearchTransform;
+import org.elasticsearch.watcher.transform.search.SearchTransform;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.watcher.trigger.schedule.CronSchedule;
@@ -91,7 +92,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? 2035")), //Set this into the future so we don't get any extra runs
                 new ExecutableSearchInput(new SearchInput(searchRequest, null), logger, scriptService(), ClientProxy.of(client())),
                 new ExecutableScriptCondition(new ScriptCondition(new Script("return true")), logger, scriptService()),
-                new SearchTransform(logger, scriptService(), ClientProxy.of(client()), searchRequest),
+                new ExecutableSearchTransform(new SearchTransform(searchRequest), logger, scriptService(), ClientProxy.of(client())),
                 new ExecutableActions(new ArrayList<ActionWrapper>()),
                 null, // metadata
                 new TimeValue(0),
@@ -153,7 +154,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                         new ScheduleTrigger(new CronSchedule("0/5 * * * * ? 2035")), //Set a cron schedule far into the future so this watch is never scheduled
                         new ExecutableSearchInput(new SearchInput(searchRequest, null), logger, scriptService(), ClientProxy.of(client())),
                         new ExecutableScriptCondition(new ScriptCondition(new Script("return true")), logger, scriptService()),
-                        new SearchTransform(logger, scriptService(), ClientProxy.of(client()), searchRequest),
+                        new ExecutableSearchTransform(new SearchTransform(searchRequest), logger, scriptService(), ClientProxy.of(client())),
                         new ExecutableActions(new ArrayList<ActionWrapper>()),
                         null, // metadata
                         new TimeValue(0),

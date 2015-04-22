@@ -35,7 +35,7 @@ public class WatchSourceBuilder implements ToXContent {
     private Trigger.SourceBuilder trigger;
     private Input input = NoneInput.INSTANCE;
     private Condition condition = AlwaysCondition.INSTANCE;
-    private Transform.SourceBuilder transform = null;
+    private Transform transform = null;
     private Map<String, TransformedAction> actions = new HashMap<>();
     private TimeValue throttlePeriod = null;
     private Map<String, Object> metadata;
@@ -63,9 +63,13 @@ public class WatchSourceBuilder implements ToXContent {
         return this;
     }
 
-    public WatchSourceBuilder transform(Transform.SourceBuilder transform) {
+    public WatchSourceBuilder transform(Transform transform) {
         this.transform = transform;
         return this;
+    }
+
+    public WatchSourceBuilder transform(Transform.Builder transform) {
+        return transform(transform.build());
     }
 
     public WatchSourceBuilder throttlePeriod(TimeValue throttlePeriod) {
@@ -73,10 +77,10 @@ public class WatchSourceBuilder implements ToXContent {
         return this;
     }
 
-    public WatchSourceBuilder addAction(String id, Transform.SourceBuilder transform, Action action) {
-        actions.put(id, new TransformedAction(id, action, transform));
-        return this;
+    public WatchSourceBuilder addAction(String id, Transform.Builder transform, Action action) {
+        return addAction(id, transform.build(), action);
     }
+
 
     public WatchSourceBuilder addAction(String id, Action action) {
         actions.put(id, new TransformedAction(id, action));
@@ -85,6 +89,16 @@ public class WatchSourceBuilder implements ToXContent {
 
     public WatchSourceBuilder addAction(String id, Action.Builder action) {
         return addAction(id, action.build());
+    }
+
+    public WatchSourceBuilder addAction(String id, Transform.Builder transform, Action.Builder action) {
+        actions.put(id, new TransformedAction(id, action.build(), transform.build()));
+        return this;
+    }
+
+    public WatchSourceBuilder addAction(String id, Transform transform, Action action) {
+        actions.put(id, new TransformedAction(id, action, transform));
+        return this;
     }
 
     public WatchSourceBuilder metadata(Map<String, Object> metadata) {
@@ -148,13 +162,13 @@ public class WatchSourceBuilder implements ToXContent {
 
         private final String id;
         private final Action action;
-        private final @Nullable Transform.SourceBuilder transform;
+        private final @Nullable Transform transform;
 
         public TransformedAction(String id, Action action) {
             this(id, action, null);
         }
 
-        public TransformedAction(String id, Action action, @Nullable Transform.SourceBuilder transform) {
+        public TransformedAction(String id, Action action, @Nullable Transform transform) {
             this.id = id;
             this.transform = transform;
             this.action = action;
@@ -164,7 +178,7 @@ public class WatchSourceBuilder implements ToXContent {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             if (transform != null) {
-                builder.startObject(Transform.Parser.TRANSFORM_FIELD.getPreferredName())
+                builder.startObject(Transform.Field.TRANSFORM.getPreferredName())
                         .field(transform.type(), transform)
                         .endObject();
             }

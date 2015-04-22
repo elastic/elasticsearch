@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.support.init;
 
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
-import org.elasticsearch.watcher.transform.ChainTransform;
+import org.elasticsearch.watcher.transform.chain.ChainTransformFactory;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 
@@ -25,7 +25,7 @@ public class InitializingModule extends AbstractModule {
         Multibinder<InitializingService.Initializable> mbinder = Multibinder.newSetBinder(binder(), InitializingService.Initializable.class);
         mbinder.addBinding().to(ClientProxy.class);
         mbinder.addBinding().to(ScriptServiceProxy.class);
-        mbinder.addBinding().to(ChainTransform.Parser.class);
+        mbinder.addBinding().to(ChainTransformFactory.class);
         bind(InitializingService.class).asEagerSingleton();
     }
 }

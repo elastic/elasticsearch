@@ -11,6 +11,7 @@ import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.throttle.Throttler;
+import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;

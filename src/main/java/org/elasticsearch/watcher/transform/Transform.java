@@ -5,25 +5,21 @@
  */
 package org.elasticsearch.watcher.transform;
 
-import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.watch.Payload;
 
 import java.io.IOException;
 
 /**
  *
  */
-public abstract class Transform<R extends Transform.Result> implements ToXContent {
+public interface Transform extends ToXContent {
 
-    public abstract String type();
+    String type();
 
-    public abstract Result apply(WatchExecutionContext ctx, Payload payload) throws IOException;
-
-    public static abstract class Result implements ToXContent {
+    abstract class Result implements ToXContent {
 
         protected final String type;
         protected final Payload payload;
@@ -44,7 +40,7 @@ public abstract class Transform<R extends Transform.Result> implements ToXConten
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(Parser.PAYLOAD_FIELD.getPreferredName(), payload);
+            builder.field(Field.PAYLOAD.getPreferredName(), payload);
             xContentBody(builder, params);
             return builder.endObject();
         }
@@ -53,23 +49,14 @@ public abstract class Transform<R extends Transform.Result> implements ToXConten
 
     }
 
-    public static interface Parser<R extends Transform.Result, T extends Transform<R>> {
+    interface Builder<T extends Transform> {
 
-        public static final ParseField PAYLOAD_FIELD = new ParseField("payload");
-        public static final ParseField TRANSFORM_FIELD = new ParseField("transform");
-        public static final ParseField TRANSFORM_RESULT_FIELD = new ParseField("transform_result");
-
-        String type();
-
-        T parse(XContentParser parser) throws IOException;
-
-        R parseResult(XContentParser parser) throws IOException;
-
+        T build();
     }
 
-    public static interface SourceBuilder extends ToXContent {
-
-        String type();
+    interface Field {
+        ParseField PAYLOAD = new ParseField("payload");
+        ParseField TRANSFORM = new ParseField("transform");
+        ParseField TRANSFORM_RESULT = new ParseField("transform_result");
     }
-
 }

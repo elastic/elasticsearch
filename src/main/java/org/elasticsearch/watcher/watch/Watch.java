@@ -35,7 +35,7 @@ import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.throttle.WatchThrottler;
-import org.elasticsearch.watcher.transform.Transform;
+import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.TransformRegistry;
 import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
@@ -67,11 +67,11 @@ public class Watch implements TriggerEngine.Job, ToXContent {
     private final Map<String, Object> metadata;
 
     @Nullable
-    private final Transform transform;
+    private final ExecutableTransform transform;
 
     private final transient AtomicLong nonceCounter = new AtomicLong();
 
-    public Watch(String name, Clock clock, LicenseService licenseService, Trigger trigger, ExecutableInput input, ExecutableCondition condition, @Nullable Transform transform,
+    public Watch(String name, Clock clock, LicenseService licenseService, Trigger trigger, ExecutableInput input, ExecutableCondition condition, @Nullable ExecutableTransform transform,
                  ExecutableActions actions, @Nullable Map<String, Object> metadata, @Nullable TimeValue throttlePeriod, @Nullable Status status) {
         this.name = name;
         this.trigger = trigger;
@@ -99,7 +99,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         return condition;
     }
 
-    public Transform transform() {
+    public ExecutableTransform transform() {
         return transform;
     }
 
@@ -234,7 +234,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             ExecutableInput input = defaultInput;
             ExecutableCondition condition = defaultCondition;
             ExecutableActions actions = null;
-            Transform transform = null;
+            ExecutableTransform transform = null;
             Map<String, Object> metatdata = null;
             Status status = null;
             TimeValue throttlePeriod = defaultThrottleTimePeriod;
@@ -256,7 +256,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                     } else if (ACTIONS_FIELD.match(currentFieldName)) {
                         actions = actionRegistry.parseActions(id, parser);
                     } else if (TRANSFORM_FIELD.match(currentFieldName)) {
-                        transform = transformRegistry.parse(parser);
+                        transform = transformRegistry.parse(id, parser);
                     } else if (META_FIELD.match(currentFieldName)) {
                         metatdata = parser.map();
                     } else if (STATUS_FIELD.match(currentFieldName) && includeStatus) {

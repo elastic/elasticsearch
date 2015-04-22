@@ -17,6 +17,9 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.transform.search.ExecutableSearchTransform;
+import org.elasticsearch.watcher.transform.search.SearchTransform;
+import org.elasticsearch.watcher.transform.search.SearchTransformFactory;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
@@ -51,11 +54,11 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
                 .startObject("match_all").endObject()
                 .endObject()
                 .endObject());
-        SearchTransform transform = new SearchTransform(logger, scriptService(), ClientProxy.of(client()), request);
+        ExecutableSearchTransform transform = new ExecutableSearchTransform(new SearchTransform(request), logger, scriptService(), ClientProxy.of(client()));
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
 
-        Transform.Result result = transform.apply(ctx, EMPTY_PAYLOAD);
+        Transform.Result result = transform.execute(ctx, EMPTY_PAYLOAD);
         assertThat(result, notNullValue());
         assertThat(result.type(), is(SearchTransform.TYPE));
 
@@ -108,14 +111,14 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
                 .must(rangeFilter("date").lt("{{ctx.execution_time}}"))
                 .must(termFilter("value", "{{ctx.payload.value}}")))));
 
-        SearchTransform transform = new SearchTransform(logger, scriptService(), ClientProxy.of(client()), request);
+        ExecutableSearchTransform transform = new ExecutableSearchTransform(new SearchTransform(request), logger, scriptService(), ClientProxy.of(client()));
 
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_name", parseDate("2015-01-04T00:00:00"), parseDate("2015-01-01T00:00:00"));
         WatchExecutionContext ctx = mockExecutionContext("_name", parseDate("2015-01-04T00:00:00"), event, EMPTY_PAYLOAD);
 
         Payload payload = simplePayload("value", "val_3");
 
-        Transform.Result result = transform.apply(ctx, payload);
+        Transform.Result result = transform.execute(ctx, payload);
         assertThat(result, notNullValue());
         assertThat(result.type(), is(SearchTransform.TYPE));
 
@@ -175,23 +178,23 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
         builder.endObject();
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
-        SearchTransform transform = new SearchTransform.Parser(ImmutableSettings.EMPTY, scriptService(), ClientProxy.of(client())).parse(parser);
-        assertThat(transform, notNullValue());
-        assertThat(transform.type(), is(SearchTransform.TYPE));
-        assertThat(transform.request, notNullValue());
+        ExecutableSearchTransform executable = new SearchTransformFactory(ImmutableSettings.EMPTY, scriptService(), ClientProxy.of(client())).parseExecutable("_id", parser);
+        assertThat(executable, notNullValue());
+        assertThat(executable.type(), is(SearchTransform.TYPE));
+        assertThat(executable.transform().getRequest(), notNullValue());
         if (indices != null) {
-            assertThat(transform.request.indices(), arrayContainingInAnyOrder(indices));
+            assertThat(executable.transform().getRequest().indices(), arrayContainingInAnyOrder(indices));
         }
         if (searchType != null) {
-            assertThat(transform.request.searchType(), is(searchType));
+            assertThat(executable.transform().getRequest().searchType(), is(searchType));
         }
         if (templateName != null) {
-            assertThat(transform.request.templateName(), equalTo(templateName));
+            assertThat(executable.transform().getRequest().templateName(), equalTo(templateName));
         }
         if (templateType != null) {
-            assertThat(transform.request.templateType(), equalTo(templateType));
+            assertThat(executable.transform().getRequest().templateType(), equalTo(templateType));
         }
-        assertThat(transform.request.source().toBytes(), equalTo(source.toBytes()));
+        assertThat(executable.transform().getRequest().source().toBytes(), equalTo(source.toBytes()));
     }
 
     private static Map<String, Object> doc(String date, String value) {

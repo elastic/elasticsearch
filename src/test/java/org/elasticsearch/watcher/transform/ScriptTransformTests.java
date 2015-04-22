@@ -7,7 +7,11 @@ package org.elasticsearch.watcher.transform;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableList;
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableSet;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.watcher.transform.script.ExecutableScriptTransform;
+import org.elasticsearch.watcher.transform.script.ScriptTransform;
+import org.elasticsearch.watcher.transform.script.ScriptTransformFactory;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.Variables;
@@ -41,7 +45,7 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
         ScriptService.ScriptType type = randomFrom(ScriptService.ScriptType.values());
         Map<String, Object> params = Collections.emptyMap();
         Script script = new Script("_script", type, "_lang", params);
-        ScriptTransform transform = new ScriptTransform(service, script);
+        ExecutableScriptTransform transform = new ExecutableScriptTransform(new ScriptTransform(script), logger, service);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
 
@@ -57,7 +61,7 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
         when(executable.run()).thenReturn(transformed);
         when(service.executable("_lang", "_script", type, model)).thenReturn(executable);
 
-        Transform.Result result = transform.apply(ctx, payload);
+        Transform.Result result = transform.execute(ctx, payload);
         assertThat(result, notNullValue());
         assertThat(result.type(), is(ScriptTransform.TYPE));
         assertThat(result.payload().data(), equalTo(transformed));
@@ -69,7 +73,7 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
         ScriptService.ScriptType type = randomFrom(ScriptService.ScriptType.values());
         Map<String, Object> params = Collections.emptyMap();
         Script script = new Script("_script", type, "_lang", params);
-        ScriptTransform transform = new ScriptTransform(service, script);
+        ExecutableScriptTransform transform = new ExecutableScriptTransform(new ScriptTransform(script), logger, service);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
 
@@ -82,7 +86,7 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
         when(executable.run()).thenReturn(value);
         when(service.executable("_lang", "_script", type, model)).thenReturn(executable);
 
-        Transform.Result result = transform.apply(ctx, payload);
+        Transform.Result result = transform.execute(ctx, payload);
         assertThat(result, notNullValue());
         assertThat(result.type(), is(ScriptTransform.TYPE));
         assertThat(result.payload().data().size(), is(1));
@@ -102,8 +106,8 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
-        ScriptTransform transform = new ScriptTransform.Parser(service).parse(parser);
-        assertThat(transform.script(), equalTo(new Script("_script", type, "_lang", ImmutableMap.<String, Object>builder().put("key", "value").build())));
+        ExecutableScriptTransform transform = new ScriptTransformFactory(ImmutableSettings.EMPTY, service).parseExecutable("_id", parser);
+        assertThat(transform.transform().getScript(), equalTo(new Script("_script", type, "_lang", ImmutableMap.<String, Object>builder().put("key", "value").build())));
     }
 
     @Test
@@ -113,7 +117,7 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
-        ScriptTransform transform = new ScriptTransform.Parser(service).parse(parser);
-        assertThat(transform.script(), equalTo(new Script("_script", ScriptService.ScriptType.INLINE, ScriptService.DEFAULT_LANG, ImmutableMap.<String, Object>of())));
+        ExecutableScriptTransform transform = new ScriptTransformFactory(ImmutableSettings.EMPTY, service).parseExecutable("_id", parser);
+        assertThat(transform.transform().getScript(), equalTo(new Script("_script", ScriptService.ScriptType.INLINE, ScriptService.DEFAULT_LANG, ImmutableMap.<String, Object>of())));
     }
 }

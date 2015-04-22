@@ -85,7 +85,7 @@ public class WatchExecution implements ToXContent {
             }
         }
         if (transformResult != null) {
-            builder.startObject(Transform.Parser.TRANSFORM_RESULT_FIELD.getPreferredName()).field(transformResult.type(), transformResult).endObject();
+            builder.startObject(Transform.Field.TRANSFORM_RESULT.getPreferredName()).field(transformResult.type(), transformResult).endObject();
         }
         builder.startObject(Parser.ACTIONS_RESULTS.getPreferredName());
         for (ActionWrapper.Result actionResult : actionsResults) {
@@ -131,8 +131,8 @@ public class WatchExecution implements ToXContent {
                         inputResult = inputRegistry.parseResult(wid.watchId(), parser);
                     } else if (CONDITION_RESULT_FIELD.match(currentFieldName)) {
                         conditionResult = conditionRegistry.parseResult(wid.watchId(), parser);
-                    } else if (Transform.Parser.TRANSFORM_RESULT_FIELD.match(currentFieldName)) {
-                        transformResult = transformRegistry.parseResult(parser);
+                    } else if (Transform.Field.TRANSFORM_RESULT.match(currentFieldName)) {
+                        transformResult = transformRegistry.parseResult(wid.watchId(), parser);
                     } else if (ACTIONS_RESULTS.match(currentFieldName)) {
                         actionResults = actionRegistry.parseResults(wid, parser);
                     } else {

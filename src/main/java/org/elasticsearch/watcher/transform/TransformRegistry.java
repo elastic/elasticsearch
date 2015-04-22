@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.transform;
 
-import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -18,36 +17,48 @@ import java.util.Map;
  */
 public class TransformRegistry {
 
-    private final ImmutableMap<String, Transform.Parser> parsers;
+    private final ImmutableMap<String, TransformFactory> factories;
 
     @Inject
-    public TransformRegistry(Map<String, Transform.Parser> parsers) {
-        this.parsers = ImmutableMap.copyOf(parsers);
+    public TransformRegistry(Map<String, TransformFactory> factories) {
+        this.factories = ImmutableMap.copyOf(factories);
     }
 
-    public Transform parse(XContentParser parser) throws IOException {
+    public TransformFactory factory(String type) {
+        return factories.get(type);
+    }
+
+    public ExecutableTransform parse(String watchId, XContentParser parser) throws IOException {
         String type = null;
         XContentParser.Token token;
-        Transform transform = null;
+        ExecutableTransform transform = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
             } else if (type != null) {
-                transform = parse(type, parser);
+                transform = parse(watchId, type, parser);
             }
         }
         return transform;
     }
 
-    public Transform parse(String type, XContentParser parser) throws IOException {
-        Transform.Parser transformParser = parsers.get(type);
-        if (transformParser == null) {
-            throw new WatcherSettingsException("unknown transform type [" + type + "]");
+    public ExecutableTransform parse(String watchId, String type, XContentParser parser) throws IOException {
+        TransformFactory factory = factories.get(type);
+        if (factory == null) {
+            throw new TransformException("could not parse transform for watch [{}], unknown transform type [{}]", watchId, type);
         }
-        return transformParser.parse(parser);
+        return factory.parseExecutable(watchId, parser);
     }
 
-    public Transform.Result parseResult(XContentParser parser) throws IOException {
+    public Transform parseTransform(String watchId, String type, XContentParser parser) throws IOException {
+        TransformFactory factory = factories.get(type);
+        if (factory == null) {
+            throw new TransformException("could not parse transform for watch [{}], unknown transform type [{}]", watchId, type);
+        }
+        return factory.parseTransform(watchId, parser);
+    }
+
+    public Transform.Result parseResult(String watchId, XContentParser parser) throws IOException {
         String type = null;
         XContentParser.Token token;
         Transform.Result result = null;
@@ -55,17 +66,17 @@ public class TransformRegistry {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
             } else if (type != null) {
-                result = parseResult(type, parser);
+                result = parseResult(watchId, type, parser);
             }
         }
         return result;
     }
 
-    public Transform.Result parseResult(String type, XContentParser parser) throws IOException {
-        Transform.Parser transformParser = parsers.get(type);
-        if (transformParser == null) {
-            throw new TransformException("unknown transform type [" + type + "]");
+    public Transform.Result parseResult(String watchId, String type, XContentParser parser) throws IOException {
+        TransformFactory factory = factories.get(type);
+        if (factory == null) {
+            throw new TransformException("could not parse transform result for watch [{}]. unknown transform type [{}]", watchId, type);
         }
-        return transformParser.parseResult(parser);
+        return factory.parseResult(watchId, parser);
     }
 }

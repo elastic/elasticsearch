@@ -6,9 +6,14 @@
 package org.elasticsearch.watcher.actions;
 
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.Transform;
+import org.elasticsearch.watcher.transform.TransformFactory;
 import org.elasticsearch.watcher.transform.TransformRegistry;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
@@ -24,16 +29,27 @@ import static org.hamcrest.core.Is.is;
  */
 public class TransformMocks {
 
-    public static class TransformMock extends Transform<TransformMock.Result> {
+    public static class ExecutableTransformMock extends ExecutableTransform {
 
-        @Override
-        public String type() {
-            return "_transform";
+        private static final String TYPE = "mock";
+
+        public ExecutableTransformMock() {
+            super(new Transform() {
+                @Override
+                public String type() {
+                    return TYPE;
+                }
+
+                @Override
+                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                    return builder.startObject().endObject();
+                }
+            }, Loggers.getLogger(ExecutableTransformMock.class));
         }
 
         @Override
-        public Result apply(WatchExecutionContext ctx, Payload payload) throws IOException {
-            return new Result("_transform", new Payload.Simple("_key", "_value"));
+        public Transform.Result execute(WatchExecutionContext ctx, Payload payload) throws IOException {
+            return new Result(TYPE, new Payload.Simple("_key", "_value"));
         }
 
         @Override
@@ -56,41 +72,51 @@ public class TransformMocks {
 
     public static class TransformRegistryMock extends TransformRegistry {
 
-        public TransformRegistryMock(final Transform transform) {
-            super(ImmutableMap.<String, Transform.Parser>of("_transform", new Transform.Parser() {
+        public TransformRegistryMock(final ExecutableTransform executable) {
+            super(ImmutableMap.<String, TransformFactory>of("_transform", new TransformFactory(Loggers.getLogger(TransformRegistryMock.class)) {
                 @Override
                 public String type() {
-                    return transform.type();
+                    return executable.type();
                 }
 
                 @Override
-                public Transform parse(XContentParser parser) throws IOException {
+                public Transform parseTransform(String watchId, XContentParser parser) throws IOException {
                     parser.nextToken();
                     assertThat(parser.currentToken(), is(XContentParser.Token.END_OBJECT));
-                    return transform;
+                    return null;
                 }
 
                 @Override
-                public Transform.Result parseResult(XContentParser parser) throws IOException {
-                    return null; // should not be called when this ctor is used
+                public Transform.Result parseResult(String watchId, XContentParser parser) throws IOException {
+                    return null;
+                }
+
+                @Override
+                public ExecutableTransform createExecutable(Transform transform) {
+                    return executable;
                 }
             }));
         }
 
         public TransformRegistryMock(final Transform.Result result) {
-            super(ImmutableMap.<String, Transform.Parser>of("_transform_type", new Transform.Parser() {
+            super(ImmutableMap.<String, TransformFactory>of("_transform_type", new TransformFactory(Loggers.getLogger(TransformRegistryMock.class)) {
                 @Override
                 public String type() {
                     return result.type();
                 }
 
                 @Override
-                public Transform parse(XContentParser parser) throws IOException {
-                    return null; // should not be called when this ctor is used.
+                public Transform parseTransform(String watchId, XContentParser parser) throws IOException {
+                    return null;
                 }
 
                 @Override
-                public Transform.Result parseResult(XContentParser parser) throws IOException {
+                public ExecutableTransform createExecutable(Transform transform) {
+                    return null;
+                }
+
+                @Override
+                public Transform.Result parseResult(String watchId, XContentParser parser) throws IOException {
                     assertThat(parser.currentToken(), is(XContentParser.Token.START_OBJECT));
                     parser.nextToken();
                     assertThat(parser.currentToken(), is(XContentParser.Token.FIELD_NAME));

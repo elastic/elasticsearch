@@ -34,7 +34,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
@@ -52,7 +51,6 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -65,10 +63,8 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
     private static Injector injector;
     private static IndexQueryParserService queryParserService;
     private static Index index;
-    protected QueryParseContext context;
-    protected XContentParser parser;
 
-    protected QB testQuery;
+    protected QB testQuery = createTestQueryBuilder();
 
     /**
      * Setup for the whole base test class.
@@ -106,20 +102,6 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
         queryParserService = injector.getInstance(IndexQueryParserService.class);
     }
 
-    /**
-     * Setup for the individual tests, creating test query, context and XContentparser
-     */
-    @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        context = new QueryParseContext(index, queryParserService);
-        testQuery = createTestQueryBuilder();
-        String contentString = testQuery.toString();
-        parser = XContentFactory.xContent(contentString).createParser(contentString);
-        context.reset(parser);
-    }
-
     @AfterClass
     public static void after() throws Exception {
         terminate(injector.getInstance(ThreadPool.class));
@@ -133,7 +115,7 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
     /**
      * Subclass should handle assertions on the lucene query produced by the query builder under test here
      */
-    protected abstract void assertLuceneQuery(QB testQuery) throws IOException;
+    protected abstract void assertLuceneQuery(QB queryBuilder, Query query) throws IOException;
 
     /**
      * Creates an empty builder of the type of query under test
@@ -146,6 +128,10 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
      */
     @Test
     public void testFromXContent() throws IOException {
+        QueryParseContext context = new QueryParseContext(index, queryParserService);
+        String contentString = testQuery.toString();
+        context.reset(XContentFactory.xContent(contentString).createParser(contentString));
+
         QueryBuilder newQuery = queryParserService.queryParser(testQuery.parserName()).fromXContent(context);
         assertNotSame(newQuery, testQuery);
         assertEquals(newQuery, testQuery);
@@ -157,7 +143,8 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
      */
     @Test
     public void testToQuery() throws IOException {
-        assertLuceneQuery(this.testQuery);
+        QueryParseContext context = new QueryParseContext(index, queryParserService);
+        assertLuceneQuery(this.testQuery, this.testQuery.toQuery(context));
     }
 
     /**

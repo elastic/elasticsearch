@@ -78,20 +78,20 @@ public class MatchAllQueryBuilder extends BaseQueryBuilder implements Streamable
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
+    public boolean equals(Object o) {
+        if (this == o) {
             return true;
         }
-        if (obj instanceof MatchAllQueryBuilder) {
-            MatchAllQueryBuilder other = (MatchAllQueryBuilder) obj;
-            return (Float.floatToIntBits(this.boost) == Float.floatToIntBits(other.boost()));
+        if (o == null || getClass() != o.getClass()) {
+            return false;
         }
-        return false;
+        MatchAllQueryBuilder that = (MatchAllQueryBuilder) o;
+        return Float.compare(that.boost, boost) == 0;
     }
 
     @Override
     public int hashCode() {
-        return Float.floatToIntBits(this.boost);
+        return (boost != +0.0f ? Float.floatToIntBits(boost) : 0);
     }
 
     @Override

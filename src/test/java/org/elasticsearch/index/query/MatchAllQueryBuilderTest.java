@@ -30,8 +30,7 @@ import static org.hamcrest.Matchers.*;
 public class MatchAllQueryBuilderTest extends BaseQueryTestCase<MatchAllQueryBuilder> {
 
     @Override
-    public void assertLuceneQuery(MatchAllQueryBuilder queryBuilder) throws IOException {
-        Query query = queryBuilder.toQuery(context);
+    protected void assertLuceneQuery(MatchAllQueryBuilder queryBuilder, Query query) throws IOException {
         if (queryBuilder.boost() != 1.0f) {
             assertThat(query, instanceOf(MatchAllDocsQuery.class));
         } else {
@@ -41,7 +40,7 @@ public class MatchAllQueryBuilderTest extends BaseQueryTestCase<MatchAllQueryBui
     }
 
     @Override
-    public MatchAllQueryBuilder createEmptyQueryBuilder() {
+    protected MatchAllQueryBuilder createEmptyQueryBuilder() {
         return new MatchAllQueryBuilder();
     }
 
@@ -49,7 +48,7 @@ public class MatchAllQueryBuilderTest extends BaseQueryTestCase<MatchAllQueryBui
      * @return a MatchAllQuery with random boost between 0.1f and 2.0f
      */
     @Override
-    public MatchAllQueryBuilder createTestQueryBuilder() {
+    protected MatchAllQueryBuilder createTestQueryBuilder() {
         MatchAllQueryBuilder query = new MatchAllQueryBuilder();
         if (randomBoolean()) {
             query.boost(2.0f / randomIntBetween(1, 20));

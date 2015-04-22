@@ -80,8 +80,7 @@ And the `scroll_id` can be passed in the request body
 
 [source,js]
 --------------------------------------------------
-curl -XGET <1> 'localhost:9200/_search/scroll?scroll=1m' <2> <3> \
-     -d       'c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1' <4>
+curl -XGET 'localhost:9200/_search/scroll?scroll=1m' -d 'c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1'
 --------------------------------------------------
 
 IMPORTANT: The initial search request and each subsequent scroll request
@@ -189,7 +188,7 @@ curl -XDELETE localhost:9200/_search/scroll -d '
 }'
 ---------------------------------------
 
-coming[2.0.0, body based parameters were added in 2.0.0]
+coming[2.0.0, Body based parameters were added in 2.0.0]
 
 Multiple scroll IDs can be passed as array:
 
@@ -201,7 +200,7 @@ curl -XDELETE localhost:9200/_search/scroll -d '
 }'
 ---------------------------------------
 
-coming[2.0.0, body based parameters were added in 2.0.0]
+coming[2.0.0, Body based parameters were added in 2.0.0]
 
 All search contexts can be cleared with the `_all` parameter:
 

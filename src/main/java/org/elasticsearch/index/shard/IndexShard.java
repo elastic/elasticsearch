@@ -683,7 +683,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public boolean syncFlushIfNoPendingChanges(String syncId, byte[] expectedCommitId) {
         verifyStartedOrRecovering();
-        logger.debug("trying to sync flush. sync id [{}]. expected commit id [{}]]", syncId, expectedCommitId);
+        logger.trace("trying to sync flush. sync id [{}]. expected commit id [{}]]", syncId, expectedCommitId);
         return engine().syncFlushIfNoPendingChanges(syncId, expectedCommitId);
     }
 

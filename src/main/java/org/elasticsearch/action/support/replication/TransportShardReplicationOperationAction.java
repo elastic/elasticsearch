@@ -224,7 +224,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         }
     }
 
-    protected class ReplicaOperationTransportHandler extends BaseTransportRequestHandler<ReplicaOperationRequest> {
+    private class ReplicaOperationTransportHandler extends BaseTransportRequestHandler<ReplicaOperationRequest> {
 
         @Override
         public ReplicaOperationRequest newInstance() {
@@ -271,7 +271,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         public ReplicaRequest request;
         private String nodeId;
 
-        public ReplicaOperationRequest() {
+        ReplicaOperationRequest() {
         }
 
         public String getNodeId() {
@@ -775,7 +775,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     }
 
-    protected void failReplicaIfNeeded(String index, int shardId, Throwable t) {
+    private void failReplicaIfNeeded(String index, int shardId, Throwable t) {
         logger.trace("failure on replica [{}][{}]", t, index, shardId);
         if (!ignoreReplicaException(t)) {
             IndexService indexService = indicesService.indexService(index);
@@ -845,9 +845,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         }
 
         private void finishIfNeeded() {
-
             if (pending.decrementAndGet() == 0) {
-
                 doFinish();
             }
         }
@@ -876,7 +874,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
                         )
                 );
-
                 listener.onResponse(onAllReplicasResponded(finalResponse, replicaResponses));
             }
         }

@@ -99,8 +99,7 @@ public class TransportSyncedFlushAction extends TransportShardReplicationOperati
 
     @Override
     protected Tuple<SyncedFlushResponse, SyncedFlushRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) throws Throwable {
-        String nodeId = clusterState.routingTable().index(shardRequest.shardId.index().name()).shard(shardRequest.shardId.id()).primaryShard().currentNodeId();
-        byte[] commitId = shardRequest.request.commitIds().get(nodeId);
+        byte[] commitId = shardRequest.request.commitIds().get(clusterService.localNode().getId());
         IndexService indexService = indicesService.indexServiceSafe(shardRequest.shardId.getIndex());
         IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
         SyncedFlushResponse syncedFlushResponse = new SyncedFlushResponse(indexShard.syncFlushIfNoPendingChanges(shardRequest.request.syncId(), commitId), shardRequest.request.syncId());
@@ -112,12 +111,7 @@ public class TransportSyncedFlushAction extends TransportShardReplicationOperati
 
     @Override
     protected SyncedFlushReplicaResponse shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
-        byte[] commitId = null;
-        for (Map.Entry<String, byte[]> entry : shardRequest.request.commitIds().entrySet()) {
-            if (entry.getKey().equals(clusterService.localNode().getId())) {
-                commitId = entry.getValue();
-            }
-        }
+        byte[] commitId = shardRequest.request.commitIds().get(clusterService.localNode().getId());
         IndexService indexService = indicesService.indexServiceSafe(shardRequest.shardId.getIndex());
         IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
         SyncedFlushReplicaResponse syncedFlushReplicaResponse = new SyncedFlushReplicaResponse();
@@ -136,8 +130,7 @@ public class TransportSyncedFlushAction extends TransportShardReplicationOperati
             }
         }
         additionalFailures.addAll(Arrays.asList(finalResponse.getShardInfo().getFailures()));
-        SyncedFlushResponse syncedFlushResponse = new SyncedFlushResponse(true, finalResponse.getSyncId());
-        syncedFlushResponse.setShardInfo(new ActionWriteResponse.ShardInfo(finalResponse.getShardInfo().getTotal(), finalResponse.getShardInfo().getTotal() - additionalFailures.size(), additionalFailures.toArray(new ActionWriteResponse.ShardInfo.Failure[additionalFailures.size()])));
-        return syncedFlushResponse;
+        finalResponse.setShardInfo(new ActionWriteResponse.ShardInfo(finalResponse.getShardInfo().getTotal(), finalResponse.getShardInfo().getTotal() - additionalFailures.size(), additionalFailures.toArray(new ActionWriteResponse.ShardInfo.Failure[additionalFailures.size()])));
+        return finalResponse;
     }
 }

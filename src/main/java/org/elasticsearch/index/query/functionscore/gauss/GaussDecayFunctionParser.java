@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.functionscore.gauss;
 
-import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.index.query.functionscore.DecayFunction;
 import org.elasticsearch.index.query.functionscore.DecayFunctionParser;
@@ -45,10 +44,9 @@ public class GaussDecayFunctionParser extends DecayFunctionParser {
 
         @Override
         public Explanation explainFunction(String valueExpl, double value, double scale) {
-            ComplexExplanation ce = new ComplexExplanation();
-            ce.setValue((float) evaluate(value, scale));
-            ce.setDescription("exp(-0.5*pow(" + valueExpl + ",2.0)/" + -1 * scale + ")");
-            return ce;
+            return Explanation.match(
+                    (float) evaluate(value, scale),
+                    "exp(-0.5*pow(" + valueExpl + ",2.0)/" + -1 * scale + ")");
         }
 
         @Override

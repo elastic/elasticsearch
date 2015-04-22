@@ -20,7 +20,6 @@
 package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
@@ -65,18 +64,16 @@ public class WeightFactorFunction extends ScoreFunction {
 
             @Override
             public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
-                Explanation functionScoreExplanation;
                 Explanation functionExplanation = leafFunction.explainScore(docId, subQueryScore);
-                functionScoreExplanation = new ComplexExplanation(true, functionExplanation.getValue() * (float) getWeight(), "product of:");
-                functionScoreExplanation.addDetail(functionExplanation);
-                functionScoreExplanation.addDetail(explainWeight());
-                return functionScoreExplanation;
+                return Explanation.match(
+                        functionExplanation.getValue() * (float) getWeight(), "product of:",
+                        functionExplanation, explainWeight());
             }
         };
     }
 
     public Explanation explainWeight() {
-        return new Explanation(getWeight(), "weight");
+        return Explanation.match(getWeight(), "weight");
     }
 
     public float getWeight() {
@@ -99,7 +96,7 @@ public class WeightFactorFunction extends ScoreFunction {
 
                 @Override
                 public Explanation explainScore(int docId, Explanation subQueryScore) {
-                    return new Explanation(1.0f, "constant score 1.0 - no function provided");
+                    return Explanation.match(1.0f, "constant score 1.0 - no function provided");
                 }
             };
         }

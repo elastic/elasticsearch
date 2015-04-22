@@ -195,4 +195,24 @@ final class ParentIdsFilter extends Filter {
     public String toString(String field) {
         return "parentsFilter(type=" + parentTypeBr.utf8ToString() + ")";
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        ParentIdsFilter other = (ParentIdsFilter) obj;
+        return parentTypeBr.equals(other.parentTypeBr)
+                && parentIds.equals(other.parentIds)
+                && nonNestedDocsFilter.equals(nonNestedDocsFilter);
+    }
+
+    @Override
+    public int hashCode() {
+        int h = super.hashCode();
+        h = 31 * h + parentTypeBr.hashCode();
+        h = 31 * h + parentIds.hashCode();
+        h = 31 * h + nonNestedDocsFilter.hashCode();
+        return h;
+    }
 }

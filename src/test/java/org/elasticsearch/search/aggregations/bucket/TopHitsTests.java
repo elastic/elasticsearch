@@ -813,7 +813,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
         // Can't explain nested hit with the main query, since both are in a different scopes, also the nested doc may not even have matched with the main query
         // If top_hits would have a query option then we can explain that query
         Explanation explanation = searchHit.explanation();
-        assertThat(explanation.toString(), containsString("Not a match"));
+        assertFalse(explanation.isMatch());
 
         // Returns the version of the root document. Nested docs don't have a separate version
         long version = searchHit.version();

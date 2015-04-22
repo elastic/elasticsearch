@@ -852,7 +852,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreType("max"))
                 .get();
         assertThat(explainResponse.isExists(), equalTo(true));
-        assertThat(explainResponse.getExplanation().toString(), equalTo("1.0 = (MATCH) sum of:\n  1.0 = not implemented yet...\n  0.0 = match on required clause, product of:\n    0.0 = # clause\n    0.0 = (MATCH) Match on id 0\n"));
+        assertThat(explainResponse.getExplanation().toString(), equalTo("1.0 = sum of:\n  1.0 = not implemented yet...\n  0.0 = match on required clause, product of:\n    0.0 = # clause\n    0.0 = Match on id 0\n"));
     }
 
     List<IndexRequestBuilder> createDocBuilders() {

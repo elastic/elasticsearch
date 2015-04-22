@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query.functionscore;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -463,12 +462,10 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
                 @Override
                 public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
-                    ComplexExplanation ce = new ComplexExplanation();
-                    ce.setValue(CombineFunction.toFloat(score(docId, subQueryScore.getValue())));
-                    ce.setMatch(true);
-                    ce.setDescription("Function for field " + getFieldName() + ":");
-                    ce.addDetail(func.explainFunction(getDistanceString(ctx, docId), distance.get(docId), scale));
-                    return ce;
+                    return Explanation.match(
+                            CombineFunction.toFloat(score(docId, subQueryScore.getValue())),
+                            "Function for field " + getFieldName() + ":",
+                            func.explainFunction(getDistanceString(ctx, docId), distance.get(docId), scale));
                 }
             };
         }

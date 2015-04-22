@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -60,10 +59,14 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.threadPool = threadPool;
-        this.transportShardAction = actionName + "[s]";
+        this.transportShardAction = actionName + getShardOperationNameSuffix();
         this.executor = executor();
 
         transportService.registerHandler(transportShardAction, new ShardTransportHandler());
+    }
+
+    public static String getShardOperationNameSuffix() {
+        return "[s]";
     }
 
     @Override

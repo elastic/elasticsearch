@@ -88,7 +88,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         this.indicesService = indicesService;
         this.shardStateAction = shardStateAction;
 
-        this.transportReplicaAction = actionName + "[r]";
+        this.transportReplicaAction = actionName + getReplicaOperationNameSuffix();
         this.executor = executor();
         this.checkWriteConsistency = checkWriteConsistency();
 
@@ -98,6 +98,10 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         this.transportOptions = transportOptions();
 
         this.defaultWriteConsistencyLevel = WriteConsistencyLevel.fromString(settings.get("action.write_consistency", "quorum"));
+    }
+
+    public static String getReplicaOperationNameSuffix() {
+        return "[r]";
     }
 
     @Override

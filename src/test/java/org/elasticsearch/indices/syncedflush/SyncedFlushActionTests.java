@@ -29,6 +29,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
@@ -63,7 +64,7 @@ public class SyncedFlushActionTests extends ElasticsearchSingleNodeTest {
         ensureGreen(INDEX);
         int numShards = Integer.parseInt(getInstanceFromNode(ClusterService.class).state().metaData().index(INDEX).settings().get("index.number_of_shards"));
         client().prepareIndex(INDEX, TYPE).setSource("foo", "bar").get();
-        TransportPreSyncedFlushAction transportPreSyncedFlushAction = getInstanceFromNode(TransportPreSyncedFlushAction.class);
+        TransportPreSyncedFlushAction transportPreSyncedFlushAction = getPreSyncedFlushAction();
         // try sync on a shard which is not there
         PreSyncedFlushRequest preSyncedFlushRequest = new PreSyncedFlushRequest(new ShardId(INDEX, numShards));
         try {
@@ -78,7 +79,7 @@ public class SyncedFlushActionTests extends ElasticsearchSingleNodeTest {
         createIndex(INDEX);
         ensureGreen(INDEX);
         client().prepareIndex(INDEX, TYPE).setSource("foo", "bar").get();
-        TransportPreSyncedFlushAction transportPreSyncedFlushAction = getInstanceFromNode(TransportPreSyncedFlushAction.class);
+        TransportPreSyncedFlushAction transportPreSyncedFlushAction = getPreSyncedFlushAction();
         PreSyncedShardFlushRequest syncCommitRequest = new PreSyncedShardFlushRequest(getShardRouting(), new PreSyncedFlushRequest(new ShardId(INDEX, 0)));
         PreSyncedShardFlushResponse syncCommitResponse = transportPreSyncedFlushAction.shardOperation(syncCommitRequest);
         assertArrayEquals(readCommitIdFromDisk(), syncCommitResponse.id());
@@ -90,7 +91,7 @@ public class SyncedFlushActionTests extends ElasticsearchSingleNodeTest {
         ensureGreen(INDEX);
         client().prepareIndex(INDEX, TYPE).setSource("foo", "bar").get();
         client().admin().indices().prepareFlush(INDEX).get();
-        TransportSyncedFlushAction transportSyncCommitAction = getInstanceFromNode(TransportSyncedFlushAction.class);
+        TransportSyncedFlushAction transportSyncCommitAction = getSyncedFlushAction();
         String syncId = randomUnicodeOfLength(10);
         Map<String, byte[]> commitIds = new HashMap<>();
         commitIds.put(getShardRouting().currentNodeId(), readCommitIdFromDisk());
@@ -114,13 +115,27 @@ public class SyncedFlushActionTests extends ElasticsearchSingleNodeTest {
         assertEquals(syncId, readSyncIdFromDisk());
     }
 
+    public TransportSyncedFlushAction getSyncedFlushAction() {
+        TransportService transportService = getInstanceFromNode(TransportService.class);
+        transportService.removeHandler(TransportSyncedFlushAction.NAME);
+        transportService.removeHandler(TransportSyncedFlushAction.NAME + TransportShardReplicationOperationAction.getReplicaOperationNameSuffix());
+        return getInstanceFromNode(TransportSyncedFlushAction.class);
+    }
+
+    public TransportPreSyncedFlushAction getPreSyncedFlushAction() {
+        TransportService transportService = getInstanceFromNode(TransportService.class);
+        transportService.removeHandler(TransportPreSyncedFlushAction.NAME);
+        transportService.removeHandler(TransportPreSyncedFlushAction.NAME + TransportPreSyncedFlushAction.getShardOperationNameSuffix());
+        return getInstanceFromNode(TransportPreSyncedFlushAction.class);
+    }
+
     @Test
     public void testFailOnPrimaryIfOperationSneakedIn() throws ExecutionException, InterruptedException, IOException {
         createIndex(INDEX);
         ensureGreen(INDEX);
         client().prepareIndex(INDEX, TYPE).setSource("foo", "bar").get();
         client().admin().indices().prepareFlush(INDEX).get();
-        TransportSyncedFlushAction transportSyncCommitAction = getInstanceFromNode(TransportSyncedFlushAction.class);
+        TransportSyncedFlushAction transportSyncCommitAction = getSyncedFlushAction();
         String syncId = randomUnicodeOfLength(10);
         Map<String, byte[]> commitIds = new HashMap<>();
         commitIds.put(getShardRouting().currentNodeId(), readCommitIdFromDisk());
@@ -142,7 +157,7 @@ public class SyncedFlushActionTests extends ElasticsearchSingleNodeTest {
         createIndex(INDEX);
         ensureGreen(INDEX);
         client().admin().indices().prepareFlush(INDEX).get();
-        TransportSyncedFlushAction transportSyncCommitAction = getInstanceFromNode(TransportSyncedFlushAction.class);
+        TransportSyncedFlushAction transportSyncCommitAction = getSyncedFlushAction();
         String syncId = randomUnicodeOfLength(10);
         Map<String, byte[]> commitIds = new HashMap<>();
         byte[] commitId = readCommitIdFromDisk();

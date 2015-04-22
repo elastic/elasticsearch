@@ -445,7 +445,7 @@
               </execution>
             </executions>
             <configuration>
-              <executable>${jvm.executable></executable>
+              <executable>${jvm.executable}</executable>
               <arguments>
                 <argument>-classpath</argument>
                 <classpath/>

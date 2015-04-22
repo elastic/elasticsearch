@@ -83,7 +83,7 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
     @Override
     public Object compile(String template) {
         /** Factory to generate Mustache objects from. */
-        return (new JsonEscapingMustacheFactory()).compile(new FastStringReader(template), "query-template");
+        return (new InternalMustacheFactory()).compile(new FastStringReader(template), "query-template");
     }
 
     /**

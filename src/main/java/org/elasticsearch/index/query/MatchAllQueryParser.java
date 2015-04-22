@@ -19,19 +19,16 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
 /**
- *
+ * Parser code for MatchAllQuery
  */
-public class MatchAllQueryParser extends BaseQueryParserTemp {
+public class MatchAllQueryParser extends BaseQueryParser {
 
     public static final String NAME = "match_all";
 
@@ -44,32 +41,23 @@ public class MatchAllQueryParser extends BaseQueryParserTemp {
         return new String[]{NAME, Strings.toCamelCase(NAME)};
     }
 
-    @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public MatchAllQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        MatchAllQueryBuilder queryBuilder = new MatchAllQueryBuilder();
         XContentParser parser = parseContext.parser();
 
-        float boost = 1.0f;
         String currentFieldName = null;
-
         XContentParser.Token token;
         while (((token = parser.nextToken()) != XContentParser.Token.END_OBJECT && token != XContentParser.Token.END_ARRAY)) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if ("boost".equals(currentFieldName)) {
-                    boost = parser.floatValue();
+                    queryBuilder.boost(parser.floatValue());
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[match_all] query does not support [" + currentFieldName + "]");
                 }
             }
         }
-
-        if (boost == 1.0f) {
-            return Queries.newMatchAllQuery();
-        }
-
-        MatchAllDocsQuery query = new MatchAllDocsQuery();
-        query.setBoost(boost);
-        return query;
+        return queryBuilder;
     }
 }

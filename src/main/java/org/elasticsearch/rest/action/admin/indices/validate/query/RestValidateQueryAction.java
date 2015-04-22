@@ -59,17 +59,12 @@ public class RestValidateQueryAction extends BaseRestHandler {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         validateQueryRequest.listenerThreaded(false);
         validateQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, validateQueryRequest.indicesOptions()));
-        if (request.hasContent()) {
-            validateQueryRequest.source(request.content());
+        if (RestActions.hasBodyContent(request)) {
+            validateQueryRequest.source(RestActions.getRestContent(request));
         } else {
-            String source = request.param("source");
-            if (source != null) {
-                validateQueryRequest.source(source);
-            } else {
-                QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
-                if (querySourceBuilder != null) {
-                    validateQueryRequest.source(querySourceBuilder);
-                }
+            QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
+            if (querySourceBuilder != null) {
+                validateQueryRequest.source(querySourceBuilder);
             }
         }
         validateQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));

@@ -628,7 +628,7 @@
                                 <tests.compatibility>${tests.compatibility}</tests.compatibility>
                                 <java.awt.headless>true</java.awt.headless>
                                 <!-- security manager / test.policy -->
-                                <java.security.policy>${basedir}/dev-tools/tests.policy</java.security.policy>
+                                <java.security.policy>${basedir}/config/security.policy</java.security.policy>
                             </systemProperties>
                         </configuration>
                     </execution>

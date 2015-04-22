@@ -295,7 +295,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
     // NOTE: poached from Lucene's IOUtils:
 
     /** Files.getFileStore(Path) useless here!  Don't complain, just try it yourself. */
-    private static FileStore getFileStore(Path path) throws IOException {
+    public static FileStore getFileStore(Path path) throws IOException {
         FileStore store = Files.getFileStore(path);
 
         try {
@@ -317,7 +317,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
     // NOTE: poached from Lucene's IOUtils:
 
     // these are hacks that are not guaranteed
-    private static String getMountPoint(FileStore store) {
+    public static String getMountPoint(FileStore store) {
         String desc = store.toString();
         return desc.substring(0, desc.lastIndexOf('(') - 1);
     }

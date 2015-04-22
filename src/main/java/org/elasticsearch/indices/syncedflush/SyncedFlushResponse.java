@@ -32,27 +32,35 @@ public class SyncedFlushResponse extends ActionWriteResponse {
 
     private boolean succes;
 
+    String syncCommitId;
+
     public SyncedFlushResponse() {
 
     }
 
-    public SyncedFlushResponse(boolean success) {
+    public SyncedFlushResponse(boolean success, String syncCommitId) {
         this.succes = success;
+        this.syncCommitId = syncCommitId;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         this.succes = in.readBoolean();
+        syncCommitId = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(succes);
+        out.writeOptionalString(syncCommitId);
     }
 
     public boolean success() {
         return succes;
+    }
+    public String getSyncId() {
+        return syncCommitId;
     }
 }

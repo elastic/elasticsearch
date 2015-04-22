@@ -18,28 +18,24 @@
  */
 package org.elasticsearch.indices.syncedflush;
 
-import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -56,26 +52,22 @@ public class SyncedFlushTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testCommitIdsReturnedCorrectly() throws InterruptedException, IOException, ExecutionException {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(
+        assertAcked(client().admin().indices().prepareCreate(INDEX).setSettings(
                 ImmutableSettings.builder().put("index.number_of_replicas", internalCluster().numDataNodes() - 1)
                         .put("index.number_of_shards", 1)
                         .put("index.translog.flush_threshold_period", "1m")));
         ensureGreen("test");
         for (int j = 0; j < 10; j++) {
-            client().prepareIndex("test", "test").setSource("{}").get();
+            client().prepareIndex(INDEX, TYPE).setSource("{}").get();
         }
         TransportPreSyncedFlushAction transportPreSyncedFlushAction = getPreSyncedFlushAction();
         PreSyncedFlushResponse preSyncedFlushResponse = transportPreSyncedFlushAction.execute(new PreSyncedFlushRequest(new ShardId("test", 0))).get();
         assertThat(preSyncedFlushResponse.getFailedShards(), equalTo(0));
         assertThat(preSyncedFlushResponse.commitIds.size(), equalTo(internalCluster().numDataNodes()));
-        // TODO: use stats api once it is in
-        for (Map.Entry<String, byte[]> entry : preSyncedFlushResponse.commitIds.entrySet()) {
-            String nodeName = getNodeNameFromNodeId(entry.getKey());
-            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
-            IndexShard indexShard = indicesService.indexService("test").shard(0);
-            Store store = indexShard.engine().config().getStore();
-            SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
-            assertArrayEquals(segmentInfos.getId(), entry.getValue());
+        IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(INDEX).get();
+        assertThat(indicesStatsResponse.getIndex(INDEX).getShards().length, equalTo(internalCluster().numDataNodes()));
+        for (ShardStats shardStats : indicesStatsResponse.getIndex(INDEX).getShards()) {
+            assertThat(shardStats.getCommitStats().getId(), equalTo(Base64.encodeBytes(preSyncedFlushResponse.commitIds.get(shardStats.getShardRouting().currentNodeId()))));
         }
     }
 
@@ -84,12 +76,6 @@ public class SyncedFlushTests extends ElasticsearchIntegrationTest {
         createIndex(INDEX);
         ensureGreen(INDEX);
         int numberOfShards = getNumShards(INDEX).numPrimaries;
-        // create cluster state observer here to capture the first state
-        String observingNode = randomFrom(internalCluster().getNodeNames());
-        final ClusterStateObserver clusterStateObserver = new ClusterStateObserver(internalCluster().getInstance(ClusterService.class, observingNode), TimeValue.timeValueMillis(100), logger);
-        // make a list of all the shards that should fail and their nodes and their nodes
-        final AtomicReference<String> failure = new AtomicReference<>();
-        final AtomicBoolean stop = new AtomicBoolean(false);
 
         client().prepareIndex(INDEX, TYPE).setSource("foo", "bar").get();
         TransportPreSyncedFlushAction transportPreSyncedFlushAction = getPreSyncedFlushAction();
@@ -112,11 +98,6 @@ public class SyncedFlushTests extends ElasticsearchIntegrationTest {
             } else if (e.getCause() instanceof ElasticsearchIllegalStateException) {
                 assertThat(e.getCause().getMessage(), containsString("could not sync commit on primary"));
             }
-        }
-        ensureGreen("test");
-        if (failure.get() != null) {
-            logger.error("there was a shard failure", failure.get());
-            fail();
         }
     }
 
@@ -226,14 +207,5 @@ public class SyncedFlushTests extends ElasticsearchIntegrationTest {
     }
 
     //TODO: add test for in flight on replica, with mock transport similar to https://github.com/elastic/elasticsearch/pull/10610/files ?
-
-    private String getNodeNameFromNodeId(String nodeId) {
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
-        for (RoutingNode routingNode : clusterStateResponse.getState().getRoutingNodes()) {
-            if (routingNode.nodeId().equals(nodeId)) {
-                return routingNode.node().name();
-            }
-        }
-        return null;
-    }
 }
+

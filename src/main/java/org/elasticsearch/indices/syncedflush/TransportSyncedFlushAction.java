@@ -103,7 +103,7 @@ public class TransportSyncedFlushAction extends TransportShardReplicationOperati
         byte[] commitId = shardRequest.request.commitIds().get(nodeId);
         IndexService indexService = indicesService.indexServiceSafe(shardRequest.shardId.getIndex());
         IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
-        SyncedFlushResponse syncedFlushResponse = new SyncedFlushResponse(indexShard.syncFlushIfNoPendingChanges(shardRequest.request.syncId(), commitId));
+        SyncedFlushResponse syncedFlushResponse = new SyncedFlushResponse(indexShard.syncFlushIfNoPendingChanges(shardRequest.request.syncId(), commitId), shardRequest.request.syncId());
         if (syncedFlushResponse.success() == false) {
             throw new ElasticsearchIllegalStateException("could not sync commit on primary");
         }
@@ -136,7 +136,7 @@ public class TransportSyncedFlushAction extends TransportShardReplicationOperati
             }
         }
         additionalFailures.addAll(Arrays.asList(finalResponse.getShardInfo().getFailures()));
-        SyncedFlushResponse syncedFlushResponse = new SyncedFlushResponse(true);
+        SyncedFlushResponse syncedFlushResponse = new SyncedFlushResponse(true, finalResponse.getSyncId());
         syncedFlushResponse.setShardInfo(new ActionWriteResponse.ShardInfo(finalResponse.getShardInfo().getTotal(), finalResponse.getShardInfo().getTotal() - additionalFailures.size(), additionalFailures.toArray(new ActionWriteResponse.ShardInfo.Failure[additionalFailures.size()])));
         return syncedFlushResponse;
     }

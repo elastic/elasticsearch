@@ -20,10 +20,10 @@
 
 package org.elasticsearch.indices.syncedflush;
 
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -35,12 +35,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,7 +59,7 @@ public class SyncedFlushActionTests extends ElasticsearchSingleNodeTest {
     final static public String TYPE = "test";
 
     @Test
-    public void testSynActionResponseFailure() throws ExecutionException, InterruptedException {
+    public void testPreSyncedFlushActionResponseFailure() throws ExecutionException, InterruptedException {
         createIndex(INDEX);
         ensureGreen(INDEX);
         int numShards = Integer.parseInt(getInstanceFromNode(ClusterService.class).state().metaData().index(INDEX).settings().get("index.number_of_shards"));
@@ -75,34 +75,34 @@ public class SyncedFlushActionTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
-    public void testShardSynActionResponse() throws ExecutionException, InterruptedException, IOException {
+    public void testPreSyncedFlushActionResponse() throws ExecutionException, InterruptedException, IOException {
         createIndex(INDEX);
         ensureGreen(INDEX);
         client().prepareIndex(INDEX, TYPE).setSource("foo", "bar").get();
         TransportPreSyncedFlushAction transportPreSyncedFlushAction = getPreSyncedFlushAction();
-        PreSyncedShardFlushRequest syncCommitRequest = new PreSyncedShardFlushRequest(getShardRouting(), new PreSyncedFlushRequest(new ShardId(INDEX, 0)));
+        PreSyncedShardFlushRequest syncCommitRequest = new PreSyncedShardFlushRequest(getPrimaryShardRouting(), new PreSyncedFlushRequest(new ShardId(INDEX, 0)));
         PreSyncedShardFlushResponse syncCommitResponse = transportPreSyncedFlushAction.shardOperation(syncCommitRequest);
-        assertArrayEquals(readCommitIdFromDisk(), syncCommitResponse.id());
+        assertArrayEquals(getLastWrittenCommitId(), syncCommitResponse.id());
     }
 
     @Test
-    public void testWriteSyncActionResponse() throws ExecutionException, InterruptedException, IOException {
+    public void testSyncedFlushAction() throws ExecutionException, InterruptedException, IOException {
         createIndex(INDEX);
         ensureGreen(INDEX);
         client().prepareIndex(INDEX, TYPE).setSource("foo", "bar").get();
         client().admin().indices().prepareFlush(INDEX).get();
         TransportSyncedFlushAction transportSyncCommitAction = getSyncedFlushAction();
-        String syncId = randomUnicodeOfLength(10);
+        String syncId = Strings.base64UUID();
         Map<String, byte[]> commitIds = new HashMap<>();
-        commitIds.put(getShardRouting().currentNodeId(), readCommitIdFromDisk());
+        commitIds.put(getPrimaryShardRouting().currentNodeId(), getLastWrittenCommitId());
         SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(new ShardId(INDEX, 0), syncId, commitIds);
         SyncedFlushResponse syncedFlushResponse = transportSyncCommitAction.execute(syncedFlushRequest).get();
         assertTrue(syncedFlushResponse.success());
-        assertEquals(syncId, readSyncIdFromDisk());
+        assertEquals(syncId, getLastWritenSyncId());
         // no see if fails if commit id is wrong
-        byte[] invalid = readCommitIdFromDisk();
+        byte[] invalid = getLastWrittenCommitId();
         invalid[0] = (byte) (invalid[0] ^ Byte.MAX_VALUE);
-        commitIds.put(getShardRouting().currentNodeId(), invalid);
+        commitIds.put(getPrimaryShardRouting().currentNodeId(), invalid);
         String newSyncId = syncId + syncId;
         syncedFlushRequest = new SyncedFlushRequest(new ShardId(INDEX, 0), newSyncId, commitIds);
         try {
@@ -111,8 +111,56 @@ public class SyncedFlushActionTests extends ElasticsearchSingleNodeTest {
         } catch (ExecutionException e) {
             assertTrue(e.getCause() instanceof ElasticsearchIllegalStateException);
         }
-        assertTrue(syncedFlushResponse.success());
-        assertEquals(syncId, readSyncIdFromDisk());
+        assertEquals(syncId, getLastWritenSyncId());
+    }
+
+    @Test
+    public void testFailOnPrimaryIfOperationSneakedIn() throws ExecutionException, InterruptedException, IOException {
+        createIndex(INDEX);
+        ensureGreen(INDEX);
+        client().prepareIndex(INDEX, TYPE).setSource("foo", "bar").get();
+        client().admin().indices().prepareFlush(INDEX).get();
+        TransportSyncedFlushAction transportSyncCommitAction = getSyncedFlushAction();
+        String syncId = randomUnicodeOfLength(10);
+        Map<String, byte[]> commitIds = new HashMap<>();
+        commitIds.put(getPrimaryShardRouting().currentNodeId(), getLastWrittenCommitId());
+        client().prepareIndex(INDEX, TYPE).setSource("foo", "bar").get();
+        SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(new ShardId(INDEX, 0), syncId, commitIds);
+        try {
+            transportSyncCommitAction.execute(syncedFlushRequest).get();
+            fail();
+        } catch (ExecutionException e) {
+            logger.info("got a ", e);
+            assertTrue(e.getCause() instanceof ElasticsearchIllegalStateException);
+        }
+        assertNull(getLastWritenSyncId());
+    }
+
+    @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "can only pass once https://github.com/elastic/elasticsearch/pull/10610 is in")
+    public void testFailOnPrimaryIfOperationInFlight() throws ExecutionException, InterruptedException, IOException {
+        createIndex(INDEX);
+        ensureGreen(INDEX);
+        client().admin().indices().prepareFlush(INDEX).get();
+        TransportSyncedFlushAction transportSyncCommitAction = getSyncedFlushAction();
+        String syncId = randomUnicodeOfLength(10);
+        Map<String, byte[]> commitIds = new HashMap<>();
+        byte[] commitId = getLastWrittenCommitId();
+        commitIds.put(getPrimaryShardRouting().currentNodeId(), commitId);
+        DelayedTransportIndexAction delayedTransportIndexAction = getDelayedTransportIndexAction();
+        Future<IndexResponse> indexResponse = delayedTransportIndexAction.execute(new IndexRequest("test", "doc").source("{\"foo\":\"bar\"}"));
+
+        SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(new ShardId(INDEX, 0), syncId, commitIds);
+        try {
+            transportSyncCommitAction.execute(syncedFlushRequest).get();
+            fail("should not attempt sync if operation is in flight");
+        } catch (ExecutionException e) {
+            logger.info("got a ", e);
+            assertTrue(e.getCause() instanceof ElasticsearchIllegalStateException);
+        }
+        assertNull(getLastWritenSyncId());
+        delayedTransportIndexAction.beginIndexLatch.countDown();
+        indexResponse.get();
     }
 
     public TransportSyncedFlushAction getSyncedFlushAction() {
@@ -129,71 +177,16 @@ public class SyncedFlushActionTests extends ElasticsearchSingleNodeTest {
         return getInstanceFromNode(TransportPreSyncedFlushAction.class);
     }
 
-    @Test
-    public void testFailOnPrimaryIfOperationSneakedIn() throws ExecutionException, InterruptedException, IOException {
-        createIndex(INDEX);
-        ensureGreen(INDEX);
-        client().prepareIndex(INDEX, TYPE).setSource("foo", "bar").get();
-        client().admin().indices().prepareFlush(INDEX).get();
-        TransportSyncedFlushAction transportSyncCommitAction = getSyncedFlushAction();
-        String syncId = randomUnicodeOfLength(10);
-        Map<String, byte[]> commitIds = new HashMap<>();
-        commitIds.put(getShardRouting().currentNodeId(), readCommitIdFromDisk());
-        client().prepareIndex(INDEX, TYPE).setSource("foo", "bar").get();
-        SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(new ShardId(INDEX, 0), syncId, commitIds);
-        try {
-            transportSyncCommitAction.execute(syncedFlushRequest).get();
-            fail();
-        } catch (ExecutionException e) {
-            logger.info("got a ", e);
-            assertTrue(e.getCause() instanceof ElasticsearchIllegalStateException);
-        }
-        assertNull(readSyncIdFromDisk());
+    public byte[] getLastWrittenCommitId() throws IOException {
+        return Base64.decode(client().admin().indices().prepareStats(INDEX).get().getIndex(INDEX).getShards()[0].getCommitStats().getId());
     }
 
-    @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "can only pass once https://github.com/elastic/elasticsearch/pull/10610 is in")
-    public void testFailOnPrimaryIfOperationInFlight() throws ExecutionException, InterruptedException, IOException {
-        createIndex(INDEX);
-        ensureGreen(INDEX);
-        client().admin().indices().prepareFlush(INDEX).get();
-        TransportSyncedFlushAction transportSyncCommitAction = getSyncedFlushAction();
-        String syncId = randomUnicodeOfLength(10);
-        Map<String, byte[]> commitIds = new HashMap<>();
-        byte[] commitId = readCommitIdFromDisk();
-        commitIds.put(getShardRouting().currentNodeId(), commitId);
-        DelayedTransportIndexAction delayedTransportIndexAction = getDelayedTransportIndexAction();
-        Future<IndexResponse> indexResponse = delayedTransportIndexAction.execute(new IndexRequest("test", "doc").source("{\"foo\":\"bar\"}"));
-
-        SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(new ShardId(INDEX, 0), syncId, commitIds);
-        try {
-            transportSyncCommitAction.execute(syncedFlushRequest).get();
-            fail("should not attempt sync if operation is in flight");
-        } catch (ExecutionException e) {
-            logger.info("got a ", e);
-            assertTrue(e.getCause() instanceof ElasticsearchIllegalStateException);
-        }
-        assertNull(readSyncIdFromDisk());
-        delayedTransportIndexAction.beginIndexLatch.countDown();
-        indexResponse.get();
+    public String getLastWritenSyncId() throws IOException {
+        IndexStats indexStats =  client().admin().indices().prepareStats(INDEX).get().getIndex(INDEX);
+        return indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID);
     }
 
-    public byte[] readCommitIdFromDisk() throws IOException {
-        IndexShard indexShard = getInstanceFromNode(IndicesService.class).indexService("test").shard(0);
-        Store store = indexShard.engine().config().getStore();
-        SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
-        return segmentInfos.getId();
-    }
-
-    public String readSyncIdFromDisk() throws IOException {
-        IndexShard indexShard = getInstanceFromNode(IndicesService.class).indexService("test").shard(0);
-        Store store = indexShard.engine().config().getStore();
-        SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
-        Map<String, String> userData = segmentInfos.getUserData();
-        return userData.get(Engine.SYNC_COMMIT_ID);
-    }
-
-    public ShardRouting getShardRouting() {
+    public ShardRouting getPrimaryShardRouting() {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         return clusterService.state().routingTable().indicesRouting().get(INDEX).shard(0).primaryShard();
     }

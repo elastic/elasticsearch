@@ -63,6 +63,6 @@ public class LimitFilterParser implements FilterParser {
         }
 
         // this filter is deprecated and parses to a filter that matches everything
-        return Queries.MATCH_ALL_FILTER;
+        return Queries.newMatchAllFilter();
     }
 }

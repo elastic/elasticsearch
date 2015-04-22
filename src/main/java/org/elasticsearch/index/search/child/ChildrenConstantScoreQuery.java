@@ -24,6 +24,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BitsFilteredDocIdSet;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -105,7 +106,7 @@ public class ChildrenConstantScoreQuery extends Query {
         final long valueCount;
         List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
         if (globalIfd == null || leaves.isEmpty()) {
-            return Queries.newMatchNoDocsQuery().createWeight(searcher, needsScores);
+            return new BooleanQuery().createWeight(searcher, needsScores);
         } else {
             AtomicParentChildFieldData afd = globalIfd.load(leaves.get(0));
             SortedDocValues globalValues = afd.getOrdinalsValues(parentType);
@@ -113,7 +114,7 @@ public class ChildrenConstantScoreQuery extends Query {
         }
 
         if (valueCount == 0) {
-            return Queries.newMatchNoDocsQuery().createWeight(searcher, needsScores);
+            return new BooleanQuery().createWeight(searcher, needsScores);
         }
 
         Query childQuery = rewrittenChildQuery;
@@ -124,7 +125,7 @@ public class ChildrenConstantScoreQuery extends Query {
 
         final long remaining = collector.foundParents();
         if (remaining == 0) {
-            return Queries.newMatchNoDocsQuery().createWeight(searcher, needsScores);
+            return new BooleanQuery().createWeight(searcher, needsScores);
         }
 
         Filter shortCircuitFilter = null;

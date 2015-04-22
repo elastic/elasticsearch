@@ -27,8 +27,8 @@ import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterCachingPolicy;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.Bits;
@@ -190,11 +190,11 @@ public class QueryParseContext {
         return indexQueryParser.defaultField();
     }
 
-    public FilterCachingPolicy autoFilterCachePolicy() {
+    public QueryCachingPolicy autoFilterCachePolicy() {
         return indexQueryParser.autoFilterCachePolicy();
     }
 
-    public FilterCachingPolicy parseFilterCachePolicy() throws IOException {
+    public QueryCachingPolicy parseFilterCachePolicy() throws IOException {
         final String text = parser.textOrNull();
         if (text == null || text.equals("auto")) {
             return autoFilterCachePolicy();
@@ -202,7 +202,7 @@ public class QueryParseContext {
             // cache without conditions on how many times the filter has been
             // used or what the produced DocIdSet looks like, but ONLY on large
             // segments to not pollute the cache
-            return FilterCachingPolicy.CacheOnLargeSegments.DEFAULT;
+            return QueryCachingPolicy.CacheOnLargeSegments.DEFAULT;
         } else {
             return null;
         }
@@ -221,7 +221,7 @@ public class QueryParseContext {
         return indexQueryParser.bitsetFilterCache.getBitDocIdSetFilter(filter);
     }
 
-    public Filter cacheFilter(Filter filter, final @Nullable HashedBytesRef cacheKey, final FilterCachingPolicy cachePolicy) {
+    public Filter cacheFilter(Filter filter, final @Nullable HashedBytesRef cacheKey, final QueryCachingPolicy cachePolicy) {
         if (filter == null) {
             return null;
         }

@@ -20,16 +20,12 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -38,9 +34,6 @@ import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * ShadowEngine is a specialized engine that only allows read-only operations
@@ -64,7 +57,7 @@ public class ShadowEngine extends Engine {
 
     private volatile SearcherManager searcherManager;
 
-    private SegmentInfos lastCommittedSegmentInfos;
+    private volatile SegmentInfos lastCommittedSegmentInfos;
 
     public ShadowEngine(EngineConfig engineConfig)  {
         super(engineConfig);
@@ -220,5 +213,10 @@ public class ShadowEngine extends Engine {
     @Override
     public boolean hasUncommittedChanges() {
         return false;
+    }
+
+    @Override
+    protected SegmentInfos getLastCommittedSegmentInfos() {
+        return lastCommittedSegmentInfos;
     }
 }

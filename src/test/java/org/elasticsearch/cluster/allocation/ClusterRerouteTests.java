@@ -188,7 +188,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).execute().actionGet();
 
         logger.info("--> closing all nodes");
-        Path[] shardLocation = internalCluster().getInstance(NodeEnvironment.class, node_1).shardPaths(new ShardId("test", 0));
+        Path[] shardLocation = internalCluster().getInstance(NodeEnvironment.class, node_1).availableShardPaths(new ShardId("test", 0));
         assertThat(FileSystemUtils.exists(shardLocation), equalTo(true)); // make sure the data is there!
         internalCluster().closeNonSharedNodes(false); // don't wipe data directories the index needs to be there!
 

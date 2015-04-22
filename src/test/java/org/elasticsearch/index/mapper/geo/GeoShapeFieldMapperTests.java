@@ -51,7 +51,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
-        FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -76,7 +76,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
-        FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         ShapeBuilder.Orientation orientation = ((GeoShapeFieldMapper)fieldMapper).orientation();
@@ -93,7 +93,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         defaultMapper = createIndex("test2").mapperService().documentMapperParser().parse(mapping);
-        fieldMapper = defaultMapper.mappers().name("location").mapper();
+        fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         orientation = ((GeoShapeFieldMapper)fieldMapper).orientation();
@@ -114,7 +114,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
-        FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -137,7 +137,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
-        FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -165,7 +165,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
 
             
             DocumentMapper defaultMapper = parser.parse(mapping);
-            FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -173,8 +173,34 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
 
             assertThat(strategy.getDistErrPct(), equalTo(0.5));
             assertThat(strategy.getGrid(), instanceOf(QuadPrefixTree.class));
-            /* 70m is more precise so it wins */
+            // 70m is more precise so it wins
             assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.quadTreeLevelsForPrecision(70d))); 
+        }
+
+        {
+            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                    .startObject("properties").startObject("location")
+                    .field("type", "geo_shape")
+                    .field("tree", "quadtree")
+                    .field("tree_levels", "26")
+                    .field("precision", "70m")
+                    .endObject().endObject()
+                    .endObject().endObject().string();
+
+
+            DocumentMapper defaultMapper = parser.parse(mapping);
+            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+            assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+
+            GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
+            PrefixTreeStrategy strategy = geoShapeFieldMapper.defaultStrategy();
+
+            // distance_error_pct was not specified so we expect the mapper to take the highest precision between "precision" and
+            // "tree_levels" setting distErrPct to 0 to guarantee desired precision
+            assertThat(strategy.getDistErrPct(), equalTo(0.0));
+            assertThat(strategy.getGrid(), instanceOf(QuadPrefixTree.class));
+            // 70m is less precise so it loses
+            assertThat(strategy.getGrid().getMaxLevels(), equalTo(26));
         }
         
         {
@@ -189,7 +215,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                     .endObject().endObject().string();
 
             DocumentMapper defaultMapper = parser.parse(mapping);
-            FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -197,7 +223,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
 
             assertThat(strategy.getDistErrPct(), equalTo(0.5));
             assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
-            /* 70m is more precise so it wins */
+            // 70m is more precise so it wins
             assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.geoHashLevelsForPrecision(70d))); 
         }
         
@@ -213,7 +239,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                     .endObject().endObject().string();
 
             DocumentMapper defaultMapper = parser.parse(mapping);
-            FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -236,7 +262,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                     .endObject().endObject().string();
 
             DocumentMapper defaultMapper = parser.parse(mapping);
-            FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -262,7 +288,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
 
             
             DocumentMapper defaultMapper = parser.parse(mapping);
-            FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -284,7 +310,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                     .endObject().endObject().string();
 
             DocumentMapper defaultMapper = parser.parse(mapping);
-            FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+            FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -311,7 +337,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .field("orientation", "cw").endObject().endObject().endObject().endObject().string();
         DocumentMapper stage2 = parser.parse(stage2Mapping);
 
-        DocumentMapper.MergeResult mergeResult = stage1.merge(stage2, mergeFlags().simulate(false));
+        DocumentMapper.MergeResult mergeResult = stage1.merge(stage2.mapping(), mergeFlags().simulate(false));
         // check correct conflicts
         assertThat(mergeResult.hasConflicts(), equalTo(true));
         assertThat(mergeResult.conflicts().length, equalTo(3));
@@ -321,7 +347,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
         assertThat("mapper [shape] has different tree_levels or precision", isIn(conflicts));
 
         // verify nothing changed
-        FieldMapper fieldMapper = stage1.mappers().name("shape").mapper();
+        FieldMapper fieldMapper = stage1.mappers().getMapper("shape");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -338,12 +364,12 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .startObject("properties").startObject("shape").field("type", "geo_shape").field("precision", "1m")
                 .field("distance_error_pct", 0.001).field("orientation", "cw").endObject().endObject().endObject().endObject().string();
         stage2 = parser.parse(stage2Mapping);
-        mergeResult = stage1.merge(stage2, mergeFlags().simulate(false));
+        mergeResult = stage1.merge(stage2.mapping(), mergeFlags().simulate(false));
 
         // verify mapping changes, and ensure no failures
         assertThat(mergeResult.hasConflicts(), equalTo(false));
 
-        fieldMapper = stage1.mappers().name("shape").mapper();
+        fieldMapper = stage1.mappers().getMapper("shape");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;

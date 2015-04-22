@@ -20,9 +20,10 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.common.lucene.search.NotFilter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -92,7 +93,7 @@ public class NotFilterParser implements FilterParser {
             return null;
         }
 
-        Filter notFilter = new NotFilter(filter);
+        Filter notFilter = Queries.wrap(Queries.not(filter));
         if (cache) {
             notFilter = parseContext.cacheFilter(notFilter, cacheKey, parseContext.autoFilterCachePolicy());
         }

@@ -532,11 +532,13 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
             String path = info.getPath();
             final String relativeDataLocationPath = "indices/test/" + Integer.toString(shardRouting.getId()) + "/index";
             Path file = PathUtils.get(path).resolve(relativeDataLocationPath);
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
-                for (Path item : stream) {
-                    if (Files.isRegularFile(item) && "write.lock".equals(item.getFileName().toString()) == false) {
-                        if (includePerCommitFiles || isPerSegmentFile(item.getFileName().toString())) {
-                            files.add(item);
+            if (Files.exists(file)) { // multi data path might only have one path in use
+                try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
+                    for (Path item : stream) {
+                        if (Files.isRegularFile(item) && "write.lock".equals(item.getFileName().toString()) == false) {
+                            if (includePerCommitFiles || isPerSegmentFile(item.getFileName().toString())) {
+                                files.add(item);
+                            }
                         }
                     }
                 }
@@ -641,9 +643,11 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         for (FsStats.Info info : nodeStatses.getNodes()[0].getFs()) {
             String path = info.getPath();
             Path file = PathUtils.get(path).resolve("indices/test/" + Integer.toString(routing.getId()) + "/index");
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
-                for (Path item : stream) {
-                    files.add(item);
+            if (Files.exists(file)) { // multi data path might only have one path in use
+                try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
+                    for (Path item : stream) {
+                        files.add(item);
+                    }
                 }
             }
         }

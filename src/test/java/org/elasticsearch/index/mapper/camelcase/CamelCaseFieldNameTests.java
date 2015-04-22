@@ -20,8 +20,8 @@
 package org.elasticsearch.index.mapper.camelcase;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
@@ -39,20 +39,24 @@ public class CamelCaseFieldNameTests extends ElasticsearchSingleNodeTest {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
 
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper documentMapper = parser.parse(mapping);
+        IndexService index = createIndex("test");
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
+        DocumentMapper documentMapper = index.mapperService().documentMapper("type");
 
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("thisIsCamelCase", "value1")
                 .endObject().bytes());
 
-        assertThat(documentMapper.mappers().indexName("thisIsCamelCase").isEmpty(), equalTo(false));
-        assertThat(documentMapper.mappers().indexName("this_is_camel_case"), nullValue());
+        assertNotNull(doc.dynamicMappingsUpdate());
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get();
+
+        assertNotNull(documentMapper.mappers().getMapper("thisIsCamelCase"));
+        assertNull(documentMapper.mappers().getMapper("this_is_camel_case"));
 
         documentMapper.refreshSource();
-        documentMapper = parser.parse(documentMapper.mappingSource().string());
+        documentMapper = index.mapperService().documentMapperParser().parse(documentMapper.mappingSource().string());
 
-        assertThat(documentMapper.mappers().indexName("thisIsCamelCase").isEmpty(), equalTo(false));
-        assertThat(documentMapper.mappers().indexName("this_is_camel_case"), nullValue());
+        assertNotNull(documentMapper.mappers().getMapper("thisIsCamelCase"));
+        assertNull(documentMapper.mappers().getMapper("this_is_camel_case"));
     }
 }

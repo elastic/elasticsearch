@@ -32,7 +32,8 @@
 
     <properties>
         <lucene.version>5.2.0</lucene.version>
-        <lucene.maven.version>5.2.0-snapshot-1674576</lucene.maven.version>
+        <lucene.snapshot.revision>1675100</lucene.snapshot.revision>
+        <lucene.maven.version>5.2.0-snapshot-${lucene.snapshot.revision}</lucene.maven.version>
         <testframework.version>2.1.14</testframework.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
@@ -71,7 +72,7 @@
         <repository>
             <id>lucene-snapshots</id>
             <name>Lucene Snapshots</name>
-            <url>https://download.elastic.co/lucenesnapshots/1674576</url>
+            <url>https://download.elastic.co/lucenesnapshots/${lucene.snapshot.revision}</url>
         </repository>
     </repositories>
 
@@ -626,8 +627,7 @@
                                 <tests.security.manager>${tests.security.manager}</tests.security.manager>
                                 <tests.compatibility>${tests.compatibility}</tests.compatibility>
                                 <java.awt.headless>true</java.awt.headless>
-                                <!-- everything below is for security manager / test.policy -->
-                                <junit4.tempDir>${project.build.directory}</junit4.tempDir>
+                                <!-- security manager / test.policy -->
                                 <java.security.policy>${basedir}/dev-tools/tests.policy</java.security.policy>
                             </systemProperties>
                         </configuration>

@@ -20,218 +20,112 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.packed.PackedInts;
-import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * A {@link BucketCollector} that records collected doc IDs and buckets and
  * allows to replay a subset of the collected buckets.
  */
-public final class DeferringBucketCollector extends BucketCollector {
+public abstract class DeferringBucketCollector extends BucketCollector {
 
-    private static class Entry {
-        final LeafReaderContext context;
-        final PackedLongValues docDeltas;
-        final PackedLongValues buckets;
-
-        public Entry(LeafReaderContext context, PackedLongValues docDeltas, PackedLongValues buckets) {
-            this.context = context;
-            this.docDeltas = docDeltas;
-            this.buckets = buckets;
-        }
-    }
-
-    final List<Entry> entries = new ArrayList<>();
-    BucketCollector collector;
-    LeafReaderContext context;
-    PackedLongValues.Builder docDeltas;
-    PackedLongValues.Builder buckets;
-    long maxBucket = -1;
-    boolean finished = false;
-    LongHash selectedBuckets;
-
+    private BucketCollector collector;
     /** Sole constructor. */
     public DeferringBucketCollector() {}
-
-    @Override
-    public boolean needsScores() {
-        if (collector == null) {
-            throw new ElasticsearchIllegalStateException();
-        }
-        return false;
-    }
 
     /** Set the deferred collectors. */
     public void setDeferredCollector(Iterable<BucketCollector> deferredCollectors) {
         this.collector = BucketCollector.wrap(deferredCollectors);
     }
+    
 
-    private void finishLeaf() {
-        if (context != null) {
-            entries.add(new Entry(context, docDeltas.build(), buckets.build()));
-        }
-        context = null;
-        docDeltas = null;
-        buckets = null;
+    public final void replay(long... selectedBuckets) throws IOException
+    {
+        prepareSelectedBuckets(selectedBuckets);
     }
 
-    @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-        finishLeaf();
-
-        context = ctx;
-        docDeltas = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
-        buckets = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
-
-        return new LeafBucketCollector() {
-            int lastDoc = 0;
-            @Override
-            public void collect(int doc, long bucket) throws IOException {
-                docDeltas.add(doc - lastDoc);
-                buckets.add(bucket);
-                lastDoc = doc;
-                maxBucket = Math.max(maxBucket, bucket);
-            }
-        };
-    }
-
-    @Override
-    public void preCollection() throws IOException {
-    }
-
-    @Override
-    public void postCollection() throws IOException {
-        finishLeaf();
-        finished = true;
-    }
+    public abstract void prepareSelectedBuckets(long... selectedBuckets) throws IOException;
 
     /**
-     * Replay the wrapped collector, but only on a selection of buckets.
-     */
-    public void replay(long... selectedBuckets) throws IOException {
-        if (!finished) {
-            throw new ElasticsearchIllegalStateException("Cannot replay yet, collection is not finished: postCollect() has not been called");
-        }
-        if (this.selectedBuckets != null) {
-            throw new ElasticsearchIllegalStateException("Alerady been replayed");
-        }
-
-        final LongHash hash = new LongHash(selectedBuckets.length, BigArrays.NON_RECYCLING_INSTANCE);
-        for (long bucket : selectedBuckets) {
-            hash.add(bucket);
-        }
-        this.selectedBuckets = hash;
-
-        collector.preCollection();
-        if (collector.needsScores()) {
-            throw new ElasticsearchIllegalStateException("Cannot defer if scores are needed");
-        }
-
-        for (Entry entry : entries) {
-            final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.context);
-            leafCollector.setScorer(Lucene.illegalScorer("A limitation of the " + SubAggCollectionMode.BREADTH_FIRST
-                + " collection mode is that scores cannot be buffered along with document IDs"));
-            final PackedLongValues.Iterator docDeltaIterator = entry.docDeltas.iterator();
-            final PackedLongValues.Iterator buckets = entry.buckets.iterator();
-            int doc = 0;
-            for (long i = 0, end = entry.docDeltas.size(); i < end; ++i) {
-                doc += docDeltaIterator.next();
-                final long bucket = buckets.next();
-                final long rebasedBucket = hash.find(bucket);
-                if (rebasedBucket != -1) {
-                    leafCollector.collect(doc, rebasedBucket);
-                }
-            }
-        }
-
-        collector.postCollection();
-    }
-
-    /**
-     * Wrap the provided aggregator so that it behaves (almost) as if it had been
-     * collected directly.
+     * Wrap the provided aggregator so that it behaves (almost) as if it had
+     * been collected directly.
      */
     public Aggregator wrap(final Aggregator in) {
-        return new Aggregator() {
+        return new WrappedAggregator(in);
+    }
 
-            @Override
-            public boolean needsScores() {
-                return in.needsScores();
-            }
+    protected class WrappedAggregator extends Aggregator {
+        private Aggregator in;
 
-            @Override
-            public void close() throws ElasticsearchException {
-                in.close();
-            }
+        WrappedAggregator(Aggregator in) {
+            this.in = in;
+        }
 
-            @Override
-            public String name() {
-                return in.name();
-            }
+        @Override
+        public boolean needsScores() {
+            return in.needsScores();
+        }
 
-            @Override
-            public Aggregator parent() {
-                return in.parent();
-            }
+        @Override
+        public void close() throws ElasticsearchException {
+            in.close();
+        }
 
-            @Override
-            public AggregationContext context() {
-                return in.context();
-            }
+        @Override
+        public String name() {
+            return in.name();
+        }
 
-            @Override
-            public Aggregator subAggregator(String name) {
-                return in.subAggregator(name);
-            }
+        @Override
+        public Aggregator parent() {
+            return in.parent();
+        }
 
-            @Override
-            public InternalAggregation buildAggregation(long bucket) throws IOException {
-                if (selectedBuckets == null) {
-                    throw new ElasticsearchIllegalStateException("Collection has not been replayed yet.");
-                }
-                final long rebasedBucket = selectedBuckets.find(bucket);
-                if (rebasedBucket == -1) {
-                    throw new ElasticsearchIllegalStateException("Cannot build for a bucket which has not been collected");
-                }
-                return in.buildAggregation(rebasedBucket);
-            }
+        @Override
+        public AggregationContext context() {
+            return in.context();
+        }
 
-            @Override
-            public InternalAggregation buildEmptyAggregation() {
-                return in.buildEmptyAggregation();
-            }
+        @Override
+        public Aggregator subAggregator(String name) {
+            return in.subAggregator(name);
+        }
 
-            @Override
-            public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-                throw new ElasticsearchIllegalStateException("Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
-            }
+        @Override
+        public InternalAggregation buildAggregation(long bucket) throws IOException {
+            return in.buildAggregation(bucket);
+        }
 
-            @Override
-            public void preCollection() throws IOException {
-                throw new ElasticsearchIllegalStateException("Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
-            }
+        @Override
+        public InternalAggregation buildEmptyAggregation() {
+            return in.buildEmptyAggregation();
+        }
 
-            @Override
-            public void postCollection() throws IOException {
-                throw new ElasticsearchIllegalStateException("Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
-            }
+        @Override
+        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+            throw new ElasticsearchIllegalStateException(
+                    "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
+        }
 
-        };
+        @Override
+        public void preCollection() throws IOException {
+            throw new ElasticsearchIllegalStateException(
+                    "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
+        }
+
+        @Override
+        public void postCollection() throws IOException {
+            throw new ElasticsearchIllegalStateException(
+                    "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
+        }
+
     }
 
 }

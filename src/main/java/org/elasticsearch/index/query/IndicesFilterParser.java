@@ -56,7 +56,7 @@ public class IndicesFilterParser implements FilterParser {
         XContentParser parser = parseContext.parser();
 
         Filter filter = null;
-        Filter noMatchFilter = Queries.MATCH_ALL_FILTER;
+        Filter noMatchFilter = Queries.newMatchAllFilter();
         boolean filterFound = false;
         boolean indicesFound = false;
         boolean currentIndexMatchesIndices = false;
@@ -113,9 +113,9 @@ public class IndicesFilterParser implements FilterParser {
                 } else if ("no_match_filter".equals(currentFieldName)) {
                     String type = parser.text();
                     if ("all".equals(type)) {
-                        noMatchFilter = Queries.MATCH_ALL_FILTER;
+                        noMatchFilter = Queries.newMatchAllFilter();
                     } else if ("none".equals(type)) {
-                        noMatchFilter = Queries.MATCH_NO_FILTER;
+                        noMatchFilter = Queries.newMatchNoDocsFilter();
                     }
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();

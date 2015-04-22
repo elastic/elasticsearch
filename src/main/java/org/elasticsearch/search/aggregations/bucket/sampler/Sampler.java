@@ -16,25 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.search.aggregations.bucket.sampler;
 
-package org.elasticsearch.common.lucene.search;
-
-import org.apache.lucene.search.DocIdSetIterator;
-import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 
 /**
- * Extension of {@link DocIdSetIterator} that allows to know if iteration is
- * implemented efficiently.
+ * A {@code filter} aggregation that defines a single bucket to hold a sample of
+ * top-matching documents. Computation of child aggregations is deferred until
+ * the top-matching documents on a shard have been determined.
  */
-public abstract class XDocIdSetIterator extends DocIdSetIterator {
-
-    /**
-     * Return <tt>true</tt> if this iterator cannot both
-     * {@link DocIdSetIterator#nextDoc} and {@link DocIdSetIterator#advance}
-     * in sub-linear time.
-     *
-     * Do not call this method directly, use {@link DocIdSets#isBroken}.
-     */
-    public abstract boolean isBroken();
-
+public interface Sampler extends SingleBucketAggregation {
 }

@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -43,6 +42,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.IndicesService;
@@ -50,7 +50,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -173,16 +172,11 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
             if (!storeType.contains("fs")) {
                 return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
             }
-            Path[] shardLocations = nodeEnv.shardDataPaths(shardId, metaData.settings());
-            Path[] shardIndexLocations = new Path[shardLocations.length];
-            for (int i = 0; i < shardLocations.length; i++) {
-                shardIndexLocations[i] = shardLocations[i].resolve("index");
-            }
-            exists = FileSystemUtils.exists(shardIndexLocations);
-            if (!exists) {
+            final ShardPath shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, metaData.settings());
+            if (shardPath == null) {
                 return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
             }
-            return new StoreFilesMetaData(false, shardId, Store.readMetadataSnapshot(shardIndexLocations, logger).asMap());
+            return new StoreFilesMetaData(false, shardId, Store.readMetadataSnapshot(shardPath.resolveIndex(), logger).asMap());
         } finally {
             TimeValue took = new TimeValue(System.currentTimeMillis() - startTime);
             if (exists) {
@@ -218,14 +212,6 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
 
         public ShardId shardId() {
             return this.shardId;
-        }
-
-        public long totalSizeInBytes() {
-            long totalSizeInBytes = 0;
-            for (StoreFileMetaData file : this) {
-                totalSizeInBytes += file.length();
-            }
-            return totalSizeInBytes;
         }
 
         @Override

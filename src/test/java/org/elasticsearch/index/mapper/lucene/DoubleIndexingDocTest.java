@@ -24,9 +24,12 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
@@ -46,7 +49,9 @@ public class DoubleIndexingDocTest extends ElasticsearchSingleNodeTest {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").endObject()
                 .endObject().endObject().string();
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        IndexService index = createIndex("test");
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
+        DocumentMapper mapper = index.mapperService().documentMapper("type");
 
         ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -57,6 +62,8 @@ public class DoubleIndexingDocTest extends ElasticsearchSingleNodeTest {
                 .startArray("field5").value(1).value(2).value(3).endArray()
                 .endObject()
                 .bytes());
+        assertNotNull(doc.dynamicMappingsUpdate());
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get();
 
         writer.addDocument(doc.rootDoc());
         writer.addDocument(doc.rootDoc());
@@ -64,25 +71,25 @@ public class DoubleIndexingDocTest extends ElasticsearchSingleNodeTest {
         IndexReader reader = DirectoryReader.open(writer, true);
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        TopDocs topDocs = searcher.search(mapper.mappers().smartName("field1").mapper().termQuery("value1", null), 10);
+        TopDocs topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field1").termQuery("value1", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
 
-        topDocs = searcher.search(mapper.mappers().smartName("field2").mapper().termQuery("1", null), 10);
+        topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field2").termQuery("1", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
 
-        topDocs = searcher.search(mapper.mappers().smartName("field3").mapper().termQuery("1.1", null), 10);
+        topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field3").termQuery("1.1", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
 
-        topDocs = searcher.search(mapper.mappers().smartName("field4").mapper().termQuery("2010-01-01", null), 10);
+        topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field4").termQuery("2010-01-01", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
 
-        topDocs = searcher.search(mapper.mappers().smartName("field5").mapper().termQuery("1", null), 10);
+        topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field5").termQuery("1", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
 
-        topDocs = searcher.search(mapper.mappers().smartName("field5").mapper().termQuery("2", null), 10);
+        topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field5").termQuery("2", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
 
-        topDocs = searcher.search(mapper.mappers().smartName("field5").mapper().termQuery("3", null), 10);
+        topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field5").termQuery("3", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
         writer.close();
         reader.close();

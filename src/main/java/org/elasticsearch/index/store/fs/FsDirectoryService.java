@@ -28,6 +28,7 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.StoreException;
@@ -39,9 +40,11 @@ public abstract class FsDirectoryService extends DirectoryService implements Sto
     protected final IndexStore indexStore;
 
     private final CounterMetric rateLimitingTimeInNanos = new CounterMetric();
+    private final ShardPath path;
 
-    public FsDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore) {
+    public FsDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, ShardPath path) {
         super(shardId, indexSettings);
+        this.path = path;
         this.indexStore = indexStore;
     }
 
@@ -68,19 +71,14 @@ public abstract class FsDirectoryService extends DirectoryService implements Sto
         return lockFactory;
     }
 
-    
     @Override
-    public Directory[] build() throws IOException {
-        Path[] locations = indexStore.shardIndexLocations(shardId);
-        Directory[] dirs = new Directory[locations.length];
-        for (int i = 0; i < dirs.length; i++) {
-            Files.createDirectories(locations[i]);
-            Directory wrapped = newFSDirectory(locations[i], buildLockFactory());
-            dirs[i] = new RateLimitedFSDirectory(wrapped, this, this) ;
-        }
-        return dirs;
+    public Directory newDirectory() throws IOException {
+        final Path location = path.resolveIndex();
+        Files.createDirectories(location);
+        Directory wrapped = newFSDirectory(location, buildLockFactory());
+        return new RateLimitedFSDirectory(wrapped, this, this) ;
     }
-    
+
     protected abstract Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException;
 
     @Override

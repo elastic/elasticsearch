@@ -27,9 +27,9 @@ import java.util.ArrayList;
 
 /**
  * A filter that matches documents matching boolean combinations of other filters.
- *
- *
+ * @deprecated Use {@link BoolFilterBuilder} instead
  */
+@Deprecated
 public class AndFilterBuilder extends BaseFilterBuilder {
 
     private ArrayList<FilterBuilder> filters = Lists.newArrayList();

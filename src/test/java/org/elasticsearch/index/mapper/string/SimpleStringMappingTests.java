@@ -27,8 +27,9 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.queries.TermsFilter;
+import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -499,7 +500,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         String updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", false).endObject()
                 .endObject().endObject().endObject().endObject().string();
-        MergeResult mergeResult = defaultMapper.merge(parser.parse(updatedMapping), MergeFlags.mergeFlags().simulate(false));
+        MergeResult mergeResult = defaultMapper.merge(parser.parse(updatedMapping).mapping(), MergeFlags.mergeFlags().simulate(false));
         assertFalse(Arrays.toString(mergeResult.conflicts()), mergeResult.hasConflicts());
 
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
@@ -514,7 +515,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", true).endObject()
                 .endObject().endObject().endObject().endObject().string();
-        mergeResult = defaultMapper.merge(parser.parse(updatedMapping), MergeFlags.mergeFlags());
+        mergeResult = defaultMapper.merge(parser.parse(updatedMapping).mapping(), MergeFlags.mergeFlags());
         assertTrue(mergeResult.hasConflicts());
         assertEquals(1, mergeResult.conflicts().length);
         assertTrue(mergeResult.conflicts()[0].contains("cannot enable norms"));
@@ -526,12 +527,12 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         DocumentMapper defaultMapper = parser.parse(mapping);
-        FieldMapper<?> mapper = defaultMapper.mappers().fullName("field").mapper();
+        FieldMapper<?> mapper = defaultMapper.mappers().getMapper("field");
         assertNotNull(mapper);
         assertTrue(mapper instanceof StringFieldMapper);
-        assertEquals(Queries.MATCH_NO_FILTER, mapper.termsFilter(Collections.emptyList(), null));
-        assertEquals(new TermFilter(new Term("field", "value")), mapper.termsFilter(Collections.singletonList("value"), null));
-        assertEquals(new TermsFilter(new Term("field", "value1"), new Term("field", "value2")), mapper.termsFilter(Arrays.asList("value1", "value2"), null));
+        assertEquals(Queries.newMatchNoDocsFilter(), mapper.termsFilter(Collections.emptyList(), null));
+        assertEquals(new QueryWrapperFilter(new TermQuery(new Term("field", "value"))), mapper.termsFilter(Collections.singletonList("value"), null));
+        assertEquals(new QueryWrapperFilter(new TermsQuery(new Term("field", "value1"), new Term("field", "value2"))), mapper.termsFilter(Arrays.asList("value1", "value2"), null));
     }
 
 }

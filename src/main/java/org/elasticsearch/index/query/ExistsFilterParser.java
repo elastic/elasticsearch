@@ -19,16 +19,17 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermRangeFilter;
+import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
@@ -83,7 +84,7 @@ public class ExistsFilterParser implements FilterParser {
     }
 
     public static Filter newFilter(QueryParseContext parseContext, String fieldPattern, String filterName) {
-        final FieldMappers fieldNamesMappers = parseContext.mapperService().indexName(FieldNamesFieldMapper.NAME);
+        final FieldMappers fieldNamesMappers = parseContext.mapperService().fullName(FieldNamesFieldMapper.NAME);
         final FieldNamesFieldMapper fieldNamesMapper = (FieldNamesFieldMapper)fieldNamesMappers.mapper();
 
         MapperService.SmartNameObjectMapper smartNameObjectMapper = parseContext.smartObjectMapper(fieldPattern);
@@ -95,17 +96,13 @@ public class ExistsFilterParser implements FilterParser {
         List<String> fields = parseContext.simpleMatchToIndexNames(fieldPattern);
         if (fields.isEmpty()) {
             // no fields exists, so we should not match anything
-            return Queries.MATCH_NO_FILTER;
+            return Queries.newMatchNoDocsFilter();
         }
-        MapperService.SmartNameFieldMappers nonNullFieldMappers = null;
 
-        XBooleanFilter boolFilter = new XBooleanFilter();
+        BooleanQuery boolFilter = new BooleanQuery();
         for (String field : fields) {
             MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(field);
-            if (smartNameFieldMappers != null) {
-                nonNullFieldMappers = smartNameFieldMappers;
-            }
-            Filter filter = null;
+            Query filter = null;
             if (fieldNamesMapper!= null && fieldNamesMapper.enabled()) {
                 final String f;
                 if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
@@ -120,14 +117,15 @@ public class ExistsFilterParser implements FilterParser {
                 filter = smartNameFieldMappers.mapper().rangeFilter(null, null, true, true, parseContext);
             }
             if (filter == null) {
-                filter = new TermRangeFilter(field, null, null, true, true);
+                filter = new TermRangeQuery(field, null, null, true, true);
             }
             boolFilter.add(filter, BooleanClause.Occur.SHOULD);
         }
 
+        Filter filter = Queries.wrap(boolFilter);
         // we always cache this one, really does not change... (exists)
         // its ok to cache under the fieldName cacheKey, since its per segment and the mapping applies to this data on this segment...
-        Filter filter = parseContext.cacheFilter(boolFilter, new HashedBytesRef("$exists$" + fieldPattern), parseContext.autoFilterCachePolicy());
+        filter = parseContext.cacheFilter(filter, new HashedBytesRef("$exists$" + fieldPattern), parseContext.autoFilterCachePolicy());
 
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);

@@ -23,14 +23,15 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -205,7 +206,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         if (nullValue == null) {
             return null;
         }
-        return new TermFilter(names().createIndexNameTerm(nullValue ? Values.TRUE : Values.FALSE));
+        return Queries.wrap(new TermQuery(names().createIndexNameTerm(nullValue ? Values.TRUE : Values.FALSE)));
     }
 
     @Override

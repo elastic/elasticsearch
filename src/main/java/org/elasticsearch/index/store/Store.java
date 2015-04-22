@@ -50,7 +50,6 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.distributor.Distributor;
 
 import java.io.*;
 import java.nio.file.NoSuchFileException;
@@ -106,18 +105,17 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     };
 
-    public Store(ShardId shardId, @IndexSettings Settings indexSettings, DirectoryService directoryService, Distributor distributor, ShardLock shardLock) throws IOException {
-        this(shardId, indexSettings, directoryService, distributor, shardLock, OnClose.EMPTY);
+    public Store(ShardId shardId, @IndexSettings Settings indexSettings, DirectoryService directoryService, ShardLock shardLock) throws IOException {
+        this(shardId, indexSettings, directoryService, shardLock, OnClose.EMPTY);
     }
 
     @Inject
-    public Store(ShardId shardId, @IndexSettings Settings indexSettings, DirectoryService directoryService, Distributor distributor, ShardLock shardLock, OnClose onClose) throws IOException {
+    public Store(ShardId shardId, @IndexSettings Settings indexSettings, DirectoryService directoryService, ShardLock shardLock, OnClose onClose) throws IOException {
         super(shardId, indexSettings);
-        this.directory = new StoreDirectory(directoryService.newFromDistributor(distributor), Loggers.getLogger("index.store.deletes", indexSettings, shardId));
+        this.directory = new StoreDirectory(directoryService.newDirectory(), Loggers.getLogger("index.store.deletes", indexSettings, shardId));
         this.shardLock = shardLock;
         this.onClose = onClose;
         final TimeValue refreshInterval = indexSettings.getAsTime(INDEX_STORE_STATS_REFRESH_INTERVAL, TimeValue.timeValueSeconds(10));
-
         this.statsCache = new StoreStatsCache(refreshInterval, directory, directoryService);
         logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
 
@@ -159,7 +157,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     }
 
-    final void ensureOpen() { // for testing
+    final void ensureOpen() {
         if (this.refCounter.refCount() <= 0) {
             throw new AlreadyClosedException("store is already closed");
         }
@@ -365,21 +363,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @throws IOException if the index we try to read is corrupted
      */
-    public static MetadataSnapshot readMetadataSnapshot(Path[] indexLocations, ESLogger logger) throws IOException {
-        final Directory[] dirs = new Directory[indexLocations.length];
-        try {
-            for (int i = 0; i < indexLocations.length; i++) {
-                dirs[i] = new SimpleFSDirectory(indexLocations[i]);
-            }
-            DistributorDirectory dir = new DistributorDirectory(dirs);
+    public static MetadataSnapshot readMetadataSnapshot(Path indexLocation, ESLogger logger) throws IOException {
+        try (Directory dir = new SimpleFSDirectory(indexLocation)){
             failIfCorrupted(dir, new ShardId("", 1));
             return new MetadataSnapshot(null, dir, logger);
         } catch (IndexNotFoundException ex) {
             // that's fine - happens all the time no need to log
         } catch (FileNotFoundException | NoSuchFileException ex) {
             logger.info("Failed to open / find files while reading metadata snapshot");
-        } finally {
-            IOUtils.close(dirs);
         }
         return MetadataSnapshot.EMPTY;
     }

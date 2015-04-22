@@ -363,13 +363,13 @@ public class ShardGetService extends AbstractIndexShardComponent {
             SearchLookup searchLookup = null;
             for (String field : gFields) {
                 Object value = null;
-                FieldMappers fieldMapper = docMapper.mappers().smartName(field);
+                FieldMapper fieldMapper = docMapper.mappers().smartNameFieldMapper(field);
                 if (fieldMapper == null) {
                     if (docMapper.objectMappers().get(field) != null) {
                         // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
                         throw new ElasticsearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
                     }
-                } else if (!fieldMapper.mapper().fieldType().stored() && !fieldMapper.mapper().isGenerated()) {
+                } else if (!fieldMapper.fieldType().stored() && !fieldMapper.isGenerated()) {
                     if (searchLookup == null) {
                         searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
                         LeafSearchLookup leafSearchLookup = searchLookup.getLeafSearchLookup(docIdAndVersion.context);
@@ -380,7 +380,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     List<Object> values = searchLookup.source().extractRawValues(field);
                     if (!values.isEmpty()) {
                         for (int i = 0; i < values.size(); i++) {
-                            values.set(i, fieldMapper.mapper().valueForSearch(values.get(i)));
+                            values.set(i, fieldMapper.valueForSearch(values.get(i)));
                         }
                         value = values;
                     }

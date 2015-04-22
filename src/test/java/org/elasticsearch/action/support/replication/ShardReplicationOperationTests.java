@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -77,13 +78,14 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         public AtomicInteger processedOnReplicas = new AtomicInteger();
 
         Request() {
+            this.operationThreaded(false);
         }
 
         Request(ShardId shardId) {
+            this();
             this.shardId = shardId.id();
             this.index(shardId.index().name());
             // keep things simple
-            this.operationThreaded(false);
         }
 
         @Override
@@ -237,16 +239,43 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         assertListenerThrows("primary phase should fail operation when moving from a retryable block a non-retryable one", listener, ClusterBlockException.class);
     }
 
-
     ClusterState createStateWithSingleShardIndex(String index, boolean primaryAssigned, int numberOfReplicas) {
+        ShardRoutingState primaryState;
+        ShardRoutingState[] replicaStates = new ShardRoutingState[numberOfReplicas];
+        if (primaryAssigned) {
+            primaryState = randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.STARTED;
+        } else {
+            primaryState = ShardRoutingState.UNASSIGNED;
+        }
+        if (primaryState == ShardRoutingState.STARTED) {
+            int assignedReplicas = randomIntBetween(0, replicaStates.length);
+            // no point in randomizing - node assignment later on does it too.
+            for (int i = 0; i < assignedReplicas; i++) {
+                replicaStates[i] = randomBoolean() ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING;
+            }
+            for (int i = assignedReplicas; i < replicaStates.length; i++) {
+                replicaStates[i] = ShardRoutingState.UNASSIGNED;
+            }
+
+        } else {
+            for (int i = 0; i < replicaStates.length; i++) {
+                replicaStates[i] = ShardRoutingState.UNASSIGNED;
+            }
+        }
+        return createStateWithSingleShardIndex(index, randomBoolean(), primaryState, replicaStates);
+
+    }
+
+    ClusterState createStateWithSingleShardIndex(String index, boolean primaryLocal, ShardRoutingState primaryState, ShardRoutingState... replicaStates) {
+        final int numberOfReplicas = replicaStates.length;
         final int numberOfNodes = numberOfReplicas + 1;
         final ShardId shardId = new ShardId(index, 0);
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
-        Set<DiscoveryNode> unassignedNodes = new HashSet<>();
+        Set<String> unassignedNodes = new HashSet<>();
         for (int i = 0; i < numberOfNodes + 1; i++) {
             final DiscoveryNode node = newNode(i);
             discoBuilder = discoBuilder.put(node);
-            unassignedNodes.add(node);
+            unassignedNodes.add(node.id());
         }
         discoBuilder.localNodeId(newNode(0).id());
         IndexMetaData indexMetaData = IndexMetaData.builder(index).settings(ImmutableSettings.builder()
@@ -258,25 +287,23 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         routing.addAsNew(indexMetaData);
         IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId, false);
 
-        boolean primaryStarted = false;
-        DiscoveryNode primaryNode = randomFrom(unassignedNodes.toArray(new DiscoveryNode[0]));
-        if (primaryAssigned) {
+        String primaryNode = null;
+        if (primaryState != ShardRoutingState.UNASSIGNED) {
+            primaryNode = primaryLocal ? newNode(0).id() : randomFrom(unassignedNodes.toArray(new String[unassignedNodes.size()]));
             unassignedNodes.remove(primaryNode);
-            primaryStarted = randomBoolean();
-            indexShardRoutingBuilder.addShard(
-                    new ImmutableShardRouting(index, 0, primaryNode.id(), true, primaryStarted ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING, 0));
         }
+        indexShardRoutingBuilder.addShard(new ImmutableShardRouting(index, 0, primaryNode, true, primaryState, 0));
 
-        int assignedReplicas = primaryStarted ? randomIntBetween(0, numberOfReplicas) : 0;
-        for (int i = 0; i < assignedReplicas; i++) {
-            DiscoveryNode replicaNode = randomFrom(unassignedNodes.toArray(new DiscoveryNode[0]));
-            unassignedNodes.remove(replicaNode);
+        for (ShardRoutingState replicaState : replicaStates) {
+            String replicaNode = null;
+            if (replicaState != ShardRoutingState.UNASSIGNED) {
+                assert primaryNode != null : "a replica is assigned but the primary isn't";
+                replicaNode = randomFrom(unassignedNodes.toArray(new String[unassignedNodes.size()]));
+                unassignedNodes.remove(replicaNode);
+            }
             indexShardRoutingBuilder.addShard(
-                    new ImmutableShardRouting(index, shardId.id(), replicaNode.id(), false, randomBoolean() ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING, 0));
-        }
+                    new ImmutableShardRouting(index, shardId.id(), replicaNode, false, replicaState, 0));
 
-        for (int i = assignedReplicas; i <= numberOfReplicas; i++) {
-            indexShardRoutingBuilder.addShard(new ImmutableShardRouting(index, shardId.id(), null, false, ShardRoutingState.UNASSIGNED, 0));
         }
 
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
@@ -287,10 +314,41 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testNotStartedPrimary() throws InterruptedException, ExecutionException {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, 0);
+        // no replicas in oder to skip the replication part
+        clusterService.setState(createStateWithSingleShardIndex(index, true,
+                randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.UNASSIGNED));
+
+        logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
+
+        Request request = new Request(shardId).timeout("1ms");
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        Action action = new Action(ImmutableSettings.EMPTY, "testAction", transportService, clusterService, threadPool);
+        TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
+        primaryPhase.start();
+        assertListenerThrows("unassigned primary didn't cause a timeout", listener, UnavailableShardsException.class);
+
+        request = new Request(shardId);
+        listener = new PlainActionFuture<>();
+        primaryPhase = action.new PrimaryPhase(request, listener);
+        primaryPhase.start();
+        assertFalse("unassigned primary didn't cause a retry", listener.isDone());
+
+        clusterService.setState(createStateWithSingleShardIndex(index, true, ShardRoutingState.STARTED));
+        logger.debug("--> primary assigned state:\n{}", clusterService.state().prettyPrint());
+
+        listener.get();
+        assertTrue("request wasn't processed on primary, despite of it being assigned", request.processedOnPrimary.get());
+    }
+
+    @Test
     public void testRoutingToPrimary() {
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);
-        clusterService.setState(createStateWithSingleShardIndex(index, true, randomInt(3)));
+
+        clusterService.setState(createStateWithSingleShardIndex(index, true, 3));
 
         logger.debug("using state: \n{}", clusterService.state().prettyPrint());
 
@@ -313,5 +371,10 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             assertThat(capturedRequests.size(), equalTo(1));
             assertThat(capturedRequests.get(0).action, equalTo("testAction"));
         }
+    }
+
+    @Test
+    public void testReplicationWithNoFailures() {
+
     }
 }

@@ -684,7 +684,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                         numberOfPendingShardInstances++;
                     }
                 }
-                shardIt.reset();
                 internalRequest.request().setCanHaveDuplicates(); // safe side, cluster state changed, we might have dups
             } else {
                 shardIt = originalShardIt;
@@ -695,6 +694,11 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     }
                     if (shard.unassigned()) {
                         numberOfUnassignedReplicas++;
+                    } else if (shard.primary()) {
+                        if (shard.relocating()) {
+                            // we have to repplicate to the other copy
+                            numberOfPendingShardInstances += 1;
+                        }
                     } else if (shard.relocating()) {
                         // we need to send to two copies
                         numberOfPendingShardInstances += 2;
@@ -702,7 +706,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                         numberOfPendingShardInstances++;
                     }
                 }
-                shardIt.reset();
             }
 
             // one for the primary already done
@@ -847,7 +850,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         }
 
         private void finishIfNeeded() {
-            if (pending.decrementAndGet() == 0) {
+            if (pending.get() <= 0) {
                 doFinish();
             }
         }

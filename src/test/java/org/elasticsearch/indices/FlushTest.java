@@ -18,17 +18,25 @@
  */
 package org.elasticsearch.indices;
 
+import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.synccommit.SyncedFlushResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -72,14 +80,34 @@ public class FlushTest extends ElasticsearchIntegrationTest {
         }
     }
 
-    public void testSyncedFlush() {
+    public void testSyncedFlush() throws ExecutionException, InterruptedException, IOException {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).get();
+        prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, internalCluster().numDataNodes() - 1).get();
         ensureGreen();
+
+        // TODO: use state api for this once it is in
+        for (IndicesService indicesServiceX : internalCluster().getDataNodeInstances(IndicesService.class)) {
+            IndexShard indexShard = indicesServiceX.indexService("test").shard(0);
+            Store store = indexShard.engine().config().getStore();
+            SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+            Map<String, String> userData = segmentInfos.getUserData();
+            assertNull(userData.get(Engine.SYNC_COMMIT_ID));
+        }
         ClusterStateResponse state = client().admin().cluster().prepareState().get();
         String nodeId = state.getState().getRoutingTable().index("test").shard(0).getShards().get(0).currentNodeId();
         String nodeName = state.getState().getNodes().get(nodeId).name();
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
-        indicesService.indexServiceSafe("test").shardInjectorSafe(0).getInstance(SyncedFlushService.class).attemptSyncedFlush(new ShardId("test", 0));
+        SyncedFlushResponse syncedFlushResponse = indicesService.indexServiceSafe("test").shardInjectorSafe(0).getInstance(SyncedFlushService.class).attemptSyncedFlush(new ShardId("test", 0));
+        assertTrue(syncedFlushResponse.success());
+
+        // TODO: use state api for this once it is in
+        for (IndicesService indicesServiceX : internalCluster().getDataNodeInstances(IndicesService.class)) {
+            IndexShard indexShard = indicesServiceX.indexService("test").shard(0);
+            Store store = indexShard.engine().config().getStore();
+            SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+            Map<String, String> userData = segmentInfos.getUserData();
+            assertNotNull(userData.get(Engine.SYNC_COMMIT_ID));
+            assertTrue(userData.get(Engine.SYNC_COMMIT_ID).equals("123"));
+        }
     }
 }

@@ -18,22 +18,36 @@
  */
 package org.elasticsearch.indices;
 
+import org.elasticsearch.action.admin.indices.synccommit.PreSyncedFlushRequest;
+import org.elasticsearch.action.admin.indices.synccommit.PreSyncedFlushResponse;
+import org.elasticsearch.action.admin.indices.synccommit.TransportPreSyncedFlushAction;
+import org.elasticsearch.action.synccommit.TransportSyncedFlushAction;
+import org.elasticsearch.action.synccommit.SyncedFlushRequest;
+import org.elasticsearch.action.synccommit.SyncedFlushResponse;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.concurrent.ExecutionException;
+
 public class SyncedFlushService extends AbstractComponent {
 
-    private final IndicesService indicesService;
+    private final TransportPreSyncedFlushAction transportPreSyncedFlushAction;
+    private final TransportSyncedFlushAction transportSyncedFlushAction;
 
     @Inject
-    public SyncedFlushService(Settings settings, IndicesService indicesService) {
+    public SyncedFlushService(Settings settings, TransportPreSyncedFlushAction transportPreSyncedFlushAction, TransportSyncedFlushAction transportSyncedFlushAction) {
         super(settings);
-        this.indicesService = indicesService;
+        this.transportPreSyncedFlushAction = transportPreSyncedFlushAction;
+        this.transportSyncedFlushAction = transportSyncedFlushAction;
     }
 
-    public boolean attemptSyncedFlush(ShardId shardId) {
-        throw new UnsupportedOperationException("not so fast");
+    public SyncedFlushResponse attemptSyncedFlush(ShardId shardId) throws ExecutionException, InterruptedException {
+        PreSyncedFlushResponse preSyncedFlushResponse = transportPreSyncedFlushAction.execute(new PreSyncedFlushRequest(shardId)).get();
+        // nocommit
+        String syncId = "123";
+        SyncedFlushResponse syncedFlushResponse = transportSyncedFlushAction.execute(new SyncedFlushRequest(shardId, syncId, preSyncedFlushResponse.commitIds())).get();
+        return syncedFlushResponse;
     }
 }

@@ -101,6 +101,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
     @AfterClass
     public static void afterClass() {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        threadPool = null;
     }
 
 

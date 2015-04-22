@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.core.*;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
@@ -480,5 +481,31 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         DocumentMapper docMapper = parser.parse(builder.string());
         DocumentMapper docMapper2 = parser.parse(docMapper.mappingSource().string());
         assertThat(docMapper.mappingSource(), equalTo(docMapper2.mappingSource()));
+    }
+
+    public void testObjectFieldNotAllowed() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("type").startObject("properties").startObject("my_field")
+            .field("type", "string").startObject("fields").startObject("multi").field("type", "object").endObject().endObject()
+            .endObject().endObject().endObject().endObject().string();
+        final DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        try {
+            parser.parse(mapping);
+            fail("expected mapping parse failure");
+        } catch (MapperParsingException e) {
+            assertTrue(e.getMessage().contains("cannot be used in multi field"));
+        }
+    }
+
+    public void testNestedFieldNotAllowed() throws Exception {
+        String mapping = jsonBuilder().startObject().startObject("type").startObject("properties").startObject("my_field")
+            .field("type", "string").startObject("fields").startObject("multi").field("type", "nested").endObject().endObject()
+            .endObject().endObject().endObject().endObject().string();
+        final DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        try {
+            parser.parse(mapping);
+            fail("expected mapping parse failure");
+        } catch (MapperParsingException e) {
+            assertTrue(e.getMessage().contains("cannot be used in multi field"));
+        }
     }
 }

@@ -837,7 +837,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     public static class MultiFields {
 
         public static MultiFields empty() {
-            return new MultiFields(Defaults.PATH_TYPE, ImmutableOpenMap.<String, Mapper>of());
+            return new MultiFields(Defaults.PATH_TYPE, ImmutableOpenMap.<String, FieldMapper>of());
         }
 
         public static class Builder {
@@ -860,7 +860,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                 if (pathType == Defaults.PATH_TYPE && mapperBuilders.isEmpty()) {
                     return empty();
                 } else if (mapperBuilders.isEmpty()) {
-                    return new MultiFields(pathType, ImmutableOpenMap.<String, Mapper>of());
+                    return new MultiFields(pathType, ImmutableOpenMap.<String, FieldMapper>of());
                 } else {
                     ContentPath.Type origPathType = context.path().pathType();
                     context.path().pathType(pathType);
@@ -869,26 +869,27 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                     for (ObjectObjectCursor<String, Mapper.Builder> cursor : this.mapperBuilders) {
                         String key = cursor.key;
                         Mapper.Builder value = cursor.value;
-                        mapperBuilders.put(key, value.build(context));
+                        Mapper mapper = value.build(context);
+                        assert mapper instanceof FieldMapper;
+                        mapperBuilders.put(key, mapper);
                     }
                     context.path().remove();
                     context.path().pathType(origPathType);
-                    ImmutableOpenMap.Builder<String, Mapper> mappers = mapperBuilders.cast();
+                    ImmutableOpenMap.Builder<String, FieldMapper> mappers = mapperBuilders.cast();
                     return new MultiFields(pathType, mappers.build());
                 }
             }
-
         }
 
         private final ContentPath.Type pathType;
-        private volatile ImmutableOpenMap<String, Mapper> mappers;
+        private volatile ImmutableOpenMap<String, FieldMapper> mappers;
 
-        public MultiFields(ContentPath.Type pathType, ImmutableOpenMap<String, Mapper> mappers) {
+        public MultiFields(ContentPath.Type pathType, ImmutableOpenMap<String, FieldMapper> mappers) {
             this.pathType = pathType;
             this.mappers = mappers;
             // we disable the all in multi-field mappers
-            for (ObjectCursor<Mapper> cursor : mappers.values()) {
-                Mapper mapper = cursor.value;
+            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
+                FieldMapper mapper = cursor.value;
                 if (mapper instanceof AllFieldMapper.IncludeInAll) {
                     ((AllFieldMapper.IncludeInAll) mapper).unsetIncludeInAll();
                 }
@@ -906,7 +907,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             context.path().pathType(pathType);
 
             context.path().add(mainField.name());
-            for (ObjectCursor<Mapper> cursor : mappers.values()) {
+            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
                 cursor.value.parse(context);
             }
             context.path().remove();
@@ -918,10 +919,10 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             AbstractFieldMapper mergeWithMultiField = (AbstractFieldMapper) mergeWith;
 
             List<FieldMapper<?>> newFieldMappers = null;
-            ImmutableOpenMap.Builder<String, Mapper> newMappersBuilder = null;
+            ImmutableOpenMap.Builder<String, FieldMapper> newMappersBuilder = null;
 
-            for (ObjectCursor<Mapper> cursor : mergeWithMultiField.multiFields.mappers.values()) {
-                Mapper mergeWithMapper = cursor.value;
+            for (ObjectCursor<FieldMapper> cursor : mergeWithMultiField.multiFields.mappers.values()) {
+                FieldMapper mergeWithMapper = cursor.value;
                 Mapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
                 if (mergeIntoMapper == null) {
                     // no mapping, simply add it if not simulating
@@ -938,7 +939,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                             if (newFieldMappers == null) {
                                 newFieldMappers = new ArrayList<>(2);
                             }
-                            newFieldMappers.add((FieldMapper) mergeWithMapper);
+                            newFieldMappers.add(mergeWithMapper);
                         }
                     }
                 } else {
@@ -957,13 +958,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
 
         public void traverse(FieldMapperListener fieldMapperListener) {
-            for (ObjectCursor<Mapper> cursor : mappers.values()) {
+            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
                 cursor.value.traverse(fieldMapperListener);
             }
         }
 
         public void close() {
-            for (ObjectCursor<Mapper> cursor : mappers.values()) {
+            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
                 cursor.value.close();
             }
         }

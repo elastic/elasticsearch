@@ -120,27 +120,30 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
         context.reset(parser);
     }
 
+    @AfterClass
+    public static void after() throws Exception {
+        terminate(injector.getInstance(ThreadPool.class));
+    }
+
     /**
      * Create a random query for the type that is being tested
      * @return a randomized query
      */
-    public abstract QB createRandomTestQuery();
+    protected abstract QB createRandomTestQuery();
 
     /**
-     * Subclass should put assertions on the lucene query produced by the query builder under test here
-     * @param query
+     * Subclass should handle assertions on the lucene query produced by the query builder under test here
      */
-    public abstract void doQueryAsserts(Query query) throws IOException;
+    protected abstract void assertLuceneQuery(QB testQuery) throws IOException;
 
     /**
      * Creates an empty builder of the type of query under test
      */
-    public abstract QB createEmptyBuilder();
+    protected abstract QB createEmptyQueryBuilder();
 
     /**
      * Generic test that creates new query from the test query and checks both for equality
      * and asserts equality on the two queries.
-     * @throws IOException
      */
     @Test
     public void testFromXContent() throws IOException {
@@ -150,15 +153,12 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
     }
 
     /**
-     * Test creates the @link {@link Query} from the {@link QueryBuilder} under test and delegated the
-     * assertions beeing made on the result to the implementing subclass.
-     * @throws IOException
+     * Test creates the {@link Query} from the {@link QueryBuilder} under test and delegates the
+     * assertions being made on the result to the implementing subclass.
      */
     @Test
     public void testToQuery() throws IOException {
-        QueryBuilder newMatchAllQuery = queryParserService.queryParser(testQuery.parserName()).fromXContent(context);
-        Query query = newMatchAllQuery.toQuery(context);
-        doQueryAsserts(query);
+        assertLuceneQuery(this.testQuery);
     }
 
     /**
@@ -171,15 +171,10 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
         testQuery.writeTo(output);
 
         BytesStreamInput in = new BytesStreamInput(output.bytes());
-        QB deserializedQuery = createEmptyBuilder();
+        QB deserializedQuery = createEmptyQueryBuilder();
         deserializedQuery.readFrom(in);
 
         assertEquals(deserializedQuery, testQuery);
         assertNotSame(deserializedQuery, testQuery);
-    }
-
-    @AfterClass
-    public static void after() throws Exception {
-        terminate(injector.getInstance(ThreadPool.class));
     }
 }

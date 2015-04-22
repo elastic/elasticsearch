@@ -30,17 +30,18 @@ import static org.hamcrest.Matchers.*;
 public class MatchAllQueryBuilderTest extends BaseQueryTestCase<MatchAllQueryBuilder> {
 
     @Override
-    public void doQueryAsserts(Query query) throws IOException {
-        if (testQuery.boost() != 1.0f) {
+    public void assertLuceneQuery(MatchAllQueryBuilder queryBuilder) throws IOException {
+        Query query = queryBuilder.toQuery(context);
+        if (queryBuilder.boost() != 1.0f) {
             assertThat(query, instanceOf(MatchAllDocsQuery.class));
         } else {
             assertThat(query, instanceOf(ConstantScoreQuery.class));
         }
-        assertThat(query.getBoost(), is(testQuery.boost()));
+        assertThat(query.getBoost(), is(queryBuilder.boost()));
     }
 
     @Override
-    public MatchAllQueryBuilder createEmptyBuilder() {
+    public MatchAllQueryBuilder createEmptyQueryBuilder() {
         return new MatchAllQueryBuilder();
     }
 

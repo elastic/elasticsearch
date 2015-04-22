@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.reducers;
 
 
 import com.google.common.collect.EvictingQueue;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -37,7 +38,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.reducers.ReducerBuilders.smooth;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -76,7 +78,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         numValueBuckets = randomIntBetween(6, 80);
         numFilledValueBuckets = numValueBuckets;
         windowSize = randomIntBetween(3,10);
-        gapPolicy = randomBoolean() ? BucketHelpers.GapPolicy.IGNORE : BucketHelpers.GapPolicy.INSERT_ZEROS;
+        gapPolicy = BucketHelpers.GapPolicy.INSERT_ZEROS; // TODO randomBoolean() ? BucketHelpers.GapPolicy.IGNORE : BucketHelpers.GapPolicy.INSERT_ZEROS;
 
         docCounts = new long[numValueBuckets];
         valueCounts = new long[numValueBuckets];

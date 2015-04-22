@@ -1,3 +1,4 @@
 [[search-aggregations-reducer]]
 
 include::reducer/derivative.asciidoc[]
+include::reducer/movavg-reducer.asciidoc[]

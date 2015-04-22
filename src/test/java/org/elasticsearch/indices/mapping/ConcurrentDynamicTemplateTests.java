@@ -21,7 +21,6 @@ package org.elasticsearch.indices.mapping;
 
 
 import com.google.common.collect.Sets;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -47,6 +46,7 @@ public class ConcurrentDynamicTemplateTests extends ElasticsearchIntegrationTest
     private final String mappingType = "test-mapping";
 
     @Test // see #3544
+    @AwaitsFix(bugUrl = "adrien is looking into this")
     public void testConcurrentDynamicMapping() throws Exception {
         final String fieldName = "field";
         final String mapping = "{ \"" + mappingType + "\": {" +

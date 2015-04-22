@@ -217,6 +217,12 @@ verify_package_installation() {
         # License file
         assert_file "/usr/share/elasticsearch/LICENSE.txt" f root 644
     fi
+
+    if is_systemd; then
+        assert_file "/usr/lib/systemd/system/elasticsearch.service" f root 644
+        assert_file "/usr/lib/tmpfiles.d/elasticsearch.conf" f root 644
+        assert_file "/usr/lib/sysctl.d/elasticsearch.conf" f root 644
+    fi
 }
 
 
@@ -294,7 +300,10 @@ clean_before_test() {
                             "/etc/sysconfig/elasticsearch"  \
                             "/var/run/elasticsearch"  \
                             "/usr/share/doc/elasticsearch" \
-                            "/tmp/elasticsearch")
+                            "/tmp/elasticsearch" \
+                            "/usr/lib/systemd/system/elasticsearch.conf" \
+                            "/usr/lib/tmpfiles.d/elasticsearch.conf" \
+                            "/usr/lib/sysctl.d/elasticsearch.conf")
 
     if [ "$ES_CLEAN_BEFORE_TEST" = "true" ]; then
         # Kills all processes of user elasticsearch

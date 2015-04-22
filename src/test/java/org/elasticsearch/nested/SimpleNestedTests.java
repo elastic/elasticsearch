@@ -164,7 +164,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
 
-    @Test
+    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/10661")
     public void simpleNestedMatchQueries() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
                 .startObject("type1")
@@ -532,7 +532,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         Explanation explanation = searchResponse.getHits().hits()[0].explanation();
         assertThat(explanation.getValue(), equalTo(2f));
-        assertThat(explanation.getDescription(), equalTo("Score based on child doc range from 0 to 1"));
+        assertThat(explanation.toString(), equalTo("2.0 = (MATCH) sum of:\n  2.0 = (MATCH) Score based on child doc range from 0 to 1\n  0.0 = match on required clause, product of:\n    0.0 = # clause\n    0.0 = (MATCH) Match on id 2\n"));
         // TODO: Enable when changes from BlockJoinQuery#explain are added to Lucene (Most likely version 4.2)
 //        assertThat(explanation.getDetails().length, equalTo(2));
 //        assertThat(explanation.getDetails()[0].getValue(), equalTo(1f));

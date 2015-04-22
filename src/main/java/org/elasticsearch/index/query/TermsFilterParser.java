@@ -21,12 +21,9 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.queries.TermsFilter;
-import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterCachingPolicy;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -34,10 +31,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.common.lucene.search.AndFilter;
-import org.elasticsearch.common.lucene.search.OrFilter;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -55,15 +49,8 @@ public class TermsFilterParser implements FilterParser {
     public static final String NAME = "terms";
     private Client client;
 
+    @Deprecated
     public static final String EXECUTION_KEY = "execution";
-    public static final String EXECUTION_VALUE_PLAIN = "plain";
-    public static final String EXECUTION_VALUE_FIELDDATA = "fielddata";
-    public static final String EXECUTION_VALUE_BOOL = "bool";
-    public static final String EXECUTION_VALUE_BOOL_NOCACHE = "bool_nocache";
-    public static final String EXECUTION_VALUE_AND = "and";
-    public static final String EXECUTION_VALUE_AND_NOCACHE = "and_nocache";
-    public static final String EXECUTION_VALUE_OR = "or";
-    public static final String EXECUTION_VALUE_OR_NOCACHE = "or_nocache";
 
     @Inject
     public TermsFilterParser() {
@@ -84,7 +71,7 @@ public class TermsFilterParser implements FilterParser {
         XContentParser parser = parseContext.parser();
 
         MapperService.SmartNameFieldMappers smartNameFieldMappers;
-        FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
+        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
         String filterName = null;
         String currentFieldName = null;
 
@@ -96,7 +83,6 @@ public class TermsFilterParser implements FilterParser {
 
         HashedBytesRef cacheKey = null;
         XContentParser.Token token;
-        String execution = EXECUTION_VALUE_PLAIN;
         List<Object> terms = Lists.newArrayList();
         String fieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -147,7 +133,7 @@ public class TermsFilterParser implements FilterParser {
                 }
             } else if (token.isValue()) {
                 if (EXECUTION_KEY.equals(currentFieldName)) {
-                    execution = parser.text();
+                    // ignore
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
@@ -183,111 +169,27 @@ public class TermsFilterParser implements FilterParser {
         }
 
         if (terms.isEmpty()) {
-            return Queries.MATCH_NO_FILTER;
+            return Queries.newMatchNoDocsFilter();
         }
-        
-            Filter filter;
-            if (EXECUTION_VALUE_PLAIN.equals(execution)) {
-                if (fieldMapper != null) {
-                    filter = fieldMapper.termsFilter(terms, parseContext);
-                } else {
-                    BytesRef[] filterValues = new BytesRef[terms.size()];
-                    for (int i = 0; i < filterValues.length; i++) {
-                        filterValues[i] = BytesRefs.toBytesRef(terms.get(i));
-                    }
-                    filter = new TermsFilter(fieldName, filterValues);
-                }
-            } else if (EXECUTION_VALUE_FIELDDATA.equals(execution)) {
-                // if there are no mappings, then nothing has been indexing yet against this shard, so we can return
-                // no match (but not cached!), since the FieldDataTermsFilter relies on a mapping...
-                if (fieldMapper == null) {
-                    return Queries.MATCH_NO_FILTER;
-                }
-    
-                filter = fieldMapper.fieldDataTermsFilter(terms, parseContext);
-            } else if (EXECUTION_VALUE_BOOL.equals(execution)) {
-                XBooleanFilter boolFiler = new XBooleanFilter();
-                if (fieldMapper != null) {
-                    for (Object term : terms) {
-                        boolFiler.add(parseContext.cacheFilter(fieldMapper.termFilter(term, parseContext), null, parseContext.autoFilterCachePolicy()), BooleanClause.Occur.SHOULD);
-                    }
-                } else {
-                    for (Object term : terms) {
-                        boolFiler.add(parseContext.cacheFilter(new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(term))), null, parseContext.autoFilterCachePolicy()), BooleanClause.Occur.SHOULD);
-                    }
-                }
-                filter = boolFiler;
-            } else if (EXECUTION_VALUE_BOOL_NOCACHE.equals(execution)) {
-                XBooleanFilter boolFiler = new XBooleanFilter();
-                if (fieldMapper != null) {
-                    for (Object term : terms) {
-                        boolFiler.add(fieldMapper.termFilter(term, parseContext), BooleanClause.Occur.SHOULD);
-                    }
-                } else {
-                    for (Object term : terms) {
-                        boolFiler.add(new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(term))), BooleanClause.Occur.SHOULD);
-                    }
-                }
-                filter = boolFiler;
-            } else if (EXECUTION_VALUE_AND.equals(execution)) {
-                List<Filter> filters = Lists.newArrayList();
-                if (fieldMapper != null) {
-                    for (Object term : terms) {
-                        filters.add(parseContext.cacheFilter(fieldMapper.termFilter(term, parseContext), null, parseContext.autoFilterCachePolicy()));
-                    }
-                } else {
-                    for (Object term : terms) {
-                        filters.add(parseContext.cacheFilter(new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(term))), null, parseContext.autoFilterCachePolicy()));
-                    }
-                }
-                filter = new AndFilter(filters);
-            } else if (EXECUTION_VALUE_AND_NOCACHE.equals(execution)) {
-                List<Filter> filters = Lists.newArrayList();
-                if (fieldMapper != null) {
-                    for (Object term : terms) {
-                        filters.add(fieldMapper.termFilter(term, parseContext));
-                    }
-                } else {
-                    for (Object term : terms) {
-                        filters.add(new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(term))));
-                    }
-                }
-                filter = new AndFilter(filters);
-            } else if (EXECUTION_VALUE_OR.equals(execution)) {
-                List<Filter> filters = Lists.newArrayList();
-                if (fieldMapper != null) {
-                    for (Object term : terms) {
-                        filters.add(parseContext.cacheFilter(fieldMapper.termFilter(term, parseContext), null, parseContext.autoFilterCachePolicy()));
-                    }
-                } else {
-                    for (Object term : terms) {
-                        filters.add(parseContext.cacheFilter(new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(term))), null, parseContext.autoFilterCachePolicy()));
-                    }
-                }
-                filter = new OrFilter(filters);
-            } else if (EXECUTION_VALUE_OR_NOCACHE.equals(execution)) {
-                List<Filter> filters = Lists.newArrayList();
-                if (fieldMapper != null) {
-                    for (Object term : terms) {
-                        filters.add(fieldMapper.termFilter(term, parseContext));
-                    }
-                } else {
-                    for (Object term : terms) {
-                        filters.add(new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(term))));
-                    }
-                }
-                filter = new OrFilter(filters);
-            } else {
-                throw new QueryParsingException(parseContext.index(), "terms filter execution value [" + execution + "] not supported");
+
+        Filter filter;
+        if (fieldMapper != null) {
+            filter = fieldMapper.termsFilter(terms, parseContext);
+        } else {
+            BytesRef[] filterValues = new BytesRef[terms.size()];
+            for (int i = 0; i < filterValues.length; i++) {
+                filterValues[i] = BytesRefs.toBytesRef(terms.get(i));
             }
-    
-            if (cache != null) {
-                filter = parseContext.cacheFilter(filter, cacheKey, cache);
-            }
-    
-            if (filterName != null) {
-                parseContext.addNamedFilter(filterName, filter);
-            }
-            return filter;
+            filter = Queries.wrap(new TermsQuery(fieldName, filterValues));
+        }
+
+        if (cache != null) {
+            filter = parseContext.cacheFilter(filter, cacheKey, cache);
+        }
+
+        if (filterName != null) {
+            parseContext.addNamedFilter(filterName, filter);
+        }
+        return filter;
     }
 }

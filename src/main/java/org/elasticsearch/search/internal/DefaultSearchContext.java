@@ -21,10 +21,14 @@ package org.elasticsearch.search.internal;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
@@ -33,11 +37,11 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
@@ -49,8 +53,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -248,15 +250,17 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public Filter searchFilter(String[] types) {
         Filter filter = mapperService().searchFilter(types);
-        if (filter == null) {
-            return aliasFilter;
-        } else {
-            filter = filterCache().cache(filter, null, indexService.queryParserService().autoFilterCachePolicy());
-            if (aliasFilter != null) {
-                return new AndFilter(ImmutableList.of(filter, aliasFilter));
-            }
-            return filter;
+        if (filter == null && aliasFilter == null) {
+            return null;
         }
+        BooleanQuery bq = new BooleanQuery();
+        if (filter != null) {
+            bq.add(filterCache().cache(filter, null, indexService.queryParserService().autoFilterCachePolicy()), Occur.MUST);
+        }
+        if (aliasFilter != null) {
+            bq.add(aliasFilter, Occur.MUST);
+        }
+        return Queries.wrap(bq);
     }
 
     @Override

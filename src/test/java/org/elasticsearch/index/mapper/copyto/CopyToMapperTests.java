@@ -20,17 +20,23 @@
 package org.elasticsearch.index.mapper.copyto;
 
 import com.google.common.collect.ImmutableList;
+
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
@@ -40,7 +46,10 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  *
@@ -72,9 +81,10 @@ public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
-        FieldMapper fieldMapper = docMapper.mappers().name("copy_test").mapper();
-        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
+        IndexService index = createIndex("test");
+        client().admin().indices().preparePutMapping("test").setType("type1").setSource(mapping).get();
+        DocumentMapper docMapper = index.mapperService().documentMapper("type1");
+        FieldMapper fieldMapper = docMapper.mappers().getMapper("copy_test");
 
         // Check json serialization
         StringFieldMapper stringFieldMapper = (StringFieldMapper) fieldMapper;
@@ -96,7 +106,8 @@ public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
                 .field("int_to_str_test", 42)
                 .endObject().bytes();
 
-        ParseContext.Document doc = docMapper.parse("type1", "1", json).rootDoc();
+        ParsedDocument parsedDoc = docMapper.parse("type1", "1", json);
+        ParseContext.Document doc = parsedDoc.rootDoc();
         assertThat(doc.getFields("copy_test").length, equalTo(2));
         assertThat(doc.getFields("copy_test")[0].stringValue(), equalTo("foo"));
         assertThat(doc.getFields("copy_test")[1].stringValue(), equalTo("bar"));
@@ -115,7 +126,10 @@ public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(doc.getFields("new_field").length, equalTo(2)); // new field has doc values
         assertThat(doc.getFields("new_field")[0].numericValue().intValue(), equalTo(42));
 
-        fieldMapper = docMapper.mappers().name("new_field").mapper();
+        assertNotNull(parsedDoc.dynamicMappingsUpdate());
+        client().admin().indices().preparePutMapping("test").setType("type1").setSource(parsedDoc.dynamicMappingsUpdate().toString()).get();
+
+        fieldMapper = docMapper.mappers().getMapper("new_field");
         assertThat(fieldMapper, instanceOf(LongFieldMapper.class));
     }
 
@@ -206,7 +220,7 @@ public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         DocumentMapper docMapperBefore = parser.parse(mappingBefore);
 
-        ImmutableList<String> fields = docMapperBefore.mappers().name("copy_test").mapper().copyTo().copyToFields();
+        ImmutableList<String> fields = docMapperBefore.mappers().getMapper("copy_test").copyTo().copyToFields();
 
         assertThat(fields.size(), equalTo(2));
         assertThat(fields.get(0), equalTo("foo"));
@@ -215,13 +229,13 @@ public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper docMapperAfter = parser.parse(mappingAfter);
 
-        DocumentMapper.MergeResult mergeResult = docMapperBefore.merge(docMapperAfter, mergeFlags().simulate(true));
+        DocumentMapper.MergeResult mergeResult = docMapperBefore.merge(docMapperAfter.mapping(), mergeFlags().simulate(true));
 
         assertThat(Arrays.toString(mergeResult.conflicts()), mergeResult.hasConflicts(), equalTo(false));
 
-        docMapperBefore.merge(docMapperAfter, mergeFlags().simulate(false));
+        docMapperBefore.merge(docMapperAfter.mapping(), mergeFlags().simulate(false));
 
-        fields = docMapperBefore.mappers().name("copy_test").mapper().copyTo().copyToFields();
+        fields = docMapperBefore.mappers().getMapper("copy_test").copyTo().copyToFields();
 
         assertThat(fields.size(), equalTo(2));
         assertThat(fields.get(0), equalTo("baz"));

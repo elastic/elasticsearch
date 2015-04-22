@@ -64,15 +64,15 @@ public class TokenCountFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
         DocumentMapper stage2 = parser.parse(stage2Mapping);
 
-        DocumentMapper.MergeResult mergeResult = stage1.merge(stage2, mergeFlags().simulate(true));
+        DocumentMapper.MergeResult mergeResult = stage1.merge(stage2.mapping(), mergeFlags().simulate(true));
         assertThat(mergeResult.hasConflicts(), equalTo(false));
         // Just simulated so merge hasn't happened yet
-        assertThat(((TokenCountFieldMapper) stage1.mappers().smartName("tc").mapper()).analyzer(), equalTo("keyword"));
+        assertThat(((TokenCountFieldMapper) stage1.mappers().smartNameFieldMapper("tc")).analyzer(), equalTo("keyword"));
 
-        mergeResult = stage1.merge(stage2, mergeFlags().simulate(false));
+        mergeResult = stage1.merge(stage2.mapping(), mergeFlags().simulate(false));
         assertThat(mergeResult.hasConflicts(), equalTo(false));
         // Just simulated so merge hasn't happened yet
-        assertThat(((TokenCountFieldMapper) stage1.mappers().smartName("tc").mapper()).analyzer(), equalTo("standard"));
+        assertThat(((TokenCountFieldMapper) stage1.mappers().smartNameFieldMapper("tc")).analyzer(), equalTo("standard"));
     }
 
     @Test

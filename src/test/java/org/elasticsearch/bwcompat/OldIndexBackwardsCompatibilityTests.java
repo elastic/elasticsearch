@@ -19,8 +19,8 @@
 
 package org.elasticsearch.bwcompat;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.util.concurrent.ListenableFuture;
+
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
@@ -30,9 +30,11 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.MultiDataPathUpgrader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -48,24 +50,20 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Modifier;
-import java.net.URL;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
-import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
@@ -74,21 +72,21 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@LuceneTestCase.SuppressCodecs({"Lucene3x", "MockFixedIntBlock", "MockVariableIntBlock", "MockSep", "MockRandom", "Lucene40", "Lucene41", "Appending", "Lucene42", "Lucene45", "Lucene46", "Lucene49"})
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0)
+@LuceneTestCase.SuppressFileSystems("ExtrasFS")
+@LuceneTestCase.Slow
 public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegrationTest {
     // TODO: test for proper exception on unsupported indexes (maybe via separate test?)
     // We have a 0.20.6.zip etc for this.
 
-    static List<String> indexes;
+    List<String> indexes;
     static Path singleDataPath;
     static Path[] multiDataPath;
 
-    @BeforeClass
-    public static void initIndexesList() throws Exception {
+    @Before
+    public void initIndexesList() throws Exception {
         indexes = new ArrayList<>();
-        URL dirUrl = OldIndexBackwardsCompatibilityTests.class.getResource(".");
-        Path dir = Paths.get(dirUrl.toURI());
+        Path dir = getDataPath(".");
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "index-*.zip")) {
             for (Path path : stream) {
                 indexes.add(path.getFileName().toString());
@@ -99,7 +97,6 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
 
     @AfterClass
     public static void tearDownStatics() {
-        indexes = null;
         singleDataPath = null;
         multiDataPath = null;
     }
@@ -116,7 +113,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     void setupCluster() throws Exception {
         ListenableFuture<List<String>> replicas = internalCluster().startNodesAsync(1); // for replicas
 
-        Path baseTempDir = newTempDirPath(LifecycleScope.SUITE);
+        Path baseTempDir = createTempDir();
         // start single data path node
         ImmutableSettings.Builder nodeSettings = ImmutableSettings.builder()
             .put("path.data", baseTempDir.resolve("single-path").toAbsolutePath())
@@ -152,12 +149,12 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     }
 
     String loadIndex(String indexFile) throws Exception {
-        Path unzipDir = newTempDirPath();
+        Path unzipDir = createTempDir();
         Path unzipDataDir = unzipDir.resolve("data");
         String indexName = indexFile.replace(".zip", "").toLowerCase(Locale.ROOT);
 
         // decompress the index
-        Path backwardsIndex = Paths.get(getClass().getResource(indexFile).toURI());
+        Path backwardsIndex = getDataPath(indexFile);
         try (InputStream stream = Files.newInputStream(backwardsIndex)) {
             TestUtil.unzip(stream, unzipDir);
         }
@@ -175,12 +172,15 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
 
         if (randomBoolean()) {
             logger.info("--> injecting index [{}] into single data path", indexName);
-            copyIndex(src, indexName, singleDataPath);
+            copyIndex(logger, src, indexName, singleDataPath);
         } else {
             logger.info("--> injecting index [{}] into multi data path", indexName);
-            copyIndex(src, indexName, multiDataPath);
+            copyIndex(logger, src, indexName, multiDataPath);
         }
-
+        final Iterable<NodeEnvironment> instances = internalCluster().getInstances(NodeEnvironment.class);
+        for (NodeEnvironment nodeEnv : instances) { // upgrade multidata path
+            MultiDataPathUpgrader.upgradeMultiDataPath(nodeEnv, logger);
+        }
         // force reloading dangling indices with a cluster state republish
         client().admin().cluster().prepareReroute().get();
         ensureGreen(indexName);
@@ -188,7 +188,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     }
 
     // randomly distribute the files from src over dests paths
-    void copyIndex(final Path src, final String indexName, final Path... dests) throws IOException {
+    public static void copyIndex(final ESLogger logger, final Path src, final String indexName, final Path... dests) throws IOException {
         for (Path dest : dests) {
             Path indexDir = dest.resolve(indexName);
             assertFalse(Files.exists(indexDir));
@@ -230,21 +230,11 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
 
     public void testAllVersionsTested() throws Exception {
         SortedSet<String> expectedVersions = new TreeSet<>();
-        for (java.lang.reflect.Field field : Version.class.getDeclaredFields()) {
-            if (Modifier.isStatic(field.getModifiers()) && field.getType() == Version.class) {
-                Version v = (Version) field.get(Version.class);
-                if (v.snapshot()) {
-                    continue;  // snapshots are unreleased, so there is no backcompat yet
-                }
-                if (v.onOrBefore(Version.V_0_20_6)) {
-                    continue; // we can only test back one major lucene version
-                }
-                if (v.equals(Version.CURRENT)) {
-                    continue; // the current version is always compatible with itself
-                }
-
-                expectedVersions.add("index-" + v.toString() + ".zip");
-            }
+        for (Version v : VersionUtils.allVersions()) {
+            if (v.snapshot()) continue;  // snapshots are unreleased, so there is no backcompat yet
+            if (v.onOrBefore(Version.V_0_20_6)) continue; // we can only test back one major lucene version
+            if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
+            expectedVersions.add("index-" + v.toString() + ".zip");
         }
 
         for (String index : indexes) {
@@ -397,4 +387,5 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         UpgradeTest.runUpgrade(httpClient, indexName);
         UpgradeTest.assertUpgraded(httpClient, indexName);
     }
+
 }

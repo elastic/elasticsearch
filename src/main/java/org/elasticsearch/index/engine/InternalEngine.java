@@ -27,6 +27,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.routing.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
@@ -938,6 +939,11 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    protected SegmentInfos getLastCommittedSegmentInfos() {
+        return lastCommittedSegmentInfos;
+    }
+
+    @Override
     protected final void writerSegmentStats(SegmentsStats stats) {
         stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
         stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
@@ -1039,7 +1045,12 @@ public class InternalEngine extends Engine {
             iwc.setCommitOnClose(false); // we by default don't commit on close
             iwc.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
             iwc.setIndexDeletionPolicy(deletionPolicy);
-            iwc.setInfoStream(new LoggerInfoStream(logger));
+            // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
+            boolean verbose = false;
+            try {
+                verbose = Boolean.parseBoolean(System.getProperty("tests.verbose"));
+            } catch (Throwable ignore) {}
+            iwc.setInfoStream(verbose ? InfoStream.getDefault() : new LoggerInfoStream(logger));
             iwc.setMergeScheduler(mergeScheduler.newMergeScheduler());
             MergePolicy mergePolicy = mergePolicyProvider.getMergePolicy();
             // Give us the opportunity to upgrade old segments while performing

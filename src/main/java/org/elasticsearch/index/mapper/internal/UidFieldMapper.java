@@ -130,11 +130,6 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     }
 
     @Override
-    protected String defaultPostingFormat() {
-        return "default";
-    }
-
-    @Override
     public void preParse(ParseContext context) throws IOException {
         // if we have the id provided, fill it, and parse now
         if (context.sourceToParse().id() != null) {

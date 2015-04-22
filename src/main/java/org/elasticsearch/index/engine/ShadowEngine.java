@@ -57,7 +57,7 @@ public class ShadowEngine extends Engine {
 
     private volatile SearcherManager searcherManager;
 
-    private SegmentInfos lastCommittedSegmentInfos;
+    private volatile SegmentInfos lastCommittedSegmentInfos;
 
     public ShadowEngine(EngineConfig engineConfig)  {
         super(engineConfig);
@@ -219,5 +219,10 @@ public class ShadowEngine extends Engine {
     @Override
     public boolean hasUncommittedChanges() {
         return false;
+    }
+
+    @Override
+    protected SegmentInfos getLastCommittedSegmentInfos() {
+        return lastCommittedSegmentInfos;
     }
 }

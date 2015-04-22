@@ -260,7 +260,7 @@ The REST tests are run automatically when executing the maven test command. To r
 REST tests use the following command:
 
 ---------------------------------------------------------------------------
-mvn test -Dtests.class=org.elasticsearch.test.rest.ElasticsearchRestTests
+mvn test -Dtests.filter="@Rest"
 ---------------------------------------------------------------------------
 
 `ElasticsearchRestTests` is the executable test class that runs all the
@@ -298,3 +298,23 @@ You can also skip this by using the "dev" profile:
 ---------------------------------------------------------------------------
 mvn test -Pdev
 ---------------------------------------------------------------------------
+
+== Testing scripts
+
+Shell scripts can be tested with the Bash Automate Testing System tool available
+at https://github.com/sstephenson/bats. Once the tool is installed, you can
+execute a .bats test file with the following command:
+
+---------------------------------------------------------------------------
+bats test_file.bats
+---------------------------------------------------------------------------
+
+When executing the test files located in the `/packaging/scripts` folder,
+it's possible to add the flag `ES_CLEAN_BEFORE_TEST=true` to clean the test
+environment before the tests are executed:
+
+---------------------------------------------------------------------------
+ES_CLEAN_BEFORE_TEST=true bats 30_deb_package.bats
+---------------------------------------------------------------------------
+
+

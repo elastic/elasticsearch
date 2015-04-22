@@ -71,7 +71,7 @@ public class TransportNodesInfoAction extends TransportNodesOperationAction<Node
     }
 
     @Override
-    protected NodesInfoRequest newRequest() {
+    protected NodesInfoRequest newRequestInstance() {
         return new NodesInfoRequest();
     }
 

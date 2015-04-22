@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.suggest.SuggestResponse;
@@ -51,6 +52,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests for transforming the source document before indexing.
  */
+@SuppressCodecs("*") // requires custom completion format
 public class TransformOnIndexMapperIntegrationTest extends ElasticsearchIntegrationTest {
     @Test
     public void searchOnTransformed() throws Exception {

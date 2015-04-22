@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.VersionType;
@@ -29,6 +28,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class MultiGetShardRequestTests extends ElasticsearchTestCase {
@@ -70,7 +70,7 @@ public class MultiGetShardRequestTests extends ElasticsearchTestCase {
         }
 
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(randomVersion());
+        out.setVersion(randomVersion(random()));
         multiGetShardRequest.writeTo(out);
 
         BytesStreamInput in = new BytesStreamInput(out.bytes());

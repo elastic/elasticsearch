@@ -36,7 +36,7 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
      * Sub classes implement this call to get new instance of a Request object
      * @return Request
      */
-    public abstract Request newRequestInstance();
+    protected abstract Request newRequestInstance();
 
     protected HandledTransportAction(Settings settings, String actionName, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters){
         super(settings, actionName, threadPool, actionFilters);
@@ -48,7 +48,7 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         });
     }
 
-    private abstract class TransportHandler extends BaseTransportRequestHandler<Request>{
+    abstract class TransportHandler extends BaseTransportRequestHandler<Request>{
 
         /**
          * Call to get an instance of type Request

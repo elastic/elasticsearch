@@ -20,7 +20,6 @@
 package org.elasticsearch.indices.store;
 
 import com.google.common.base.Predicate;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterService;
@@ -46,9 +45,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -58,6 +55,11 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) { // simplify this and only use a single data path
+        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("path.data", "").build();
+    }
 
     @Test
     public void indexCleanup() throws Exception {
@@ -176,7 +178,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(waitForShardDeletion(node_4, "test", 0), equalTo(false));
     }
 
-    @Test
+    @Test @Slow
     public void testShardActiveElseWhere() throws Exception {
         boolean node1IsMasterEligible = randomBoolean();
         boolean node2IsMasterEligible = !node1IsMasterEligible || randomBoolean();
@@ -248,12 +250,16 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
 
     private Path indexDirectory(String server, String index) {
         NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
-        return env.indexPaths(new Index(index))[0];
+        final Path[] paths = env.indexPaths(new Index(index));
+        assert paths.length == 1;
+        return paths[0];
     }
 
     private Path shardDirectory(String server, String index, int shard) {
         NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
-        return env.shardPaths(new ShardId(index, shard))[0];
+        final Path[] paths = env.availableShardPaths(new ShardId(index, shard));
+        assert paths.length == 1;
+        return paths[0];
     }
 
     private boolean waitForShardDeletion(final String server, final String index, final int shard) throws InterruptedException {

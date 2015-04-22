@@ -51,18 +51,18 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().endObject().string();
         DocumentMapper stage2 = parser.parse(stage2Mapping);
 
-        DocumentMapper.MergeResult mergeResult = stage1.merge(stage2, mergeFlags().simulate(true));
+        DocumentMapper.MergeResult mergeResult = stage1.merge(stage2.mapping(), mergeFlags().simulate(true));
         assertThat(mergeResult.hasConflicts(), equalTo(false));
         // since we are simulating, we should not have the age mapping
-        assertThat(stage1.mappers().smartName("age"), nullValue());
-        assertThat(stage1.mappers().smartName("obj1.prop1"), nullValue());
+        assertThat(stage1.mappers().smartNameFieldMapper("age"), nullValue());
+        assertThat(stage1.mappers().smartNameFieldMapper("obj1.prop1"), nullValue());
         // now merge, don't simulate
-        mergeResult = stage1.merge(stage2, mergeFlags().simulate(false));
+        mergeResult = stage1.merge(stage2.mapping(), mergeFlags().simulate(false));
         // there is still merge failures
         assertThat(mergeResult.hasConflicts(), equalTo(false));
         // but we have the age in
-        assertThat(stage1.mappers().smartName("age"), notNullValue());
-        assertThat(stage1.mappers().smartName("obj1.prop1"), notNullValue());
+        assertThat(stage1.mappers().smartNameFieldMapper("age"), notNullValue());
+        assertThat(stage1.mappers().smartNameFieldMapper("obj1.prop1"), notNullValue());
     }
 
     @Test
@@ -76,7 +76,7 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapper withDynamicMapper = parser.parse(withDynamicMapping);
         assertThat(withDynamicMapper.root().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
 
-        DocumentMapper.MergeResult mergeResult = mapper.merge(withDynamicMapper, mergeFlags().simulate(false));
+        DocumentMapper.MergeResult mergeResult = mapper.merge(withDynamicMapper.mapping(), mergeFlags().simulate(false));
         assertThat(mergeResult.hasConflicts(), equalTo(false));
         assertThat(mapper.root().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
     }
@@ -93,12 +93,12 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().endObject().string();
         DocumentMapper nestedMapper = parser.parse(nestedMapping);
 
-        DocumentMapper.MergeResult mergeResult = objectMapper.merge(nestedMapper, mergeFlags().simulate(true));
+        DocumentMapper.MergeResult mergeResult = objectMapper.merge(nestedMapper.mapping(), mergeFlags().simulate(true));
         assertThat(mergeResult.hasConflicts(), equalTo(true));
         assertThat(mergeResult.conflicts().length, equalTo(1));
         assertThat(mergeResult.conflicts()[0], equalTo("object mapping [obj] can't be changed from non-nested to nested"));
 
-        mergeResult = nestedMapper.merge(objectMapper, mergeFlags().simulate(true));
+        mergeResult = nestedMapper.merge(objectMapper.mapping(), mergeFlags().simulate(true));
         assertThat(mergeResult.conflicts().length, equalTo(1));
         assertThat(mergeResult.conflicts()[0], equalTo("object mapping [obj] can't be changed from nested to non-nested"));
     }
@@ -116,11 +116,11 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapper existing = parser.parse(mapping1);
         DocumentMapper changed = parser.parse(mapping2);
 
-        assertThat(((NamedAnalyzer) existing.mappers().name("field").mapper().searchAnalyzer()).name(), equalTo("whitespace"));
-        DocumentMapper.MergeResult mergeResult = existing.merge(changed, mergeFlags().simulate(false));
+        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").searchAnalyzer()).name(), equalTo("whitespace"));
+        DocumentMapper.MergeResult mergeResult = existing.merge(changed.mapping(), mergeFlags().simulate(false));
 
         assertThat(mergeResult.hasConflicts(), equalTo(false));
-        assertThat(((NamedAnalyzer) existing.mappers().name("field").mapper().searchAnalyzer()).name(), equalTo("keyword"));
+        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").searchAnalyzer()).name(), equalTo("keyword"));
     }
 
     @Test
@@ -136,12 +136,12 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapper existing = parser.parse(mapping1);
         DocumentMapper changed = parser.parse(mapping2);
 
-        assertThat(((NamedAnalyzer) existing.mappers().name("field").mapper().searchAnalyzer()).name(), equalTo("whitespace"));
-        DocumentMapper.MergeResult mergeResult = existing.merge(changed, mergeFlags().simulate(false));
+        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").searchAnalyzer()).name(), equalTo("whitespace"));
+        DocumentMapper.MergeResult mergeResult = existing.merge(changed.mapping(), mergeFlags().simulate(false));
 
         assertThat(mergeResult.hasConflicts(), equalTo(false));
-        assertThat(((NamedAnalyzer) existing.mappers().name("field").mapper().searchAnalyzer()).name(), equalTo("standard"));
-        assertThat(((StringFieldMapper) (existing.mappers().name("field").mapper())).getIgnoreAbove(), equalTo(14));
+        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").searchAnalyzer()).name(), equalTo("standard"));
+        assertThat(((StringFieldMapper) (existing.mappers().getMapper("field"))).getIgnoreAbove(), equalTo(14));
     }
 
 }

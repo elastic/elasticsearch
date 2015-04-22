@@ -76,7 +76,7 @@ public class FileUtilsTests extends ElasticsearchTestCase {
         assertThat(yamlSuites.get("index").size(), greaterThan(1));
 
         //files can be loaded from classpath and from file system too
-        Path dir = newTempDirPath();
+        Path dir = createTempDir();
         Path file = dir.resolve("test_loading.yaml");
         Files.createFile(file);
 

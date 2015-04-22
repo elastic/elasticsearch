@@ -69,7 +69,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
     }
 
     @Override
-    protected ClearIndicesCacheRequest newRequest() {
+    protected ClearIndicesCacheRequest newRequestInstance() {
         return new ClearIndicesCacheRequest();
     }
 

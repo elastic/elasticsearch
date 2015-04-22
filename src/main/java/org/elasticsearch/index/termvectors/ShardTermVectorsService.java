@@ -252,7 +252,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
         return MultiFields.getFields(index.createSearcher().getIndexReader());
     }
 
-    private Fields generateTermVectorsFromDoc(TermVectorsRequest request, boolean doAllFields) throws IOException {
+    private Fields generateTermVectorsFromDoc(TermVectorsRequest request, boolean doAllFields) throws Throwable {
         // parse the document, at the moment we do update the mapping, just like percolate
         ParsedDocument parsedDocument = parseDocument(indexShard.shardId().getIndex(), request.type(), request.doc());
 
@@ -283,15 +283,18 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
         return generateTermVectors(getFields, request.offsets(), request.perFieldAnalyzer());
     }
 
-    private ParsedDocument parseDocument(String index, String type, BytesReference doc) {
+    private ParsedDocument parseDocument(String index, String type, BytesReference doc) throws Throwable {
         MapperService mapperService = indexShard.mapperService();
         IndexService indexService = indexShard.indexService();
 
         // TODO: make parsing not dynamically create fields not in the original mapping
-        Tuple<DocumentMapper, Boolean> docMapper = mapperService.documentMapperWithAutoCreate(type);
-        ParsedDocument parsedDocument = docMapper.v1().parse(source(doc).type(type).flyweight(true)).setMappingsModified(docMapper);
-        if (parsedDocument.mappingsModified()) {
-            mappingUpdatedAction.updateMappingOnMaster(index, docMapper.v1(), indexService.indexUUID());
+        Tuple<DocumentMapper, Mapping> docMapper = mapperService.documentMapperWithAutoCreate(type);
+        ParsedDocument parsedDocument = docMapper.v1().parse(source(doc).type(type).flyweight(true));
+        if (docMapper.v2() != null) {
+            parsedDocument.addDynamicMappingsUpdate(docMapper.v2());
+        }
+        if (parsedDocument.dynamicMappingsUpdate() != null) {
+            mappingUpdatedAction.updateMappingOnMasterSynchronously(index, indexService.indexUUID(), type, parsedDocument.dynamicMappingsUpdate());
         }
         return parsedDocument;
     }

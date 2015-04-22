@@ -20,12 +20,12 @@
 package org.elasticsearch.test.store;
 
 import com.google.common.base.Charsets;
+
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.StoreRateLimiting;
-import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
@@ -34,16 +34,13 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.IndexShardException;
-import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.distributor.Distributor;
 import org.elasticsearch.index.store.fs.FsDirectoryService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import java.io.IOException;
@@ -65,14 +62,14 @@ public class MockFSDirectoryService extends FsDirectoryService {
     private final boolean checkIndexOnClose;
 
     @Inject
-    public MockFSDirectoryService(final ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, final IndicesService service) {
-        super(shardId, indexSettings, indexStore);
+    public MockFSDirectoryService(final ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, final IndicesService service, final ShardPath path) {
+        super(shardId, indexSettings, indexStore, path);
         final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.SETTING_INDEX_SEED, 0l);
         Random random = new Random(seed);
         helper = new MockDirectoryHelper(shardId, indexSettings, logger, random, seed);
         checkIndexOnClose = indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, true);
 
-        delegateService = helper.randomDirectorService(indexStore);
+        delegateService = helper.randomDirectorService(indexStore, path);
         if (checkIndexOnClose) {
             final IndicesLifecycle.Listener listener = new IndicesLifecycle.Listener() {
 
@@ -111,9 +108,11 @@ public class MockFSDirectoryService extends FsDirectoryService {
         }
     }
 
+
+
     @Override
-    public Directory[] build() throws IOException {
-        return delegateService.build();
+    public Directory newDirectory() throws IOException {
+        return helper.wrap(delegateService.newDirectory());
     }
     
     @Override
@@ -130,7 +129,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
                     return;
                 }
                 if (IndexWriter.isLocked(dir)) {
-                    AbstractRandomizedTest.checkIndexFailed = true;
+                    ElasticsearchTestCase.checkIndexFailed = true;
                     throw new IllegalStateException("IndexWriter is still open on shard " + shardId);
                 }
                 try (CheckIndex checkIndex = new CheckIndex(dir)) {
@@ -140,7 +139,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
                     out.flush();
                     CheckIndex.Status status = checkIndex.checkIndex();
                     if (!status.clean) {
-                        AbstractRandomizedTest.checkIndexFailed = true;
+                        ElasticsearchTestCase.checkIndexFailed = true;
                         logger.warn("check index [failure] index files={}\n{}",
                                     Arrays.toString(dir.listAll()),
                                     new String(os.bytes().toBytes(), Charsets.UTF_8));
@@ -173,10 +172,5 @@ public class MockFSDirectoryService extends FsDirectoryService {
     @Override
     public long throttleTimeInNanos() {
         return delegateService.throttleTimeInNanos();
-    }
-
-    @Override
-    public Directory newFromDistributor(Distributor distributor) throws IOException {
-        return helper.wrap(super.newFromDistributor(distributor));
     }
 }

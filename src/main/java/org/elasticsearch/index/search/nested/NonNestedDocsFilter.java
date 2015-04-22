@@ -23,10 +23,12 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.PrefixFilter;
+import org.apache.lucene.search.PrefixQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.search.NotFilter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 
 import java.io.IOException;
@@ -38,14 +40,19 @@ import java.io.IOException;
  * A nested document is a sub documents that belong to a root document.
  * Nested documents share the unique id and type and optionally the _source with root documents.
  */
-public class NonNestedDocsFilter extends Filter {
+public final class NonNestedDocsFilter extends Filter {
 
     public static final NonNestedDocsFilter INSTANCE = new NonNestedDocsFilter();
 
-    private final Filter filter = new NotFilter(nestedFilter());
+    private final Filter filter = Queries.wrap(Queries.not(nestedFilter()));
     private final int hashCode = filter.hashCode();
 
     private NonNestedDocsFilter() {
+    }
+
+    @Override
+    public Query clone() {
+        return INSTANCE;
     }
 
     @Override
@@ -72,6 +79,6 @@ public class NonNestedDocsFilter extends Filter {
      * @return a filter that returns all nested documents.
      */
     private static Filter nestedFilter() {
-        return new PrefixFilter(new Term(TypeFieldMapper.NAME, new BytesRef("__")));
+        return Queries.wrap(new PrefixQuery(new Term(TypeFieldMapper.NAME, new BytesRef("__"))));
     }
 }

@@ -21,21 +21,20 @@ package org.elasticsearch.index.mapper;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
-import com.google.common.collect.ForwardingSet;
 import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  *
  */
-public final class DocumentFieldMappers extends ForwardingSet<FieldMapper<?>> {
+public final class DocumentFieldMappers implements Iterable<FieldMapper<?>> {
 
     private final FieldMappersLookup fieldMappers;
 
@@ -79,20 +78,27 @@ public final class DocumentFieldMappers extends ForwardingSet<FieldMapper<?>> {
         return new DocumentFieldMappers(fieldMappers, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer);
     }
 
-    // TODO: replace all uses of this with fullName, or change the meaning of name to be fullName
-    public FieldMappers name(String name) {
-        return fieldMappers.fullName(name);
-    }
-
+    /**
+     * Looks up a field by its index name.
+     *
+     * Overriding index name for a field is no longer possibly, and only supported for backcompat.
+     * This function first attempts to lookup the field by full name, and only when that fails,
+     * does a full scan of all field mappers, collecting those with this index name.
+     *
+     * This will be removed in 3.0, once backcompat for overriding index name is removed.
+     * @deprecated Use {@link #getMapper(String)}
+     */
+    @Deprecated
     public FieldMappers indexName(String indexName) {
         return fieldMappers.indexName(indexName);
     }
 
-    public FieldMappers fullName(String fullName) {
-        return fieldMappers.fullName(fullName);
+    /** Returns the mapper for the given field */
+    public FieldMapper getMapper(String field) {
+        return fieldMappers.get(field);
     }
 
-    public List<String> simpleMatchToIndexNames(String pattern) {
+    List<String> simpleMatchToIndexNames(String pattern) {
         return fieldMappers.simpleMatchToIndexNames(pattern);
     }
 
@@ -101,10 +107,9 @@ public final class DocumentFieldMappers extends ForwardingSet<FieldMapper<?>> {
     }
 
     /**
-     * Tries to find first based on {@link #fullName(String)}, then by {@link #indexName(String)}, and last
-     * by {@link #name(String)}.
+     * Tries to find first based on fullName, then by indexName.
      */
-    public FieldMappers smartName(String name) {
+    FieldMappers smartName(String name) {
         return fieldMappers.smartName(name);
     }
 
@@ -140,8 +145,7 @@ public final class DocumentFieldMappers extends ForwardingSet<FieldMapper<?>> {
         return this.searchQuoteAnalyzer;
     }
 
-    @Override
-    protected Set<FieldMapper<?>> delegate() {
-        return fieldMappers;
+    public Iterator<FieldMapper<?>> iterator() {
+        return fieldMappers.iterator();
     }
 }

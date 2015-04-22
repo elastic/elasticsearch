@@ -21,11 +21,12 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterCachingPolicy;
-import org.apache.lucene.search.PrefixFilter;
+import org.apache.lucene.search.PrefixQuery;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.HashedBytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -51,7 +52,7 @@ public class PrefixFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
+        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
         HashedBytesRef cacheKey = null;
         String fieldName = null;
         Object value = null;
@@ -87,7 +88,7 @@ public class PrefixFilterParser implements FilterParser {
             filter = smartNameFieldMappers.mapper().prefixFilter(value, parseContext);
         }
         if (filter == null) {
-            filter = new PrefixFilter(new Term(fieldName, BytesRefs.toBytesRef(value)));
+            filter = Queries.wrap(new PrefixQuery(new Term(fieldName, BytesRefs.toBytesRef(value))));
         }
 
         if (cache != null) {

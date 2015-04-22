@@ -54,7 +54,7 @@ public class TransportClientTests extends ElasticsearchIntegrationTest {
         TransportClientNodesService nodeService = client.nodeService();
         Node node = nodeBuilder().data(false).settings(ImmutableSettings.builder()
                 .put(internalCluster().getDefaultSettings())
-                .put("path.home", newTempDirPath())
+                .put("path.home", createTempDir())
                 .put("node.name", "testNodeVersionIsUpdated")
                 .put("http.enabled", false)
                 .put("index.store.type", "ram")

@@ -18,12 +18,10 @@
  */
 package org.elasticsearch.index.mapper.dynamic;
 
-import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -38,7 +36,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -46,8 +43,6 @@ import org.elasticsearch.index.mapper.StrictDynamicMappingException;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 
 import java.io.IOException;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -180,11 +175,11 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
     public void testDynamicMappingOnEmptyString() throws Exception {
         IndexService service = createIndex("test");
         client().prepareIndex("test", "type").setSource("empty_field", "").get();
-        FieldMappers mappers = service.mapperService().indexName("empty_field");
+        FieldMappers mappers = service.mapperService().fullName("empty_field");
         assertTrue(mappers != null && mappers.isEmpty() == false);
     }
 
-    public void testIndexingFailureDoesStillCreateType() throws IOException, InterruptedException {
+    public void testTypeNotCreatedOnIndexFailure() throws IOException, InterruptedException {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("_default_")
                 .field("dynamic", "strict")
                 .endObject().endObject();
@@ -197,120 +192,9 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
         } catch (StrictDynamicMappingException e) {
 
         }
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(java.lang.Object input) {
-                GetMappingsResponse currentMapping = client().admin().indices().prepareGetMappings("test").get();
-                return currentMapping.getMappings().get("test").get("type") != null;
-            }
-        });
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
-        assertNotNull(getMappingsResponse.getMappings().get("test").get("type"));
-        DocumentMapper mapper = indexService.mapperService().documentMapper("type");
-        assertNotNull(mapper);
-
-    }
-
-    public void testTypeCreatedProperly() throws IOException, InterruptedException {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("_default_")
-                .field("dynamic", "strict")
-                .startObject("properties")
-                .startObject("test_string")
-                .field("type", "string")
-                .endObject()
-                .endObject()
-                .endObject().endObject();
-
-        IndexService indexService = createIndex("test", ImmutableSettings.EMPTY, "_default_", mapping);
-
-        try {
-            client().prepareIndex().setIndex("test").setType("type").setSource(jsonBuilder().startObject().field("test", "test").endObject()).get();
-            fail();
-        } catch (StrictDynamicMappingException e) {
-
-        }
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(java.lang.Object input) {
-                GetMappingsResponse currentMapping = client().admin().indices().prepareGetMappings("test").get();
-                return currentMapping.getMappings().get("test").get("type") != null;
-            }
-        });
-        //type should be in mapping
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
-        assertNotNull(getMappingsResponse.getMappings().get("test").get("type"));
-
-        client().prepareIndex().setIndex("test").setType("type").setSource(jsonBuilder().startObject().field("test_string", "test").endObject()).get();
-        client().admin().indices().prepareRefresh("test").get();
-        assertThat(client().prepareSearch("test").get().getHits().getTotalHits(), equalTo(1l));
-
-        DocumentMapper mapper = indexService.mapperService().documentMapper("type");
-        assertNotNull(mapper);
-
-        getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
-        assertNotNull(getMappingsResponse.getMappings().get("test").get("type"));
-    }
-
-    public void testFieldsCreatedWithPartialParsing() throws IOException, InterruptedException {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("doc")
-                .startObject("properties")
-                .startObject("z")
-                .field("type", "long")
-                .endObject()
-                .endObject()
-                .endObject().endObject();
-
-        IndexService indexService = createIndex("test", ImmutableSettings.EMPTY, "doc", mapping);
-        boolean create = randomBoolean();
-        if (create == false) {
-            // we want to test sometimes create and sometimes index so sometimes add the document before and sometimes not
-            client().prepareIndex().setIndex("test").setType("doc").setId("1").setSource(jsonBuilder().startObject().field("z", 0).endObject()).get();
-        }
-        try {
-            IndexRequestBuilder indexRequest = client().prepareIndex().setIndex("test").setType("doc").setId("1").setSource(jsonBuilder().startObject().field("a", "string").field("z", "string").endObject());
-            indexRequest.setCreate(create);
-            indexRequest.get();
-            fail();
-        } catch (MapperParsingException e) {
-            // this should fail because the field z is of type long
-        }
-        //type should be in mapping
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
-        assertNotNull(getMappingsResponse.getMappings().get("test").get("doc"));
-
-        client().prepareIndex().setIndex("test").setType("doc").setId("1").setSource(jsonBuilder().startObject().field("a", "string").field("z", 0).endObject()).get();
-        client().admin().indices().prepareRefresh("test").get();
-        assertThat(client().prepareSearch("test").get().getHits().getTotalHits(), equalTo(1l));
-
-        // both fields should be in local mapper
-        DocumentMapper mapper = indexService.mapperService().documentMapper("doc");
-        assertNotNull(mapper.mappers().name("a"));
-        assertNotNull(mapper.mappers().name("z"));
-
-        // we have to wait here because the cluster state might not be immediately updated
-        assertTrue(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(java.lang.Object input) {
-                GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
-                return getMappingsResponse.getMappings().get("test").get("doc") != null;
-            }
-        }));
-        assertTrue(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(java.lang.Object input) {
-                // both fields should be in the cluster state
-                GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
-                assertNotNull(getMappingsResponse.getMappings().get("test").get("doc"));
-                Map<String, Object> mappings = null;
-                try {
-                    mappings = getMappingsResponse.getMappings().get("test").get("doc").getSourceAsMap();
-                } catch (IOException e) {
-                    fail("IOException when calling getSourceAsMap()" + e.getMessage());
-                }
-                return ((LinkedHashMap) mappings.get("properties")).get("a") != null && ((LinkedHashMap) mappings.get("properties")).get("z") != null;
-            }
-        }));
+        assertNull(getMappingsResponse.getMappings().get("test").get("type"));
     }
 
     private String serialize(ToXContent mapper) throws Exception {
@@ -345,8 +229,8 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
     public void testField() throws Exception {
         IndexService indexService = createIndex("test");
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").endObject().endObject()
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type").endObject()
                 .endObject().string();
 
         DocumentMapper mapper = parser.parse(mapping);
@@ -386,8 +270,8 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
     public void testIntroduceTwoFields() throws Exception {
         IndexService indexService = createIndex("test");
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").endObject().endObject()
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type").endObject()
                 .endObject().string();
 
         DocumentMapper mapper = parser.parse(mapping);
@@ -407,8 +291,8 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
     public void testObject() throws Exception {
         IndexService indexService = createIndex("test");
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").endObject().endObject()
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type").endObject()
                 .endObject().string();
 
         DocumentMapper mapper = parser.parse(mapping);
@@ -427,8 +311,8 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
     public void testArray() throws Exception {
         IndexService indexService = createIndex("test");
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").endObject().endObject()
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type").endObject()
                 .endObject().string();
 
         DocumentMapper mapper = parser.parse(mapping);
@@ -467,8 +351,8 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
     public void testComplexArray() throws Exception {
         IndexService indexService = createIndex("test");
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").endObject().endObject()
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type").endObject()
                 .endObject().string();
 
         DocumentMapper mapper = parser.parse(mapping);

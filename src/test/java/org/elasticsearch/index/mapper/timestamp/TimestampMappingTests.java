@@ -31,7 +31,6 @@ import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -41,15 +40,18 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
-import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.Version.V_1_5_0;
+import static org.elasticsearch.Version.V_2_0_0;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
@@ -91,7 +93,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testDefaultValues() throws Exception {
-        for (Version version : Arrays.asList(Version.V_1_5_0, Version.V_2_0_0, ElasticsearchTestCase.randomVersion())) {
+        for (Version version : Arrays.asList(V_1_5_0, V_2_0_0, randomVersion(random()))) {
             for (String mapping : Arrays.asList(
                     XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string(),
                     XContentFactory.jsonBuilder().startObject().startObject("type").startObject("_timestamp").endObject().endObject().string())) {
@@ -139,7 +141,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
         DocumentMapper disabledMapper = parser.parse(disabledMapping);
 
-        enabledMapper.merge(disabledMapper, DocumentMapper.MergeFlags.mergeFlags().simulate(false));
+        enabledMapper.merge(disabledMapper.mapping(), DocumentMapper.MergeFlags.mergeFlags().simulate(false));
 
         assertThat(enabledMapper.timestampFieldMapper().enabled(), is(false));
     }
@@ -437,7 +439,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         {
             MappingMetaData.Timestamp timestamp = new MappingMetaData.Timestamp(true, null,
                     TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT, null, null);
-            MappingMetaData expected = new MappingMetaData("type", new CompressedString("{}".getBytes(UTF8)),
+            MappingMetaData expected = new MappingMetaData("type", new CompressedString("{}".getBytes(StandardCharsets.UTF_8)),
                     new MappingMetaData.Id(null), new MappingMetaData.Routing(false, null), timestamp, false);
 
             BytesStreamOutput out = new BytesStreamOutput();
@@ -454,7 +456,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         {
             MappingMetaData.Timestamp timestamp = new MappingMetaData.Timestamp(true, null,
                     TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT, "now", null);
-            MappingMetaData expected = new MappingMetaData("type", new CompressedString("{}".getBytes(UTF8)),
+            MappingMetaData expected = new MappingMetaData("type", new CompressedString("{}".getBytes(StandardCharsets.UTF_8)),
                     new MappingMetaData.Id(null), new MappingMetaData.Routing(false, null), timestamp, false);
 
             BytesStreamOutput out = new BytesStreamOutput();
@@ -471,7 +473,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         {
             MappingMetaData.Timestamp timestamp = new MappingMetaData.Timestamp(true, null,
                     TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT, "now", false);
-            MappingMetaData expected = new MappingMetaData("type", new CompressedString("{}".getBytes(UTF8)),
+            MappingMetaData expected = new MappingMetaData("type", new CompressedString("{}".getBytes(StandardCharsets.UTF_8)),
                     new MappingMetaData.Id(null), new MappingMetaData.Routing(false, null), timestamp, false);
 
             BytesStreamOutput out = new BytesStreamOutput();
@@ -500,7 +502,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "eager").field("format", "array").endObject().field("store", "yes").endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping), DocumentMapper.MergeFlags.mergeFlags().simulate(false));
+        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping).mapping(), DocumentMapper.MergeFlags.mergeFlags().simulate(false));
         assertThat(mergeResult.conflicts().length, equalTo(0));
         assertThat(docMapper.timestampFieldMapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.EAGER));
         assertThat(docMapper.timestampFieldMapper().fieldDataType().getFormat(indexSettings), equalTo("array"));
@@ -515,8 +517,6 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .field("path", "foo")
                 .field("default", "1970-01-01")
                 .startObject("fielddata").field("format", "doc_values").endObject()
-                .endObject()
-                .startObject("properties")
                 .endObject()
                 .endObject().endObject().string();
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
@@ -576,7 +576,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
+        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping).mapping(), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
         String[] expectedConflicts = {"mapper [_timestamp] has different index values", "mapper [_timestamp] has different store values", "Cannot update default in _timestamp value. Value is 1970-01-01 now encountering 1970-01-02", "Cannot update path in _timestamp value. Value is foo path in merged mapping is bar", "mapper [_timestamp] has different tokenize values"};
 
         for (String conflict : mergeResult.conflicts()) {
@@ -610,7 +610,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
+        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping).mapping(), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
         List<String> expectedConflicts = new ArrayList<>();
         expectedConflicts.add("mapper [_timestamp] has different index values");
         expectedConflicts.add("mapper [_timestamp] has different tokenize values");
@@ -671,7 +671,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         DocumentMapper docMapper = parser.parse(mapping1);
         docMapper.refreshSource();
         docMapper = parser.parse(docMapper.mappingSource().string());
-        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping2), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
+        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping2).mapping(), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
         assertThat(mergeResult.conflicts().length, equalTo(conflict == null ? 0:1));
         if (conflict != null) {
             assertThat(mergeResult.conflicts()[0], containsString(conflict));

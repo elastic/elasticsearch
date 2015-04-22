@@ -80,7 +80,7 @@ public class TransportDfsOnlyAction extends TransportBroadcastOperationAction<Df
     }
 
     @Override
-    protected DfsOnlyRequest newRequest() {
+    protected DfsOnlyRequest newRequestInstance() {
         return new DfsOnlyRequest();
     }
 

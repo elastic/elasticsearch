@@ -44,13 +44,4 @@ public interface IndexStore extends Closeable {
      */
     Class<? extends DirectoryService> shardDirectory();
 
-    /**
-     * Return an array of all index folder locations for a given shard
-     */
-    Path[] shardIndexLocations(ShardId shardId);
-
-    /**
-     * Return an array of all translog folder locations for a given shard
-     */
-    Path[] shardTranslogLocations(ShardId shardId);
 }

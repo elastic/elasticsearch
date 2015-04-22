@@ -20,6 +20,7 @@
 package org.elasticsearch.codecs;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.VersionUtils;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -36,6 +38,7 @@ import static org.hamcrest.Matchers.containsString;
 
 /**
  */
+@Slow
 public class CodecTests extends ElasticsearchSingleNodeTest {
 
     public void testAcceptPostingsFormat() throws IOException {
@@ -43,7 +46,7 @@ public class CodecTests extends ElasticsearchSingleNodeTest {
                 .startObject("properties").startObject("field").field("type", "string").field("postings_format", Codec.getDefault().postingsFormat().getName()).endObject().endObject()
                 .endObject().endObject().string();
         int i = 0;
-        for (Version v : allVersions()) {
+        for (Version v : VersionUtils.allVersions()) {
             IndexService indexService = createIndex("test-" + i++, ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v).build());
             DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
             try {
@@ -66,7 +69,7 @@ public class CodecTests extends ElasticsearchSingleNodeTest {
                 .startObject("properties").startObject("field").field("type", "string").field("doc_values_format", Codec.getDefault().docValuesFormat().getName()).endObject().endObject()
                 .endObject().endObject().string();
         int i = 0;
-        for (Version v : allVersions()) {
+        for (Version v : VersionUtils.allVersions()) {
             IndexService indexService = createIndex("test-" + i++, ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v).build());
             DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
             try {

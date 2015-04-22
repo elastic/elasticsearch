@@ -20,7 +20,7 @@
 package org.elasticsearch.index.cache.filter.none;
 
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterCachingPolicy;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.HashedBytesRef;
@@ -58,7 +58,7 @@ public class NoneFilterCache extends AbstractIndexComponent implements FilterCac
     }
 
     @Override
-    public Filter cache(Filter filterToCache, @Nullable HashedBytesRef cacheKey, FilterCachingPolicy policy) {
+    public Filter cache(Filter filterToCache, @Nullable HashedBytesRef cacheKey, QueryCachingPolicy policy) {
         return filterToCache;
     }
 

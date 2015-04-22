@@ -18,28 +18,35 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
+import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import com.carrotsearch.randomizedtesting.annotations.*;
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableList;
 
-import org.apache.lucene.store.MockDirectoryWrapper;
-import org.apache.lucene.util.AbstractRandomizedTest;
-import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.TimeUnits;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.uninverting.UninvertingReader;
+import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.DjbHashFunction;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
@@ -47,23 +54,26 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
+import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.test.search.MockSearchService;
-import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.*;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
 import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
-import java.net.URI;
+import java.nio.file.FileSystem;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Formatter;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -75,44 +85,296 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 /**
  * Base testcase for randomized unit testing with Elasticsearch
  */
+@Listeners({
+    ReproduceInfoPrinter.class,
+    LoggingListener.class
+})
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
-@TimeoutSuite(millis = 20 * TimeUnits.MINUTE) // timeout the suite after 20min and fail the test.
-@Listeners(LoggingListener.class)
-@LuceneTestCase.SuppressFileSystems("*") // we aren't ready for this yet.
-public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
-
-    private static Thread.UncaughtExceptionHandler defaultHandler;
-
+@TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
+@LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
+// we suppress pretty much all the lucene codecs for now, except asserting
+// assertingcodec is the winner for a codec here: it finds bugs and gives clear exceptions.
+@SuppressCodecs({
+    "SimpleText", "Memory", "CheapBastard", "Direct", "Compressing", "FST50", "FSTOrd50", 
+    "TestBloomFilteredLucenePostings", "MockRandom", "BlockTreeOrds", "LuceneFixedGap", 
+    "LuceneVarGapFixedInterval", "LuceneVarGapDocFreqInterval", "Lucene50"
+})
+@LuceneTestCase.SuppressReproduceLine
+public abstract class ElasticsearchTestCase extends LuceneTestCase {
+    
+    static {
+        SecurityHack.ensureInitialized();
+    }
+    
     protected final ESLogger logger = Loggers.getLogger(getClass());
 
-    public static final String TESTS_SECURITY_MANAGER = System.getProperty("tests.security.manager");
+    // -----------------------------------------------------------------
+    // Suite and test case setup/cleanup.
+    // -----------------------------------------------------------------
 
-    public static final String JAVA_SECURTY_POLICY = System.getProperty("java.security.policy");
-
-    /**
-     * Property that allows to adapt the tests behaviour to older features/bugs based on the input version
-     */
-    private static final String TESTS_COMPATIBILITY = "tests.compatibility";
-
-    private static final Version GLOABL_COMPATIBILITY_VERSION = Version.fromString(compatibilityVersionProperty());
-
-    public static final boolean ASSERTIONS_ENABLED;
-    static {
-        boolean enabled = false;
-        assert enabled = true;
-        ASSERTIONS_ENABLED = enabled;
-        if (Boolean.parseBoolean(Strings.hasLength(TESTS_SECURITY_MANAGER) ? TESTS_SECURITY_MANAGER : "true") && JAVA_SECURTY_POLICY != null) {
-            System.setSecurityManager(new SecurityManager());
-        }
-
+    // TODO: Parent/child and other things does not work with the query cache
+    // We must disable query cache for both suite and test to override lucene, but LTC resets it after the suite
+    
+    @BeforeClass
+    public static void disableQueryCacheSuite() {
+        IndexSearcher.setDefaultQueryCache(null);
+    }
+    
+    @Before
+    public final void disableQueryCache() {
+        IndexSearcher.setDefaultQueryCache(null);
+    }
+    
+    // setup mock filesystems for this test run. we change PathUtils
+    // so that all accesses are plumbed thru any mock wrappers
+    
+    @BeforeClass
+    public static void setFileSystem() throws Exception {
+        Field field = PathUtils.class.getDeclaredField("DEFAULT");
+        field.setAccessible(true);
+        FileSystem mock = LuceneTestCase.getBaseTempDirForTestClass().getFileSystem();
+        field.set(null, mock);
+        assertEquals(mock, PathUtils.getDefaultFileSystem());
+    }
+    
+    @AfterClass
+    public static void restoreFileSystem() throws Exception {
+        Field field1 = PathUtils.class.getDeclaredField("ACTUAL_DEFAULT");
+        field1.setAccessible(true);
+        Field field2 = PathUtils.class.getDeclaredField("DEFAULT");
+        field2.setAccessible(true);
+        field2.set(null, field1.get(null));
     }
 
+    // setup a default exception handler which knows when and how to print a stacktrace
+    private static Thread.UncaughtExceptionHandler defaultHandler;
+    
+    @BeforeClass
+    public static void setDefaultExceptionHandler() throws Exception {
+        defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler(defaultHandler));
+    }
+    
+    @AfterClass
+    public static void restoreDefaultExceptionHandler() throws Exception {
+        Thread.setDefaultUncaughtExceptionHandler(defaultHandler);
+    }
+
+    // randomize content type for request builders
+    
+    @BeforeClass
+    public static void setContentType() throws Exception {
+        Requests.CONTENT_TYPE = randomFrom(XContentType.values());
+        Requests.INDEX_CONTENT_TYPE = randomFrom(XContentType.values());
+    }
+    
+    @AfterClass
+    public static void restoreContentType() {
+        Requests.CONTENT_TYPE = XContentType.SMILE;
+        Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
+    }
+    
+    // randomize and override the number of cpus so tests reproduce regardless of real number of cpus
+    
+    @BeforeClass
+    public static void setProcessors() {
+        int numCpu = TestUtil.nextInt(random(), 1, 4);
+        System.setProperty(EsExecutors.DEFAULT_SYSPROP, Integer.toString(numCpu));
+        assertEquals(numCpu, EsExecutors.boundedNumberOfProcessors(ImmutableSettings.EMPTY));
+    }
+    
+    @AfterClass
+    public static void restoreProcessors() {
+        System.clearProperty(EsExecutors.DEFAULT_SYSPROP);
+    }
+
+    // check some things (like MockDirectoryWrappers) are closed where we currently
+    // manage them. TODO: can we add these to LuceneTestCase.closeAfterSuite directly?
+    // or something else simpler instead of the fake closeables?
+    
+    @BeforeClass
+    public static void setAfterSuiteAssertions() throws Exception {
+        closeAfterSuite(new Closeable() {
+            @Override
+            public void close() throws IOException {
+                assertAllFilesClosed();
+            }
+        });
+        closeAfterSuite(new Closeable() {
+            @Override
+            public void close() throws IOException {
+                assertAllSearchersClosed();
+            }
+        });
+    }
+    
     @After
-    public void ensureNoFieldCacheUse() {
+    public final void ensureCleanedUp() throws Exception {
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
+        MockBigArrays.ensureAllArraysAreReleased();
         // field cache should NEVER get loaded.
         String[] entries = UninvertingReader.getUninvertedStats();
         assertEquals("fieldcache must never be used, got=" + Arrays.toString(entries), 0, entries.length);
+    }
+
+    // this must be a separate method from other ensure checks above so suite scoped integ tests can call...TODO: fix that
+    @After
+    public final void ensureAllSearchContextsReleased() throws Exception {
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                MockSearchService.assertNoInFLightContext();
+            }
+        });
+    }
+    
+    // mockdirectorywrappers currently set this boolean if checkindex fails
+    // TODO: can we do this cleaner???
+    
+    /** MockFSDirectoryService sets this: */
+    public static boolean checkIndexFailed;
+    
+    @Before
+    public final void resetCheckIndexStatus() throws Exception {
+        checkIndexFailed = false;
+    }
+    
+    @After
+    public final void ensureCheckIndexPassed() throws Exception {
+        assertFalse("at least one shard failed CheckIndex", checkIndexFailed);
+    }
+
+    // -----------------------------------------------------------------
+    // Test facilities and facades for subclasses. 
+    // -----------------------------------------------------------------
+    
+    // TODO: replaces uses of getRandom() with random()
+    // TODO: decide on one set of naming for between/scaledBetween and remove others
+    // TODO: replace frequently() with usually()
+
+    /** Shortcut for {@link RandomizedContext#getRandom()}. Use {@link #random()} instead. */
+    public static Random getRandom() {
+        // TODO: replace uses of this function with random()
+        return random();
+    }
+    
+    /**
+     * Returns a "scaled" random number between min and max (inclusive).
+     * @see RandomizedTest#scaledRandomIntBetween(int, int);
+     */
+    public static int scaledRandomIntBetween(int min, int max) {
+        return RandomizedTest.scaledRandomIntBetween(min, max);
+    }
+    
+    /** 
+     * A random integer from <code>min</code> to <code>max</code> (inclusive).
+     * @see #scaledRandomIntBetween(int, int)
+     */
+    public static int randomIntBetween(int min, int max) {
+      return RandomInts.randomIntBetween(random(), min, max);
+    }
+    
+    /**
+     * Returns a "scaled" number of iterations for loops which can have a variable
+     * iteration count. This method is effectively 
+     * an alias to {@link #scaledRandomIntBetween(int, int)}.
+     */
+    public static int iterations(int min, int max) {
+        return scaledRandomIntBetween(min, max);
+    }
+    
+    /** 
+     * An alias for {@link #randomIntBetween(int, int)}. 
+     * 
+     * @see #scaledRandomIntBetween(int, int)
+     */
+    public static int between(int min, int max) {
+      return randomIntBetween(min, max);
+    }
+    
+    /**
+     * The exact opposite of {@link #rarely()}.
+     */
+    public static boolean frequently() {
+      return !rarely();
+    }
+    
+    public static boolean randomBoolean() {
+        return random().nextBoolean();
+    }
+    
+    public static byte    randomByte()     { return (byte) random().nextInt(); }
+    public static short   randomShort()    { return (short) random().nextInt(); }
+    public static int     randomInt()      { return random().nextInt(); }
+    public static float   randomFloat()    { return random().nextFloat(); }
+    public static double  randomDouble()   { return random().nextDouble(); }
+    public static long    randomLong()     { return random().nextLong(); }
+
+    /** A random integer from 0..max (inclusive). */
+    public static int randomInt(int max) {
+        return RandomizedTest.randomInt(max);
+    }
+    
+    /** Pick a random object from the given array. The array must not be empty. */
+    public static <T> T randomFrom(T... array) {
+      return RandomPicks.randomFrom(random(), array);
+    }
+
+    /** Pick a random object from the given list. */
+    public static <T> T randomFrom(List<T> list) {
+      return RandomPicks.randomFrom(random(), list);
+    }
+    
+    public static String randomAsciiOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
+      return RandomizedTest.randomAsciiOfLengthBetween(minCodeUnits, maxCodeUnits);
+    }
+    
+    public static String randomAsciiOfLength(int codeUnits) {
+      return RandomizedTest.randomAsciiOfLength(codeUnits);
+    }
+    
+    public static String randomUnicodeOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
+      return RandomizedTest.randomUnicodeOfLengthBetween(minCodeUnits, maxCodeUnits);
+    }
+    
+    public static String randomUnicodeOfLength(int codeUnits) {
+      return RandomizedTest.randomUnicodeOfLength(codeUnits);
+    }
+
+    public static String randomUnicodeOfCodepointLengthBetween(int minCodePoints, int maxCodePoints) {
+      return RandomizedTest.randomUnicodeOfCodepointLengthBetween(minCodePoints, maxCodePoints);
+    }
+    
+    public static String randomUnicodeOfCodepointLength(int codePoints) {
+      return RandomizedTest.randomUnicodeOfCodepointLength(codePoints);
+    }
+
+    public static String randomRealisticUnicodeOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
+      return RandomizedTest.randomRealisticUnicodeOfLengthBetween(minCodeUnits, maxCodeUnits);
+    }
+    
+    public static String randomRealisticUnicodeOfLength(int codeUnits) {
+      return RandomizedTest.randomRealisticUnicodeOfLength(codeUnits);
+    }
+
+    public static String randomRealisticUnicodeOfCodepointLengthBetween(int minCodePoints, int maxCodePoints) {
+      return RandomizedTest.randomRealisticUnicodeOfCodepointLengthBetween(minCodePoints, maxCodePoints);
+    }
+    
+    public static String randomRealisticUnicodeOfCodepointLength(int codePoints) {
+      return RandomizedTest.randomRealisticUnicodeOfCodepointLength(codePoints);
+    }
+    
+    public static String[] generateRandomStringArray(int maxArraySize, int maxStringSize, boolean allowNull) {
+        if (allowNull && random().nextBoolean()) {
+            return null;
+        }
+        String[] array = new String[random().nextInt(maxArraySize)]; // allow empty arrays
+        for (int i = 0; i < array.length; i++) {
+            array[i] = RandomStrings.randomAsciiOfLength(random(), maxStringSize);
+        }
+        return array;
     }
 
     /**
@@ -163,8 +425,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
             throw e;
         }
     }
-
-
+    
     public static boolean awaitBusy(Predicate<?> breakPredicate) throws InterruptedException {
         return awaitBusy(breakPredicate, 10, TimeUnit.SECONDS);
     }
@@ -187,10 +448,18 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         return breakPredicate.apply(null);
     }
 
-    private static final String[] numericTypes = new String[]{"byte", "short", "integer", "long"};
+    public static boolean terminate(ExecutorService... services) throws InterruptedException {
+        boolean terminated = true;
+        for (ExecutorService service : services) {
+            if (service != null) {
+                terminated &= ThreadPool.terminate(service, 10, TimeUnit.SECONDS);
+            }
+        }
+        return terminated;
+    }
 
-    public static String randomNumericType(Random random) {
-        return numericTypes[random.nextInt(numericTypes.length)];
+    public static boolean terminate(ThreadPool service) throws InterruptedException {
+        return ThreadPool.terminate(service, 10, TimeUnit.SECONDS);
     }
 
     /**
@@ -200,191 +469,41 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
      * return URL encoded paths if the parent path contains spaces or other
      * non-standard characters.
      */
-    public Path getResourcePath(String relativePath) {
-        URI uri = URI.create(getClass().getResource(relativePath).toString());
-        return Paths.get(uri);
-    }
-
-    @After
-    public void ensureAllPagesReleased() throws Exception {
-        MockPageCacheRecycler.ensureAllPagesAreReleased();
-    }
-
-    @After
-    public void ensureAllArraysReleased() throws Exception {
-        MockBigArrays.ensureAllArraysAreReleased();
-    }
-
-    @After
-    public void ensureAllSearchContextsReleased() throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                MockSearchService.assertNoInFLightContext();
-            }
-        });
-    }
-
-    public static boolean hasUnclosedWrapper() {
-        for (MockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
-            if (w.isOpen()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    @BeforeClass
-    public static void setBeforeClass() throws Exception {
-        closeAfterSuite(new Closeable() {
-            @Override
-            public void close() throws IOException {
-                assertAllFilesClosed();
-            }
-        });
-        closeAfterSuite(new Closeable() {
-            @Override
-            public void close() throws IOException {
-                assertAllSearchersClosed();
-            }
-        });
-        defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
-        Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler(defaultHandler));
-        Requests.CONTENT_TYPE = randomXContentType();
-        Requests.INDEX_CONTENT_TYPE = randomXContentType();
-    }
-
-    public static XContentType randomXContentType() {
-        return randomFrom(XContentType.values());
-    }
-
-    @AfterClass
-    public static void resetAfterClass() {
-        Thread.setDefaultUncaughtExceptionHandler(defaultHandler);
-        Requests.CONTENT_TYPE = XContentType.SMILE;
-        Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
-    }
-
-    public static boolean maybeDocValues() {
-        return randomBoolean();
-    }
-
-    private static final List<Version> SORTED_VERSIONS;
-
-    static {
-        Field[] declaredFields = Version.class.getDeclaredFields();
-        Set<Integer> ids = new HashSet<>();
-        for (Field field : declaredFields) {
-            final int mod = field.getModifiers();
-            if (Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod)) {
-                if (field.getType() == Version.class) {
-                    try {
-                        Version object = (Version) field.get(null);
-                        ids.add(object.id);
-                    } catch (Throwable e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-            }
-        }
-        List<Integer> idList = new ArrayList<>(ids);
-        Collections.sort(idList);
-        Collections.reverse(idList);
-        ImmutableList.Builder<Version> version = ImmutableList.builder();
-        for (Integer integer : idList) {
-            version.add(Version.fromId(integer));
-        }
-        SORTED_VERSIONS = version.build();
-    }
-
-    /**
-     * @return the {@link Version} before the {@link Version#CURRENT}
-     */
-    public static Version getPreviousVersion() {
-        Version version = SORTED_VERSIONS.get(1);
-        assert version.before(Version.CURRENT);
-        return version;
-    }
-    
-    /**
-     * A random {@link Version}.
-     *
-     * @return a random {@link Version} from all available versions
-     */
-    public static Version randomVersion() {
-        return randomVersion(getRandom());
-    }
-    
-    /**
-     * A random {@link Version}.
-     * 
-     * @param random
-     *            the {@link Random} to use to generate the random version
-     *
-     * @return a random {@link Version} from all available versions
-     */
-    public static Version randomVersion(Random random) {
-        return SORTED_VERSIONS.get(random.nextInt(SORTED_VERSIONS.size()));
-    }
-    
-    /**
-     * Returns immutable list of all known versions.
-     */
-    public static List<Version> allVersions() {
-        return Collections.unmodifiableList(SORTED_VERSIONS);
-    }
-
-    /**
-     * A random {@link Version} from <code>minVersion</code> to
-     * <code>maxVersion</code> (inclusive).
-     * 
-     * @param minVersion
-     *            the minimum version (inclusive)
-     * @param maxVersion
-     *            the maximum version (inclusive)
-     * @return a random {@link Version} from <code>minVersion</code> to
-     *         <code>maxVersion</code> (inclusive)
-     */
-    public static Version randomVersionBetween(Version minVersion, Version maxVersion) {
-        return randomVersionBetween(getRandom(), minVersion, maxVersion);
-    }
-
-    /**
-     * A random {@link Version} from <code>minVersion</code> to
-     * <code>maxVersion</code> (inclusive).
-     * 
-     * @param random
-     *            the {@link Random} to use to generate the random version
-     * @param minVersion
-     *            the minimum version (inclusive)
-     * @param maxVersion
-     *            the maximum version (inclusive)
-     * @return a random {@link Version} from <code>minVersion</code> to
-     *         <code>maxVersion</code> (inclusive)
-     */
-    public static Version randomVersionBetween(Random random, Version minVersion, Version maxVersion) {
-        int minVersionIndex = SORTED_VERSIONS.size();
-        if (minVersion != null) {
-            minVersionIndex = SORTED_VERSIONS.indexOf(minVersion);
-        }
-        int maxVersionIndex = 0;
-        if (maxVersion != null) {
-            maxVersionIndex = SORTED_VERSIONS.indexOf(maxVersion);
-        }
-        if (minVersionIndex == -1) {
-            throw new IllegalArgumentException("minVersion [" + minVersion + "] does not exist.");
-        } else if (maxVersionIndex == -1) {
-            throw new IllegalArgumentException("maxVersion [" + maxVersion + "] does not exist.");
-        } else {
-            // minVersionIndex is inclusive so need to add 1 to this index
-            int range = minVersionIndex + 1 - maxVersionIndex;
-            return SORTED_VERSIONS.get(maxVersionIndex + random.nextInt(range));
+    @Override
+    public Path getDataPath(String relativePath) {
+        // we override LTC behavior here: wrap even resources with mockfilesystems, 
+        // because some code is buggy when it comes to multiple nio.2 filesystems
+        // (e.g. FileSystemUtils, and likely some tests)
+        try {
+            return PathUtils.get(getClass().getResource(relativePath).toURI());
+        } catch (Exception e) {
+            throw new RuntimeException("resource not found: " + relativePath, e);
         }
     }
 
-    /**
-     * Return consistent index settings for the provided index version.
-     */
+    /** Returns a random number of temporary paths. */
+    public String[] tmpPaths() {
+        final int numPaths = TestUtil.nextInt(random(), 1, 3);
+        final String[] absPaths = new String[numPaths];
+        for (int i = 0; i < numPaths; i++) {
+            absPaths[i] = createTempDir().toAbsolutePath().toString();
+        }
+        return absPaths;
+    }
+
+    public NodeEnvironment newNodeEnvironment() throws IOException {
+        return newNodeEnvironment(ImmutableSettings.EMPTY);
+    }
+
+    public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
+        Settings build = ImmutableSettings.builder()
+            .put(settings)
+            .put("path.home", createTempDir().toAbsolutePath())
+            .putArray("path.data", tmpPaths()).build();
+        return new NodeEnvironment(build, new Environment(build));
+    }
+
+    /** Return consistent index settings for the provided index version. */
     public static ImmutableSettings.Builder settings(Version version) {
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version);
         if (version.before(Version.V_2_0_0)) {
@@ -392,6 +511,10 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         }
         return builder;
     }
+
+    // -----------------------------------------------------------------
+    // Failure utilities
+    // -----------------------------------------------------------------
 
     static final class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
 
@@ -401,22 +524,20 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         private ElasticsearchUncaughtExceptionHandler(Thread.UncaughtExceptionHandler parent) {
             this.parent = parent;
         }
-
-
+        
         @Override
         public void uncaughtException(Thread t, Throwable e) {
             if (e instanceof EsRejectedExecutionException) {
-                if (e.getMessage().contains(EsAbortPolicy.SHUTTING_DOWN_KEY)) {
+                if (e.getMessage() != null && e.getMessage().contains(EsAbortPolicy.SHUTTING_DOWN_KEY)) {
                     return; // ignore the EsRejectedExecutionException when a node shuts down
                 }
             } else if (e instanceof OutOfMemoryError) {
-                if (e.getMessage().contains("unable to create new native thread")) {
+                if (e.getMessage() != null && e.getMessage().contains("unable to create new native thread")) {
                     printStackDump(logger);
                 }
             }
             parent.uncaughtException(t, e);
         }
-
     }
 
     protected static final void printStackDump(ESLogger logger) {
@@ -425,9 +546,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         logger.error(formatThreadStacks(allStackTraces));
     }
 
-    /**
-     * Dump threads and their current stack trace.
-     */
+    /** Dump threads and their current stack trace. */
     private static String formatThreadStacks(Map<Thread, StackTraceElement[]> threads) {
         StringBuilder message = new StringBuilder();
         int cnt = 1;
@@ -462,136 +581,4 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
             return threadGroup.getName();
         }
     }
-
-    public static <T> T randomFrom(T... values) {
-        return RandomizedTest.randomFrom(values);
-    }
-
-    public static String[] generateRandomStringArray(int maxArraySize, int maxStringSize, boolean allowNull) {
-        if (allowNull && randomBoolean()) {
-            return null;
-        }
-        String[] array = new String[randomInt(maxArraySize)]; // allow empty arrays
-        for (int i = 0; i < array.length; i++) {
-            array[i] = randomAsciiOfLength(maxStringSize);
-        }
-        return array;
-    }
-
-    public static String[] generateRandomStringArray(int maxArraySize, int maxStringSize) {
-        return generateRandomStringArray(maxArraySize, maxStringSize, false);
-    }
-
-
-    /**
-     * If a test is annotated with {@link org.elasticsearch.test.ElasticsearchTestCase.CompatibilityVersion}
-     * all randomized settings will only contain settings or mappings which are compatible with the specified version ID.
-     */
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target({ElementType.TYPE})
-    @Ignore
-    public @interface CompatibilityVersion {
-        int version();
-    }
-
-    /**
-     * Returns a global compatibility version that is set via the
-     * {@value #TESTS_COMPATIBILITY} or {@value #TESTS_BACKWARDS_COMPATIBILITY_VERSION} system property.
-     * If both are unset the current version is used as the global compatibility version. This
-     * compatibility version is used for static randomization. For per-suite compatibility version see
-     * {@link #compatibilityVersion()}
-     */
-    public static Version globalCompatibilityVersion() {
-        return GLOABL_COMPATIBILITY_VERSION;
-    }
-
-    /**
-     * Retruns the tests compatibility version.
-     */
-    public Version compatibilityVersion() {
-        return compatibilityVersion(getClass());
-    }
-
-    private Version compatibilityVersion(Class<?> clazz) {
-        if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
-            return globalCompatibilityVersion();
-        }
-        CompatibilityVersion annotation = clazz.getAnnotation(CompatibilityVersion.class);
-        if (annotation != null) {
-            return  Version.smallest(Version.fromId(annotation.version()), compatibilityVersion(clazz.getSuperclass()));
-        }
-        return compatibilityVersion(clazz.getSuperclass());
-    }
-
-    private static String compatibilityVersionProperty() {
-        final String version = System.getProperty(TESTS_COMPATIBILITY);
-        if (Strings.hasLength(version)) {
-            return version;
-        }
-        return System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_VERSION);
-    }
-
-
-    public static boolean terminate(ExecutorService... services) throws InterruptedException {
-        boolean terminated = true;
-        for (ExecutorService service : services) {
-            if (service != null) {
-                terminated &= ThreadPool.terminate(service, 10, TimeUnit.SECONDS);
-            }
-        }
-        return terminated;
-    }
-
-    public static boolean terminate(ThreadPool service) throws InterruptedException {
-        return ThreadPool.terminate(service, 10, TimeUnit.SECONDS);
-    }
-    
-    // TODO: these method names stink, but are a temporary solution.
-    // see https://github.com/carrotsearch/randomizedtesting/pull/178
-
-    /**
-     * Returns a temporary file
-     */
-    public Path newTempFilePath() {
-        return newTempFile().toPath();
-    }
-    
-    /**
-     * Returns a temporary directory
-     */
-    public Path newTempDirPath() {
-        return newTempDir().toPath();
-    }
-    
-    /**
-     * Returns a temporary directory
-     */
-    public static Path newTempDirPath(LifecycleScope scope) {
-        return newTempDir(scope).toPath();
-    }
-
-    /**
-     * Returns a random number of temporary paths.
-     */
-    public String[] tmpPaths() {
-        final int numPaths = randomIntBetween(1, 3);
-        final String[] absPaths = new String[numPaths];
-        for (int i = 0; i < numPaths; i++) {
-            absPaths[i] = newTempDirPath().toAbsolutePath().toString();
-        }
-        return absPaths;
-    }
-
-    public NodeEnvironment newNodeEnvironment() throws IOException {
-        return newNodeEnvironment(ImmutableSettings.EMPTY);
-    }
-
-    public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
-        Settings build = ImmutableSettings.builder()
-                .put(settings)
-                .put("path.home", newTempDirPath().toAbsolutePath())
-                .putArray("path.data", tmpPaths()).build();
-        return new NodeEnvironment(build, new Environment(build));
-    }
-
 }

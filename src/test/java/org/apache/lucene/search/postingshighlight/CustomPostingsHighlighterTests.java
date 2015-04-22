@@ -28,10 +28,9 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.search.highlight.HighlightUtils;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -40,8 +39,7 @@ import java.util.*;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
-@LuceneTestCase.SuppressCodecs({"MockFixedIntBlock", "MockVariableIntBlock", "MockSep", "MockRandom", "Lucene3x"})
-public class CustomPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
+public class CustomPostingsHighlighterTests extends ElasticsearchTestCase {
 
     @Test
     public void testDiscreteHighlightingPerValue() throws Exception {

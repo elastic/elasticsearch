@@ -20,6 +20,8 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 
@@ -68,25 +70,25 @@ public class Environment {
     public Environment(Settings settings) {
         this.settings = settings;
         if (settings.get("path.home") != null) {
-            homeFile = Paths.get(cleanPath(settings.get("path.home")));
+            homeFile = PathUtils.get(cleanPath(settings.get("path.home")));
         } else {
-            homeFile = Paths.get(System.getProperty("user.dir"));
+            homeFile = PathUtils.get(System.getProperty("user.dir"));
         }
 
         if (settings.get("path.conf") != null) {
-            configFile = Paths.get(cleanPath(settings.get("path.conf")));
+            configFile = PathUtils.get(cleanPath(settings.get("path.conf")));
         } else {
             configFile = homeFile.resolve("config");
         }
 
         if (settings.get("path.plugins") != null) {
-            pluginsFile = Paths.get(cleanPath(settings.get("path.plugins")));
+            pluginsFile = PathUtils.get(cleanPath(settings.get("path.plugins")));
         } else {
             pluginsFile = homeFile.resolve("plugins");
         }
 
         if (settings.get("path.work") != null) {
-            workFile = Paths.get(cleanPath(settings.get("path.work")));
+            workFile = PathUtils.get(cleanPath(settings.get("path.work")));
         } else {
             workFile = homeFile.resolve("work");
         }
@@ -97,7 +99,7 @@ public class Environment {
             dataFiles = new Path[dataPaths.length];
             dataWithClusterFiles = new Path[dataPaths.length];
             for (int i = 0; i < dataPaths.length; i++) {
-                dataFiles[i] = Paths.get(dataPaths[i]);
+                dataFiles[i] = PathUtils.get(dataPaths[i]);
                 dataWithClusterFiles[i] = dataFiles[i].resolve(ClusterName.clusterNameFromSettings(settings).value());
             }
         } else {
@@ -106,7 +108,7 @@ public class Environment {
         }
 
         if (settings.get("path.logs") != null) {
-            logsFile = Paths.get(cleanPath(settings.get("path.logs")));
+            logsFile = PathUtils.get(cleanPath(settings.get("path.logs")));
         } else {
             logsFile = homeFile.resolve("logs");
         }
@@ -178,7 +180,7 @@ public class Environment {
     public URL resolveConfig(String path) throws FailedToResolveConfigException {
         String origPath = path;
         // first, try it as a path on the file system
-        Path f1 = Paths.get(path);
+        Path f1 = PathUtils.get(path);
         if (Files.exists(f1)) {
             try {
                 return f1.toUri().toURL();

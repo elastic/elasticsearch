@@ -45,6 +45,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.reducers.ReducerBuilders.derivative;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
@@ -421,6 +422,40 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
             } else {
                 assertThat(docCountDeriv.value(), equalTo(firstDerivValueCounts_empty[i]));
             }
+        }
+    }
+
+    @Test
+    public void singleValueAggDerivativeWithGaps() throws Exception {
+        SearchResponse searchResponse = client()
+                .prepareSearch("empty_bucket_idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1).minDocCount(0)
+                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+                                .subAggregation(derivative("deriv").setBucketsPaths("sum"))).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocsEmptyIdx));
+
+        InternalHistogram<Bucket> deriv = searchResponse.getAggregations().get("histo");
+        assertThat(deriv, Matchers.notNullValue());
+        assertThat(deriv.getName(), equalTo("histo"));
+        List<Bucket> buckets = deriv.getBuckets();
+        assertThat(buckets.size(), equalTo(valueCounts_empty.length));
+
+        double lastSumValue = Double.NaN;
+        for (int i = 0; i < valueCounts_empty.length; i++) {
+            Histogram.Bucket bucket = buckets.get(i);
+            checkBucketKeyAndDocCount("Bucket " + i, bucket, i, valueCounts_empty[i]);
+            Sum sum = bucket.getAggregations().get("sum");
+            double thisSumValue = sum.value();
+            SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
+            if (i == 0) {
+                assertThat(docCountDeriv, nullValue());
+            } else {
+                assertThat(docCountDeriv.value(), closeTo(thisSumValue - lastSumValue, 0.00001));
+            }
+            lastSumValue = thisSumValue;
         }
     }
 

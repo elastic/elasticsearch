@@ -373,7 +373,8 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
                 .addAggregation(
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1).minDocCount(0)
                                 .extendedBounds(0l, (long) numBuckets_empty_rnd - 1)
-                                .subAggregation(derivative("deriv").setBucketsPaths("_count"))).execute().actionGet();
+                                .subAggregation(derivative("deriv").setBucketsPaths("_count").gapPolicy(randomFrom(GapPolicy.values()))))
+                .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocsEmptyIdx_rnd));
 
@@ -449,11 +450,102 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
             checkBucketKeyAndDocCount("Bucket " + i, bucket, i, valueCounts_empty[i]);
             Sum sum = bucket.getAggregations().get("sum");
             double thisSumValue = sum.value();
-            SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
+            if (bucket.getDocCount() == 0) {
+                thisSumValue = Double.NaN;
+            }
+            SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
             if (i == 0) {
-                assertThat(docCountDeriv, nullValue());
+                assertThat(sumDeriv, nullValue());
             } else {
-                assertThat(docCountDeriv.value(), closeTo(thisSumValue - lastSumValue, 0.00001));
+                double expectedDerivative = thisSumValue - lastSumValue;
+                if (Double.isNaN(expectedDerivative)) {
+                    assertThat(sumDeriv.value(), equalTo(expectedDerivative));
+                } else {
+                    assertThat(sumDeriv.value(), closeTo(expectedDerivative, 0.00001));
+                }
+            }
+            lastSumValue = thisSumValue;
+        }
+    }
+
+    @Test
+    public void singleValueAggDerivativeWithGaps_insertZeros() throws Exception {
+        SearchResponse searchResponse = client()
+                .prepareSearch("empty_bucket_idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1).minDocCount(0)
+                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+                                .subAggregation(derivative("deriv").setBucketsPaths("sum").gapPolicy(GapPolicy.INSERT_ZEROS))).execute()
+                .actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocsEmptyIdx));
+
+        InternalHistogram<Bucket> deriv = searchResponse.getAggregations().get("histo");
+        assertThat(deriv, Matchers.notNullValue());
+        assertThat(deriv.getName(), equalTo("histo"));
+        List<Bucket> buckets = deriv.getBuckets();
+        assertThat(buckets.size(), equalTo(valueCounts_empty.length));
+
+        double lastSumValue = Double.NaN;
+        for (int i = 0; i < valueCounts_empty.length; i++) {
+            Histogram.Bucket bucket = buckets.get(i);
+            checkBucketKeyAndDocCount("Bucket " + i, bucket, i, valueCounts_empty[i]);
+            Sum sum = bucket.getAggregations().get("sum");
+            double thisSumValue = sum.value();
+            if (bucket.getDocCount() == 0) {
+                thisSumValue = 0;
+            }
+            SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
+            if (i == 0) {
+                assertThat(sumDeriv, nullValue());
+            } else {
+                double expectedDerivative = thisSumValue - lastSumValue;
+                assertThat(sumDeriv.value(), closeTo(expectedDerivative, 0.00001));
+            }
+            lastSumValue = thisSumValue;
+        }
+    }
+
+    @Test
+    public void singleValueAggDerivativeWithGaps_random() throws Exception {
+        GapPolicy gapPolicy = randomFrom(GapPolicy.values());
+        SearchResponse searchResponse = client()
+                .prepareSearch("empty_bucket_idx_rnd")
+                .setQuery(matchAllQuery())
+                .addAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1).minDocCount(0)
+                                .extendedBounds(0l, (long) numBuckets_empty_rnd - 1)
+                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+                                .subAggregation(derivative("deriv").setBucketsPaths("sum").gapPolicy(gapPolicy))).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocsEmptyIdx_rnd));
+
+        InternalHistogram<Bucket> deriv = searchResponse.getAggregations().get("histo");
+        assertThat(deriv, Matchers.notNullValue());
+        assertThat(deriv.getName(), equalTo("histo"));
+        List<Bucket> buckets = deriv.getBuckets();
+        assertThat(buckets.size(), equalTo(numBuckets_empty_rnd));
+
+        double lastSumValue = Double.NaN;
+        for (int i = 0; i < valueCounts_empty_rnd.length; i++) {
+            Histogram.Bucket bucket = buckets.get(i);
+            checkBucketKeyAndDocCount("Bucket " + i, bucket, i, valueCounts_empty_rnd[i]);
+            Sum sum = bucket.getAggregations().get("sum");
+            double thisSumValue = sum.value();
+            if (bucket.getDocCount() == 0) {
+                thisSumValue = gapPolicy == GapPolicy.INSERT_ZEROS ? 0 : Double.NaN;
+            }
+            SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
+            if (i == 0) {
+                assertThat(sumDeriv, nullValue());
+            } else {
+                double expectedDerivative = thisSumValue - lastSumValue;
+                if (Double.isNaN(expectedDerivative)) {
+                    assertThat(sumDeriv.value(), equalTo(expectedDerivative));
+                } else {
+                    assertThat(sumDeriv.value(), closeTo(expectedDerivative, 0.00001));
+                }
             }
             lastSumValue = thisSumValue;
         }

@@ -166,13 +166,15 @@ public class BucketHelpers {
                     throw new AggregationExecutionException(DerivativeParser.BUCKETS_PATH.getPreferredName()
                             + " must reference either a number value or a single value numeric metric aggregation");
                 }
-                if (Double.isInfinite(value) || Double.isNaN(value)) {
+                // doc count never has missing values so gap policy doesn't apply here
+                boolean isDocCountProperty = aggPathAsList.size() == 1 && "_count".equals(aggPathAsList.get(0));
+                if (Double.isInfinite(value) || Double.isNaN(value) || (bucket.getDocCount() == 0 && !isDocCountProperty)) {
                     switch (gapPolicy) {
-                        case INSERT_ZEROS:
-                            return 0.0;
-                        case IGNORE:
-                        default:
-                            return Double.NaN;
+                    case INSERT_ZEROS:
+                        return 0.0;
+                    case IGNORE:
+                    default:
+                        return Double.NaN;
                     }
                 } else {
                     return value;

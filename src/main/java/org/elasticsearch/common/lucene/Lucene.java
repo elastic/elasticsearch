@@ -39,7 +39,6 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Filter;
@@ -530,48 +529,29 @@ public class Lucene {
     }
 
     public static Explanation readExplanation(StreamInput in) throws IOException {
-        Explanation explanation;
-        if (in.readBoolean()) {
-            Boolean match = in.readOptionalBoolean();
-            explanation = new ComplexExplanation();
-            ((ComplexExplanation) explanation).setMatch(match);
-
+        boolean match = in.readBoolean();
+        String description = in.readString();
+        final Explanation[] subExplanations = new Explanation[in.readVInt()];
+        for (int i = 0; i < subExplanations.length; ++i) {
+            subExplanations[i] = readExplanation(in);
+        }
+        if (match) {
+            return Explanation.match(in.readFloat(), description, subExplanations);
         } else {
-            explanation = new Explanation();
+            return Explanation.noMatch(description, subExplanations);
         }
-        explanation.setValue(in.readFloat());
-        explanation.setDescription(in.readString());
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            for (int i = 0; i < size; i++) {
-                explanation.addDetail(readExplanation(in));
-            }
-        }
-        return explanation;
     }
 
     public static void writeExplanation(StreamOutput out, Explanation explanation) throws IOException {
-
-        if (explanation instanceof ComplexExplanation) {
-            out.writeBoolean(true);
-            out.writeOptionalBoolean(((ComplexExplanation) explanation).getMatch());
-        } else {
-            out.writeBoolean(false);
-        }
-        out.writeFloat(explanation.getValue());
-        if (explanation.getDescription() == null) {
-            throw new ElasticsearchIllegalArgumentException("Explanation descriptions should NOT be null\n[" + explanation.toString() + "]");
-        }
+        out.writeBoolean(explanation.isMatch());
         out.writeString(explanation.getDescription());
         Explanation[] subExplanations = explanation.getDetails();
-        if (subExplanations == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeVInt(subExplanations.length);
-            for (Explanation subExp : subExplanations) {
-                writeExplanation(out, subExp);
-            }
+        out.writeVInt(subExplanations.length);
+        for (Explanation subExp : subExplanations) {
+            writeExplanation(out, subExp);
+        }
+        if (explanation.isMatch()) {
+            out.writeFloat(explanation.getValue());
         }
     }
 

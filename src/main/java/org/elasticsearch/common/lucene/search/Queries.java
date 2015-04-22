@@ -19,17 +19,20 @@
 
 package org.elasticsearch.common.lucene.search;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 
@@ -56,6 +59,14 @@ public class Queries {
 
     public static Filter newMatchNoDocsFilter() {
         return wrap(newMatchNoDocsQuery());
+    }
+
+    public static Filter newNestedFilter() {
+        return wrap(new PrefixQuery(new Term(TypeFieldMapper.NAME, new BytesRef("__"))));
+    }
+
+    public static Filter newNonNestedFilter() {
+        return wrap(not(newNestedFilter()));
     }
 
     /** Return a query that matches all documents but those that match the given query. */

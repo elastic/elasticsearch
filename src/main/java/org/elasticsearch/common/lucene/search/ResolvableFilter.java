@@ -37,8 +37,6 @@ public abstract class ResolvableFilter extends Filter {
      */
     public abstract Filter resolve();
 
-
-
     @Override
     public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
         Filter resolvedFilter = resolve();

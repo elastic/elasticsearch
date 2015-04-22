@@ -70,14 +70,12 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperUtils;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.percolator.QueryCollector.Count;
@@ -455,7 +453,7 @@ public class PercolatorService extends AbstractComponent {
             for (Map.Entry<BytesRef, Query> entry : context.percolateQueries().entrySet()) {
                 try {
                     if (isNested) {
-                        Lucene.exists(context.docSearcher(), entry.getValue(), NonNestedDocsFilter.INSTANCE, collector);
+                        Lucene.exists(context.docSearcher(), entry.getValue(), Queries.newNonNestedFilter(), collector);
                     } else {
                         Lucene.exists(context.docSearcher(), entry.getValue(), collector);
                     }
@@ -555,7 +553,7 @@ public class PercolatorService extends AbstractComponent {
                 }
                 try {
                     if (isNested) {
-                        Lucene.exists(context.docSearcher(), entry.getValue(), NonNestedDocsFilter.INSTANCE, collector);
+                        Lucene.exists(context.docSearcher(), entry.getValue(), Queries.newNonNestedFilter(), collector);
                     } else {
                         Lucene.exists(context.docSearcher(), entry.getValue(), collector);
                     }

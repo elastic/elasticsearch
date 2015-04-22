@@ -44,6 +44,7 @@
         <tests.heap.size>512m</tests.heap.size>
         <tests.heapdump.path>${basedir}/logs/</tests.heapdump.path>
         <tests.topn>5</tests.topn>
+        <jvm.executable>${java.home}${file.separator}bin${file.separator}java</jvm.executable>
         <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
 
         <!-- Properties used for building RPM & DEB packages (see common/packaging.properties) -->
@@ -429,7 +430,7 @@
               </execution>
             </executions>
             <configuration>
-              <executable>java</executable>
+              <executable>${jvm.executable></executable>
               <arguments>
                 <argument>-classpath</argument>
                 <classpath/>
@@ -502,6 +503,7 @@
                         </goals>
                         <configuration>
                             <heartbeat>20</heartbeat>
+                            <jvm>${jvm.executable}</jvm>
                             <jvmOutputAction>pipe,warn</jvmOutputAction>
                             <leaveTemporary>true</leaveTemporary>
                             <listeners>

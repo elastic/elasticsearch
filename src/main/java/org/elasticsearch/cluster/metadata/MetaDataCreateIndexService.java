@@ -32,6 +32,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -558,6 +559,24 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         if (customPath != null && nodeEnv.isCustomPathsEnabled() == false) {
             throw new IndexCreationException(new Index(request.index()),
                     new ElasticsearchIllegalArgumentException("custom data_paths for indices is disabled"));
+        }
+
+        validateNumberOfShards(request.settings());
+        validateNumberOfReplicas(request.settings());
+
+    }
+
+    public void validateNumberOfShards(Settings settings) throws ElasticsearchException {
+        Integer number_of_primaries = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
+        if (number_of_primaries != null && number_of_primaries <= 0) {
+            throw new ElasticsearchIllegalArgumentException("index must have 1 or more primary shards");
+        }
+    }
+
+    public void validateNumberOfReplicas(Settings settings) throws ElasticsearchException {
+        Integer number_of_replicas = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null);
+        if (number_of_replicas != null && number_of_replicas < 0) {
+            throw new ElasticsearchIllegalArgumentException("index must have 0 or more replica shards");
         }
     }
 

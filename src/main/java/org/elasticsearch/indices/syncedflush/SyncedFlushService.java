@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.indices.syncedflush;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -40,10 +41,7 @@ public class SyncedFlushService extends AbstractComponent {
     public SyncedFlushResponse attemptSyncedFlush(ShardId shardId) throws ExecutionException, InterruptedException {
         PreSyncedFlushResponse preSyncedFlushResponse = transportPreSyncedFlushAction.execute(new PreSyncedFlushRequest(shardId)).get();
         // exit if this did not work
-        // nocommit
-        String syncId = "123";
-
-        //TODO: use Strings.base64UUID
+        String syncId = Strings.base64UUID();
         SyncedFlushResponse syncedFlushResponse = transportSyncedFlushAction.execute(new SyncedFlushRequest(shardId, syncId, preSyncedFlushResponse.commitIds())).get();
         return syncedFlushResponse;
     }

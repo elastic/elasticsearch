@@ -171,6 +171,7 @@ assert_output() {
 }
 
 # Checks that all directories & files are correctly installed
+# after a package (deb/rpm) install
 verify_package_installation() {
 
     run id elasticsearch
@@ -218,6 +219,68 @@ verify_package_installation() {
     fi
 }
 
+
+# Install the tar.gz archive
+install_archive() {
+    local eshome="/tmp"
+    if [ "x$1" != "x" ]; then
+        eshome="$1"
+    fi
+
+    run tar -xzvf elasticsearch*.tar.gz -C "$eshome" >&2
+    [ "$status" -eq 0 ]
+
+    run find "$eshome" -depth -type d -name 'elasticsearch*' -exec mv {} "$eshome/elasticsearch" \;
+    [ "$status" -eq 0 ]
+
+    # ES cannot run as root so create elasticsearch user & group if needed
+    if ! getent group "elasticsearch" > /dev/null 2>&1 ; then
+        if is_dpkg; then
+            run addgroup --system "elasticsearch"
+            [ "$status" -eq 0 ]
+        else
+            run groupadd -r "elasticsearch"
+            [ "$status" -eq 0 ]
+        fi
+    fi
+    if ! id "elasticsearch" > /dev/null 2>&1 ; then
+        if is_dpkg; then
+            run adduser --quiet --system --no-create-home --ingroup "elasticsearch" --disabled-password --shell /bin/false "elasticsearch"
+            [ "$status" -eq 0 ]
+        else
+            run useradd --system -M --gid "elasticsearch" --shell /sbin/nologin --comment "elasticsearch user" "elasticsearch"
+            [ "$status" -eq 0 ]
+        fi
+    fi
+
+    run chown -R elasticsearch:elasticsearch "$eshome/elasticsearch"
+    [ "$status" -eq 0 ]
+}
+
+
+# Checks that all directories & files are correctly installed
+# after a archive (tar.gz/zip) install
+verify_archive_installation() {
+    local eshome="/tmp/elasticsearch"
+    if [ "x$1" != "x" ]; then
+        eshome="$1"
+    fi
+
+    assert_file "$eshome" d
+    assert_file "$eshome/bin" d
+    assert_file "$eshome/bin/elasticsearch" f
+    assert_file "$eshome/bin/elasticsearch.in.sh" f
+    assert_file "$eshome/bin/plugin" f
+    assert_file "$eshome/config" d
+    assert_file "$eshome/config/elasticsearch.yml" f
+    assert_file "$eshome/config/logging.yml" f
+    assert_file "$eshome/config" d
+    assert_file "$eshome/lib" d
+    assert_file "$eshome/NOTICE.txt" f
+    assert_file "$eshome/LICENSE.txt" f
+    assert_file "$eshome/README.textile" f
+}
+
 # Deletes everything before running a test file
 clean_before_test() {
 
@@ -230,7 +293,8 @@ clean_before_test() {
                             "/etc/default/elasticsearch" \
                             "/etc/sysconfig/elasticsearch"  \
                             "/var/run/elasticsearch"  \
-                            "/usr/share/doc/elasticsearch")
+                            "/usr/share/doc/elasticsearch" \
+                            "/tmp/elasticsearch")
 
     if [ "$ES_CLEAN_BEFORE_TEST" = "true" ]; then
         # Kills all processes of user elasticsearch
@@ -238,13 +302,16 @@ clean_before_test() {
             pkill -u elasticsearch 2>/dev/null || true
         fi
 
+        # Kills all running Elasticsearch processes
+        ps aux | grep -i "org.elasticsearch.bootstrap.Elasticsearch" | awk {'print $2'} | xargs kill -9 > /dev/null 2>&1 || true
+
         # Removes RPM package
         if is_rpm; then
-            rpm --quiet -e elasticsearch 2>/dev/null || true
+            rpm --quiet -e elasticsearch > /dev/null 2>&1 || true
         fi
 
         if [ -x "`which yum 2>/dev/null`" ]; then
-            yum remove -y elasticsearch 2>/dev/null || true
+            yum remove -y elasticsearch > /dev/null 2>&1 || true
         fi
 
         # Removes DEB package
@@ -280,7 +347,11 @@ clean_before_test() {
 
 start_elasticsearch_service() {
 
-    if is_systemd; then
+    if [ -f "/tmp/elasticsearch/bin/elasticsearch" ]; then
+        run /bin/su -s /bin/sh -c '/tmp/elasticsearch/bin/elasticsearch -d -p /tmp/elasticsearch/elasticsearch.pid' elasticsearch
+        [ "$status" -eq 0 ]
+
+    elif is_systemd; then
         run systemctl daemon-reload
         [ "$status" -eq 0 ]
 
@@ -300,7 +371,14 @@ start_elasticsearch_service() {
 
     wait_for_elasticsearch_status
 
-    if is_systemd; then
+    if [ -r "/tmp/elasticsearch/elasticsearch.pid" ]; then
+        pid=$(cat /tmp/elasticsearch/elasticsearch.pid)
+        [ "x$pid" != "x" ] && [ "$pid" -gt 0 ]
+
+        run  ps $pid
+        [ "$status" -eq 0 ]
+
+    elif is_systemd; then
         run systemctl is-active elasticsearch.service
         [ "$status" -eq 0 ]
 
@@ -315,13 +393,21 @@ start_elasticsearch_service() {
 
 stop_elasticsearch_service() {
 
-    if is_systemd; then
+    if [ -r "/tmp/elasticsearch/elasticsearch.pid" ]; then
+        pid=$(cat /tmp/elasticsearch/elasticsearch.pid)
+        [ "x$pid" != "x" ] && [ "$pid" -gt 0 ]
+
+        run kill -SIGTERM $pid
+        [ "$status" -eq 0 ]
+
+    elif is_systemd; then
         run systemctl stop elasticsearch.service
         [ "$status" -eq 0 ]
 
         run systemctl is-active elasticsearch.service
         [ "$status" -eq 3 ]
-        [ "$output" = "inactive" ]
+
+        echo "$output" | grep -E 'inactive|failed'
 
     elif is_sysvinit; then
         run service elasticsearch stop
@@ -340,8 +426,8 @@ wait_for_elasticsearch_status() {
     fi
 
     # Try to connect to elasticsearch and wait for expected status
-    wget --quiet --retry-connrefused --waitretry=1 --timeout=20 \
-         --output-document=/dev/null "http://localhost:9200/_cluster/health?wait_for_status=$status&timeout=20s"
+    wget --quiet --retry-connrefused --waitretry=1 --timeout=60 \
+         --output-document=/dev/null "http://localhost:9200/_cluster/health?wait_for_status=$status&timeout=60s" || true
 
     # Checks the cluster health
     curl -XGET 'http://localhost:9200/_cat/health?h=status&v=false'

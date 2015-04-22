@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -68,16 +69,16 @@ public class RestSearchScrollAction extends BaseRestHandler {
             searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
         }
 
-        if (request.hasContent()) {
-            XContentType type = XContentFactory.xContentType(request.content());
+        if (request.hasContent() || request.hasParam("source")) {
+            XContentType type = contentType(request);
             if (type == null) {
                 if (scrollId == null) {
-                    scrollId = RestActions.getRestContent(request).toUtf8();
+                    scrollId = bodyContent(request).toUtf8();
                     searchScrollRequest.scrollId(scrollId);
                 }
             } else {
                 // NOTE: if rest request with xcontent body has request parameters, these parameters override xcontent values
-                buildFromContent(request.content(), searchScrollRequest);
+                buildFromContent(bodyContent(request), searchScrollRequest);
             }
         }
         client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<SearchResponse>(channel));
@@ -106,5 +107,24 @@ public class RestSearchScrollAction extends BaseRestHandler {
             throw new ElasticsearchIllegalArgumentException("Failed to parse request body", e);
         }
     }
+
+    private XContentType contentType(final RestRequest request) {
+        if (request.hasContent()) {
+            return XContentFactory.xContentType(request.content());
+        } else if (request.hasParam("source")) {
+            return XContentFactory.xContentType(request.param("source"));
+        }
+        throw new ElasticsearchIllegalArgumentException("Can't guess contentType neither source nor content available");
+    }
+
+    private BytesReference bodyContent(final RestRequest request) {
+        if (request.hasContent()) {
+            return request.content();
+        } else if (request.hasParam("source")) {
+            return new BytesArray(request.param("source"));
+        }
+        throw new ElasticsearchIllegalArgumentException("Can't guess contentType neither source nor content available");
+    }
+
 
 }

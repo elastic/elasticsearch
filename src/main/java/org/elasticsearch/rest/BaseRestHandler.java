@@ -19,13 +19,19 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.rest.action.support.RestActions;
 
 import java.util.Set;
 

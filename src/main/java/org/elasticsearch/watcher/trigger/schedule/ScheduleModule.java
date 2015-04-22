@@ -8,12 +8,10 @@ package org.elasticsearch.watcher.trigger.schedule;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.watcher.support.ThreadPoolSettingsBuilder;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
-import org.elasticsearch.watcher.trigger.schedule.engine.*;
+import org.elasticsearch.watcher.trigger.schedule.engine.SchedulerScheduleTriggerEngine;
+import org.elasticsearch.watcher.trigger.schedule.engine.TickerScheduleTriggerEngine;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -23,8 +21,6 @@ import java.util.Map;
  *
  */
 public class ScheduleModule extends AbstractModule {
-
-    public static final String THREAD_POOL_NAME = "watcher_scheduler";
 
     private final Map<String, Class<? extends Schedule.Parser>> parsers = new HashMap<>();
 
@@ -57,20 +53,6 @@ public class ScheduleModule extends AbstractModule {
         }
 
         bind(ScheduleRegistry.class).asEagerSingleton();
-    }
-
-    public static Settings additionalSettings(Settings nodeSettings) {
-        Settings settings = nodeSettings.getAsSettings("threadpool." + THREAD_POOL_NAME);
-        if (!settings.names().isEmpty()) {
-            // scheduler TP is already configured in the node settings
-            // no need for additional settings
-            return ImmutableSettings.EMPTY;
-        }
-        int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
-        return new ThreadPoolSettingsBuilder.Fixed(THREAD_POOL_NAME)
-                .size(availableProcessors * 2)
-                .queueSize(1000)
-                .build();
     }
 
     public enum Engine {

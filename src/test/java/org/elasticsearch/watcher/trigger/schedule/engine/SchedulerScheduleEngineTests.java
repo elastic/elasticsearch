@@ -20,7 +20,7 @@ import static org.mockito.Mockito.mock;
 public class SchedulerScheduleEngineTests extends BaseTriggerEngineTests {
 
     protected TriggerEngine createEngine() {
-        return new SchedulerScheduleTriggerEngine(ImmutableSettings.EMPTY, mock(ScheduleRegistry.class), SystemClock.INSTANCE, threadPool);
+        return new SchedulerScheduleTriggerEngine(ImmutableSettings.EMPTY, mock(ScheduleRegistry.class), SystemClock.INSTANCE);
     }
 
 }

@@ -10,10 +10,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
-import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.*;
@@ -24,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.RejectedExecutionHandler;
 
 /**
  *
@@ -36,15 +31,13 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     private final TimeValue tickInterval;
     private volatile Map<String, ActiveSchedule> schedules;
     private Ticker ticker;
-    private EsThreadPoolExecutor executor;
 
     @Inject
-    public TickerScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock, ThreadPool threadPool) {
+    public TickerScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
         super(settings, scheduleRegistry);
         this.tickInterval = settings.getAsTime("watcher.trigger.schedule.ticker.tick_interval", TimeValue.timeValueMillis(500));
         this.schedules = new ConcurrentHashMap<>();
         this.clock = clock;
-        this.executor = (EsThreadPoolExecutor) threadPool.executor(ScheduleModule.THREAD_POOL_NAME);
     }
 
     @Override
@@ -64,7 +57,6 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     @Override
     public void stop() {
         ticker.close();
-        executor.getQueue().clear();
     }
 
     @Override
@@ -100,19 +92,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
     protected void notifyListeners(List<TriggerEvent> events) {
         for (Listener listener : listeners) {
-            try {
-                executor.execute(new ListenerRunnable(listener, events));
-            } catch (EsRejectedExecutionException e) {
-                if (logger.isDebugEnabled()) {
-                    RejectedExecutionHandler rejectedExecutionHandler = executor.getRejectedExecutionHandler();
-                    long rejected = -1;
-                    if (rejectedExecutionHandler instanceof XRejectedExecutionHandler) {
-                        rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();
-                    }
-                    int queueCapacity = executor.getQueue().size();
-                    logger.debug("can't execute trigger on the [" + ScheduleModule.THREAD_POOL_NAME + "] thread pool, rejected tasks [" + rejected + "] queue capacity [" + queueCapacity +"]");
-                }
-            }
+            listener.triggered(events);
         }
     }
 
@@ -143,22 +123,6 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
             long prevScheduledTime = scheduledTime == 0 ? time : scheduledTime;
             scheduledTime = schedule.nextScheduledTimeAfter(startTime, time);
             return prevScheduledTime;
-        }
-    }
-
-    static class ListenerRunnable implements Runnable {
-
-        private final Listener listener;
-        private final List<TriggerEvent> events;
-
-        public ListenerRunnable(Listener listener, List<TriggerEvent> events) {
-            this.listener = listener;
-            this.events = events;
-        }
-
-        @Override
-        public void run() {
-            listener.triggered(events);
         }
     }
 

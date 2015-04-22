@@ -11,10 +11,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
-import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.*;
@@ -22,7 +18,10 @@ import org.elasticsearch.watcher.trigger.schedule.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  *
@@ -32,13 +31,11 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
     private final Clock clock;
     private volatile Schedules schedules;
     private ScheduledExecutorService scheduler;
-    private EsThreadPoolExecutor executor;
 
     @Inject
-    public SchedulerScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock, ThreadPool threadPool) {
+    public SchedulerScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
         super(settings, scheduleRegistry);
         this.clock = clock;
-        this.executor = (EsThreadPoolExecutor) threadPool.executor(ScheduleModule.THREAD_POOL_NAME);
     }
 
     @Override
@@ -66,7 +63,6 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        executor.getQueue().clear();
         logger.debug("schedule engine stopped");
     }
 
@@ -92,19 +88,7 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
         logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", name, new DateTime(triggeredTime), new DateTime(scheduledTime));
         final ScheduleTriggerEvent event = new ScheduleTriggerEvent(name, new DateTime(triggeredTime), new DateTime(scheduledTime));
         for (Listener listener : listeners) {
-            try {
-                executor.execute(new ListenerRunnable(listener, event));
-            } catch (EsRejectedExecutionException e) {
-                if (logger.isDebugEnabled()) {
-                    RejectedExecutionHandler rejectedExecutionHandler = executor.getRejectedExecutionHandler();
-                    long rejected = -1;
-                    if (rejectedExecutionHandler instanceof XRejectedExecutionHandler) {
-                        rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();
-                    }
-                    int queueCapacity = executor.getQueue().size();
-                    logger.debug("can't execute trigger on the [{}] thread pool, rejected tasks [{}] queue capacity [{}]", ScheduleModule.THREAD_POOL_NAME, rejected, queueCapacity);
-                }
-            }
+            listener.triggered(ImmutableList.<TriggerEvent>of(event));
         }
     }
 
@@ -143,22 +127,6 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
             if (future != null) {
                 future.cancel(true);
             }
-        }
-    }
-
-    static class ListenerRunnable implements Runnable {
-
-        private final Listener listener;
-        private final ScheduleTriggerEvent event;
-
-        public ListenerRunnable(Listener listener, ScheduleTriggerEvent event) {
-            this.listener = listener;
-            this.event = event;
-        }
-
-        @Override
-        public void run() {
-            listener.triggered(ImmutableList.<TriggerEvent>of(event));
         }
     }
 

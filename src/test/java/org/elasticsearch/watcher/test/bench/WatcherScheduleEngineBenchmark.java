@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -150,6 +151,7 @@ public class WatcherScheduleEngineBenchmark {
                     if (actualLoadedWatches != numWatches) {
                         throw new IllegalStateException("Expected [" + numWatches + "] watched to be loaded, but only [" + actualLoadedWatches + "] watches were actually loaded");
                     }
+                    long startTime = clock.millis();
                     System.out.println("==> watcher started, waiting [" + benchTime + "] seconds now...");
 
                     final AtomicBoolean start = new AtomicBoolean(true);
@@ -170,7 +172,6 @@ public class WatcherScheduleEngineBenchmark {
                         }
                     });
                     sampleThread.start();
-                    long startTime =  clock.millis();
                     Thread.sleep(benchTime);
                     long endTime =  clock.millis();
                     start.set(false);
@@ -179,14 +180,12 @@ public class WatcherScheduleEngineBenchmark {
                     NodesStatsResponse response = client.admin().cluster().prepareNodesStats().setThreadPool(true).get();
                     for (NodeStats nodeStats : response) {
                         for (ThreadPoolStats.Stats threadPoolStats : nodeStats.getThreadPool()) {
-                            if ("watcher_scheduler".equals(threadPoolStats.getName())) {
-                                stats.setWatcherExecutorThreadPoolStats(threadPoolStats);
-                            } else if ("watcher".equals(threadPoolStats.getName())) {
+                            if ("watcher".equals(threadPoolStats.getName())) {
                                 stats.setWatcherThreadPoolStats(threadPoolStats);
                             }
                         }
                     }
-                    client.admin().indices().prepareRefresh("_all").get();
+                    client.admin().indices().prepareRefresh(HistoryStore.INDEX_PREFIX + "*").get();
                     SearchResponse searchResponse = client.prepareSearch(HistoryStore.INDEX_PREFIX + "*")
                             .setQuery(QueryBuilders.rangeQuery("trigger_event.schedule.scheduled_time").gte(startTime).lte(endTime))
                             .addAggregation(terms("state").field("state"))
@@ -224,8 +223,8 @@ public class WatcherScheduleEngineBenchmark {
         System.out.println();
         System.out.println("### Watcher execution and watcher thread pool stats");
         System.out.println();
-        System.out.println("   Name    | avg heap used | wetp rejected | wetp completed | wtp rejected | wtp completed");
-        System.out.println("---------- | ------------- | ------------- | -------------- | ------------ | -------------");
+        System.out.println("   Name    | avg heap used | wtp rejected | wtp completed");
+        System.out.println("---------- | ------------- | ------------ | -------------");
         for (BenchStats benchStats : results.values()) {
             benchStats.printThreadStats();
         }
@@ -252,9 +251,7 @@ public class WatcherScheduleEngineBenchmark {
 
         private final String name;
         private final int numWatches;
-
         private ThreadPoolStats.Stats watcherThreadPoolStats;
-        private ThreadPoolStats.Stats watcherExecutorThreadPoolStats;
 
         private Terms stateStats;
         private Histogram delayStats;
@@ -282,14 +279,6 @@ public class WatcherScheduleEngineBenchmark {
 
         public void setWatcherThreadPoolStats(ThreadPoolStats.Stats watcherThreadPoolStats) {
             this.watcherThreadPoolStats = watcherThreadPoolStats;
-        }
-
-        public ThreadPoolStats.Stats getWatcherExecutorThreadPoolStats() {
-            return watcherExecutorThreadPoolStats;
-        }
-
-        public void setWatcherExecutorThreadPoolStats(ThreadPoolStats.Stats watcherExecutorThreadPoolStats) {
-            this.watcherExecutorThreadPoolStats = watcherExecutorThreadPoolStats;
         }
 
         public Terms getStateStats() {
@@ -323,9 +312,8 @@ public class WatcherScheduleEngineBenchmark {
         public void printThreadStats() throws IOException {
             System.out.printf(
                     Locale.ENGLISH,
-                    "%10s | %13s | %13d | %14d | %12d | %13d \n",
+                    "%10s | %13s | %12d | %13d \n",
                     name, new ByteSizeValue(avgHeapUsed),
-                    watcherExecutorThreadPoolStats.getRejected(), watcherExecutorThreadPoolStats.getCompleted(),
                     watcherThreadPoolStats.getRejected(), watcherThreadPoolStats.getCompleted()
             );
         }

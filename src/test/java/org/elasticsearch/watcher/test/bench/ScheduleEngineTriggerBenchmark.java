@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.test.bench;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
@@ -49,14 +48,12 @@ public class ScheduleEngineTriggerBenchmark {
         System.out.println("Running benchmark with numWatches=" + numWatches + " benchTime=" + benchTime + " interval=" + interval);
 
         Settings settings = ImmutableSettings.builder()
-                .put(ScheduleModule.additionalSettings(ImmutableSettings.EMPTY))
                 .put("name", "test")
                 .build();
         List<TriggerEngine.Job> jobs = new ArrayList<>(numWatches);
         for (int i = 0; i < numWatches; i++) {
             jobs.add(new SimpleJob("job_" + i, interval(interval + "s")));
         }
-        ThreadPool threadPool = new ThreadPool(settings, null);
         ScheduleRegistry scheduleRegistry = new ScheduleRegistry(Collections.<String, Schedule.Parser>emptyMap());
         List<String> impls = new ArrayList<>(Arrays.asList(new String[]{"schedule", "ticker"}));
         Collections.shuffle(impls);
@@ -75,7 +72,7 @@ public class ScheduleEngineTriggerBenchmark {
             final ScheduleTriggerEngine scheduler;
             switch (impl) {
                 case "schedule":
-                    scheduler = new SchedulerScheduleTriggerEngine(ImmutableSettings.EMPTY, scheduleRegistry, SystemClock.INSTANCE, threadPool) {
+                    scheduler = new SchedulerScheduleTriggerEngine(ImmutableSettings.EMPTY, scheduleRegistry, SystemClock.INSTANCE) {
 
                         @Override
                         protected void notifyListeners(String name, long triggeredTime, long scheduledTime) {
@@ -86,7 +83,7 @@ public class ScheduleEngineTriggerBenchmark {
                     };
                     break;
                 case "ticker":
-                    scheduler = new TickerScheduleTriggerEngine(settings, scheduleRegistry, SystemClock.INSTANCE, threadPool) {
+                    scheduler = new TickerScheduleTriggerEngine(settings, scheduleRegistry, SystemClock.INSTANCE) {
 
                         @Override
                         protected void notifyListeners(List<TriggerEvent> events) {

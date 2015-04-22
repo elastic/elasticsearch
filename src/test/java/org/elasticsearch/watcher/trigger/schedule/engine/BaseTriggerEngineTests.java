@@ -8,11 +8,7 @@ package org.elasticsearch.watcher.trigger.schedule.engine;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.DateTimeZone;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.WatcherPlugin;
 import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
@@ -42,17 +38,10 @@ import static org.hamcrest.Matchers.is;
 @Ignore
 public abstract class BaseTriggerEngineTests extends ElasticsearchTestCase {
 
-    protected ThreadPool threadPool;
     private TriggerEngine engine;
 
     @Before
     public void init() throws Exception {
-        WatcherPlugin plugin = new WatcherPlugin(ImmutableSettings.EMPTY);
-        Settings settings = ImmutableSettings.builder()
-                .put(plugin.additionalSettings())
-                .put("name", "test")
-                .build();
-        threadPool = new ThreadPool(settings, null);
         engine = createEngine();
     }
 
@@ -61,7 +50,6 @@ public abstract class BaseTriggerEngineTests extends ElasticsearchTestCase {
     @After
     public void cleanup() throws Exception {
         engine.stop();
-        threadPool.shutdownNow();
     }
 
     @Test

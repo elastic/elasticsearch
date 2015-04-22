@@ -34,8 +34,9 @@ public class IntervalSchedule implements Schedule {
 
     @Override
     public long nextScheduledTimeAfter(long startTime, long time) {
-        if (time <= startTime) {
-            return startTime;
+        assert time >= startTime;
+        if (startTime == time) {
+            time++;
         }
         long delta = time - startTime;
         return startTime + (delta / interval.millis + 1) * interval.millis;

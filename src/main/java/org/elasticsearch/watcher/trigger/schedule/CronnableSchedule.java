@@ -35,9 +35,7 @@ public abstract class CronnableSchedule implements Schedule {
 
     @Override
     public long nextScheduledTimeAfter(long startTime, long time) {
-        if (time <= startTime) {
-            return startTime;
-        }
+        assert time >= startTime;
         long nextTime = Long.MAX_VALUE;
         for (Cron cron : crons) {
             nextTime = Math.min(nextTime, cron.getNextValidTimeAfter(time));

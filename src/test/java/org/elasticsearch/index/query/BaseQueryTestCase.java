@@ -114,7 +114,7 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
     public void setUp() throws Exception {
         super.setUp();
         context = new QueryParseContext(index, queryParserService);
-        testQuery = createRandomTestQuery();
+        testQuery = createTestQueryBuilder();
         String contentString = testQuery.toString();
         parser = XContentFactory.xContent(contentString).createParser(contentString);
         context.reset(parser);
@@ -126,10 +126,9 @@ public abstract class BaseQueryTestCase<QB extends BaseQueryBuilder & Streamable
     }
 
     /**
-     * Create a random query for the type that is being tested
-     * @return a randomized query
+     * Create the query that is being tested
      */
-    protected abstract QB createRandomTestQuery();
+    protected abstract QB createTestQueryBuilder();
 
     /**
      * Subclass should handle assertions on the lucene query produced by the query builder under test here

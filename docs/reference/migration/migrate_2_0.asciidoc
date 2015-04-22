@@ -302,6 +302,10 @@ the user-friendly representation of boolean fields: `false`/`true`:
 ]
 ---------------
 
+=== Murmur3 Fields
+Fields of type `murmur3` can no longer change `doc_values` or `index` setting.
+They are always stored with doc values, and not indexed.
+
 === Codecs
 
 It is no longer possible to specify per-field postings and doc values formats

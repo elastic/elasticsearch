@@ -25,7 +25,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.google.common.collect.Lists;
-
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.LuceneTestCase.SuppressFsync;
@@ -40,11 +39,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.rest.client.RestException;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParser;
-import org.elasticsearch.test.rest.section.DoSection;
-import org.elasticsearch.test.rest.section.ExecutableSection;
-import org.elasticsearch.test.rest.section.RestTestSuite;
-import org.elasticsearch.test.rest.section.SkipSection;
-import org.elasticsearch.test.rest.section.TestSection;
+import org.elasticsearch.test.rest.section.*;
 import org.elasticsearch.test.rest.spec.RestApi;
 import org.elasticsearch.test.rest.spec.RestSpec;
 import org.elasticsearch.test.rest.support.FileUtils;
@@ -54,18 +49,10 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Inherited;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import java.lang.annotation.*;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Runs the clients test suite against an elasticsearch cluster.
@@ -135,7 +122,7 @@ public abstract class ElasticsearchRestTestCase extends ElasticsearchIntegration
             blacklistPathMatchers = new PathMatcher[0];
         }
     }
-    
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()

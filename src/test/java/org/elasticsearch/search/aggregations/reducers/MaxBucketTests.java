@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
+import org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.reducers.bucketmetrics.InternalBucketMetricValue;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -235,6 +236,66 @@ public class MaxBucketTests extends ElasticsearchIntegrationTest {
                                                 .extendedBounds((long) minRandomValue, (long) maxRandomValue)
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                                 .subAggregation(maxBucket("max_bucket").setBucketsPaths("histo>sum"))).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        List<Terms.Bucket> termsBuckets = terms.getBuckets();
+        assertThat(termsBuckets.size(), equalTo(interval));
+
+        for (int i = 0; i < interval; ++i) {
+            Terms.Bucket termsBucket = termsBuckets.get(i);
+            assertThat(termsBucket, notNullValue());
+            assertThat((String) termsBucket.getKey(), equalTo("tag" + (i % interval)));
+
+            Histogram histo = termsBucket.getAggregations().get("histo");
+            assertThat(histo, notNullValue());
+            assertThat(histo.getName(), equalTo("histo"));
+            List<? extends Bucket> buckets = histo.getBuckets();
+
+            List<String> maxKeys = new ArrayList<>();
+            double maxValue = Double.NEGATIVE_INFINITY;
+            for (int j = 0; j < numValueBuckets; ++j) {
+                Histogram.Bucket bucket = buckets.get(j);
+                assertThat(bucket, notNullValue());
+                assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) j * interval));
+                if (bucket.getDocCount() != 0) {
+                    Sum sum = bucket.getAggregations().get("sum");
+                    assertThat(sum, notNullValue());
+                    if (sum.value() > maxValue) {
+                        maxValue = sum.value();
+                        maxKeys = new ArrayList<>();
+                        maxKeys.add(bucket.getKeyAsString());
+                    } else if (sum.value() == maxValue) {
+                        maxKeys.add(bucket.getKeyAsString());
+                    }
+                }
+            }
+
+            InternalBucketMetricValue maxBucketValue = termsBucket.getAggregations().get("max_bucket");
+            assertThat(maxBucketValue, notNullValue());
+            assertThat(maxBucketValue.getName(), equalTo("max_bucket"));
+            assertThat(maxBucketValue.value(), equalTo(maxValue));
+            assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[maxKeys.size()])));
+        }
+    }
+
+    @Test
+    public void testMetric_asSubAggWithInsertZeros() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        terms("terms")
+                                .field("tag")
+                                .order(Order.term(true))
+                                .subAggregation(
+                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
+                                                .extendedBounds((long) minRandomValue, (long) maxRandomValue)
+                                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
+                                .subAggregation(maxBucket("max_bucket").setBucketsPaths("histo>sum").gapPolicy(GapPolicy.INSERT_ZEROS)))
+                .execute().actionGet();
 
         assertSearchResponse(response);
 

@@ -61,6 +61,7 @@ public class MaxBucketReducer extends SiblingReducer {
     };
 
     private ValueFormatter formatter;
+    private GapPolicy gapPolicy;
 
     public static void registerStreams() {
         ReducerStreams.registerStream(STREAM, TYPE.stream());
@@ -69,8 +70,10 @@ public class MaxBucketReducer extends SiblingReducer {
     private MaxBucketReducer() {
     }
 
-    protected MaxBucketReducer(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, Map<String, Object> metaData) {
+    protected MaxBucketReducer(String name, String[] bucketsPaths, GapPolicy gapPolicy, @Nullable ValueFormatter formatter,
+            Map<String, Object> metaData) {
         super(name, bucketsPaths, metaData);
+        this.gapPolicy = gapPolicy;
         this.formatter = formatter;
     }
 
@@ -90,7 +93,7 @@ public class MaxBucketReducer extends SiblingReducer {
                 List<? extends Bucket> buckets = multiBucketsAgg.getBuckets();
                 for (int i = 0; i < buckets.size(); i++) {
                     Bucket bucket = buckets.get(i);
-                    Double bucketValue = BucketHelpers.resolveBucketValue(multiBucketsAgg, bucket, bucketsPath, GapPolicy.IGNORE);
+                    Double bucketValue = BucketHelpers.resolveBucketValue(multiBucketsAgg, bucket, bucketsPath, gapPolicy);
                     if (bucketValue != null) {
                         if (bucketValue > maxValue) {
                             maxBucketKeys.clear();
@@ -110,25 +113,29 @@ public class MaxBucketReducer extends SiblingReducer {
     @Override
     public void doReadFrom(StreamInput in) throws IOException {
         formatter = ValueFormatterStreams.readOptional(in);
+        gapPolicy = GapPolicy.readFrom(in);
     }
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
         ValueFormatterStreams.writeOptional(formatter, out);
+        gapPolicy.writeTo(out);
     }
 
     public static class Factory extends ReducerFactory {
 
         private final ValueFormatter formatter;
+        private final GapPolicy gapPolicy;
 
-        public Factory(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter) {
+        public Factory(String name, String[] bucketsPaths, GapPolicy gapPolicy, @Nullable ValueFormatter formatter) {
             super(name, TYPE.name(), bucketsPaths);
+            this.gapPolicy = gapPolicy;
             this.formatter = formatter;
         }
 
         @Override
         protected Reducer createInternal(Map<String, Object> metaData) throws IOException {
-            return new MaxBucketReducer(name, bucketsPaths, formatter, metaData);
+            return new MaxBucketReducer(name, bucketsPaths, gapPolicy, formatter, metaData);
         }
 
         @Override

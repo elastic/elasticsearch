@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.reducers.bucketmetrics;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
+import org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
@@ -46,6 +47,7 @@ public class MaxBucketParser implements Reducer.Parser {
         String currentFieldName = null;
         String[] bucketsPaths = null;
         String format = null;
+        GapPolicy gapPolicy = GapPolicy.IGNORE;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -55,6 +57,8 @@ public class MaxBucketParser implements Reducer.Parser {
                     format = parser.text();
                 } else if (BUCKETS_PATH.match(currentFieldName)) {
                     bucketsPaths = new String[] { parser.text() };
+                } else if (GAP_POLICY.match(currentFieldName)) {
+                    gapPolicy = GapPolicy.parse(context, parser.text());
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
                             + currentFieldName + "].");
@@ -86,7 +90,7 @@ public class MaxBucketParser implements Reducer.Parser {
             formatter = ValueFormat.Patternable.Number.format(format).formatter();
         }
 
-        return new MaxBucketReducer.Factory(reducerName, bucketsPaths, formatter);
+        return new MaxBucketReducer.Factory(reducerName, bucketsPaths, gapPolicy, formatter);
     }
 
 }

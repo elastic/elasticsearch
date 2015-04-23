@@ -19,16 +19,25 @@
 
 package org.elasticsearch.bwcompat;
 
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.junit.Test;
-import static org.hamcrest.Matchers.*;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterStateBackwardsCompatTests extends ElasticsearchBackwardsCompatIntegrationTest {
 
@@ -36,13 +45,9 @@ public class ClusterStateBackwardsCompatTests extends ElasticsearchBackwardsComp
     public void testClusterState() throws Exception {
         createIndex("test");
 
-        NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().execute().actionGet();
-        Settings settings = ImmutableSettings.settingsBuilder().put("client.transport.ignore_cluster_name", true)
-                .put("node.name", "transport_client_" + getTestName()).build();
-
         // connect to each node with a custom TransportClient, issue a ClusterStateRequest to test serialization
-        for (NodeInfo n : nodesInfo.getNodes()) {
-            try (TransportClient tc = new TransportClient(settings)) {
+        for (NodeInfo n : clusterNodes()) {
+            try (TransportClient tc = newTransportClient()) {
                 tc.addTransportAddress(n.getNode().address());
                 ClusterStateResponse response = tc.admin().cluster().prepareState().execute().actionGet();
 
@@ -51,5 +56,54 @@ public class ClusterStateBackwardsCompatTests extends ElasticsearchBackwardsComp
                 assertTrue(response.getState().getMetaData().hasIndex("test"));
             }
         }
+    }
+
+    @Test
+    public void testClusterStateWithBlocks() {
+        createIndex("test-blocks");
+
+        Map<String, ClusterBlock> blocks = new HashMap<>();
+        blocks.put(SETTING_BLOCKS_READ, IndexMetaData.INDEX_READ_BLOCK);
+        blocks.put(SETTING_BLOCKS_WRITE, IndexMetaData.INDEX_WRITE_BLOCK);
+        blocks.put(SETTING_BLOCKS_METADATA, IndexMetaData.INDEX_METADATA_BLOCK);
+
+        for (Map.Entry<String, ClusterBlock> block : blocks.entrySet()) {
+            try {
+                enableIndexBlock("test-blocks", block.getKey());
+
+                for (NodeInfo n : clusterNodes()) {
+                    try (TransportClient tc = newTransportClient()) {
+                        tc.addTransportAddress(n.getNode().address());
+
+                        ClusterStateResponse response = tc.admin().cluster().prepareState().setIndices("test-blocks")
+                                .setBlocks(true).setNodes(false).execute().actionGet();
+
+                        ClusterBlocks clusterBlocks = response.getState().blocks();
+                        assertNotNull(clusterBlocks);
+                        assertTrue(clusterBlocks.hasIndexBlock("test-blocks", block.getValue()));
+
+                        for (ClusterBlockLevel level : block.getValue().levels()) {
+                            assertTrue(clusterBlocks.indexBlocked(level, "test-blocks"));
+                        }
+
+                        IndexMetaData indexMetaData = response.getState().getMetaData().getIndices().get("test-blocks");
+                        assertNotNull(indexMetaData);
+                        assertTrue(indexMetaData.settings().getAsBoolean(block.getKey(), null));
+                    }
+                }
+            } finally {
+                disableIndexBlock("test-blocks", block.getKey());
+            }
+        }
+    }
+
+    private NodesInfoResponse clusterNodes() {
+        return client().admin().cluster().prepareNodesInfo().execute().actionGet();
+    }
+
+    private TransportClient newTransportClient() {
+        Settings settings = ImmutableSettings.settingsBuilder().put("client.transport.ignore_cluster_name", true)
+                .put("node.name", "transport_client_" + getTestName()).build();
+        return new TransportClient(settings);
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -77,8 +78,8 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
 
     private static ThreadPool threadPool;
 
-    private TransportService transportService;
     private TestClusterService clusterService;
+    private TransportService transportService;
     private CapturingTransport transport;
     private Action action;
 
@@ -147,18 +148,13 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         assertListenerThrows("primary phase should fail operation when moving from a retryable block a non-retryable one", listener, ClusterBlockException.class);
     }
 
-    ClusterState stateWithUnassingedShards(String index, int numberOfReplicas) {
-        ShardRoutingState[] replicaStates = new ShardRoutingState[numberOfReplicas];
-        for (int i = 0; i < replicaStates.length; i++) {
-            replicaStates[i] = ShardRoutingState.UNASSIGNED;
-        }
-        return state(index, false, ShardRoutingState.UNASSIGNED, replicaStates);
+    ClusterState stateWithStartedPrimary(String index, boolean primaryLocal, int numberOfReplicas) {
+        int assignedReplicas = randomIntBetween(0, numberOfReplicas);
+        return stateWithStartedPrimary(index, primaryLocal, assignedReplicas, numberOfReplicas - assignedReplicas);
     }
 
-
-    ClusterState stateWithStartedPrimary(String index, boolean primaryLocal, int numberOfReplicas) {
-        ShardRoutingState[] replicaStates = new ShardRoutingState[numberOfReplicas];
-        int assignedReplicas = randomIntBetween(0, replicaStates.length);
+    ClusterState stateWithStartedPrimary(String index, boolean primaryLocal, int assignedReplicas, int unassignedReplicas) {
+        ShardRoutingState[] replicaStates = new ShardRoutingState[assignedReplicas + unassignedReplicas];
         // no point in randomizing - node assignment later on does it too.
         for (int i = 0; i < assignedReplicas; i++) {
             replicaStates[i] = randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED, ShardRoutingState.RELOCATING);
@@ -258,13 +254,13 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         Request request = new Request(shardId).timeout("1ms");
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
-        primaryPhase.start();
+        primaryPhase.run();
         assertListenerThrows("unassigned primary didn't cause a timeout", listener, UnavailableShardsException.class);
 
         request = new Request(shardId);
         listener = new PlainActionFuture<>();
         primaryPhase = action.new PrimaryPhase(request, listener);
-        primaryPhase.start();
+        primaryPhase.run();
         assertFalse("unassigned primary didn't cause a retry", listener.isDone());
 
         clusterService.setState(state(index, true, ShardRoutingState.STARTED));
@@ -301,6 +297,68 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             assertThat(capturedRequests.size(), equalTo(1));
             assertThat(capturedRequests.get(0).action, equalTo("testAction"));
         }
+    }
+
+    @Test
+    public void testWriteConsistency() {
+        action = new ActionWithConsistency(ImmutableSettings.EMPTY, "testActionWithConsistency", transportService, clusterService, threadPool);
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, 0);
+        final int assignedReplicas = randomInt(2);
+        final int unassignedReplicas = randomInt(2);
+        final int totalShards = 1 + assignedReplicas + unassignedReplicas;
+        final boolean passesWriteConsistency;
+        Request request = new Request(shardId).consistencyLevel(randomFrom(WriteConsistencyLevel.values()));
+        switch (request.consistencyLevel()) {
+            case ONE:
+                passesWriteConsistency = true;
+                break;
+            case DEFAULT:
+            case QUORUM:
+                if (totalShards <= 2) {
+                    passesWriteConsistency = true; // primary is enough
+                } else {
+                    passesWriteConsistency = assignedReplicas + 1 >= (totalShards / 2) + 1;
+                }
+                break;
+            case ALL:
+                passesWriteConsistency = unassignedReplicas == 0;
+                break;
+            default:
+                throw new RuntimeException("unknown consistency level [" + request.consistencyLevel() + "]");
+        }
+        ShardRoutingState[] replicaStates = new ShardRoutingState[assignedReplicas + unassignedReplicas];
+        for (int i = 0; i < assignedReplicas; i++) {
+            replicaStates[i] = randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING);
+        }
+        for (int i = assignedReplicas; i < replicaStates.length; i++) {
+            replicaStates[i] = ShardRoutingState.UNASSIGNED;
+        }
+
+        clusterService.setState(state(index, true, ShardRoutingState.STARTED, replicaStates));
+        logger.debug("using consistency level of [{}], assigned shards [{}], total shards [{}]. expecting op to [{}]. using state: \n{}",
+                request.consistencyLevel(), 1 + assignedReplicas, 1 + assignedReplicas + unassignedReplicas, passesWriteConsistency ? "succeed" : "retry",
+                clusterService.state().prettyPrint());
+
+        final IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().index(index).shard(shardId.id());
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+
+        TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
+        if (passesWriteConsistency) {
+            assertThat(primaryPhase.checkWriteConsistency(shardRoutingTable.primaryShard()), nullValue());
+            primaryPhase.run();
+            assertTrue("operations should have been perform, consistency level is met", request.processedOnPrimary.get());
+        } else {
+            assertThat(primaryPhase.checkWriteConsistency(shardRoutingTable.primaryShard()), notNullValue());
+            primaryPhase.run();
+            assertFalse("operations should not have been perform, consistency level is *NOT* met", request.processedOnPrimary.get());
+            for (int i = 0; i < replicaStates.length; i++) {
+                replicaStates[i] = ShardRoutingState.STARTED;
+            }
+            clusterService.setState(state(index, true, ShardRoutingState.STARTED, replicaStates));
+            assertTrue("once the consistency level met, operation should continue", request.processedOnPrimary.get());
+        }
+
     }
 
     @Test
@@ -373,7 +431,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
 
         assertThat(replicationPhase.totalShards(), equalTo(totalShards));
         assertThat(replicationPhase.pending(), equalTo(assignedReplicas));
-        replicationPhase.start();
+        replicationPhase.run();
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.capturedRequests();
         transport.clear();
         assertThat(capturedRequests.length, equalTo(assignedReplicas));
@@ -417,7 +475,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
     }
 
 
-
     static class Request extends ShardReplicationOperationRequest<Request> {
         int shardId;
         public AtomicBoolean processedOnPrimary = new AtomicBoolean();
@@ -453,9 +510,9 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
 
     static class Action extends TransportShardReplicationOperationAction<Request, Request, Response> {
 
-        protected Action(Settings settings, String actionName, TransportService transportService,
-                         ClusterService clusterService,
-                         ThreadPool threadPool) {
+        Action(Settings settings, String actionName, TransportService transportService,
+               ClusterService clusterService,
+               ThreadPool threadPool) {
             super(settings, actionName, transportService, clusterService, null, threadPool,
                     new ShardStateAction(settings, clusterService, transportService, null, null),
                     new ActionFilters(new HashSet<ActionFilter>()));
@@ -509,7 +566,19 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         }
     }
 
-    public static DiscoveryNode newNode(int nodeId) {
+    static class ActionWithConsistency extends Action {
+
+        ActionWithConsistency(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
+            super(settings, actionName, transportService, clusterService, threadPool);
+        }
+
+        @Override
+        protected boolean checkWriteConsistency() {
+            return true;
+        }
+    }
+
+    static DiscoveryNode newNode(int nodeId) {
         return new DiscoveryNode("node_" + nodeId, DummyTransportAddress.INSTANCE, Version.CURRENT);
     }
 

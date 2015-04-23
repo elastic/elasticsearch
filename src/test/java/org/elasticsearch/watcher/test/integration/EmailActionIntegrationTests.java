@@ -14,7 +14,6 @@ import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 
 import javax.mail.internet.MimeMessage;
@@ -42,12 +41,6 @@ public class EmailActionIntegrationTests extends AbstractWatcherIntegrationTests
 
     private EmailServer server;
 
-    @Before
-    public void init() throws Exception {
-        server = new EmailServer("localhost", 2500, USERNAME, PASSWORD);
-        server.start();
-    }
-
     @After
     public void cleanup() throws Exception {
         server.stop();
@@ -55,12 +48,16 @@ public class EmailActionIntegrationTests extends AbstractWatcherIntegrationTests
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
+        if(server == null) {
+            //Need to construct the Email Server here as this happens before init()
+            server = EmailServer.localhost("2500-2600", USERNAME, PASSWORD, logger);
+        }
         return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("watcher.actions.email.service.account.test.smtp.auth", true)
                 .put("watcher.actions.email.service.account.test.smtp.user", USERNAME)
                 .put("watcher.actions.email.service.account.test.smtp.password", PASSWORD)
-                .put("watcher.actions.email.service.account.test.smtp.port", 2500)
+                .put("watcher.actions.email.service.account.test.smtp.port", server.port())
                 .put("watcher.actions.email.service.account.test.smtp.host", "localhost")
                 .build();
     }

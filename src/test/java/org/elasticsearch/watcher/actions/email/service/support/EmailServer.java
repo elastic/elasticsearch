@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.watcher.actions.email.service.support;
 
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.transport.PortsRange;
+import org.elasticsearch.watcher.WatcherException;
 import org.subethamail.smtp.TooMuchDataException;
 import org.subethamail.smtp.auth.EasyAuthenticationHandlerFactory;
 import org.subethamail.smtp.auth.LoginFailedException;
@@ -18,9 +21,11 @@ import javax.mail.Session;
 import javax.mail.internet.MimeMessage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.BindException;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -72,6 +77,13 @@ public class EmailServer {
         server.setPort(port);
     }
 
+    /**
+     * @return the port that the underlying server is listening on
+     */
+    public int port() {
+        return server.getPort();
+    }
+
     public void start() {
         server.start();
     }
@@ -85,6 +97,34 @@ public class EmailServer {
         listeners.add(listener);
         return new Listener.Handle(listeners, listener);
     }
+
+    public static EmailServer localhost(String portRangeStr, final String username, final String password, final ESLogger logger) {
+        final AtomicReference<EmailServer> emailServer = new AtomicReference<>();
+        boolean bound = new PortsRange(portRangeStr).iterate(new PortsRange.PortCallback() {
+            @Override
+            public boolean onPortNumber(int port) {
+                try {
+                    EmailServer server = new EmailServer("localhost", port, username, password);
+                    server.start();
+                    emailServer.set(server);
+                    return true;
+                } catch (RuntimeException re) {
+                    if (re.getCause() instanceof BindException) {
+                        logger.warn("port [{}] was already in use trying next port", re, port);
+                        return false;
+                    } else {
+                        throw re;
+                    }
+                }
+            }
+        });
+        if (!bound || emailServer.get() == null) {
+            throw new WatcherException("could not bind to any of the port in [{}]" + portRangeStr);
+        }
+        return emailServer.get();
+    }
+
+
 
     public static interface Listener {
 
@@ -106,5 +146,4 @@ public class EmailServer {
         }
 
     }
-
 }

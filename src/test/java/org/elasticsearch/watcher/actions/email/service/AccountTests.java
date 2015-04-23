@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.watcher.actions.email.service;
 
-import org.elasticsearch.watcher.actions.email.service.support.EmailServer;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.watcher.actions.email.service.support.EmailServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -35,8 +35,7 @@ public class AccountTests extends ElasticsearchTestCase {
 
     @Before
     public void init() throws Exception {
-        server = new EmailServer("localhost", 2500, USERNAME, PASSWORD);
-        server.start();
+        server = EmailServer.localhost("2500-2600", USERNAME, PASSWORD, logger);
     }
 
     @After
@@ -155,7 +154,7 @@ public class AccountTests extends ElasticsearchTestCase {
     public void testSend() throws Exception {
         Account account = new Account(new Account.Config("default", ImmutableSettings.builder()
                 .put("smtp.host", "localhost")
-                .put("smtp.port", 2500)
+                .put("smtp.port", server.port())
                 .put("smtp.user", USERNAME)
                 .put("smtp.password", PASSWORD)
                 .build()), logger);
@@ -195,7 +194,7 @@ public class AccountTests extends ElasticsearchTestCase {
     public void testSend_CC_BCC() throws Exception {
         Account account = new Account(new Account.Config("default", ImmutableSettings.builder()
                 .put("smtp.host", "localhost")
-                .put("smtp.port", 2500)
+                .put("smtp.port", server.port())
                 .put("smtp.user", USERNAME)
                 .put("smtp.password", PASSWORD)
                 .build()), logger);
@@ -240,7 +239,7 @@ public class AccountTests extends ElasticsearchTestCase {
     public void testSend_Authentication() throws Exception {
         Account account = new Account(new Account.Config("default", ImmutableSettings.builder()
                 .put("smtp.host", "localhost")
-                .put("smtp.port", 2500)
+                .put("smtp.port", server.port())
                 .build()), logger);
 
         Email email = Email.builder()

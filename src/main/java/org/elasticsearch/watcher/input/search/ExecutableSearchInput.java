@@ -51,13 +51,13 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
 
         SearchRequest request = createSearchRequestWithTimes(input.getSearchRequest(), ctx, scriptService);
         if (logger.isTraceEnabled()) {
-            logger.trace("[{}] running query for [{}] [{}]", ctx.id(), ctx.watch().name(), XContentHelper.convertToJson(request.source(), false, true));
+            logger.trace("[{}] running query for [{}] [{}]", ctx.id(), ctx.watch().id(), XContentHelper.convertToJson(request.source(), false, true));
         }
 
         // actionGet deals properly with InterruptedException
         SearchResponse response = client.search(request);
         if (logger.isDebugEnabled()) {
-            logger.debug("[{}] found [{}] hits", ctx.id(), ctx.watch().name(), response.getHits().getTotalHits());
+            logger.debug("[{}] found [{}] hits", ctx.id(), ctx.watch().id(), response.getHits().getTotalHits());
             for (SearchHit hit : response.getHits()) {
                 logger.debug("[{}] hit [{}]", ctx.id(), XContentHelper.toString(hit));
             }

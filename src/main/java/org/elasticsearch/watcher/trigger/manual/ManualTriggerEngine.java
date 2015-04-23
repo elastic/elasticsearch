@@ -50,7 +50,7 @@ public class ManualTriggerEngine implements TriggerEngine<ManualTrigger,ManualTr
     }
 
     @Override
-    public boolean remove(String jobName) {
+    public boolean remove(String jobId) {
         return false;
     }
 

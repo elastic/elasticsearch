@@ -17,16 +17,16 @@ public interface Trigger extends ToXContent {
 
     String type();
 
-    public static interface Parser<T extends Trigger> {
+    interface Parser<T extends Trigger> {
 
         String type();
 
         T parse(XContentParser parser) throws IOException;
     }
 
-    public static interface SourceBuilder extends ToXContent {
+    interface Builder<T extends Trigger> {
 
-        String type();
+        T build();
     }
 
 }

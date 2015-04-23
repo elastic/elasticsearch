@@ -73,7 +73,7 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
                 listener.onFailure(e);
                 return;
             }
-            listener.onResponse(new GetWatchResponse(watch.name(), watch.status().version(), true, watchSource));
+            listener.onResponse(new GetWatchResponse(watch.id(), watch.status().version(), true, watchSource));
 
         } catch (Throwable t) {
             logger.error("failed to get watch [{}]", t, request.getId());

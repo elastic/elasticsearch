@@ -28,13 +28,8 @@ public class ScheduleTrigger implements Trigger {
         return TYPE;
     }
 
-    public Schedule schedule() {
+    public Schedule getSchedule() {
         return schedule;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().field(schedule.type(), schedule).endObject();
     }
 
     @Override
@@ -54,24 +49,26 @@ public class ScheduleTrigger implements Trigger {
         return schedule.hashCode();
     }
 
-    public static class SourceBuilder implements Trigger.SourceBuilder {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject().field(schedule.type(), schedule).endObject();
+    }
+
+    public static Builder builder(Schedule schedule) {
+        return new Builder(schedule);
+    }
+
+    public static class Builder implements Trigger.Builder<ScheduleTrigger> {
 
         private final Schedule schedule;
 
-        public SourceBuilder(Schedule schedule) {
+        private Builder(Schedule schedule) {
             this.schedule = schedule;
         }
 
         @Override
-        public String type() {
-            return TYPE;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject()
-                    .field(schedule.type(), schedule)
-                    .endObject();
+        public ScheduleTrigger build() {
+            return new ScheduleTrigger(schedule);
         }
     }
 }

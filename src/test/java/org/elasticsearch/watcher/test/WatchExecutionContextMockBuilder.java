@@ -32,7 +32,7 @@ public class WatchExecutionContextMockBuilder {
     public WatchExecutionContextMockBuilder(String watchId) {
         ctx = mock(WatchExecutionContext.class);
         watch = mock(Watch.class);
-        when(watch.name()).thenReturn(watchId);
+        when(watch.id()).thenReturn(watchId);
         when(ctx.watch()).thenReturn(watch);
         payload(Collections.<String, Object>emptyMap());
         metadata(Collections.<String, Object>emptyMap());

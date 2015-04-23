@@ -70,7 +70,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
                     }
                 },
                 logger);
-        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(), new ScheduleTriggerEvent(watch.name(), new DateTime(), new DateTime()));
+        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(), new ScheduleTriggerEvent(watch.id(), new DateTime(), new DateTime()));
 
         Map<String, Object> payloadMap = new HashMap<>();
         payloadMap.put("test", "foo");

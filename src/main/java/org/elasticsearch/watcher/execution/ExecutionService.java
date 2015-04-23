@@ -211,7 +211,7 @@ public class ExecutionService extends AbstractComponent {
     public WatchRecord execute(WatchExecutionContext ctx) throws IOException {
         WatchRecord watchRecord = new WatchRecord(ctx.id(), ctx.watch(), ctx.triggerEvent());
 
-        WatchLockService.Lock lock = watchLockService.acquire(ctx.watch().name());
+        WatchLockService.Lock lock = watchLockService.acquire(ctx.watch().id());
         try {
             WatchExecution execution = executeInner(ctx);
             watchRecord.seal(execution);
@@ -341,8 +341,8 @@ public class ExecutionService extends AbstractComponent {
                 logger.debug("can't initiate watch execution as execution service is not started, ignoring it...");
                 return;
             }
-            logger.trace("executing [{}] [{}]", ctx.watch().name(), ctx.id());
-            WatchLockService.Lock lock = watchLockService.acquire(ctx.watch().name());
+            logger.trace("executing [{}] [{}]", ctx.watch().id(), ctx.id());
+            WatchLockService.Lock lock = watchLockService.acquire(ctx.watch().id());
             try {
                 watchRecord.update(WatchRecord.State.CHECKING, null);
                 logger.debug("checking watch [{}]", watchRecord.name());
@@ -369,7 +369,7 @@ public class ExecutionService extends AbstractComponent {
                 }
             } finally {
                 lock.release();
-                logger.trace("finished [{}]/[{}]", ctx.watch().name(), ctx.id());
+                logger.trace("finished [{}]/[{}]", ctx.watch().id(), ctx.id());
             }
         }
 

@@ -32,24 +32,24 @@ public interface TriggerEngine<T extends Trigger, E extends TriggerEvent> {
     /**
      * Removes the job associated with the given name from this trigger engine.
      *
-     * @param jobName   The name of the job to remove
+     * @param jobId   The name of the job to remove
      * @return          {@code true} if the job existed and removed, {@code false} otherwise.
      */
-    boolean remove(String jobName);
+    boolean remove(String jobId);
 
     T parseTrigger(String context, XContentParser parser) throws IOException;
 
     E parseTriggerEvent(String context, XContentParser parser) throws IOException;
 
-    public static interface Listener {
+    interface Listener {
 
         void triggered(Iterable<TriggerEvent> events);
 
     }
 
-    public static interface Job {
+    interface Job {
 
-        String name();
+        String id();
 
         Trigger trigger();
     }

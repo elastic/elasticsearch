@@ -99,14 +99,14 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                 new Watch.Status());
 
         XContentBuilder builder = jsonBuilder().value(watch);
-        IndexResponse indexResponse = client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, watch.name())
+        IndexResponse indexResponse = client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, watch.id())
                 .setSource(builder).get();
         ensureGreen(WatchStore.INDEX);
         refresh();
         assertThat(indexResponse.isCreated(), is(true));
 
         DateTime now = DateTime.now(UTC);
-        ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.name(), now, now);
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.id(), now, now);
         Wid wid = new Wid("_record", randomLong(), DateTime.now(UTC));
         WatchRecord watchRecord = new WatchRecord(wid, watch, event);
         String actionHistoryIndex = HistoryStore.getHistoryIndexNameForTime(now);
@@ -162,10 +162,10 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                 XContentBuilder jsonBuilder = jsonBuilder();
                 watch.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
 
-                PutWatchResponse putWatchResponse = watcherClient().preparePutWatch(watch.name()).setSource(jsonBuilder.bytes()).get();
+                PutWatchResponse putWatchResponse = watcherClient().preparePutWatch(watch.id()).setSource(jsonBuilder.bytes()).get();
                 assertThat(putWatchResponse.isCreated(), is(true));
 
-                ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.name(), historyIndexDate, historyIndexDate);
+                ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.id(), historyIndexDate, historyIndexDate);
                 Wid wid = new Wid("record_" + i, randomLong(), DateTime.now(UTC));
                 WatchRecord watchRecord = new WatchRecord(wid, watch, event);
 

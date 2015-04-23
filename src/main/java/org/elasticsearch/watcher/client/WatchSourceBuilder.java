@@ -32,7 +32,7 @@ import java.util.Map;
  */
 public class WatchSourceBuilder implements ToXContent {
 
-    private Trigger.SourceBuilder trigger;
+    private Trigger trigger;
     private Input input = NoneInput.INSTANCE;
     private Condition condition = AlwaysCondition.INSTANCE;
     private Transform transform = null;
@@ -40,7 +40,11 @@ public class WatchSourceBuilder implements ToXContent {
     private TimeValue throttlePeriod = null;
     private Map<String, Object> metadata;
 
-    public WatchSourceBuilder trigger(Trigger.SourceBuilder trigger) {
+    public WatchSourceBuilder trigger(Trigger.Builder trigger) {
+        return trigger(trigger.build());
+    }
+
+    public WatchSourceBuilder trigger(Trigger trigger) {
         this.trigger = trigger;
         return this;
     }

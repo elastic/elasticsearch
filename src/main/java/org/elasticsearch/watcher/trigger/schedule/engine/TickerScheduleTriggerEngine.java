@@ -47,7 +47,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         for (Job job : jobs) {
             if (job.trigger() instanceof ScheduleTrigger) {
                 ScheduleTrigger trigger = (ScheduleTrigger) job.trigger();
-                schedules.put(job.name(), new ActiveSchedule(job.name(), trigger.schedule(), starTime));
+                schedules.put(job.id(), new ActiveSchedule(job.id(), trigger.getSchedule(), starTime));
             }
         }
         this.schedules = schedules;
@@ -63,12 +63,12 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     public void add(Job job) {
         assert job.trigger() instanceof ScheduleTrigger;
         ScheduleTrigger trigger = (ScheduleTrigger) job.trigger();
-        schedules.put(job.name(), new ActiveSchedule(job.name(), trigger.schedule(), clock.millis()));
+        schedules.put(job.id(), new ActiveSchedule(job.id(), trigger.getSchedule(), clock.millis()));
     }
 
     @Override
-    public boolean remove(String jobName) {
-        return schedules.remove(jobName) != null;
+    public boolean remove(String jobId) {
+        return schedules.remove(jobId) != null;
     }
 
     void checkJobs() {

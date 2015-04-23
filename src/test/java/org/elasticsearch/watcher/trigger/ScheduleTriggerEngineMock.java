@@ -62,12 +62,12 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
 
     @Override
     public void add(Job job) {
-        jobs.put(job.name(), job);
+        jobs.put(job.id(), job);
     }
 
     @Override
-    public boolean remove(String jobName) {
-        return jobs.remove(jobName) != null;
+    public boolean remove(String jobId) {
+        return jobs.remove(jobId) != null;
     }
 
     public void trigger(String jobName) {

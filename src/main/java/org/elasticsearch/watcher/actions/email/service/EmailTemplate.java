@@ -158,19 +158,19 @@ public class EmailTemplate implements ToXContent {
             builder.field(Email.Field.FROM.getPreferredName(), from);
         }
         if (replyTo != null) {
-            builder.field(Email.Field.REPLY_TO.getPreferredName(), replyTo);
+            builder.field(Email.Field.REPLY_TO.getPreferredName(), (Object[]) replyTo);
         }
         if (priority != null) {
             builder.field(Email.Field.PRIORITY.getPreferredName(), priority);
         }
         if (to != null) {
-            builder.field(Email.Field.TO.getPreferredName(), to);
+            builder.field(Email.Field.TO.getPreferredName(), (Object[]) to);
         }
         if (cc != null) {
-            builder.field(Email.Field.CC.getPreferredName(), cc);
+            builder.field(Email.Field.CC.getPreferredName(), (Object[]) cc);
         }
         if (bcc != null) {
-            builder.field(Email.Field.BCC.getPreferredName(), bcc);
+            builder.field(Email.Field.BCC.getPreferredName(), (Object[]) bcc);
         }
         if (subject != null) {
             builder.field(Email.Field.SUBJECT.getPreferredName(), subject);

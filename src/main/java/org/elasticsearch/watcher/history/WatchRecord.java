@@ -58,7 +58,7 @@ public class WatchRecord implements ToXContent {
 
     public WatchRecord(Wid id, Watch watch, TriggerEvent triggerEvent) {
         this.id = id;
-        this.name = watch.name();
+        this.name = watch.id();
         this.triggerEvent = triggerEvent;
         this.condition = watch.condition().condition();
         this.input = watch.input();

@@ -25,7 +25,7 @@ public final class Variables {
 
     public static Map<String, Object> createCtxModel(WatchExecutionContext ctx, Payload payload) {
         Map<String, Object> vars = new HashMap<>();
-        vars.put(WATCH_ID, ctx.watch().name());
+        vars.put(WATCH_ID, ctx.watch().id());
         vars.put(EXECUTION_TIME, ctx.executionTime());
         vars.put(TRIGGER, ctx.triggerEvent().data());
         if (payload != null) {

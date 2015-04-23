@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.condition.script;
 
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.watcher.condition.ConditionException;
@@ -35,6 +34,6 @@ public class ExecutableScriptCondition extends ExecutableCondition<ScriptConditi
         if (value instanceof Boolean) {
             return (Boolean) value ? ScriptCondition.Result.MET : ScriptCondition.Result.UNMET;
         }
-        throw new ConditionException("failed to execute [{}] condition for watch [{}]. script [{}] must return a boolean value (true|false) but instead returned [{}]", type(), ctx.watch().name(), condition.script.script(), value);
+        throw new ConditionException("failed to execute [{}] condition for watch [{}]. script [{}] must return a boolean value (true|false) but instead returned [{}]", type(), ctx.watch().id(), condition.script.script(), value);
     }
 }

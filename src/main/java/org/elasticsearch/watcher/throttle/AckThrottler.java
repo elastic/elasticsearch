@@ -17,7 +17,7 @@ public class AckThrottler implements Throttler {
     @Override
     public Result throttle(WatchExecutionContext ctx) {
         if (ctx.watch().acked()) {
-            return Result.throttle("watch [" + ctx.watch().name() + "] was acked at [" + formatDate(ctx.watch().status().ackStatus().timestamp()) + "]");
+            return Result.throttle("watch [" + ctx.watch().id() + "] was acked at [" + formatDate(ctx.watch().status().ackStatus().timestamp()) + "]");
         }
         return Result.NO;
     }

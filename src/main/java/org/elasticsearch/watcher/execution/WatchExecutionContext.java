@@ -11,7 +11,6 @@ import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.throttle.Throttler;
-import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
@@ -43,7 +42,7 @@ public abstract class WatchExecutionContext {
         this.watch = watch;
         this.executionTime = executionTime;
         this.triggerEvent = triggerEvent;
-        this.id = new Wid(watch.name(), watch.nonce(), executionTime);
+        this.id = new Wid(watch.id(), watch.nonce(), executionTime);
     }
 
     /**

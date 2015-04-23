@@ -204,7 +204,7 @@ public abstract class BaseTriggerEngineTests extends ElasticsearchTestCase {
         }
 
         @Override
-        public String name() {
+        public String id() {
             return name;
         }
 

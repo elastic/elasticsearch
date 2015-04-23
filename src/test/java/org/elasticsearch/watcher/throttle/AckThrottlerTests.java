@@ -32,7 +32,7 @@ public class AckThrottlerTests extends ElasticsearchTestCase {
         Watch.Status status = mock(Watch.Status.class);
         when(status.ackStatus()).thenReturn(new Watch.Status.AckStatus(Watch.Status.AckStatus.State.ACKED, timestamp));
         when(watch.status()).thenReturn(status);
-        when(watch.name()).thenReturn("_watch");
+        when(watch.id()).thenReturn("_watch");
         when(watch.acked()).thenReturn(true);
         AckThrottler throttler = new AckThrottler();
         Throttler.Result result = throttler.throttle(ctx);

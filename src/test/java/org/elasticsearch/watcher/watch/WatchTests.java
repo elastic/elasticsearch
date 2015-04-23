@@ -356,7 +356,7 @@ public class WatchTests extends ElasticsearchTestCase {
         }
 
         @Override
-        public boolean remove(String jobName) {
+        public boolean remove(String jobId) {
             return false;
         }
     }

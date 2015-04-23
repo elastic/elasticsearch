@@ -47,7 +47,7 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
         for (Job job : jobs) {
             if (job.trigger() instanceof ScheduleTrigger) {
                 ScheduleTrigger trigger = (ScheduleTrigger) job.trigger();
-                schedules.add(new ActiveSchedule(job.name(), trigger.schedule(), starTime));
+                schedules.add(new ActiveSchedule(job.id(), trigger.getSchedule(), starTime));
             }
         }
         this.schedules = new Schedules(schedules);
@@ -70,13 +70,13 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
     public void add(Job job) {
         assert job.trigger() instanceof ScheduleTrigger;
         ScheduleTrigger trigger = (ScheduleTrigger) job.trigger();
-        ActiveSchedule schedule = new ActiveSchedule(job.name(), trigger.schedule(), clock.millis());
+        ActiveSchedule schedule = new ActiveSchedule(job.id(), trigger.getSchedule(), clock.millis());
         schedules = schedules.add(schedule);
     }
 
     @Override
-    public boolean remove(String jobName) {
-        Schedules newSchedules = schedules.remove(jobName);
+    public boolean remove(String jobId) {
+        Schedules newSchedules = schedules.remove(jobId);
         if (newSchedules == null) {
             return false;
         }

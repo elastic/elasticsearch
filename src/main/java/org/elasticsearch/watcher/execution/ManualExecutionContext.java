@@ -11,7 +11,6 @@ import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.watcher.condition.Condition;
-import org.elasticsearch.watcher.input.ExecutableInput;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.trigger.manual.ManualTriggerEvent;
@@ -121,7 +120,7 @@ public class ManualExecutionContext extends WatchExecutionContext {
                 executionTime = DateTime.now(DateTimeZone.UTC);
             }
             if (triggerEvent == null) {
-                triggerEvent = new ManualTriggerEvent(watch.name(), executionTime, new HashMap<String, Object>());
+                triggerEvent = new ManualTriggerEvent(watch.id(), executionTime, new HashMap<String, Object>());
             }
             return new ManualExecutionContext(watch, executionTime, triggerEvent, inputResult, conditionResult, throttlerResult, simulateActionPredicate, recordExecution);
         }

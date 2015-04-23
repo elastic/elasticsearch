@@ -93,7 +93,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
                 new Watch.Status());
         WatchExecutionContext ctx = new TriggeredExecutionContext(watch,
                 new DateTime(0, DateTimeZone.UTC),
-                new ScheduleTriggerEvent(watch.name(), new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC)));
+                new ScheduleTriggerEvent(watch.id(), new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC)));
         HttpInput.Result result = input.execute(ctx);
         assertThat(result.type(), equalTo(HttpInput.TYPE));
         assertThat(result.payload().data(), equalTo(MapBuilder.<String, Object>newMapBuilder().put("key", "value").map()));

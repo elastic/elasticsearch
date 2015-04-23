@@ -16,7 +16,7 @@ public final class TriggerBuilders {
     private TriggerBuilders() {
     }
 
-    public static ScheduleTrigger.SourceBuilder schedule(Schedule schedule) {
-        return new ScheduleTrigger.SourceBuilder(schedule);
+    public static ScheduleTrigger.Builder schedule(Schedule schedule) {
+        return ScheduleTrigger.builder(schedule);
     }
 }

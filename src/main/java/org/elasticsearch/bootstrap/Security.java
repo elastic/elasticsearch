@@ -19,11 +19,9 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.io.PathUtils;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
@@ -32,7 +30,6 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
@@ -51,6 +48,8 @@ class Security {
      * Can only happen once!
      */
     static void configure(Environment environment) throws IOException {
+        // init lucene random seed. it will use /dev/urandom where available.
+        StringHelper.randomId();
         Path newConfig = processTemplate(environment.configFile().resolve("security.policy"), environment);
         System.setProperty("java.security.policy", newConfig.toString());
         System.setSecurityManager(new SecurityManager());
@@ -102,34 +101,6 @@ class Security {
                 addPath(writer, encode(path), "read,readlink,write,delete");
                 addRecursivePath(writer, encode(path), "read,readlink,write,delete");
             }
-            
-            // on *nix, try to grant read perms to file stores / SSD detection
-            if (!Constants.WINDOWS) {
-                Set<String> stores = new HashSet<>();
-                for (FileStore store : PathUtils.getDefaultFileSystem().getFileStores()) {
-                    try {
-                        String mount = NodeEnvironment.getMountPoint(store);
-                        // mount point for fstat() calls against it
-                        if (mount.startsWith("/")) {
-                            stores.add(mount);
-                        }
-                        // block device: add it for SSD detection
-                        if (store.name().startsWith("/")) {
-                            stores.add(store.name());
-                        }
-                    } catch (Throwable t) {
-                        // these are hacks that are not guaranteed
-                    }
-                }
-                for (String store : stores) {
-                    addPath(writer, encode(store), "read,readlink");
-                }
-                addRecursivePath(writer, "/sys/block", "read,readlink");
-                addRecursivePath(writer, "/sys/devices", "read,readlink");
-                addRecursivePath(writer, "/dev", "read,readlink");
-                addRecursivePath(writer, "/devices", "read,readlink");
-            }
-            
             writer.write("};");
             writer.write(System.lineSeparator());
         }

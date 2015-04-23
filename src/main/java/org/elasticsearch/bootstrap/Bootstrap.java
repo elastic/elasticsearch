@@ -98,7 +98,7 @@ public class Bootstrap {
             Security.configure(environment);
             logger.info("security enabled");
         } else {
-            logger.info("security disabled");
+            logger.warn("security disabled");
         }
     }
 

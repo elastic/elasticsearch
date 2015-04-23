@@ -339,8 +339,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     if (request.index().equals(ScriptService.SCRIPT_INDEX)) {
                         indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 0));
                         indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, "0-all");
-                    }
-                    else {
+                    } else {
                         if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
                             if (request.index().equals(riverIndexName)) {
                                 indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
@@ -427,7 +426,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
                     for (Alias alias : request.aliases()) {
                         AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
-                                .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
+                            .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
                         indexMetaDataBuilder.putAlias(aliasMetaData);
                     }
 
@@ -446,11 +445,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
 
                     indexService.indicesLifecycle().beforeIndexAddedToCluster(new Index(request.index()),
-                            indexMetaData.settings());
+                        indexMetaData.settings());
 
                     MetaData newMetaData = MetaData.builder(currentState.metaData())
-                            .put(indexMetaData, false)
-                            .build();
+                        .put(indexMetaData, false)
+                        .build();
 
                     logger.info("[{}] creating index, cause [{}], templates {}, shards [{}]/[{}], mappings {}", request.index(), request.cause(), templateNames, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), mappings.keySet());
 
@@ -468,7 +467,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     if (request.state() == State.OPEN) {
                         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
-                                .addAsNew(updatedState.metaData().index(request.index()));
+                            .addAsNew(updatedState.metaData().index(request.index()));
                         RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(routingTableBuilder).build());
                         updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
                     }
@@ -558,7 +557,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         validateIndexSettings(request.index(), request.settings());
     }
 
-    public void validateIndexSettings(String indexName, Settings settings) throws ElasticsearchException {
+    public void validateIndexSettings(String indexName, Settings settings) throws IndexCreationException {
         String customPath = settings.get(IndexMetaData.SETTING_DATA_PATH, null);
         if (customPath != null && nodeEnv.isCustomPathsEnabled() == false) {
             throw new IndexCreationException(new Index(indexName),
@@ -574,7 +573,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
            validationErrors.add("index must have 0 or more replica shards");
         }
         if (validationErrors.isEmpty() == false) {
-            throw new ElasticsearchIllegalArgumentException(getMessage(validationErrors));
+            throw new IndexCreationException(new Index(indexName),
+                new ElasticsearchIllegalArgumentException(getMessage(validationErrors)));
         }
     }
 

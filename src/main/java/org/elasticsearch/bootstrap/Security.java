@@ -76,7 +76,6 @@ class Security {
             paths.add(environment.workFile());
             paths.add(environment.workWithClusterFile());
             for (Path path : environment.dataFiles()) {
-                System.out.println("datapath=" + path);
                 paths.add(path);
             }
             for (Path path : environment.dataWithClusterFiles()) {

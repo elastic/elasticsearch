@@ -83,7 +83,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     }
 
     public void initialize(InternalAggregation.ReduceContext context) {
-        script = context.scriptService().executable(scriptLang, scriptString, scriptType, ScriptContext.Standard.AGGS, params);
+        script = context.scriptService().executable(new Script(scriptLang, scriptString, scriptType, params), ScriptContext.Standard.AGGS);
         script.setNextVar("_subset_freq", subsetDfHolder);
         script.setNextVar("_subset_size", subsetSizeHolder);
         script.setNextVar("_superset_freq", supersetDfHolder);
@@ -168,7 +168,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             }
             ExecutableScript searchScript;
             try {
-                searchScript = scriptService.executable(scriptLang, script, scriptType, ScriptContext.Standard.AGGS, params);
+                searchScript = scriptService.executable(new Script(scriptLang, script, scriptType, params), ScriptContext.Standard.AGGS);
             } catch (Exception e) {
                 throw new ElasticsearchParseException("The script [" + script + "] could not be loaded", e);
             }

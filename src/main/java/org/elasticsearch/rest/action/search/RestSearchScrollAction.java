@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -68,8 +69,8 @@ public class RestSearchScrollAction extends BaseRestHandler {
             searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
         }
 
-        if (request.hasContent()) {
-            XContentType type = XContentFactory.xContentType(request.content());
+        if (RestActions.hasBodyContent(request)) {
+            XContentType type = XContentFactory.xContentType(RestActions.getRestContent(request));
             if (type == null) {
                 if (scrollId == null) {
                     scrollId = RestActions.getRestContent(request).toUtf8();
@@ -77,7 +78,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
                 }
             } else {
                 // NOTE: if rest request with xcontent body has request parameters, these parameters override xcontent values
-                buildFromContent(request.content(), searchScrollRequest);
+                buildFromContent(RestActions.getRestContent(request), searchScrollRequest);
             }
         }
         client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<SearchResponse>(channel));
@@ -106,5 +107,4 @@ public class RestSearchScrollAction extends BaseRestHandler {
             throw new ElasticsearchIllegalArgumentException("Failed to parse request body", e);
         }
     }
-
 }

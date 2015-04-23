@@ -385,10 +385,6 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
                 } else {
                     throw new ElasticsearchIllegalArgumentException("malformed indices section, should be an array of strings");
                 }
-            } else if (name.equals("ignore_unavailable") || name.equals("ignoreUnavailable")) {
-                ignoreUnavailable = nodeBooleanValue(entry.getValue());
-            } else if (name.equals("allow_no_indices") || name.equals("allowNoIndices")) {
-                allowNoIndices = nodeBooleanValue(entry.getValue());
             } else if (name.equals("expand_wildcards_open") || name.equals("expandWildcardsOpen")) {
                 expandWildcardsOpen = nodeBooleanValue(entry.getValue());
             } else if (name.equals("expand_wildcards_closed") || name.equals("expandWildcardsClosed")) {
@@ -404,7 +400,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
                 includeGlobalState = nodeBooleanValue(entry.getValue());
             }
         }
-        indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
+        indicesOptions(IndicesOptions.fromMap((Map<String, Object>) source, IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed)));
         return this;
     }
 

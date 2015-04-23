@@ -32,6 +32,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
@@ -135,7 +136,7 @@ public class ScriptFilterParser implements FilterParser {
         public ScriptFilter(String scriptLang, String script, ScriptService.ScriptType scriptType, Map<String, Object> params, ScriptService scriptService, SearchLookup searchLookup) {
             this.script = script;
             this.params = params;
-            this.searchScript = scriptService.search(searchLookup, scriptLang, script, scriptType, ScriptContext.Standard.SEARCH, newHashMap(params));
+            this.searchScript = scriptService.search(searchLookup, new Script(scriptLang, script, scriptType, newHashMap(params)), ScriptContext.Standard.SEARCH);
         }
 
         @Override

@@ -38,6 +38,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.search.suggest.Suggest;
 
@@ -60,15 +61,10 @@ public class RestSuggestAction extends BaseRestHandler {
         SuggestRequest suggestRequest = new SuggestRequest(Strings.splitStringByCommaToArray(request.param("index")));
         suggestRequest.indicesOptions(IndicesOptions.fromRequest(request, suggestRequest.indicesOptions()));
         suggestRequest.listenerThreaded(false);
-        if (request.hasContent()) {
-            suggestRequest.suggest(request.content());
+        if (RestActions.hasBodyContent(request)) {
+            suggestRequest.suggest(RestActions.getRestContent(request));
         } else {
-            String source = request.param("source");
-            if (source != null) {
-                suggestRequest.suggest(source);
-            } else {
-                throw new ElasticsearchIllegalArgumentException("no content or source provided to execute suggestion");
-            }
+            throw new ElasticsearchIllegalArgumentException("no content or source provided to execute suggestion");
         }
         suggestRequest.routing(request.param("routing"));
         suggestRequest.preference(request.param("preference"));

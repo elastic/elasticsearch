@@ -33,8 +33,11 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -271,22 +274,18 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         return true;
     }
 
-    /**
-     * Numeric field level query are basically range queries with same value and included. That's the recommended
-     * way to execute it.
-     */
     @Override
-    public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        return rangeQuery(value, value, true, true, context);
+    public final Query termQuery(Object value, @Nullable QueryParseContext context) {
+        TermQuery scoringQuery = new TermQuery(new Term(names.indexName(), indexedValueForSearch(value)));
+        return new ConstantScoreQuery(scoringQuery);
     }
 
-    /**
-     * Numeric field level filter are basically range queries with same value and included. That's the recommended
-     * way to execute it.
-     */
     @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        return rangeFilter(value, value, true, true, context);
+    public final Filter termFilter(Object value, @Nullable QueryParseContext context) {
+        // Made this method final because previously many subclasses duplicated
+        // the same code, returning a NumericRangeFilter, which should be less
+        // efficient than super's default impl of a single TermFilter.
+        return super.termFilter(value, context);
     }
 
     @Override

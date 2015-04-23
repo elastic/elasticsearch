@@ -1214,7 +1214,7 @@ public class InternalEngine extends Engine {
                 }
             }
         } catch (FileNotFoundException ex) {
-            logger.info("no translog file found for ID: " + translogId);
+            logger.debug("no translog file found for ID: " + translogId);
         } catch (TruncatedTranslogException e) {
             // file is empty or header has been half-written and should be ignored
             logger.trace("ignoring truncation exception, the translog is either empty or half-written", e);

@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 import java.io.IOException;
@@ -55,7 +57,9 @@ public class RestAnalyzeAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+
         String text = request.param("text");
+
         AnalyzeRequest analyzeRequest = new AnalyzeRequest(request.param("index"));
         analyzeRequest.text(text);
         analyzeRequest.listenerThreaded(false);
@@ -66,16 +70,16 @@ public class RestAnalyzeAction extends BaseRestHandler {
         analyzeRequest.tokenFilters(request.paramAsStringArray("token_filters", request.paramAsStringArray("filters", analyzeRequest.tokenFilters())));
         analyzeRequest.charFilters(request.paramAsStringArray("char_filters", analyzeRequest.charFilters()));
 
-        if (request.hasContent()) {
-            XContentType type = XContentFactory.xContentType(request.content());
+        if (RestActions.hasBodyContent(request)) {
+            XContentType type = RestActions.guessBodyContentType(request);
             if (type == null) {
                 if (text == null) {
-                    text = request.content().toUtf8();
+                    text = RestActions.getRestContent(request).toUtf8();
                     analyzeRequest.text(text);
                 }
             } else {
                 // NOTE: if rest request with xcontent body has request parameters, the parameters does not override xcontent values
-                buildFromContent(request.content(), analyzeRequest);
+                buildFromContent(RestActions.getRestContent(request), analyzeRequest);
             }
         }
 
@@ -129,9 +133,4 @@ public class RestAnalyzeAction extends BaseRestHandler {
             throw new ElasticsearchIllegalArgumentException("Failed to parse request body", e);
         }
     }
-
-
-
-
-
 }

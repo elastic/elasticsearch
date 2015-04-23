@@ -2,7 +2,7 @@
 "Metadata Fields":
 
   - skip:
-      version:  " - "
+      version:  "all"
       reason:   "Update doesn't return metadata fields, waiting for #3259"
 
   - do:

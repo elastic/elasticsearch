@@ -24,6 +24,7 @@ curl -XGET "http://localhost:9200/index1,index2/_field_stats?fields=rating"
 --------------------------------------------------
 
 Supported request options:
+
 * `fields` - A list of fields to compute stats for.
 * `level`  - Defines if field stats should be returned on a per index level or on a cluster wide level. Valid values are
              `indices` and `cluster`. Defaults to `cluster`.

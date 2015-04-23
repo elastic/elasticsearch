@@ -115,10 +115,9 @@ public class MovAvgReducer extends Reducer {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);
             currentKey = bucket.getKey();
 
-            if (thisBucketValue != null) {
+            if (!(thisBucketValue == null || thisBucketValue.equals(Double.NaN))) {
                 values.offer(thisBucketValue);
 
-                // TODO handle "edge policy"
                 double movavg = model.next(values);
 
                 List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), FUNCTION));

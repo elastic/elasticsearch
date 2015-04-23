@@ -44,6 +44,7 @@ import java.util.Queue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 
+/** a class that simulate simple cluster service features, like state storage and listeners */
 public class TestClusterService implements ClusterService {
 
     volatile ClusterState state;
@@ -78,6 +79,7 @@ public class TestClusterService implements ClusterService {
     }
 
 
+    /** set the current state and trigger any registered listeners about the change */
     public void setState(ClusterState state) {
         assert state.getNodes().localNode() != null;
         // make sure we have a version increment
@@ -89,6 +91,7 @@ public class TestClusterService implements ClusterService {
         }
     }
 
+    /** set the current state and trigger any registered listeners about the change */
     public void setState(ClusterState.Builder state) {
         setState(state.build());
     }
@@ -171,47 +174,48 @@ public class TestClusterService implements ClusterService {
 
     @Override
     public void submitStateUpdateTask(String source, Priority priority, ClusterStateUpdateTask updateTask) {
-
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public void submitStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
-
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public List<PendingClusterTask> pendingTasks() {
-        return null;
+        throw new UnsupportedOperationException();
+
     }
 
     @Override
     public int numberOfPendingTasks() {
-        return 0;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public Lifecycle.State lifecycleState() {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public void addLifecycleListener(LifecycleListener listener) {
-
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public void removeLifecycleListener(LifecycleListener listener) {
-
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public ClusterService start() throws ElasticsearchException {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public ClusterService stop() throws ElasticsearchException {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override

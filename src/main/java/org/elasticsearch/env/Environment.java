@@ -58,7 +58,20 @@ public class Environment {
     private final Path logsFile;
 
     /** List of filestores on the system */
-    private final FileStore[] fileStores;
+    private static final FileStore[] fileStores;
+
+    /**
+     * We have to do this in clinit instead of init, because ES code is pretty messy,
+     * and makes these environments, throws them away, makes them again, etc.
+     */
+    static {
+        // gather information about filesystems
+        ArrayList<FileStore> allStores = new ArrayList<>();
+        for (FileStore store : PathUtils.getDefaultFileSystem().getFileStores()) {
+            allStores.add(new ESFileStore(store));
+        }
+        fileStores = allStores.toArray(new ESFileStore[allStores.size()]);
+    }
 
     public Environment() {
         this(EMPTY_SETTINGS);
@@ -109,13 +122,6 @@ public class Environment {
         } else {
             logsFile = homeFile.resolve("logs");
         }
-
-        // gather information about filesystems
-        ArrayList<FileStore> allStores = new ArrayList<>();
-        for (FileStore store : PathUtils.getDefaultFileSystem().getFileStores()) {
-            allStores.add(new ESFileStore(store));
-        }
-        fileStores = allStores.toArray(new ESFileStore[allStores.size()]);
     }
 
     /**

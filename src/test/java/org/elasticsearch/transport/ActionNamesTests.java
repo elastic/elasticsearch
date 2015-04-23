@@ -21,17 +21,20 @@ package org.elasticsearch.transport;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryAction;
+import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.exists.ExistsAction;
+import org.elasticsearch.action.fieldstats.FieldStatsAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
-import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.repositories.VerifyNodeRepositoryAction;
+import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.*;
 
@@ -57,6 +60,8 @@ public class ActionNamesTests extends ElasticsearchIntegrationTest {
         post_1_4_actions.add(SearchServiceTransportAction.FETCH_ID_SCROLL_ACTION_NAME);
         post_1_4_actions.add(VerifyRepositoryAction.NAME);
         post_1_4_actions.add(VerifyNodeRepositoryAction.ACTION_NAME);
+        post_1_4_actions.add(FieldStatsAction.NAME);
+        post_1_4_actions.add(FieldStatsAction.NAME + "[s]");
     }
 
     @Test

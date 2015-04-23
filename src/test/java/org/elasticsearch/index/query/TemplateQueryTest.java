@@ -369,6 +369,45 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         assertHitCount(sr, 4);
     }
 
+    // Relates to #10397
+    @Test
+    public void testIndexedTemplateOverwrite() throws Exception {
+        createIndex("testindex");
+        ensureGreen("testindex");
+
+        index("testindex", "test", "1", jsonBuilder().startObject().field("searchtext", "dev1").endObject());
+        refresh();
+
+        int iterations = randomIntBetween(2, 11);
+        for (int i = 1; i < iterations; i++) {
+            PutIndexedScriptResponse scriptResponse = client().preparePutIndexedScript(MustacheScriptEngineService.NAME, "git01", 
+                    "{\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\",\"type\": \"ooophrase_prefix\"}}}}").get();
+            assertEquals(i * 2 - 1, scriptResponse.getVersion());
+    
+            GetIndexedScriptResponse getResponse = client().prepareGetIndexedScript(MustacheScriptEngineService.NAME, "git01").get();
+            assertTrue(getResponse.isExists());
+    
+            Map<String, Object> templateParams = Maps.newHashMap();
+            templateParams.put("P_Keyword1", "dev");
+    
+            try {
+                client().prepareSearch("testindex").setTypes("test").
+                    setTemplateName("git01").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
+                fail("Broken test template is parsing w/o error.");
+            } catch (SearchPhaseExecutionException e) {
+                // the above is expected to fail
+            }
+    
+            scriptResponse = client()
+                    .preparePutIndexedScript(MustacheScriptEngineService.NAME, "git01",
+                            "{\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\",\"type\": \"phrase_prefix\"}}}}").get();
+            assertEquals(i * 2, scriptResponse.getVersion());
+            SearchResponse searchResponse = client().prepareSearch("testindex").setTypes("test").
+                    setTemplateName("git01").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
+            assertHitCount(searchResponse, 1);
+        }
+    }
+
     @Test
     public void testIndexedTemplateWithArray() throws Exception {
       createIndex(ScriptService.SCRIPT_INDEX);

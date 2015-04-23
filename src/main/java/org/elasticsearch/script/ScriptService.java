@@ -247,7 +247,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Compiles a script straight-away, or returns the previously compiled and cached script, without checking if it can be executed based on settings.
      */
-    public CompiledScript compile(String lang,  String script, ScriptType scriptType) {
+    public CompiledScript compile(String lang,  String scriptOrId, ScriptType scriptType) {
         //scriptType might not get serialized depending on the version of the node we talk to, if null treat as inline
         if (scriptType == null) {
             scriptType = ScriptType.INLINE;
@@ -257,16 +257,16 @@ public class ScriptService extends AbstractComponent implements Closeable {
             lang = defaultLang;
         }
         if (logger.isTraceEnabled()) {
-            logger.trace("Compiling lang: [{}] type: [{}] script: {}", lang, scriptType, script);
+            logger.trace("Compiling lang: [{}] type: [{}] script: {}", lang, scriptType, scriptOrId);
         }
 
         ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
-        CacheKey cacheKey = newCacheKey(scriptEngineService, script);
+        CacheKey cacheKey = newCacheKey(scriptEngineService, scriptOrId);
 
         if (scriptType == ScriptType.FILE) {
             CompiledScript compiled = staticCache.get(cacheKey); //On disk scripts will be loaded into the staticCache by the listener
             if (compiled == null) {
-                throw new ElasticsearchIllegalArgumentException("Unable to find on disk script " + script);
+                throw new ElasticsearchIllegalArgumentException("Unable to find on disk script " + scriptOrId);
             }
             return compiled;
         }
@@ -281,12 +281,14 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
         verifyDynamicScripting(lang, scriptEngineService);
 
+        String script = scriptOrId;
         if (scriptType == ScriptType.INDEXED) {
             if (client == null) {
                 throw new ElasticsearchIllegalArgumentException("Got an indexed script with no Client registered.");
             }
-            final IndexedScript indexedScript = new IndexedScript(lang, script);
+            final IndexedScript indexedScript = new IndexedScript(lang, scriptOrId);
             script = getScriptFromIndex(client, indexedScript.lang, indexedScript.id);
+            cacheKey = newCacheKey(scriptEngineService, script);
         }
 
 

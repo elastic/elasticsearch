@@ -28,7 +28,7 @@ Supported request options:
 * `level`  - Defines if field stats should be returned on a per index level or on a cluster wide level. Valid values are
              `indices` and `cluster`. Defaults to `cluster`.
 
-==== Field statistics
+=== Field statistics
 
 The field stats api is supported on string based, number based and date based fields and can return the following statistics per field:
 
@@ -45,7 +45,7 @@ The field stats api is supported on string based, number based and date based fi
 Note that for all the mentioned statistics, documents marked as deleted aren't taken into account. The documents marked
 as deleted are are only taken into account when the segments these documents reside on are merged away.
 
-==== Example
+=== Example
 
 [source,js]
 --------------------------------------------------

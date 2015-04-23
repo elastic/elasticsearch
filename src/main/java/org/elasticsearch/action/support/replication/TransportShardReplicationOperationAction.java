@@ -619,7 +619,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     private void failReplicaIfNeeded(String index, int shardId, Throwable t) {
         logger.trace("failure on replica [{}][{}]", t, index, shardId);
-        if (!ignoreReplicaException(t)) {
+        if (ignoreReplicaException(t) == false) {
             IndexService indexService = indicesService.indexService(index);
             if (indexService == null) {
                 logger.debug("ignoring failed replica [{}][{}] because index was already removed.", index, shardId);
@@ -825,7 +825,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                             public void handleException(TransportException exp) {
                                 onReplicaFailure(nodeId, exp);
                                 logger.trace("[{}] transport failure during replica request [{}] ", exp, node, replicaRequest);
-                                if (!ignoreReplicaException(exp)) {
+                                if (ignoreReplicaException(exp) == false) {
                                     logger.warn("failed to perform " + actionName + " on remote replica " + node + shardIt.shardId(), exp);
                                     shardStateAction.shardFailed(shard, indexMetaData.getUUID(),
                                             "Failed to perform [" + actionName + "] on replica, message [" + ExceptionsHelper.detailedMessage(exp) + "]");
@@ -878,7 +878,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         void onReplicaFailure(String nodeId, @Nullable Throwable e) {
             // Only version conflict should be ignored from being put into the _shards header?
-            if (e != null && !ignoreReplicaException(e)) {
+            if (e != null && ignoreReplicaException(e) == false) {
                 shardReplicaFailures.put(nodeId, e);
             }
             decPendingAndFinishIfNeeded();

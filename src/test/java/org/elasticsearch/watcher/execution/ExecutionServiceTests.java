@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.execution;
 
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -59,9 +58,8 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
         WatchExecutor executor = mock(WatchExecutor.class);
         WatchStore watchStore = mock(WatchStore.class);
         WatchLockService watchLockService = mock(WatchLockService.class);
-        ClusterService clusterService = mock(ClusterService.class);
         Clock clock = new ClockMock();
-        executionService = new ExecutionService(ImmutableSettings.EMPTY, historyStore, executor, watchStore, watchLockService, clusterService, clock);
+        executionService = new ExecutionService(ImmutableSettings.EMPTY, historyStore, executor, watchStore, watchLockService, clock);
     }
 
     @Test

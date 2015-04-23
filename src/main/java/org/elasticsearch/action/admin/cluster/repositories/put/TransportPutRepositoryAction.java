@@ -65,7 +65,7 @@ public class TransportPutRepositoryAction extends TransportMasterNodeOperationAc
 
     @Override
     protected ClusterBlockException checkBlock(PutRepositoryRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, "");
     }
 
     @Override

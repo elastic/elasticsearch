@@ -65,7 +65,7 @@ public class TransportDeleteRepositoryAction extends TransportMasterNodeOperatio
 
     @Override
     protected ClusterBlockException checkBlock(DeleteRepositoryRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, "");
     }
 
     @Override

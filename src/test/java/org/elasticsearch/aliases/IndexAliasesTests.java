@@ -49,6 +49,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -57,14 +58,13 @@ import java.util.concurrent.TimeUnit;
 import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.client.Requests.indexRequest;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasKey;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -908,10 +908,10 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test")
                 .addMapping("type", "field", "type=string")
                 .setAliases("{\n" +
-                "        \"alias1\" : {},\n" +
-                "        \"alias2\" : {\"filter\" : {\"term\": {\"field\":\"value\"}}},\n" +
-                "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"}\n" +
-                "}"));
+                        "        \"alias1\" : {},\n" +
+                        "        \"alias2\" : {\"filter\" : {\"term\": {\"field\":\"value\"}}},\n" +
+                        "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"}\n" +
+                        "}"));
 
         checkAliases();
     }
@@ -989,11 +989,54 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
     @Test
     public void testAliasesFilterWithHasChildQuery() throws Exception {
         assertAcked(prepareCreate("my-index")
-                .addMapping("parent")
-                .addMapping("child", "_parent", "type=parent")
+                        .addMapping("parent")
+                        .addMapping("child", "_parent", "type=parent")
         );
         assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1", hasChildFilter("child", matchAllQuery())));
         assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter2", hasParentFilter("child", matchAllQuery())));
+    }
+
+    @Test
+    public void testAliasesWithBlocks() {
+        createIndex("test");
+        ensureGreen();
+
+        for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
+            try {
+                enableIndexBlock("test", block);
+
+                assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1").addAlias("test", "alias2"));
+                assertAcked(admin().indices().prepareAliases().removeAlias("test", "alias1"));
+                assertThat(admin().indices().prepareGetAliases("alias2").execute().actionGet().getAliases().get("test").size(), equalTo(1));
+                assertThat(admin().indices().prepareAliasesExist("alias2").get().exists(), equalTo(true));
+            } finally {
+                disableIndexBlock("test", block);
+            }
+        }
+
+        try {
+            enableIndexBlock("test", SETTING_READ_ONLY);
+
+            assertBlocked(admin().indices().prepareAliases().addAlias("test", "alias3"), INDEX_READ_ONLY_BLOCK);
+            assertBlocked(admin().indices().prepareAliases().removeAlias("test", "alias2"), INDEX_READ_ONLY_BLOCK);
+            assertThat(admin().indices().prepareGetAliases("alias2").execute().actionGet().getAliases().get("test").size(), equalTo(1));
+            assertThat(admin().indices().prepareAliasesExist("alias2").get().exists(), equalTo(true));
+
+        } finally {
+            disableIndexBlock("test", SETTING_READ_ONLY);
+        }
+
+        try {
+            enableIndexBlock("test", SETTING_BLOCKS_METADATA);
+
+            assertBlocked(admin().indices().prepareAliases().addAlias("test", "alias3"), INDEX_METADATA_BLOCK);
+            assertBlocked(admin().indices().prepareAliases().removeAlias("test", "alias2"), INDEX_METADATA_BLOCK);
+            assertBlocked(admin().indices().prepareGetAliases("alias2"), INDEX_METADATA_BLOCK);
+            assertBlocked(admin().indices().prepareAliasesExist("alias2"), INDEX_METADATA_BLOCK);
+
+        } finally {
+            disableIndexBlock("test", SETTING_BLOCKS_METADATA);
+        }
     }
 
     private void checkAliases() {

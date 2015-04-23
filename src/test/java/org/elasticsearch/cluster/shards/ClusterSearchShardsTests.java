@@ -27,8 +27,12 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
+import java.util.Arrays;
+
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -122,5 +126,37 @@ public class ClusterSearchShardsTests extends ElasticsearchIntegrationTest {
         assertThat(seenTest1, equalTo(true));
         assertThat(seenTest2, equalTo(true));
         assertThat(response.getNodes().length, equalTo(2));
+    }
+
+    @Test
+    public void testClusterSearchShardsWithBlocks() {
+        createIndex("test-blocks");
+
+        NumShards numShards = getNumShards("test-blocks");
+
+        int docs = between(10, 100);
+        for (int i = 0; i < docs; i++) {
+            client().prepareIndex("test-blocks", "type", "" + i).setSource("test", "init").execute().actionGet();
+        }
+        ensureGreen("test-blocks");
+
+        // Request is not blocked
+        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {
+            try {
+                enableIndexBlock("test-blocks", blockSetting);
+                ClusterSearchShardsResponse response = client().admin().cluster().prepareSearchShards("test-blocks").execute().actionGet();
+                assertThat(response.getGroups().length, equalTo(numShards.numPrimaries));
+            } finally {
+                disableIndexBlock("test-blocks", blockSetting);
+            }
+        }
+
+        // Request is blocked
+        try {
+            enableIndexBlock("test-blocks", SETTING_BLOCKS_METADATA);
+            assertBlocked(client().admin().cluster().prepareSearchShards("test-blocks"));
+        } finally {
+            disableIndexBlock("test-blocks", SETTING_BLOCKS_METADATA);
+        }
     }
 }

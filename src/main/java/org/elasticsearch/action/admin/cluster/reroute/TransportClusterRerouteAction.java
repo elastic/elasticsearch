@@ -58,7 +58,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
 
     @Override
     protected ClusterBlockException checkBlock(ClusterRerouteRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override

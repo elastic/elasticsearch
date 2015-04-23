@@ -559,13 +559,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     public void validateIndexSettings(String indexName, Settings settings) throws IndexCreationException {
         String customPath = settings.get(IndexMetaData.SETTING_DATA_PATH, null);
+        List<String> validationErrors = Lists.newArrayList();
         if (customPath != null && nodeEnv.isCustomPathsEnabled() == false) {
-            throw new IndexCreationException(new Index(indexName),
-                new ElasticsearchIllegalArgumentException("custom data_paths for indices is disabled"));
+            validationErrors.add("custom data_paths for indices is disabled");
         }
         Integer number_of_primaries = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
         Integer number_of_replicas = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null);
-        List<String> validationErrors = Lists.newArrayList();
         if (number_of_primaries != null && number_of_primaries <= 0) {
             validationErrors.add("index must have 1 or more primary shards");
         }

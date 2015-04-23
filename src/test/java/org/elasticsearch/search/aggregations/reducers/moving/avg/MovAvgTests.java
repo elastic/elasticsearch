@@ -21,6 +21,8 @@ package org.elasticsearch.search.aggregations.reducers.moving.avg;
 
 
 import com.google.common.collect.EvictingQueue;
+
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -32,7 +34,11 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.
 import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregationBuilder;
 import org.elasticsearch.search.aggregations.reducers.BucketHelpers;
 import org.elasticsearch.search.aggregations.reducers.SimpleValue;
-import org.elasticsearch.search.aggregations.reducers.movavg.models.*;
+import org.elasticsearch.search.aggregations.reducers.movavg.models.DoubleExpModel;
+import org.elasticsearch.search.aggregations.reducers.movavg.models.LinearModel;
+import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModelBuilder;
+import org.elasticsearch.search.aggregations.reducers.movavg.models.SimpleModel;
+import org.elasticsearch.search.aggregations.reducers.movavg.models.SingleExpModel;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -40,13 +46,22 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
 import static org.elasticsearch.search.aggregations.reducers.ReducerBuilders.movingAvg;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @ElasticsearchIntegrationTest.SuiteScopeTest
+@AwaitsFix(bugUrl = "Gap test logic seems to fail a lot of the time on CI build")
 public class MovAvgTests extends ElasticsearchIntegrationTest {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "l_value";

@@ -7,14 +7,11 @@ package org.elasticsearch.watcher.watch;
 
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.search.*;
-import org.elasticsearch.watcher.support.Callback;
-import org.elasticsearch.watcher.support.TemplateUtils;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.*;
@@ -29,7 +26,8 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.support.TemplateUtils;
+import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -48,19 +46,13 @@ public class WatchStoreTests extends ElasticsearchTestCase {
     private ClientProxy clientProxy;
     private TemplateUtils templateUtils;
     private Watch.Parser parser;
-    private ClusterService clusterService;
-    private ThreadPool threadPool;
-    private Callback<ClusterState> callback;
 
     @Before
     public void init() {
         clientProxy = mock(ClientProxy.class);
         templateUtils = mock(TemplateUtils.class);
         parser = mock(Watch.Parser.class);
-        clusterService = mock(ClusterService.class);
-        threadPool = mock(ThreadPool.class);
-        callback = mock(Callback.class);
-        watchStore = new WatchStore(ImmutableSettings.EMPTY, clientProxy, templateUtils, parser, clusterService, threadPool);
+        watchStore = new WatchStore(ImmutableSettings.EMPTY, clientProxy, templateUtils, parser);
     }
 
     @Test
@@ -70,21 +62,16 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         csBuilder.metaData(metaDateBuilder);
         ClusterState cs = csBuilder.build();
 
-        watchStore.start(cs, callback);
+        assertThat(watchStore.validate(cs), is(true));
+        watchStore.start(cs);
         assertThat(watchStore.started(), is(true));
         assertThat(watchStore.watches().size(), equalTo(0));
-        verify(callback, times(1)).onSuccess(any(ClusterState.class));
-        verify(callback, never()).onFailure(any(Throwable.class));
         verify(templateUtils, times(1)).ensureIndexTemplateIsLoaded(cs, "watches");
         verifyZeroInteractions(clientProxy);
-        verifyZeroInteractions(clusterService);
 
-        watchStore.start(cs, callback);
-        verify(callback, times(2)).onSuccess(any(ClusterState.class));
-        verify(callback, never()).onFailure(any(Throwable.class));
+        watchStore.start(cs);
         verifyNoMoreInteractions(templateUtils);
         verifyZeroInteractions(clientProxy);
-        verifyZeroInteractions(clusterService);
     }
 
     @Test
@@ -107,10 +94,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         csBuilder.routingTable(routingTableBuilder);
 
         ClusterState cs = csBuilder.build();
-
-        watchStore.start(cs, callback);
-        verify(clusterService, timeout(1)).add(any(ClusterStateListener.class));
-        verifyZeroInteractions(callback);
+        assertThat(watchStore.validate(cs), is(false));
         verifyZeroInteractions(templateUtils);
         verifyZeroInteractions(clientProxy);
     }
@@ -139,9 +123,8 @@ public class WatchStoreTests extends ElasticsearchTestCase {
 
         ClusterState cs = csBuilder.build();
 
-        watchStore.start(cs, callback);
-        verify(clusterService, timeout(1)).add(any(ClusterStateListener.class));
-        verifyZeroInteractions(callback);
+        assertThat(watchStore.validate(cs), is(true));
+        watchStore.start(cs);
         verifyZeroInteractions(templateUtils);
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
         verify(clientProxy, never()).search(any(SearchRequest.class));
@@ -176,10 +159,8 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 0));
 
         ClusterState cs = csBuilder.build();
-
-        watchStore.start(cs, callback);
-        verify(clusterService, timeout(1)).add(any(ClusterStateListener.class));
-        verifyZeroInteractions(callback);
+        assertThat(watchStore.validate(cs), is(true));
+        watchStore.start(cs);
         verifyZeroInteractions(templateUtils);
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
         verify(clientProxy, times(1)).search(any(SearchRequest.class));
@@ -214,13 +195,10 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 0));
 
         ClusterState cs = csBuilder.build();
-
-        watchStore.start(cs, callback);
-        verifyZeroInteractions(clusterService);
+        assertThat(watchStore.validate(cs), is(true));
+        watchStore.start(cs);
         assertThat(watchStore.started(), is(true));
         assertThat(watchStore.watches().size(), equalTo(0));
-        verify(callback, times(1)).onSuccess(any(ClusterState.class));
-        verify(callback, never()).onFailure(any(Throwable.class));
         verify(templateUtils, times(1)).ensureIndexTemplateIsLoaded(cs, "watches");
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
         verify(clientProxy, times(1)).search(any(SearchRequest.class));
@@ -272,13 +250,10 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 0));
 
         ClusterState cs = csBuilder.build();
-
-        watchStore.start(cs, callback);
-        verifyZeroInteractions(clusterService);
+        assertThat(watchStore.validate(cs), is(true));
+        watchStore.start(cs);
         assertThat(watchStore.started(), is(true));
         assertThat(watchStore.watches().size(), equalTo(2));
-        verify(callback, times(1)).onSuccess(any(ClusterState.class));
-        verify(callback, never()).onFailure(any(Throwable.class));
         verify(templateUtils, times(1)).ensureIndexTemplateIsLoaded(cs, "watches");
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
         verify(clientProxy, times(1)).search(any(SearchRequest.class));

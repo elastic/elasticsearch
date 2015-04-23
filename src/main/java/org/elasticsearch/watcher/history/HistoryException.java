@@ -11,8 +11,8 @@ import org.elasticsearch.watcher.WatcherException;
  */
 public class HistoryException extends WatcherException {
 
-    public HistoryException(String msg) {
-        super(msg);
+    public HistoryException(String msg, Object... args) {
+        super(msg, args);
     }
 
     public HistoryException(String msg, Throwable cause) {

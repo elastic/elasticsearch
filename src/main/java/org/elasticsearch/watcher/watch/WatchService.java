@@ -15,7 +15,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.execution.ExecutionService;
-import org.elasticsearch.watcher.support.Callback;
 import org.elasticsearch.watcher.trigger.TriggerService;
 
 import java.io.IOException;
@@ -46,32 +45,16 @@ public class WatchService extends AbstractComponent {
             watchLockService.start();
 
             // Try to load watch store before the execution service, b/c action depends on watch store
-            watchStore.start(clusterState, new Callback<ClusterState>() {
-
-                @Override
-                public void onSuccess(ClusterState clusterState) {
-                    executionService.start(clusterState, new Callback<ClusterState>() {
-
-                        @Override
-                        public void onSuccess(ClusterState clusterState) {
-                            triggerService.start(watchStore.watches().values());
-                            state.set(State.STARTED);
-                            logger.info("watch service has started");
-                        }
-
-                        @Override
-                        public void onFailure(Throwable e) {
-                            logger.error("failed to start watch service", e);
-                        }
-                    });
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    logger.error("failed to start watch service", e);
-                }
-            });
+            watchStore.start(clusterState);
+            executionService.start(clusterState);
+            triggerService.start(watchStore.watches().values());
+            state.set(State.STARTED);
+            logger.info("watch service has started");
         }
+    }
+
+    public boolean validate(ClusterState state) {
+        return watchStore.validate(state) && executionService.validate(state);
     }
 
     public void stop() {

@@ -79,6 +79,26 @@ public class HistoryStore extends AbstractComponent {
         started.set(true);
     }
 
+    public boolean validate(ClusterState state) {
+        String[] indices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), INDEX_PREFIX + "*");
+        if (indices.length == 0) {
+            logger.debug("no history indices exist, so we can load");
+            return true;
+        }
+
+        for (String index : indices) {
+            IndexMetaData indexMetaData = state.getMetaData().index(index);
+            if (indexMetaData != null) {
+                if (!state.routingTable().index(index).allPrimaryShardsActive()) {
+                    logger.debug("not all primary shards of the [{}] index are started, so we cannot load watcher records", index);
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
     public void stop() {
         stopLock.lock(); //This will block while put or update actions are underway
         try {
@@ -223,7 +243,7 @@ public class HistoryStore extends AbstractComponent {
     public Collection<WatchRecord> loadRecords(ClusterState state, WatchRecord.State recordState) {
         String[] indices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), INDEX_PREFIX + "*");
         if (indices.length == 0) {
-            logger.debug("No .watch_history indices found. skipping loading awaiting watch records");
+            logger.debug("no .watch_history indices found. skipping loading awaiting watch records");
             templateUtils.ensureIndexTemplateIsLoaded(state, INDEX_TEMPLATE_NAME);
             return Collections.emptySet();
         }
@@ -232,8 +252,8 @@ public class HistoryStore extends AbstractComponent {
             IndexMetaData indexMetaData = state.getMetaData().index(index);
             if (indexMetaData != null) {
                 if (!state.routingTable().index(index).allPrimaryShardsActive()) {
-                    logger.debug("Not all primary shards of the [{}] index are started. Schedule to retry loading awaiting watch records..", index);
-                    return null;
+                    logger.debug("not all primary shards of the [{}] index are started.", index);
+                    throw new HistoryException("not all primary shards of the [{}] index are started.", index);
                 } else {
                     numPrimaryShards += indexMetaData.numberOfShards();
                 }
@@ -242,7 +262,7 @@ public class HistoryStore extends AbstractComponent {
 
         RefreshResponse refreshResponse = client.refresh(new RefreshRequest(INDEX_PREFIX + "*"));
         if (refreshResponse.getSuccessfulShards() < numPrimaryShards) {
-            return null;
+            throw new HistoryException("refresh was supposed to run on [{}] shards, but ran on [{}] shards", numPrimaryShards, refreshResponse.getSuccessfulShards());
         }
 
         SearchRequest searchRequest = createScanSearchRequest(recordState);
@@ -250,7 +270,7 @@ public class HistoryStore extends AbstractComponent {
         List<WatchRecord> records = new ArrayList<>();
         try {
             if (response.getTotalShards() != response.getSuccessfulShards()) {
-                return null;
+                throw new HistoryException("scan search was supposed to run on [{}] shards, but ran on [{}] shards", numPrimaryShards, response.getSuccessfulShards());
             }
 
             if (response.getHits().getTotalHits() > 0) {

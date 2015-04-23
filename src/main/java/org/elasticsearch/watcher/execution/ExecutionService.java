@@ -8,10 +8,8 @@ package org.elasticsearch.watcher.execution;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
@@ -23,7 +21,6 @@ import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.Input;
-import org.elasticsearch.watcher.support.Callback;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
@@ -40,7 +37,6 @@ import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 /**
@@ -55,7 +51,6 @@ public class ExecutionService extends AbstractComponent {
     private final Clock clock;
 
     private final AtomicBoolean started = new AtomicBoolean(false);
-    private final AtomicInteger initializationRetries = new AtomicInteger();
 
     @Inject
     public ExecutionService(Settings settings, HistoryStore historyStore, WatchExecutor executor, WatchStore watchStore,
@@ -69,25 +64,23 @@ public class ExecutionService extends AbstractComponent {
         this.clock = clock;
     }
 
-    public void start(ClusterState state, Callback<ClusterState> callback) {
+    public void start(ClusterState state) {
         if (started.get()) {
-            callback.onSuccess(state);
             return;
         }
 
         assert executor.queue().isEmpty() : "queue should be empty, but contains " + executor.queue().size() + " elements.";
         Collection<WatchRecord> records = historyStore.loadRecords(state, WatchRecord.State.AWAITS_EXECUTION);
-        if (records == null) {
-            retry(callback);
-            return;
-        }
         if (started.compareAndSet(false, true)) {
             logger.debug("starting execution service");
             historyStore.start();
             executeRecords(records);
             logger.debug("started execution service");
         }
-        callback.onSuccess(state);
+    }
+
+    public boolean validate(ClusterState state) {
+        return historyStore.validate(state);
     }
 
     public void stop() {
@@ -297,32 +290,6 @@ public class ExecutionService extends AbstractComponent {
             counter++;
         }
         logger.debug("executed [{}] watches from the watch history", counter);
-    }
-
-    private void retry(final Callback<ClusterState> callback) {
-        ClusterStateListener clusterStateListener = new ClusterStateListener() {
-
-            @Override
-            public void clusterChanged(final ClusterChangedEvent event) {
-                // Remove listener, so that it doesn't get called on the next cluster state update:
-                assert initializationRetries.decrementAndGet() == 0 : "Only one retry can run at the time";
-                clusterService.remove(this);
-                // We fork into another thread, because start(...) is expensive and we can't call this from the cluster update thread.
-                executor.execute(new Runnable() {
-
-                    @Override
-                    public void run() {
-                        try {
-                            start(event.state(), callback);
-                        } catch (Exception e) {
-                            callback.onFailure(e);
-                        }
-                    }
-                });
-            }
-        };
-        assert initializationRetries.incrementAndGet() == 1 : "Only one retry can run at the time";
-        clusterService.add(clusterStateListener);
     }
 
     private final class WatchExecutionTask implements Runnable {

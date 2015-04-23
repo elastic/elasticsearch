@@ -65,7 +65,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
     }
 
     @Override
-    public void clusterChanged(final ClusterChangedEvent event) {
+    public void clusterChanged(ClusterChangedEvent event) {
         if (!event.localNodeMaster()) {
             // We're no longer the master so we need to stop the watcher.
             // Stopping the watcher may take a while since it will wait on the scheduler to complete shutdown,
@@ -83,11 +83,39 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
                 // a .watch_history index, but they may not have been restored from the cluster state on disk
                 return;
             }
+
+            final ClusterState state = event.state();
+            if (!watchService.validate(state)) {
+                return;
+            }
+
             if (watchService.state() == WatchService.State.STOPPED && !manuallyStopped) {
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
                     @Override
                     public void run() {
-                        start(event.state());
+                        int attempts = 0;
+                        while(true) {
+                            try {
+                                start(state);
+                                return;
+                            } catch (Exception e) {
+                                if (++attempts < 3) {
+                                    logger.warn("error occurred while starting, retrying...", e);
+                                    try {
+                                        Thread.sleep(1000);
+                                    } catch (InterruptedException ie) {
+                                        Thread.currentThread().interrupt();
+                                    }
+                                    if (!clusterService.localNode().masterNode()) {
+                                        logger.error("abort retry, we are no longer master");
+                                        return;
+                                    }
+                                } else {
+                                    logger.error("attempted to start Watcher [{}] times, aborting now, please try to start Watcher manually", attempts);
+                                    return;
+                                }
+                            }
+                        }
                     }
                 });
             }

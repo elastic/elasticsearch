@@ -16,10 +16,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -30,16 +27,13 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.WatcherException;
-import org.elasticsearch.watcher.support.Callback;
 import org.elasticsearch.watcher.support.TemplateUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 
 import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  */
@@ -52,64 +46,59 @@ public class WatchStore extends AbstractComponent {
     private final ClientProxy client;
     private final TemplateUtils templateUtils;
     private final Watch.Parser watchParser;
-    private final ClusterService clusterService;
-    private final ThreadPool threadPool;
 
     private final ConcurrentMap<String, Watch> watches;
     private final AtomicBoolean started = new AtomicBoolean(false);
-    private final AtomicInteger initializationRetries = new AtomicInteger();
 
     private final int scrollSize;
     private final TimeValue scrollTimeout;
 
     @Inject
-    public WatchStore(Settings settings, ClientProxy client, TemplateUtils templateUtils, Watch.Parser watchParser,
-                      ClusterService clusterService, ThreadPool threadPool) {
+    public WatchStore(Settings settings, ClientProxy client, TemplateUtils templateUtils, Watch.Parser watchParser) {
         super(settings);
         this.client = client;
         this.templateUtils = templateUtils;
         this.watchParser = watchParser;
-        this.clusterService = clusterService;
-        this.threadPool = threadPool;
         this.watches = ConcurrentCollections.newConcurrentMap();
 
         this.scrollTimeout = componentSettings.getAsTime("scroll.timeout", TimeValue.timeValueSeconds(30));
         this.scrollSize = componentSettings.getAsInt("scroll.size", 100);
     }
 
-    public void start(ClusterState state, Callback<ClusterState> callback) {
+    public void start(ClusterState state) {
         if (started.get()) {
-            callback.onSuccess(state);
+            logger.debug("watch store already started");
             return;
         }
 
         IndexMetaData watchesIndexMetaData = state.getMetaData().index(INDEX);
-        if (watchesIndexMetaData == null) {
-            logger.trace("watches index [{}] was not found. skipping loading watches...", INDEX);
-            templateUtils.ensureIndexTemplateIsLoaded(state, INDEX_TEMPLATE);
-            started.set(true);
-            callback.onSuccess(state);
-            return;
-        }
-
-        if (state.routingTable().index(INDEX).allPrimaryShardsActive()) {
-            logger.debug("watches index [{}] found with all active primary shards. loading watches...", INDEX);
+        if (watchesIndexMetaData != null) {
             try {
                 int count = loadWatches(watchesIndexMetaData.numberOfShards());
                 logger.debug("loaded [{}] watches from the watches index [{}]", count, INDEX);
+                templateUtils.ensureIndexTemplateIsLoaded(state, INDEX_TEMPLATE);
+                started.set(true);
             } catch (Exception e) {
-                logger.debug("failed to load watches for watch index [{}]. scheduled to retry watches loading...", e, INDEX);
+                logger.debug("failed to load watches for watch index [{}]", e, INDEX);
                 watches.clear();
-                retry(callback);
-                return;
             }
+        } else {
             templateUtils.ensureIndexTemplateIsLoaded(state, INDEX_TEMPLATE);
             started.set(true);
-            callback.onSuccess(state);
-        } else {
-            logger.debug("not all primary shards of the watches index [{}] are started. scheduled to retry loading watches...", INDEX);
-            retry(callback);
         }
+    }
+
+    public boolean validate(ClusterState state) {
+        IndexMetaData watchesIndexMetaData = state.getMetaData().index(INDEX);
+        if (watchesIndexMetaData == null) {
+            logger.debug("watches index [{}] doesn't exist, so we can start", INDEX);
+            return true;
+        }
+        if (state.routingTable().index(INDEX).allPrimaryShardsActive()) {
+            logger.debug("watches index [{}] exists and all primary shards are started, so we can start", INDEX);
+            return true;
+        }
+        return false;
     }
 
     public boolean started() {
@@ -195,36 +184,6 @@ public class WatchStore extends AbstractComponent {
         indexRequest.listenerThreaded(false);
         indexRequest.source(source, false);
         return indexRequest;
-    }
-
-    private void retry(final Callback<ClusterState> callback) {
-        ClusterStateListener clusterStateListener = new ClusterStateListener() {
-            @Override
-            public void clusterChanged(ClusterChangedEvent event) {
-                final ClusterState state = event.state();
-                IndexMetaData watchesIndexMetaData = state.getMetaData().index(INDEX);
-                if (watchesIndexMetaData != null) {
-                    if (state.routingTable().index(INDEX).allPrimaryShardsActive()) {
-                        // Remove listener, so that it doesn't get called on the next cluster state update:
-                        assert initializationRetries.decrementAndGet() == 0 : "Only one retry can run at the time";
-                        clusterService.remove(this);
-                        // We fork into another thread, because start(...) is expensive and we can't call this from the cluster update thread.
-                        threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                            @Override
-                            public void run() {
-                                try {
-                                    start(state, callback);
-                                } catch (Exception e) {
-                                    callback.onFailure(e);
-                                }
-                            }
-                        });
-                    }
-                }
-            }
-        };
-        clusterService.add(clusterStateListener);
-        assert initializationRetries.incrementAndGet() == 1 : "Only one retry can run at the time";
     }
 
     /**

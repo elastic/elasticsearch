@@ -44,10 +44,8 @@ import java.util.Collection;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.watcher.test.WatcherMatchers.indexRequest;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.IsEqual.equalTo;
-import static org.hamcrest.core.IsNull.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.*;
 
@@ -157,6 +155,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         csBuilder.metaData(metaDateBuilder);
         ClusterState cs = csBuilder.build();
 
+        assertThat(historyStore.validate(cs), is(true));
         Collection<WatchRecord> records = historyStore.loadRecords(cs, WatchRecord.State.AWAITS_EXECUTION);
         assertThat(records, notNullValue());
         assertThat(records, hasSize(0));
@@ -196,8 +195,13 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         csBuilder.routingTable(routingTableBuilder);
         ClusterState cs = csBuilder.build();
 
-        Collection<WatchRecord> records = historyStore.loadRecords(cs, WatchRecord.State.AWAITS_EXECUTION);
-        assertThat(records, nullValue());
+        assertThat(historyStore.validate(cs), is(false));
+        try {
+            historyStore.loadRecords(cs, WatchRecord.State.AWAITS_EXECUTION);
+            fail("exception expected, because not all primary shards are started");
+        } catch (HistoryException e) {
+            assertThat(e.getMessage(), containsString("not all primary shards of the [.watch_history_"));
+        }
 
         verifyZeroInteractions(templateUtils);
         verifyZeroInteractions(clientProxy);
@@ -225,10 +229,15 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         csBuilder.routingTable(routingTableBuilder);
         ClusterState cs = csBuilder.build();
 
+        assertThat(historyStore.validate(cs), is(true));
         RefreshResponse refreshResponse = mockRefreshResponse(1, 0);
         when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
-        Collection<WatchRecord> records = historyStore.loadRecords(cs, WatchRecord.State.AWAITS_EXECUTION);
-        assertThat(records, nullValue());
+        try {
+            historyStore.loadRecords(cs, WatchRecord.State.AWAITS_EXECUTION);
+            fail("exception expected, because refresh did't manage to run on all primary shards");
+        } catch (HistoryException e) {
+            assertThat(e.getMessage(), equalTo("refresh was supposed to run on [1] shards, but ran on [0] shards"));
+        }
 
         verifyZeroInteractions(templateUtils);
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
@@ -266,9 +275,13 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
 
         when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 1));
 
-        Collection<WatchRecord> records = historyStore.loadRecords(cs, WatchRecord.State.AWAITS_EXECUTION);
-        assertThat(records, nullValue());
-
+        assertThat(historyStore.validate(cs), is(true));
+        try {
+            historyStore.loadRecords(cs, WatchRecord.State.AWAITS_EXECUTION);
+            fail("exception expected, because scan search didn't manage to run on all shards");
+        } catch (HistoryException e) {
+            assertThat(e.getMessage(), equalTo("scan search was supposed to run on [1] shards, but ran on [0] shards"));
+        }
         verifyZeroInteractions(templateUtils);
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
     }
@@ -306,6 +319,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
 
         when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 1));
 
+        assertThat(historyStore.validate(cs), is(true));
         Collection<WatchRecord> records = historyStore.loadRecords(cs, WatchRecord.State.AWAITS_EXECUTION);
         assertThat(records, IsNull.notNullValue());
         assertThat(records, hasSize(0));
@@ -363,6 +377,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
 
         when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 1));
 
+        assertThat(historyStore.validate(cs), is(true));
         Collection<WatchRecord> records = historyStore.loadRecords(cs, WatchRecord.State.AWAITS_EXECUTION);
         assertThat(records, notNullValue());
         assertThat(records, hasSize(0));

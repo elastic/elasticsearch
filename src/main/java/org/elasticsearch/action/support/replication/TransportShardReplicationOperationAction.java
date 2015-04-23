@@ -475,7 +475,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
                 @Override
                 public void onClusterServiceClose() {
-                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                    finishAsFailed(new NodeClosedException(clusterService.localNode()));
                 }
 
                 @Override
@@ -695,7 +695,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                         numberOfUnassignedReplicas++;
                     } else if (shard.primary()) {
                         if (shard.relocating()) {
-                            // we have to repplicate to the other copy
+                            // we have to replicate to the other copy
                             numberOfPendingShardInstances += 1;
                         }
                     } else if (shard.relocating()) {

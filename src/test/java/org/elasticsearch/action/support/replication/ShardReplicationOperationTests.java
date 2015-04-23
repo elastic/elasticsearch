@@ -307,7 +307,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             assertThat("listener is done, but there are outstanding replicas", listener.isDone(), equalTo(false));
         }
         int pending = replicationPhase.pending();
-        int failures = 0;
         int criticalFailures = 0; // failures that should fail the shard
         int successfull = 1;
         for (CapturingTransport.CapturedRequest capturedRequest : capturedRequests) {
@@ -319,7 +318,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
                 } else {
                     t = new IndexShardNotStartedException(shardId, IndexShardState.RECOVERING);
                 }
-                failures++;
                 logger.debug("--> simulating failure on {} with [{}]", capturedRequest.node, t.getClass().getSimpleName());
                 transport.handleResponse(capturedRequest.requestId, t);
             } else {

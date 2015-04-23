@@ -32,8 +32,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.repositories.VerifyNodeRepositoryAction;
+import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -64,8 +64,8 @@ public class ActionNamesBackwardsCompatibilityTest extends ElasticsearchBackward
         actionsVersions.put(ExistsAction.NAME, Version.V_1_4_0_Beta1);
         actionsVersions.put(ExistsAction.NAME + "[s]", Version.V_1_4_0_Beta1);
 
-        actionsVersions.put(FieldStatsAction.NAME, Version.V_1_4_0_Beta1);
-        actionsVersions.put(FieldStatsAction.NAME + "[s]", Version.V_1_4_0_Beta1);
+        actionsVersions.put(FieldStatsAction.NAME, Version.V_1_6_0);
+        actionsVersions.put(FieldStatsAction.NAME + "[s]", Version.V_1_6_0);
 
         actionsVersions.put(IndicesStore.ACTION_SHARD_EXISTS, Version.V_1_3_0);
 

@@ -301,11 +301,11 @@
                 </executions>
                 <configuration>
                     <shadeTestJar>false</shadeTestJar>
-                    <minimizeJar>true</minimizeJar>
+                    <minimizeJar>false</minimizeJar>
                     <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
                     <artifactSet>
                         <includes>
-			                <include>com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer</include>
+			    <include>com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer</include>
                             <include>javax.mail:mail</include>
                             <include>javax.activation:activation</include>
                         </includes>

@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.execution;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -46,7 +45,6 @@ public class ExecutionService extends AbstractComponent {
     private final HistoryStore historyStore;
     private final WatchExecutor executor;
     private final WatchStore watchStore;
-    private final ClusterService clusterService;
     private final WatchLockService watchLockService;
     private final Clock clock;
 
@@ -54,13 +52,12 @@ public class ExecutionService extends AbstractComponent {
 
     @Inject
     public ExecutionService(Settings settings, HistoryStore historyStore, WatchExecutor executor, WatchStore watchStore,
-                            WatchLockService watchLockService, ClusterService clusterService, Clock clock) {
+                            WatchLockService watchLockService, Clock clock) {
         super(settings);
         this.historyStore = historyStore;
         this.executor = executor;
         this.watchStore = watchStore;
         this.watchLockService = watchLockService;
-        this.clusterService = clusterService;
         this.clock = clock;
     }
 

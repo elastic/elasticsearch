@@ -22,15 +22,14 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterCachingPolicy;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -93,7 +92,7 @@ public class NestedAggregator extends SingleBucketAggregator {
                     // aggs execution
                     Filter parentFilterNotCached = findClosestNestedPath(parent());
                     if (parentFilterNotCached == null) {
-                        parentFilterNotCached = NonNestedDocsFilter.INSTANCE;
+                        parentFilterNotCached = Queries.newNonNestedFilter();
                     }
                     parentFilter = context.searchContext().bitsetFilterCache().getBitDocIdSetFilter(parentFilterNotCached);
                     BitDocIdSet parentSet = parentFilter.getDocIdSet(ctx);

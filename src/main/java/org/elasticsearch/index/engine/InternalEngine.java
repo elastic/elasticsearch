@@ -20,7 +20,6 @@
 package org.elasticsearch.index.engine;
 
 import com.google.common.collect.Lists;
-
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.search.*;
@@ -105,7 +104,7 @@ public class InternalEngine extends Engine {
     private final AtomicLong translogIdGenerator = new AtomicLong();
     private final AtomicBoolean versionMapRefreshPending = new AtomicBoolean();
 
-    private SegmentInfos lastCommittedSegmentInfos;
+    private volatile SegmentInfos lastCommittedSegmentInfos;
 
     private final IndexThrottle throttle;
 
@@ -900,6 +899,11 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    protected SegmentInfos getLastCommittedSegmentInfos() {
+        return lastCommittedSegmentInfos;
+    }
+
+    @Override
     protected final void writerSegmentStats(SegmentsStats stats) {
         stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
         stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
@@ -1210,7 +1214,7 @@ public class InternalEngine extends Engine {
                 }
             }
         } catch (FileNotFoundException ex) {
-            logger.info("no translog file found for ID: " + translogId);
+            logger.debug("no translog file found for ID: " + translogId);
         } catch (TruncatedTranslogException e) {
             // file is empty or header has been half-written and should be ignored
             logger.trace("ignoring truncation exception, the translog is either empty or half-written", e);

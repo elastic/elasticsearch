@@ -36,7 +36,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
-import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
@@ -50,7 +49,6 @@ import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.FilteredSearchContext;
@@ -126,7 +124,7 @@ public final class InnerHitsContext {
         public TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) throws IOException {
             Filter rawParentFilter;
             if (parentObjectMapper == null) {
-                rawParentFilter = NonNestedDocsFilter.INSTANCE;
+                rawParentFilter = Queries.newNonNestedFilter();
             } else {
                 rawParentFilter = parentObjectMapper.nestedTypeFilter();
             }

@@ -43,7 +43,6 @@ import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.engine.Engine;
@@ -53,7 +52,6 @@ import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.TestSearchContext;
@@ -95,7 +93,7 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
         BitDocIdSetFilter parentFilter = wrapWithBitSetFilter(Queries.wrap(new TermQuery(new Term(TypeFieldMapper.NAME, "parent"))));
-        Query query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, 12, wrapWithBitSetFilter(NonNestedDocsFilter.INSTANCE));
+        Query query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, 12, wrapWithBitSetFilter(Queries.newNonNestedFilter()));
         QueryUtils.check(query);
     }
 

@@ -27,9 +27,9 @@ import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -55,7 +55,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
     public ReverseNestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, metaData);
         if (objectMapper == null) {
-            parentFilter = context.searchContext().bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE);
+            parentFilter = context.searchContext().bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter());
         } else {
             parentFilter = context.searchContext().bitsetFilterCache().getBitDocIdSetFilter(objectMapper.nestedTypeFilter());
         }

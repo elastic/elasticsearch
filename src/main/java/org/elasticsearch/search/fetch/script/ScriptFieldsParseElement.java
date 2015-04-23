@@ -76,7 +76,7 @@ public class ScriptFieldsParseElement implements SearchParseElement {
                     script = scriptValue.script();
                     scriptType = scriptValue.scriptType();
                 }
-                SearchScript searchScript = context.scriptService().search(context.lookup(), scriptParameterParser.lang(), script, scriptType, ScriptContext.Standard.SEARCH, params);
+                SearchScript searchScript = context.scriptService().search(context.lookup(), new Script(scriptParameterParser.lang(), script, scriptType, params), ScriptContext.Standard.SEARCH);
                 context.scriptFields().add(new ScriptFieldsContext.ScriptField(fieldName, searchScript, ignoreException));
             }
         }

@@ -32,7 +32,7 @@
 
     <properties>
         <lucene.version>5.2.0</lucene.version>
-        <lucene.snapshot.revision>1675100</lucene.snapshot.revision>
+        <lucene.snapshot.revision>1675363</lucene.snapshot.revision>
         <lucene.maven.version>5.2.0-snapshot-${lucene.snapshot.revision}</lucene.maven.version>
         <testframework.version>2.1.14</testframework.version>
         <tests.jvms>auto</tests.jvms>
@@ -47,6 +47,7 @@
         <tests.heap.size>512m</tests.heap.size>
         <tests.heapdump.path>${basedir}/logs/</tests.heapdump.path>
         <tests.topn>5</tests.topn>
+        <jvm.executable>${java.home}${file.separator}bin${file.separator}java</jvm.executable>
         <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
 
         <!-- Properties used for building RPM & DEB packages (see common/packaging.properties) -->
@@ -444,7 +445,7 @@
               </execution>
             </executions>
             <configuration>
-              <executable>java</executable>
+              <executable>${jvm.executable}</executable>
               <arguments>
                 <argument>-classpath</argument>
                 <classpath/>
@@ -516,6 +517,7 @@
                             <goal>junit4</goal>
                         </goals>
                         <configuration>
+                            <jvm>${jvm.executable}</jvm>
                             <heartbeat>10</heartbeat>
                             <jvmOutputAction>pipe,warn</jvmOutputAction>
                             <leaveTemporary>true</leaveTemporary>

@@ -19,6 +19,7 @@
 package org.elasticsearch.index.search;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import com.carrotsearch.hppc.DoubleOpenHashSet;
 import com.carrotsearch.hppc.LongOpenHashSet;
@@ -86,16 +87,19 @@ public abstract class FieldDataTermsFilter extends Filter {
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || !(obj instanceof FieldDataTermsFilter)) return false;
+        if (super.equals(obj) == false) return false;
 
         FieldDataTermsFilter that = (FieldDataTermsFilter) obj;
         if (!fieldData.getFieldNames().indexName().equals(that.fieldData.getFieldNames().indexName())) return false;
-        if (this.hashCode() != obj.hashCode()) return false;
         return true;
     }
 
     @Override
-    public abstract int hashCode();
+    public int hashCode() {
+        int h = super.hashCode();
+        h = 31 * h + fieldData.getFieldNames().indexName().hashCode();
+        return h;
+    }
 
     /**
      * Filters on non-numeric fields.
@@ -110,10 +114,16 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
+        public boolean equals(Object obj) {
+            if (super.equals(obj) == false) {
+                return false;
+            }
+            return Objects.equals(terms, ((BytesFieldDataFilter) obj).terms);
+        }
+
+        @Override
         public int hashCode() {
-            int hashcode = fieldData.getFieldNames().indexName().hashCode();
-            hashcode += terms != null ? terms.hashCode() : 0;
-            return hashcode;
+            return 31 * super.hashCode() + Objects.hashCode(terms);
         }
 
         @Override
@@ -167,10 +177,16 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
+        public boolean equals(Object obj) {
+            if (super.equals(obj) == false) {
+                return false;
+            }
+            return Objects.equals(terms, ((BytesFieldDataFilter) obj).terms);
+        }
+
+        @Override
         public int hashCode() {
-            int hashcode = fieldData.getFieldNames().indexName().hashCode();
-            hashcode += terms != null ? terms.hashCode() : 0;
-            return hashcode;
+            return 31 * super.hashCode() + Objects.hashCode(terms);
         }
 
         @Override
@@ -226,10 +242,16 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
+        public boolean equals(Object obj) {
+            if (super.equals(obj) == false) {
+                return false;
+            }
+            return Objects.equals(terms, ((BytesFieldDataFilter) obj).terms);
+        }
+
+        @Override
         public int hashCode() {
-            int hashcode = fieldData.getFieldNames().indexName().hashCode();
-            hashcode += terms != null ? terms.hashCode() : 0;
-            return hashcode;
+            return 31 * super.hashCode() + Objects.hashCode(terms);
         }
 
         @Override

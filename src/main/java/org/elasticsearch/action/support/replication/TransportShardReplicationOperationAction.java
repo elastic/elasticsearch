@@ -117,7 +117,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
      */
     protected abstract Tuple<Response, ReplicaRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest)  throws Throwable;
 
-    protected abstract void shardOperationOnReplica(ReplicaOperationRequest shardRequest);
+    protected abstract void shardOperationOnReplica(ReplicaOperationRequest shardRequest) throws Exception;
 
     protected abstract ShardIterator shards(ClusterState clusterState, InternalRequest request) throws ElasticsearchException;
 

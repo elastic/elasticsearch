@@ -23,6 +23,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
@@ -31,6 +32,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -297,13 +299,6 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 true, true);
     }
 
-    @Override
-    public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        long lValue = parseToMilliseconds(value);
-        return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
-                lValue, lValue, true, true);
-    }
-
     public long parseToMilliseconds(Object value) {
         return parseToMilliseconds(value, false, null, dateMathParser);
     }
@@ -321,13 +316,6 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             dateParser = forcedDateParser;
         }
         return dateParser.parse(value, now(), inclusive, zone);
-    }
-
-    @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        final long lValue = parseToMilliseconds(value);
-        return Queries.wrap(NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
-                lValue, lValue, true, true));
     }
 
     @Override
@@ -547,6 +535,15 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 builder.field("locale", dateTimeFormatter.locale());
             }
         }
+    }
+
+    @Override
+    public FieldStats stats(Terms terms, int maxDoc) throws IOException {
+        long minValue = NumericUtils.getMinLong(terms);
+        long maxValue = NumericUtils.getMaxLong(terms);
+        return new FieldStats.Date(
+                maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue, dateTimeFormatter
+        );
     }
 
     private long parseStringValue(String value) {

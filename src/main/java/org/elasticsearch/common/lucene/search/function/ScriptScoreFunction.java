@@ -117,10 +117,12 @@ public class ScriptScoreFunction extends ScoreFunction {
                     if (params != null) {
                         explanation += "\" and parameters: \n" + params.toString();
                     }
-                    exp = new Explanation(CombineFunction.toFloat(score), explanation);
-                    Explanation scoreExp = new Explanation(subQueryScore.getValue(), "_score: ");
-                    scoreExp.addDetail(subQueryScore);
-                    exp.addDetail(scoreExp);
+                    Explanation scoreExp = Explanation.match(
+                            subQueryScore.getValue(), "_score: ",
+                            subQueryScore);
+                    return Explanation.match(
+                            CombineFunction.toFloat(score), explanation,
+                            scoreExp);
                 }
                 return exp;
             }

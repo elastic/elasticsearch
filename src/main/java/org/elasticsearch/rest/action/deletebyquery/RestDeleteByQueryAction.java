@@ -54,17 +54,12 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         deleteByQueryRequest.listenerThreaded(false);
-        if (request.hasContent()) {
-            deleteByQueryRequest.source(request.content());
+        if (RestActions.hasBodyContent(request)) {
+            deleteByQueryRequest.source(RestActions.getRestContent(request));
         } else {
-            String source = request.param("source");
-            if (source != null) {
-                deleteByQueryRequest.source(source);
-            } else {
-                QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
-                if (querySourceBuilder != null) {
-                    deleteByQueryRequest.source(querySourceBuilder);
-                }
+            QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
+            if (querySourceBuilder != null) {
+                deleteByQueryRequest.source(querySourceBuilder);
             }
         }
         deleteByQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));

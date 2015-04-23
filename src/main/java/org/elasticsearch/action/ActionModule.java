@@ -134,6 +134,8 @@ import org.elasticsearch.action.exists.ExistsAction;
 import org.elasticsearch.action.exists.TransportExistsAction;
 import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.TransportExplainAction;
+import org.elasticsearch.action.fieldstats.FieldStatsAction;
+import org.elasticsearch.action.fieldstats.TransportFieldStatsTransportAction;
 import org.elasticsearch.action.get.*;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.TransportIndexAction;
@@ -311,6 +313,8 @@ public class ActionModule extends AbstractModule {
         registerAction(PutIndexedScriptAction.INSTANCE, TransportPutIndexedScriptAction.class);
         registerAction(GetIndexedScriptAction.INSTANCE, TransportGetIndexedScriptAction.class);
         registerAction(DeleteIndexedScriptAction.INSTANCE, TransportDeleteIndexedScriptAction.class);
+
+        registerAction(FieldStatsAction.INSTANCE, TransportFieldStatsTransportAction.class);
 
         // register Name -> GenericAction Map that can be injected to instances.
         MapBinder<String, GenericAction> actionsBinder

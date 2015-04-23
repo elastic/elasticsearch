@@ -32,7 +32,7 @@ public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<A
     }
 
     public AnalyzeRequestBuilder(IndicesAdminClient indicesClient, String index, String text) {
-        super(indicesClient, new AnalyzeRequest(index, text));
+        super(indicesClient, new AnalyzeRequest(index).text(text));
     }
 
     /**

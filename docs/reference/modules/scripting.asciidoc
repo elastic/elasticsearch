@@ -69,7 +69,7 @@ GET /_search
 {
     "script_fields": {
         "my_field": {
-            "script_file": "my_test",
+            "script_file": "my_script",
             "params": {
               "my_var": 2
             }

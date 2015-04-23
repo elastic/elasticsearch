@@ -87,7 +87,7 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
 
         SearchScript searchScript;
         try {
-            searchScript = parseContext.scriptService().search(parseContext.lookup(), scriptParameterParser.lang(), script, scriptType, ScriptContext.Standard.SEARCH, vars);
+            searchScript = parseContext.scriptService().search(parseContext.lookup(), new Script(scriptParameterParser.lang(), script, scriptType, vars), ScriptContext.Standard.SEARCH);
             return new ScriptScoreFunction(script, vars, searchScript);
         } catch (Exception e) {
             throw new QueryParsingException(parseContext.index(), NAMES[0] + " the script could not be loaded", e);

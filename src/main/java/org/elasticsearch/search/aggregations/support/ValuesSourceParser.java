@@ -186,7 +186,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
     }
 
     private SearchScript createScript() {
-        return input.script == null ? null : context.scriptService().search(context.lookup(), input.lang, input.script, input.scriptType, ScriptContext.Standard.AGGS, input.params);
+        return input.script == null ? null : context.scriptService().search(context.lookup(), new Script(input.lang, input.script, input.scriptType, input.params), ScriptContext.Standard.AGGS);
     }
 
     private static ValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {

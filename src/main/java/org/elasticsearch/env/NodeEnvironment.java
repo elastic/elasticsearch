@@ -300,11 +300,25 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
 
         try {
             String mount = getMountPoint(store);
-            // find the "matching" FileStore from system list, it's the one we want.
+            FileStore sameMountPoint = null;
             for (FileStore fs : path.getFileSystem().getFileStores()) {
                 if (mount.equals(getMountPoint(fs))) {
-                    return fs;
+                    if (sameMountPoint == null) {
+                        sameMountPoint = fs;
+                    } else {
+                        // more than one filesystem has the same mount point; something is wrong!
+                        // fall back to crappy one we got from Files.getFileStore
+                        return store;
+                    }
                 }
+            }
+
+            if (sameMountPoint != null) {
+                // ok, we found only one, use it:
+                return sameMountPoint;
+            } else {
+                // fall back to crappy one we got from Files.getFileStore
+                return store;    
             }
         } catch (Exception e) {
             // ignore
@@ -319,7 +333,12 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
     // these are hacks that are not guaranteed
     public static String getMountPoint(FileStore store) {
         String desc = store.toString();
-        return desc.substring(0, desc.lastIndexOf('(') - 1);
+        int index = desc.lastIndexOf(" (");
+        if (index != -1) {
+            return desc.substring(0, index);
+        } else {
+            return desc;
+        }
     }
 
     /**

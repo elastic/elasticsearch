@@ -303,9 +303,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     /**
      * Responsible for performing all operations up to the point we start starting sending requests to replica shards.
-     * Including forwarding the request to another node if the primary is not assinged locally.
+     * Including forwarding the request to another node if the primary is not assigned locally.
      * <p/>
-     * Note that as soon as we start sending request to replicas, state responsibility is transfered to {@link ReplicationPhase}
+     * Note that as soon as we start sending request to replicas, state responsibility is transferred to {@link ReplicationPhase}
      */
     final class PrimaryPhase {
         private final ActionListener<Response> listener;
@@ -397,6 +397,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             return null;
         }
 
+        /** send the request to the node holding the primary or execute if local */
         protected void routeRequestOrPerformLocally(final ShardRouting primary, final ShardIterator shardsIt) {
             if (primary.currentNodeId().equals(observer.observedState().nodes().localNodeId())) {
                 try {
@@ -435,7 +436,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
                     @Override
                     public void handleResponse(Response response) {
-                        finishSucceeded(response);
+                        finishOnRemoteSuccess(response);
                     }
 
                     @Override
@@ -485,11 +486,11 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             });
         }
 
+        /** upon success, finish the first phase and transfer responsibility to the {@link ReplicationPhase} */
         void finishAndMoveToReplication(ReplicationPhase replicationPhase) {
             if (finished.compareAndSet(false, true)) {
                 replicationPhase.start();
             } else {
-                // no commit: do we really need this?
                 assert false : "finishAndMoveToReplication called but operation is already finished";
             }
         }
@@ -500,21 +501,20 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 logger.trace("operation failed", failure);
                 listener.onFailure(failure);
             } else {
-                // no commit: do we really need this?
                 assert false : "finishAsFailed called but operation is already finished";
             }
         }
 
-        void finishSucceeded(Response response) {
+        void finishOnRemoteSuccess(Response response) {
             if (finished.compareAndSet(false, true)) {
                 logger.trace("operation succeeded");
                 listener.onResponse(response);
             } else {
-                // no commit: do we really need this?
-                assert false : "finishSucceeded called but operation is already finished";
+                assert false : "finishOnRemoteSuccess called but operation is already finished";
             }
         }
 
+        /** perform the operation on the node holding the primary */
         void performOnPrimary(final ShardRouting primary, final ShardIterator shardsIt) {
             ClusterState clusterState = observer.observedState();
             final String writeConsistencyFailure = checkWriteConsistency(primary, clusterState);
@@ -605,12 +605,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     }
 
-    private void markShardOperationStart(IndexShard shard) {
-    }
-
-    private void markShardOperationEnd(IndexShard shard) {
-    }
-
     private void failReplicaIfNeeded(String index, int shardId, Throwable t) {
         logger.trace("failure on replica [{}][{}]", t, index, shardId);
         if (!ignoreReplicaException(t)) {
@@ -628,6 +622,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         }
     }
 
+    /** inner class is responsible for send the requests to all replica shards and manage the responses */
     public final class ReplicationPhase {
 
         private final ReplicaRequest replicaRequest;
@@ -643,6 +638,10 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         private final int totalShards;
         private final ClusterStateObserver observer;
 
+        /**
+         * the constructor doesn't take any action, just calculates state. Call {@link #start()} to start
+         * replicating.
+         */
         public ReplicationPhase(ShardIterator originalShardIt, ReplicaRequest replicaRequest, Response finalResponse,
                                 ClusterStateObserver observer, ShardRouting originalPrimaryShard,
                                 InternalRequest internalRequest, ActionListener<Response> listener) {
@@ -714,14 +713,17 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             this.indexMetaData = observer.observedState().metaData().index(internalRequest.concreteIndex());
         }
 
+        /** total shard copies */
         int totalShards() {
             return totalShards;
         }
 
-        int succesful() {
+        /** total successful operations so far */
+        int successful() {
             return success.get();
         }
 
+        /** number of pending operations */
         int pending() {
             return pending.get();
         }
@@ -762,6 +764,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
         }
 
+        /** send operation to the given node or perform it if local */
         void performOnReplica(final ShardRouting shard, final String nodeId) {
             // if we don't have that node, it means that it might have failed and will be created again, in
             // this case, we don't have to do the operation, and just let it failover

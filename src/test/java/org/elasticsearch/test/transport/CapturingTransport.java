@@ -54,10 +54,15 @@ public class CapturingTransport implements Transport {
 
     private BlockingQueue<CapturedRequest> capturedRequests = ConcurrentCollections.newBlockingQueue();
 
+    /** returns all requests captured so far. Doesn't clear the captured request list. See {@link #clear()} */
     public CapturedRequest[] capturedRequests() {
         return capturedRequests.toArray(new CapturedRequest[0]);
     }
 
+    /**
+     * returns all requests captured so far, grouped by target node.
+     * Doesn't clear the captured request list. See {@link #clear()}
+     */
     public Map<String, List<CapturedRequest>> capturedRequestsByTargetNode() {
         Map<String, List<CapturedRequest>> map = new HashMap<>();
         for (CapturedRequest request : capturedRequests) {
@@ -71,14 +76,17 @@ public class CapturingTransport implements Transport {
         return map;
     }
 
+    /** clears captured requests */
     public void clear() {
         capturedRequests.clear();
     }
 
+    /** simulate a response for the given requestId */
     public void handleResponse(final long requestId, final TransportResponse response) {
         adapter.onResponseReceived(requestId).handleResponse(response);
     }
 
+    /** simulate a remote error for the given requesTId */
     public void handleResponse(final long requestId, final Throwable t) {
         adapter.onResponseReceived(requestId).handleException(new RemoteTransportException("remote failure", t));
     }

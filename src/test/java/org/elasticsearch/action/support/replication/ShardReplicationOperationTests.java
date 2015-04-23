@@ -328,7 +328,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             }
             pending--;
             assertThat(replicationPhase.pending(), equalTo(pending));
-            assertThat(replicationPhase.succesful(), equalTo(successfull));
+            assertThat(replicationPhase.successful(), equalTo(successfull));
         }
         assertThat(listener.isDone(), equalTo(true));
         Response response = listener.get();

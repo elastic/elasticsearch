@@ -18,7 +18,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;
-import org.elasticsearch.watcher.watch.WatchService;
+import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.watch.WatchStore;
 
 /**
@@ -26,13 +26,13 @@ import org.elasticsearch.watcher.watch.WatchStore;
  */
 public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequest, AckWatchResponse> {
 
-    private final WatchService watchService;
+    private final WatcherService watcherService;
 
     @Inject
     public TransportAckWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                   ThreadPool threadPool, ActionFilters actionFilters, WatchService watchService, LicenseService licenseService) {
+                                   ThreadPool threadPool, ActionFilters actionFilters, WatcherService watcherService, LicenseService licenseService) {
         super(settings, AckWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService);
-        this.watchService = watchService;
+        this.watcherService = watcherService;
     }
 
     @Override
@@ -53,7 +53,7 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
     @Override
     protected void masterOperation(AckWatchRequest request, ClusterState state, ActionListener<AckWatchResponse> listener) throws ElasticsearchException {
         try {
-            AckWatchResponse response = new AckWatchResponse(watchService.ackWatch(request.getId()));
+            AckWatchResponse response = new AckWatchResponse(watcherService.ackWatch(request.getId()));
             listener.onResponse(response);
         } catch (Exception e) {
             listener.onFailure(e);

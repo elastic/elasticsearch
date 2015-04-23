@@ -16,25 +16,24 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.watch.WatchService;
 
 /**
  */
 public class WatcherLifeCycleService extends AbstractComponent implements ClusterStateListener {
 
     private final ThreadPool threadPool;
-    private final WatchService watchService;
+    private final WatcherService watcherService;
     private final ClusterService clusterService;
 
     // Maybe this should be a setting in the cluster settings?
     private volatile boolean manuallyStopped;
 
     @Inject
-    public WatcherLifeCycleService(Settings settings, ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool, WatchService watchService) {
+    public WatcherLifeCycleService(Settings settings, ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool, WatcherService watcherService) {
         super(settings);
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.watchService = watchService;
+        this.watcherService = watcherService;
         clusterService.add(this);
         // Close if the indices service is being stopped, so we don't run into search failures (locally) that will
         // happen because we're shutting down and an watch is scheduled.
@@ -56,12 +55,12 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
     }
 
     private synchronized void start(ClusterState state) {
-        watchService.start(state);
+        watcherService.start(state);
     }
 
     private synchronized void stop(boolean manual) {
         manuallyStopped = manual;
-        watchService.stop();
+        watcherService.stop();
     }
 
     @Override
@@ -85,11 +84,11 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
             }
 
             final ClusterState state = event.state();
-            if (!watchService.validate(state)) {
+            if (!watcherService.validate(state)) {
                 return;
             }
 
-            if (watchService.state() == WatchService.State.STOPPED && !manuallyStopped) {
+            if (watcherService.state() == WatcherService.State.STOPPED && !manuallyStopped) {
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
                     @Override
                     public void run() {

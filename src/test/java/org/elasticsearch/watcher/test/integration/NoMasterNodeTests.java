@@ -8,7 +8,7 @@ package org.elasticsearch.watcher.test.integration;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.watcher.watch.WatchService;
+import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
@@ -168,8 +168,8 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
             }
         }, 30, TimeUnit.SECONDS), equalTo(true));
         // Ensure that the watch manager doesn't run elsewhere
-        for (WatchService watchService : internalTestCluster().getInstances(WatchService.class)) {
-            assertThat(watchService.state(), is(WatchService.State.STOPPED));
+        for (WatcherService watcherService : internalTestCluster().getInstances(WatcherService.class)) {
+            assertThat(watcherService.state(), is(WatcherService.State.STOPPED));
         }
     }
 

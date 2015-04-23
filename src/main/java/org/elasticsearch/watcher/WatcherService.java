@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.watch;
+package org.elasticsearch.watcher;
 
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -13,15 +13,17 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.trigger.TriggerService;
+import org.elasticsearch.watcher.watch.Watch;
+import org.elasticsearch.watcher.watch.WatchLockService;
+import org.elasticsearch.watcher.watch.WatchStore;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class WatchService extends AbstractComponent {
+public class WatcherService extends AbstractComponent {
 
     private final TriggerService triggerService;
     private final WatchStore watchStore;
@@ -30,8 +32,8 @@ public class WatchService extends AbstractComponent {
     private final AtomicReference<State> state = new AtomicReference<>(State.STOPPED);
 
     @Inject
-    public WatchService(Settings settings, TriggerService triggerService, WatchStore watchStore, ExecutionService executionService,
-                        WatchLockService watchLockService) {
+    public WatcherService(Settings settings, TriggerService triggerService, WatchStore watchStore, ExecutionService executionService,
+                          WatchLockService watchLockService) {
         super(settings);
         this.triggerService = triggerService;
         this.watchStore = watchStore;

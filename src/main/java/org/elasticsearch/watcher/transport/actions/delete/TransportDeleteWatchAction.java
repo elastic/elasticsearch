@@ -19,7 +19,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;
-import org.elasticsearch.watcher.watch.WatchService;
+import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.watch.WatchStore;
 
 /**
@@ -27,13 +27,13 @@ import org.elasticsearch.watcher.watch.WatchStore;
  */
 public class TransportDeleteWatchAction extends WatcherTransportAction<DeleteWatchRequest, DeleteWatchResponse> {
 
-    private final WatchService watchService;
+    private final WatcherService watcherService;
 
     @Inject
     public TransportDeleteWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, ActionFilters actionFilters, WatchService watchService, LicenseService licenseService) {
+                                      ThreadPool threadPool, ActionFilters actionFilters, WatcherService watcherService, LicenseService licenseService) {
         super(settings, DeleteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService);
-        this.watchService = watchService;
+        this.watcherService = watcherService;
     }
 
     @Override
@@ -54,7 +54,7 @@ public class TransportDeleteWatchAction extends WatcherTransportAction<DeleteWat
     @Override
     protected void masterOperation(DeleteWatchRequest request, ClusterState state, ActionListener<DeleteWatchResponse> listener) throws ElasticsearchException {
         try {
-            DeleteResponse deleteResponse = watchService.deleteWatch(request.getId()).deleteResponse();
+            DeleteResponse deleteResponse = watcherService.deleteWatch(request.getId()).deleteResponse();
             DeleteWatchResponse response = new DeleteWatchResponse(deleteResponse.getId(), deleteResponse.getVersion(), deleteResponse.isFound());
             listener.onResponse(response);
         } catch (Exception e) {

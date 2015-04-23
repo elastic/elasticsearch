@@ -36,7 +36,7 @@ import org.elasticsearch.watcher.trigger.schedule.CronSchedule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchService;
+import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.watch.WatchStore;
 import org.junit.Test;
 
@@ -71,7 +71,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
         startWatcher();
 
         WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
-        assertThat(response.getWatchServiceState(), equalTo(WatchService.State.STARTED));
+        assertThat(response.getWatchServiceState(), equalTo(WatcherService.State.STARTED));
         assertThat(response.getWatchesCount(), equalTo(1L));
     }
 
@@ -81,7 +81,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
         ensureWatcherStarted();
 
         WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
-        assertThat(response.getWatchServiceState(), equalTo(WatchService.State.STARTED));
+        assertThat(response.getWatchServiceState(), equalTo(WatcherService.State.STARTED));
         assertThat(response.getWatchesCount(), equalTo(0L));
 
         SearchRequest searchRequest = WatcherTestUtils.newInputSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
@@ -125,7 +125,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
         startWatcher();
 
         response = watcherClient().prepareWatcherStats().get();
-        assertThat(response.getWatchServiceState(), equalTo(WatchService.State.STARTED));
+        assertThat(response.getWatchServiceState(), equalTo(WatcherService.State.STARTED));
         assertThat(response.getWatchesCount(), equalTo(1L));
         assertThat(response.getWatchExecutionQueueMaxSize(), greaterThanOrEqualTo(1l));
     }
@@ -185,7 +185,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
         startWatcher();
         WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
 
-        assertThat(response.getWatchServiceState(), equalTo(WatchService.State.STARTED));
+        assertThat(response.getWatchServiceState(), equalTo(WatcherService.State.STARTED));
         final long totalHistoryEntries = numberOfWatchRecordsPerIndex * numberOfWatchHistoryIndices;
 
         assertBusy(new Runnable() {

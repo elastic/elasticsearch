@@ -58,7 +58,7 @@ import org.elasticsearch.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.watcher.trigger.schedule.Schedules;
 import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchService;
+import org.elasticsearch.watcher.WatcherService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -178,10 +178,10 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
     private void startWatcherIfNodesExist() throws Exception {
         if (internalTestCluster().size() > 0) {
             WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
-            if (response.getWatchServiceState() == WatchService.State.STOPPED) {
+            if (response.getWatchServiceState() == WatcherService.State.STOPPED) {
                 logger.info("[{}#{}]: starting watcher", getTestClass().getSimpleName(), getTestName());
                 startWatcher();
-            } else if (response.getWatchServiceState() == WatchService.State.STARTING) {
+            } else if (response.getWatchServiceState() == WatcherService.State.STARTING) {
                 logger.info("[{}#{}]: watcher is starting, waiting for it to get in a started state", getTestClass().getSimpleName(), getTestName());
                 ensureWatcherStarted(false);
             } else {
@@ -296,8 +296,8 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         return getInstanceFromMaster(ExecutionService.class);
     }
 
-    protected WatchService watchService() {
-        return getInstanceFromMaster(WatchService.class);
+    protected WatcherService watchService() {
+        return getInstanceFromMaster(WatcherService.class);
     }
 
     protected TriggerService triggerService() {
@@ -434,9 +434,9 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
             @Override
             public void run() {
                 if (useClient) {
-                    assertThat(watcherClient().prepareWatcherStats().get().getWatchServiceState(), is(WatchService.State.STARTED));
+                    assertThat(watcherClient().prepareWatcherStats().get().getWatchServiceState(), is(WatcherService.State.STARTED));
                 } else {
-                    assertThat(getInstanceFromMaster(WatchService.class).state(), is(WatchService.State.STARTED));
+                    assertThat(getInstanceFromMaster(WatcherService.class).state(), is(WatcherService.State.STARTED));
                 }
             }
         });
@@ -462,9 +462,9 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
             @Override
             public void run() {
                 if (useClient) {
-                    assertThat(watcherClient().prepareWatcherStats().get().getWatchServiceState(), is(WatchService.State.STOPPED));
+                    assertThat(watcherClient().prepareWatcherStats().get().getWatchServiceState(), is(WatcherService.State.STOPPED));
                 } else {
-                    assertThat(getInstanceFromMaster(WatchService.class).state(), is(WatchService.State.STOPPED));
+                    assertThat(getInstanceFromMaster(WatcherService.class).state(), is(WatcherService.State.STOPPED));
                 }
             }
         });

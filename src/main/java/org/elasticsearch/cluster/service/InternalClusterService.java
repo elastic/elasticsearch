@@ -230,7 +230,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     }
 
     @Override
-    public void add(final TimeValue timeout, final TimeoutClusterStateListener listener) {
+    public void add(@Nullable final TimeValue timeout, final TimeoutClusterStateListener listener) {
         if (lifecycle.stoppedOrClosed()) {
             listener.onClose();
             return;
@@ -240,9 +240,11 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             updateTasksExecutor.execute(new TimedPrioritizedRunnable(Priority.HIGH, "_add_listener_") {
                 @Override
                 public void run() {
-                    NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
-                    notifyTimeout.future = threadPool.schedule(timeout, ThreadPool.Names.GENERIC, notifyTimeout);
-                    onGoingTimeouts.add(notifyTimeout);
+                    if (timeout != null) {
+                        NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
+                        notifyTimeout.future = threadPool.schedule(timeout, ThreadPool.Names.GENERIC, notifyTimeout);
+                        onGoingTimeouts.add(notifyTimeout);
+                    }
                     postAppliedListeners.add(listener);
                     listener.postAdded();
                 }

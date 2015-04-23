@@ -105,4 +105,17 @@ public class IndexResponse extends ActionWriteResponse {
         out.writeLong(version);
         out.writeBoolean(created);
     }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("IndexResponse[");
+        builder.append("index=").append(index);
+        builder.append(",type=").append(type);
+        builder.append(",id=").append(id);
+        builder.append(",version=").append(version);
+        builder.append(",created=").append(created);
+        builder.append(",shards=").append(getShardInfo());
+        return builder.append("]").toString();
+    }
 }

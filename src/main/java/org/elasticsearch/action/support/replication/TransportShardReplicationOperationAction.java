@@ -650,6 +650,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             this.finalResponse = finalResponse;
             this.originalPrimaryShard = originalPrimaryShard;
             this.observer = observer;
+            indexMetaData = observer.observedState().metaData().index(internalRequest.concreteIndex());
 
             ShardRouting shard;
             // we double check on the state, if it got changed we need to make sure we take the latest one cause
@@ -659,8 +660,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             // and assigned to another node (while the indexing happened). In that case, we want to apply it on the
             // new primary shard as well...
             ClusterState newState = clusterService.state();
-            ShardRouting newPrimaryShard = null;
-            int numberOfUnassignedReplicas = 0;
+
+            int numberOfUnassignedOrShadowReplicas = 0;
             int numberOfPendingShardInstances = 0;
             if (observer.observedState() != newState) {
                 observer.reset(newState);
@@ -674,8 +675,18 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                         if (shard.relocating()) {
                             numberOfPendingShardInstances++;
                         }
+                    } else if (IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.settings())) {
+                        // If the replicas use shadow replicas, there is no reason to
+                        // perform the action on the replica, so skip it and
+                        // immediately return
+
+                        // this delays mapping updates on replicas because they have
+                        // to wait until they get the new mapping through the cluster
+                        // state, which is why we recommend pre-defined mappings for
+                        // indices using shadow replicas
+                        numberOfUnassignedOrShadowReplicas++;
                     } else if (shard.unassigned()) {
-                        numberOfUnassignedReplicas++;
+                        numberOfUnassignedOrShadowReplicas++;
                     } else if (shard.relocating()) {
                         // we need to send to two copies
                         numberOfPendingShardInstances += 2;
@@ -692,12 +703,22 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                         replicaRequest.setCanHaveDuplicates();
                     }
                     if (shard.unassigned()) {
-                        numberOfUnassignedReplicas++;
+                        numberOfUnassignedOrShadowReplicas++;
                     } else if (shard.primary()) {
                         if (shard.relocating()) {
                             // we have to replicate to the other copy
                             numberOfPendingShardInstances += 1;
                         }
+                    } else if (IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.settings())) {
+                        // If the replicas use shadow replicas, there is no reason to
+                        // perform the action on the replica, so skip it and
+                        // immediately return
+
+                        // this delays mapping updates on replicas because they have
+                        // to wait until they get the new mapping through the cluster
+                        // state, which is why we recommend pre-defined mappings for
+                        // indices using shadow replicas
+                        numberOfUnassignedOrShadowReplicas++;
                     } else if (shard.relocating()) {
                         // we need to send to two copies
                         numberOfPendingShardInstances += 2;
@@ -708,9 +729,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
 
             // one for the primary already done
-            this.totalShards = 1 + numberOfPendingShardInstances + numberOfUnassignedReplicas;
+            this.totalShards = 1 + numberOfPendingShardInstances + numberOfUnassignedOrShadowReplicas;
             this.pending = new AtomicInteger(numberOfPendingShardInstances);
-            this.indexMetaData = observer.observedState().metaData().index(internalRequest.concreteIndex());
         }
 
         /** total shard copies */
@@ -751,11 +771,14 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                             // there is a new primary, we'll have to replicate to it.
                             performOnReplica(shard, shard.currentNodeId());
                         }
-                    } else {
+                        if (shard.relocating()) {
+                            performOnReplica(shard, shard.relocatingNodeId());
+                        }
+                    } else if (IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.settings()) == false) {
                         performOnReplica(shard, shard.currentNodeId());
-                    }
-                    if (shard.relocating()) {
-                        performOnReplica(shard, shard.relocatingNodeId());
+                        if (shard.relocating()) {
+                            performOnReplica(shard, shard.relocatingNodeId());
+                        }
                     }
                 }
             } catch (Throwable t) {
@@ -774,18 +797,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
 
             final ReplicaOperationRequest shardRequest = new ReplicaOperationRequest(shardIt.shardId(), replicaRequest);
-
-            // If the replicas use shadow replicas, there is no reason to
-            // perform the action on the replica, so skip it and
-            // immediately return
-            if (IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.settings())) {
-                // this delays mapping updates on replicas because they have
-                // to wait until they get the new mapping through the cluster
-                // state, which is why we recommend pre-defined mappings for
-                // indices using shadow replicas
-                onReplicaSuccess();
-                return;
-            }
 
             if (!nodeId.equals(observer.observedState().nodes().localNodeId())) {
                 final DiscoveryNode node = observer.observedState().nodes().get(nodeId);

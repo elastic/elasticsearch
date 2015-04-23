@@ -157,23 +157,32 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
 
 
     ClusterState stateWithStartedPrimary(String index, boolean primaryLocal, int numberOfReplicas) {
-        ShardRoutingState primaryState;
         ShardRoutingState[] replicaStates = new ShardRoutingState[numberOfReplicas];
         int assignedReplicas = randomIntBetween(0, replicaStates.length);
         // no point in randomizing - node assignment later on does it too.
         for (int i = 0; i < assignedReplicas; i++) {
-            replicaStates[i] = randomBoolean() ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING;
+            replicaStates[i] = randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED, ShardRoutingState.RELOCATING);
         }
         for (int i = assignedReplicas; i < replicaStates.length; i++) {
             replicaStates[i] = ShardRoutingState.UNASSIGNED;
         }
-        return state(index, primaryLocal, ShardRoutingState.STARTED, replicaStates);
+        return state(index, primaryLocal, randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING), replicaStates);
 
     }
 
     ClusterState state(String index, boolean primaryLocal, ShardRoutingState primaryState, ShardRoutingState... replicaStates) {
         final int numberOfReplicas = replicaStates.length;
-        final int numberOfNodes = Math.max(2, numberOfReplicas + 1); // we need a non-local master to test shard failures
+
+        int numberOfNodes = numberOfReplicas + 1;
+        if (primaryState == ShardRoutingState.RELOCATING) {
+            numberOfNodes++;
+        }
+        for (ShardRoutingState state : replicaStates) {
+            if (state == ShardRoutingState.RELOCATING) {
+                numberOfNodes++;
+            }
+        }
+        numberOfNodes = Math.max(2, numberOfNodes); // we need a non-local master to test shard failures
         final ShardId shardId = new ShardId(index, 0);
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         Set<String> unassignedNodes = new HashSet<>();
@@ -194,21 +203,32 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId, false);
 
         String primaryNode = null;
+        String relocatingNode = null;
         if (primaryState != ShardRoutingState.UNASSIGNED) {
-            primaryNode = primaryLocal ? newNode(0).id() : randomFrom(unassignedNodes.toArray(new String[unassignedNodes.size()]));
-            unassignedNodes.remove(primaryNode);
+            if (primaryLocal) {
+                primaryNode = newNode(0).id();
+                unassignedNodes.remove(primaryNode);
+            } else {
+                primaryNode = selectAndRemove(unassignedNodes);
+            }
+            if (primaryState == ShardRoutingState.RELOCATING) {
+                relocatingNode = selectAndRemove(unassignedNodes);
+            }
         }
-        indexShardRoutingBuilder.addShard(new ImmutableShardRouting(index, 0, primaryNode, true, primaryState, 0));
+        indexShardRoutingBuilder.addShard(new ImmutableShardRouting(index, 0, primaryNode, relocatingNode, true, primaryState, 0));
 
         for (ShardRoutingState replicaState : replicaStates) {
             String replicaNode = null;
+            relocatingNode = null;
             if (replicaState != ShardRoutingState.UNASSIGNED) {
                 assert primaryNode != null : "a replica is assigned but the primary isn't";
-                replicaNode = randomFrom(unassignedNodes.toArray(new String[unassignedNodes.size()]));
-                unassignedNodes.remove(replicaNode);
+                replicaNode = selectAndRemove(unassignedNodes);
+                if (replicaState == ShardRoutingState.RELOCATING) {
+                    relocatingNode = selectAndRemove(unassignedNodes);
+                }
             }
             indexShardRoutingBuilder.addShard(
-                    new ImmutableShardRouting(index, shardId.id(), replicaNode, false, replicaState, 0));
+                    new ImmutableShardRouting(index, shardId.id(), replicaNode, relocatingNode, false, replicaState, 0));
 
         }
 
@@ -217,6 +237,12 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         state.metaData(MetaData.builder().put(indexMetaData, false).generateUuidIfNeeded());
         state.routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(index).addIndexShard(indexShardRoutingBuilder.build())));
         return state.build();
+    }
+
+    private String selectAndRemove(Set<String> strings) {
+        String selection = randomFrom(strings.toArray(new String[strings.size()]));
+        strings.remove(selection);
+        return selection;
     }
 
     @Test
@@ -283,21 +309,69 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         final ShardId shardId = new ShardId(index, 0);
 
         clusterService.setState(stateWithStartedPrimary(index, true, randomInt(5)));
-        logger.debug("using state: \n{}", clusterService.state().prettyPrint());
 
         final IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().index(index).shard(shardId.id());
-        final int assignedReplicas = shardRoutingTable.assignedShards().size() - 1; // -1 for primary
+        int assignedReplicas = 0;
+        int totalShards = 0;
+        for (ShardRouting shard : shardRoutingTable) {
+            totalShards++;
+            if (shard.primary() == false && shard.assignedToNode()) {
+                assignedReplicas++;
+            }
+            if (shard.relocating()) {
+                assignedReplicas++;
+                totalShards++;
+            }
+        }
+
+        runReplicateTest(shardRoutingTable, assignedReplicas, totalShards);
+    }
+
+    @Test
+    public void testReplicationWithShadowIndex() throws ExecutionException, InterruptedException {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, 0);
+
+        ClusterState state = stateWithStartedPrimary(index, true, randomInt(5));
+        MetaData.Builder metaData = MetaData.builder(state.metaData());
+        ImmutableSettings.Builder settings = ImmutableSettings.builder().put(metaData.get(index).settings());
+        settings.put(IndexMetaData.SETTING_SHADOW_REPLICAS, true);
+        metaData.put(IndexMetaData.builder(metaData.get(index)).settings(settings));
+        clusterService.setState(ClusterState.builder(state).metaData(metaData));
+
+        final IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().index(index).shard(shardId.id());
+        int assignedReplicas = 0;
+        int totalShards = 0;
+        for (ShardRouting shard : shardRoutingTable) {
+            totalShards++;
+            if (shard.primary() && shard.relocating()) {
+                assignedReplicas++;
+                totalShards++;
+            }
+        }
+
+        runReplicateTest(shardRoutingTable, assignedReplicas, totalShards);
+    }
+
+
+    protected void runReplicateTest(IndexShardRoutingTable shardRoutingTable, int assignedReplicas, int totalShards) throws InterruptedException, ExecutionException {
+        final ShardRouting primaryShard = shardRoutingTable.primaryShard();
+        final ShardIterator shardIt = shardRoutingTable.shardsIt();
+        final ShardId shardId = shardIt.shardId();
         final Request request = new Request();
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        final TransportShardReplicationOperationAction<Request, Request, Response>.InternalRequest internalRequest = action.new InternalRequest(request);
-        internalRequest.concreteIndex(index);
-        TransportShardReplicationOperationAction<Request, Request, Response>.ReplicationPhase replicationPhase =
-                action.new ReplicationPhase(shardRoutingTable.shardsIt(), request,
-                        new Response(), new ClusterStateObserver(clusterService, logger),
-                        shardRoutingTable.primaryShard(), internalRequest, listener);
+        logger.debug("expecting [{}] assigned replicas, [{}] total shards. using state: \n{}", assignedReplicas, totalShards, clusterService.state().prettyPrint());
 
-        assertThat(replicationPhase.totalShards(), equalTo(shardRoutingTable.size()));
+
+        final TransportShardReplicationOperationAction<Request, Request, Response>.InternalRequest internalRequest = action.new InternalRequest(request);
+        internalRequest.concreteIndex(shardId.index().name());
+        TransportShardReplicationOperationAction<Request, Request, Response>.ReplicationPhase replicationPhase =
+                action.new ReplicationPhase(shardIt, request,
+                        new Response(), new ClusterStateObserver(clusterService, logger),
+                        primaryShard, internalRequest, listener);
+
+        assertThat(replicationPhase.totalShards(), equalTo(totalShards));
         assertThat(replicationPhase.pending(), equalTo(assignedReplicas));
         replicationPhase.start();
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.capturedRequests();
@@ -334,13 +408,15 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         assertThat(shardInfo.getFailed(), equalTo(criticalFailures));
         assertThat(shardInfo.getFailures(), arrayWithSize(criticalFailures));
         assertThat(shardInfo.getSuccessful(), equalTo(successfull));
-        assertThat(shardInfo.getTotal(), equalTo(shardRoutingTable.size()));
+        assertThat(shardInfo.getTotal(), equalTo(totalShards));
 
         assertThat("failed to see enough shard failures", transport.capturedRequests().length, equalTo(criticalFailures));
         for (CapturingTransport.CapturedRequest capturedRequest : transport.capturedRequests()) {
             assertThat(capturedRequest.action, equalTo(ShardStateAction.SHARD_FAILED_ACTION_NAME));
         }
     }
+
+
 
     static class Request extends ShardReplicationOperationRequest<Request> {
         int shardId;

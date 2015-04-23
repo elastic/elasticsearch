@@ -1641,7 +1641,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("--> try restoring while changing the number of replicas to a negative number - should fail");
         Settings newIncorrectReplicasIndexSettings = ImmutableSettings.builder()
             .put(newIndexSettings)
-            .put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(-10, -1))
+            .put(SETTING_NUMBER_OF_REPLICAS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), randomIntBetween(-10, -1))
             .build();
         assertThrows(client.admin().cluster()
             .prepareRestoreSnapshot("test-repo", "test-snap")

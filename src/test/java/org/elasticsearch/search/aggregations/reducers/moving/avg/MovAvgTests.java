@@ -20,9 +20,9 @@
 package org.elasticsearch.search.aggregations.reducers.moving.avg;
 
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import com.google.common.collect.EvictingQueue;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -58,12 +58,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
 @ElasticsearchIntegrationTest.SuiteScopeTest
-@AwaitsFix(bugUrl = "Gap test logic seems to fail a lot of the time on CI build")
 public class MovAvgTests extends ElasticsearchIntegrationTest {
 
     private static final String INTERVAL_FIELD = "l_value";
@@ -789,8 +787,8 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         currentValue = current.value();
 
         if (gapPolicy.equals(BucketHelpers.GapPolicy.IGNORE)) {
-            // If we ignore missing, there will only be two values in this histo, so movavg will stay the same
-            assertThat(Double.compare(lastValue, currentValue), equalTo(0));
+            // if we are ignoring, movavg could go up (double_exp) or stay the same (simple, linear, single_exp)
+            assertThat(Double.compare(lastValue, currentValue), lessThanOrEqualTo(0));
         } else if (gapPolicy.equals(BucketHelpers.GapPolicy.INSERT_ZEROS)) {
             // If we insert zeros, this should always increase the moving avg since the last bucket has a real value
             assertThat(Double.compare(lastValue, currentValue), equalTo(-1));

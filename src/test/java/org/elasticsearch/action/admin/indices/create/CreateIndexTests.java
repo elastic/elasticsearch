@@ -34,6 +34,7 @@ import org.junit.Test;
 import java.util.HashMap;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -138,6 +139,16 @@ public class CreateIndexTests extends ElasticsearchIntegrationTest{
                     e.getMessage().contains("index must have 1 or more primary shards"), equalTo(true));
             assertThat("message contains error about shard count: " + e.getMessage(),
                     e.getMessage().contains("index must have 0 or more replica shards"), equalTo(true));
+        }
+    }
+
+    @Test
+    public void testCreateIndexWithBlocks() {
+        try {
+            setClusterReadOnly(true);
+            assertBlocked(prepareCreate("test"));
+        } finally {
+            setClusterReadOnly(false);
         }
     }
 }

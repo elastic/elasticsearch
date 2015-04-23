@@ -25,26 +25,18 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.Test;
 
-import java.io.IOException;
-import java.util.concurrent.ExecutionException;
+import java.util.Arrays;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -299,6 +291,61 @@ public class OpenCloseIndexTests extends ElasticsearchIntegrationTest {
             IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().indices().get(index);
             assertThat(indexMetaData, notNullValue());
             assertThat(indexMetaData.getState(), equalTo(expectedState));
+        }
+    }
+
+    @Test
+    public void testOpenCloseIndexWithBlocks() {
+        createIndex("test-blocks");
+        ensureGreen("test-blocks");
+
+        int docs = between(10, 100);
+        for (int i = 0; i < docs ; i++) {
+            client().prepareIndex("test-blocks", "type", "" + i).setSource("test-blocks", "init").execute().actionGet();
+        }
+
+        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
+            try {
+                enableIndexBlock("test-blocks", blockSetting);
+
+                // Closing an index is not blocked
+                CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test-blocks").execute().actionGet();
+                assertAcked(closeIndexResponse);
+                assertIndexIsClosed("test-blocks");
+
+                // Opening an index is not blocked
+                OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen("test-blocks").execute().actionGet();
+                assertAcked(openIndexResponse);
+                assertIndexIsOpened("test-blocks");
+            } finally {
+                disableIndexBlock("test-blocks", blockSetting);
+            }
+        }
+
+        // Closing an index is blocked
+        for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
+            try {
+                enableIndexBlock("test-blocks", blockSetting);
+                assertBlocked(client().admin().indices().prepareClose("test-blocks"));
+                assertIndexIsOpened("test-blocks");
+            } finally {
+                disableIndexBlock("test-blocks", blockSetting);
+            }
+        }
+
+        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test-blocks").execute().actionGet();
+        assertAcked(closeIndexResponse);
+        assertIndexIsClosed("test-blocks");
+
+        // Opening an index is blocked
+        for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
+            try {
+                enableIndexBlock("test-blocks", blockSetting);
+                assertBlocked(client().admin().indices().prepareOpen("test-blocks"));
+                assertIndexIsClosed("test-blocks");
+            } finally {
+                disableIndexBlock("test-blocks", blockSetting);
+            }
         }
     }
 }

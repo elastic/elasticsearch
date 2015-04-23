@@ -75,7 +75,8 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
 
     @Override
     protected ClusterBlockException checkBlock(NodesShutdownRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        // Stopping a node impacts the cluster state, so we check for the METADATA_WRITE block here
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override

@@ -73,7 +73,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
 
     @Override
     protected ClusterBlockException checkBlock(DeleteWarmerRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override

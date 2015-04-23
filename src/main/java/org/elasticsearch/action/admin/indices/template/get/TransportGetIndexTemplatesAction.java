@@ -54,7 +54,7 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadOpe
 
     @Override
     protected ClusterBlockException checkBlock(GetIndexTemplatesRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override

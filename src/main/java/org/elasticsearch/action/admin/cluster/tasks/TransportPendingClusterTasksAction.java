@@ -53,7 +53,7 @@ public class TransportPendingClusterTasksAction extends TransportMasterNodeReadO
 
     @Override
     protected ClusterBlockException checkBlock(PendingClusterTasksRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override

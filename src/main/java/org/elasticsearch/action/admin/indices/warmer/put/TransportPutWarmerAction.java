@@ -80,7 +80,13 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
     @Override
     protected ClusterBlockException checkBlock(PutWarmerRequest request, ClusterState state) {
         String[] concreteIndices = clusterService.state().metaData().concreteIndices(request.searchRequest().indicesOptions(), request.searchRequest().indices());
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, concreteIndices);
+        ClusterBlockException status = state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
+        if (status != null) {
+            return status;
+        }
+        // PutWarmer executes a SearchQuery before adding the new warmer to the cluster state,
+        // so we need to check the same block as TransportSearchTypeAction here
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, concreteIndices);
     }
 
     @Override

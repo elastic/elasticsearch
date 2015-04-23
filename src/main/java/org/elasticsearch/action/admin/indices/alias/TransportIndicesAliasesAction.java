@@ -78,7 +78,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
                 indices.add(index);
             }
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, indices.toArray(new String[indices.size()]));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices.toArray(new String[indices.size()]));
     }
 
     @Override

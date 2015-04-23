@@ -108,7 +108,14 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
 
     @Override
     protected ClusterBlockException checkBlock(DeleteMappingRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
+        ClusterBlockException status = state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
+        if (status != null) {
+            return status;
+        }
+        // DeleteMapping executes a DeleteByQuery as soon as the mapping is deleted,
+        // so we need to check the same block as DeleteByQuery here
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.WRITE, concreteIndices);
     }
 
     @Override

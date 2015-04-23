@@ -23,6 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
+import org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
 import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModel;
@@ -37,12 +38,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
-
 public class MovAvgParser implements Reducer.Parser {
 
-    public static final ParseField FORMAT = new ParseField("format");
-    public static final ParseField GAP_POLICY = new ParseField("gap_policy");
     public static final ParseField MODEL = new ParseField("model");
     public static final ParseField WINDOW = new ParseField("window");
     public static final ParseField SETTINGS = new ParseField("settings");

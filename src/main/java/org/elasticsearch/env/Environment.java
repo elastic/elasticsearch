@@ -20,22 +20,16 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 
-import com.google.common.base.Charsets;
-
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.file.*;
-import java.util.Collections;
+import java.nio.file.FileStore;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 
 import static org.elasticsearch.common.Strings.cleanPath;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
@@ -62,6 +56,9 @@ public class Environment {
     private final Path pluginsFile;
 
     private final Path logsFile;
+
+    /** List of filestores on the system */
+    private final FileStore[] fileStores;
 
     public Environment() {
         this(EMPTY_SETTINGS);
@@ -112,6 +109,13 @@ public class Environment {
         } else {
             logsFile = homeFile.resolve("logs");
         }
+
+        // gather information about filesystems
+        ArrayList<FileStore> allStores = new ArrayList<>();
+        for (FileStore store : PathUtils.getDefaultFileSystem().getFileStores()) {
+            allStores.add(new ESFileStore(store));
+        }
+        fileStores = allStores.toArray(new ESFileStore[allStores.size()]);
     }
 
     /**
@@ -175,6 +179,24 @@ public class Environment {
 
     public Path logsFile() {
         return logsFile;
+    }
+
+    /**
+     * Looks up the filestore associated with a Path.
+     * <p>
+     * This is an enhanced version of {@link Files#getFileStore(Path)}:
+     * <ul>
+     *   <li>On *nix systems, the store returned for the root filesystem will contain
+     *       the actual filesystem type (e.g. {@code ext4}) instead of {@code rootfs}.
+     *   <li>On some systems, the custom attribute {@code lucene:spins} is supported
+     *       via the {@link FileStore#getAttribute(String)} method.
+     *   <li>Only requires the security permissions of {@link Files#getFileStore(Path)},
+     *       no permissions to the actual mount point are required.
+     *   <li>Exception handling has the same semantics as {@link Files#getFileStore(Path)}.
+     * </ul>
+     */
+    public FileStore getFileStore(Path path) throws IOException {
+        return ESFileStore.getMatchingFileStore(path, fileStores);
     }
 
     public URL resolveConfig(String path) throws FailedToResolveConfigException {

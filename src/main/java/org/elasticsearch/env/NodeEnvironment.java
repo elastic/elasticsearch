@@ -22,7 +22,6 @@ package org.elasticsearch.env;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import org.apache.lucene.store.*;
-import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -64,23 +63,15 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
          *  not running on Linux, or we hit an exception trying), True means the device possibly spins and False means it does not. */
         public final Boolean spins;
 
-        public NodePath(Path path) throws IOException {
+        public NodePath(Path path, Environment environment) throws IOException {
             this.path = path;
             this.indicesPath = path.resolve(INDICES_FOLDER);
-            this.fileStore = getFileStore(path);
-            Boolean spins;
-
-            // Lucene's IOUtils.spins only works on Linux today:
-            if (Constants.LINUX) {
-                try {
-                    spins = IOUtils.spins(path);
-                } catch (Exception e) {
-                    spins = null;
-                }
+            this.fileStore = environment.getFileStore(path);
+            if (fileStore.supportsFileAttributeView("lucene")) {
+                this.spins = (Boolean) fileStore.getAttribute("lucene:spins");
             } else {
-                spins = null;
+                this.spins = null;
             }
-            this.spins = spins;
         }
 
         /**
@@ -157,7 +148,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
                     Lock tmpLock = luceneDir.makeLock(NODE_LOCK_FILENAME);
                     boolean obtained = tmpLock.obtain();
                     if (obtained) {
-                        nodePaths[dirIndex] = new NodePath(dir);
+                        nodePaths[dirIndex] = new NodePath(dir, environment);
                         locks[dirIndex] = tmpLock;
                         localNodeId = possibleLockId;
                     } else {
@@ -287,58 +278,6 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
             b.append(item);
         }
         return b.toString();
-    }
-
-
-    // TODO: move somewhere more "util"?  But, this is somewhat hacky code ... not great to publicize it any more:
-
-    // NOTE: poached from Lucene's IOUtils:
-
-    /** Files.getFileStore(Path) useless here!  Don't complain, just try it yourself. */
-    private static FileStore getFileStore(Path path) throws IOException {
-        FileStore store = Files.getFileStore(path);
-
-        try {
-            String mount = getMountPoint(store);
-            FileStore sameMountPoint = null;
-            for (FileStore fs : path.getFileSystem().getFileStores()) {
-                if (mount.equals(getMountPoint(fs))) {
-                    if (sameMountPoint == null) {
-                        sameMountPoint = fs;
-                    } else {
-                        // more than one filesystem has the same mount point; something is wrong!
-                        // fall back to crappy one we got from Files.getFileStore
-                        return store;
-                    }
-                }
-            }
-
-            if (sameMountPoint != null) {
-                // ok, we found only one, use it:
-                return sameMountPoint;
-            } else {
-                // fall back to crappy one we got from Files.getFileStore
-                return store;    
-            }
-        } catch (Exception e) {
-            // ignore
-        }
-
-        // fall back to crappy one we got from Files.getFileStore
-        return store;    
-    }
-
-    // NOTE: poached from Lucene's IOUtils:
-
-    // these are hacks that are not guaranteed
-    private static String getMountPoint(FileStore store) {
-        String desc = store.toString();
-        int index = desc.lastIndexOf(" (");
-        if (index != -1) {
-            return desc.substring(0, index);
-        } else {
-            return desc;
-        }
     }
 
     /**

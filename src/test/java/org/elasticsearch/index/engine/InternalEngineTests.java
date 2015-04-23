@@ -20,7 +20,6 @@
 package org.elasticsearch.index.engine;
 
 import com.google.common.collect.ImmutableMap;
-
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
@@ -30,12 +29,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexDeletionPolicy;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LiveIndexWriterConfig;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -65,16 +59,9 @@ import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
-import org.elasticsearch.index.mapper.MapperAnalyzer;
-import org.elasticsearch.index.mapper.MapperBuilders;
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
@@ -111,10 +98,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 // TODO: this guy isn't ready for mock filesystems yet
 @SuppressFileSystems("*")
@@ -486,6 +470,26 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                 assertEquals(gen2 + 1, store.readLastCommittedSegmentsInfo().getLastGeneration());
             }
         }
+    }
+
+    public void testCommitStats() {
+        Document document = testDocumentWithTextField();
+        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
+        engine.create(new Engine.Create(null, newUid("1"), doc));
+
+        CommitStats stats1 = engine.commitStats();
+        assertThat(stats1.getGeneration(), greaterThan(0l));
+        assertThat(stats1.getId(), notNullValue());
+        assertThat(stats1.getUserData(), hasKey(Translog.TRANSLOG_ID_KEY));
+
+        engine.flush(true, true);
+        CommitStats stats2 = engine.commitStats();
+        assertThat(stats2.getGeneration(), greaterThan(stats1.getGeneration()));
+        assertThat(stats2.getId(), notNullValue());
+        assertThat(stats2.getId(), not(equalTo(stats1.getId())));
+        assertThat(stats2.getUserData(), hasKey(Translog.TRANSLOG_ID_KEY));
+        assertThat(stats2.getUserData().get(Translog.TRANSLOG_ID_KEY), not(equalTo(stats1.getUserData().get(Translog.TRANSLOG_ID_KEY))));
     }
 
     @Test

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.rescore;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -148,35 +147,35 @@ public final class QueryRescorer implements Rescorer {
         ContextIndexSearcher searcher = context.searcher();
         if (sourceExplanation == null) {
             // this should not happen but just in case
-            return new ComplexExplanation(false, 0.0f, "nothing matched");
+            return Explanation.noMatch("nothing matched");
         }
         // TODO: this isn't right?  I.e., we are incorrectly pretending all first pass hits were rescored?  If the requested docID was
         // beyond the top rescoreContext.window() in the first pass hits, we don't rescore it now?
         Explanation rescoreExplain = searcher.explain(rescore.query(), topLevelDocId);
         float primaryWeight = rescore.queryWeight();
-        ComplexExplanation prim = new ComplexExplanation(sourceExplanation.isMatch(),
-                sourceExplanation.getValue() * primaryWeight,
-                "product of:");
-        prim.addDetail(sourceExplanation);
-        prim.addDetail(new Explanation(primaryWeight, "primaryWeight"));
+
+        Explanation prim;
+        if (sourceExplanation.isMatch()) {
+            prim = Explanation.match(
+                    sourceExplanation.getValue() * primaryWeight,
+                    "product of:", sourceExplanation, Explanation.match(primaryWeight, "primaryWeight"));
+        } else {
+            prim = Explanation.noMatch("First pass did not match", sourceExplanation);
+        }
 
         // NOTE: we don't use Lucene's Rescorer.explain because we want to insert our own description with which ScoreMode was used.  Maybe
         // we should add QueryRescorer.explainCombine to Lucene?
         if (rescoreExplain != null && rescoreExplain.isMatch()) {
             float secondaryWeight = rescore.rescoreQueryWeight();
-            ComplexExplanation sec = new ComplexExplanation(rescoreExplain.isMatch(),
+            Explanation sec = Explanation.match(
                     rescoreExplain.getValue() * secondaryWeight,
-                    "product of:");
-            sec.addDetail(rescoreExplain);
-            sec.addDetail(new Explanation(secondaryWeight, "secondaryWeight"));
+                    "product of:",
+                    rescoreExplain, Explanation.match(secondaryWeight, "secondaryWeight"));
             ScoreMode scoreMode = rescore.scoreMode();
-            ComplexExplanation calcExpl = new ComplexExplanation();
-            calcExpl.setDescription(scoreMode + " of:");
-            calcExpl.addDetail(prim);
-            calcExpl.setMatch(prim.isMatch());
-            calcExpl.addDetail(sec);
-            calcExpl.setValue(scoreMode.combine(prim.getValue(), sec.getValue()));
-            return calcExpl;
+            return Explanation.match(
+                    scoreMode.combine(prim.getValue(), sec.getValue()),
+                    scoreMode + " of:",
+                    prim, sec);
         } else {
             return prim;
         }

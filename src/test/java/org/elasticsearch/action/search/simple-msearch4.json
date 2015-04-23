@@ -1,0 +1,6 @@
+{"index":["test0", "test1"], "query_cache": true}
+{"query" : {"match_all" {}}}
+{"index" : "test2,test3", "type" : "type1", "preference": "_local"}
+{"query" : {"match_all" {}}}
+{"index" : ["test4", "test1"], "type" :  [ "type2", "type1" ], "routing": "123"}
+{"query" : {"match_all" {}}}

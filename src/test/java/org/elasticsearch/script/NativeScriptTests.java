@@ -59,7 +59,7 @@ public class NativeScriptTests extends ElasticsearchTestCase {
 
         ScriptService scriptService = injector.getInstance(ScriptService.class);
 
-        ExecutableScript executable = scriptService.executable(NativeScriptEngineService.NAME, "my", ScriptType.INLINE, ScriptContext.Standard.SEARCH, null);
+        ExecutableScript executable = scriptService.executable(new Script(NativeScriptEngineService.NAME, "my", ScriptType.INLINE, null), ScriptContext.Standard.SEARCH);
         assertThat(executable.run().toString(), equalTo("test"));
         terminate(injector.getInstance(ThreadPool.class));
     }
@@ -84,7 +84,7 @@ public class NativeScriptTests extends ElasticsearchTestCase {
         ScriptService scriptService = new ScriptService(settings, environment, scriptEngineServices, resourceWatcherService, new NodeSettingsService(settings), scriptContextRegistry);
 
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
-            assertThat(scriptService.compile(NativeScriptEngineService.NAME, "my", ScriptType.INLINE, scriptContext), notNullValue());
+            assertThat(scriptService.compile(new Script(NativeScriptEngineService.NAME, "my", ScriptType.INLINE, null), scriptContext), notNullValue());
         }
     }
 

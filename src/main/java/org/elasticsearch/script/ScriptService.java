@@ -25,6 +25,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -39,7 +40,6 @@ import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptRequest
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -217,55 +217,67 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Checks if a script can be executed and compiles it if needed, or returns the previously compiled and cached script.
      */
-    public CompiledScript compile(String lang,  String script, ScriptType scriptType, ScriptContext scriptContext) {
-        assert script != null;
-        assert scriptType != null;
-        assert scriptContext != null;
+    public CompiledScript compile(Script script, ScriptContext scriptContext) {
+        if (script == null) {
+            throw new ElasticsearchIllegalArgumentException("The parameter script (Script) must not be null.");
+        }
+        if (scriptContext == null) {
+            throw new ElasticsearchIllegalArgumentException("The parameter scriptContext (ScriptContext) must not be null.");
+        }
+
+        String lang = script.getLang();
 
         if (lang == null) {
             lang = defaultLang;
         }
 
         ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
-        if (canExecuteScript(lang, scriptEngineService, scriptType, scriptContext) == false) {
-            throw new ScriptException("scripts of type [" + scriptType + "], operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are disabled");
+        if (canExecuteScript(lang, scriptEngineService, script.getType(), scriptContext) == false) {
+            throw new ScriptException("scripts of type [" + script.getType() + "], operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are disabled");
         }
-        return compileInternal(lang, script, scriptType);
+        return compileInternal(script);
     }
 
     /**
      * Compiles a script straight-away, or returns the previously compiled and cached script, without checking if it can be executed based on settings.
      */
-    public CompiledScript compileInternal(String lang,  String script, ScriptType scriptType) {
-        assert script != null;
-        assert scriptType != null;
+    public CompiledScript compileInternal(Script script) {
+        if (script == null) {
+            throw new ElasticsearchIllegalArgumentException("The parameter script (Script) must not be null.");
+        }
+
+        String lang = script.getLang();
+
         if (lang == null) {
             lang = defaultLang;
         }
         if (logger.isTraceEnabled()) {
-            logger.trace("Compiling lang: [{}] type: [{}] script: {}", lang, scriptType, script);
+            logger.trace("Compiling lang: [{}] type: [{}] script: {}", lang, script.getType(), script.getScript());
         }
 
         ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
-        CacheKey cacheKey = newCacheKey(scriptEngineService, script);
+        CacheKey cacheKey = newCacheKey(scriptEngineService, script.getScript());
 
-        if (scriptType == ScriptType.FILE) {
+        if (script.getType() == ScriptType.FILE) {
             CompiledScript compiled = staticCache.get(cacheKey); //On disk scripts will be loaded into the staticCache by the listener
             if (compiled == null) {
-                throw new ElasticsearchIllegalArgumentException("Unable to find on disk script " + script);
+                throw new ElasticsearchIllegalArgumentException("Unable to find on disk script " + script.getScript());
             }
             return compiled;
         }
 
-        if (scriptType == ScriptType.INDEXED) {
-            final IndexedScript indexedScript = new IndexedScript(lang, script);
-            script = getScriptFromIndex(indexedScript.lang, indexedScript.id);
+        String code = script.getScript();
+
+        if (script.getType() == ScriptType.INDEXED) {
+            final IndexedScript indexedScript = new IndexedScript(lang, script.getScript());
+            code = getScriptFromIndex(indexedScript.lang, indexedScript.id);
+            cacheKey = newCacheKey(scriptEngineService, code);
         }
 
         CompiledScript compiled = cache.getIfPresent(cacheKey);
         if (compiled == null) {
             //Either an un-cached inline script or an indexed script
-            compiled = new CompiledScript(lang, scriptEngineService.compile(script));
+            compiled = new CompiledScript(lang, scriptEngineService.compile(code));
             //Since the cache key is the script content itself we don't need to
             //invalidate/check the cache if an indexed script changes.
             cache.put(cacheKey, compiled);
@@ -315,7 +327,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                     //we don't know yet what the script will be used for, but if all of the operations for this lang with
                     //indexed scripts are disabled, it makes no sense to even compile it and cache it.
                     if (isAnyScriptContextEnabled(scriptLang, getScriptEngineServiceForLang(scriptLang), ScriptType.INDEXED)) {
-                        CompiledScript compiledScript = compileInternal(scriptLang, context.template(), ScriptType.INLINE);
+                        CompiledScript compiledScript = compileInternal(new Script(scriptLang, context.template(), ScriptType.INLINE, null));
                         if (compiledScript == null) {
                             throw new ElasticsearchIllegalArgumentException("Unable to parse [" + context.template() +
                                     "] lang [" + scriptLang + "] (ScriptService.compile returned null)");
@@ -385,8 +397,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Compiles (or retrieves from cache) and executes the provided script
      */
-    public ExecutableScript executable(String lang, String script, ScriptType scriptType, ScriptContext scriptContext, Map<String, Object> vars) {
-        return executable(compile(lang, script, scriptType, scriptContext), vars);
+    public ExecutableScript executable(Script script, ScriptContext scriptContext) {
+        return executable(compile(script, scriptContext), script.getParams());
     }
 
     /**
@@ -399,9 +411,9 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Compiles (or retrieves from cache) and executes the provided search script
      */
-    public SearchScript search(SearchLookup lookup, String lang, String script, ScriptType scriptType, ScriptContext scriptContext, @Nullable Map<String, Object> vars) {
-        CompiledScript compiledScript = compile(lang, script, scriptType, scriptContext);
-        return getScriptEngineServiceForLang(compiledScript.lang()).search(compiledScript.compiled(), lookup, vars);
+    public SearchScript search(SearchLookup lookup, Script script, ScriptContext scriptContext) {
+        CompiledScript compiledScript = compile(script, scriptContext);
+        return getScriptEngineServiceForLang(compiledScript.lang()).search(compiledScript.compiled(), lookup, script.getParams());
     }
 
     private boolean isAnyScriptContextEnabled(String lang, ScriptEngineService scriptEngineService, ScriptType scriptType) {

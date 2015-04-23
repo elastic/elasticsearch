@@ -242,7 +242,7 @@ public class Node implements Releasable {
             injector.getInstance(plugin).start();
         }
 
-        injector.getInstance(MappingUpdatedAction.class).start();
+        injector.getInstance(MappingUpdatedAction.class).setClient(client);
         injector.getInstance(IndicesService.class).start();
         injector.getInstance(IndexingMemoryController.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
@@ -285,7 +285,6 @@ public class Node implements Releasable {
             injector.getInstance(HttpServer.class).stop();
         }
 
-        injector.getInstance(MappingUpdatedAction.class).stop();
         injector.getInstance(RiversManager.class).stop();
 
         injector.getInstance(SnapshotsService.class).stop();

@@ -133,7 +133,7 @@ public class GeoDistanceRangeFilter extends Filter {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (super.equals(o) == false) return false;
 
         GeoDistanceRangeFilter filter = (GeoDistanceRangeFilter) o;
 
@@ -155,10 +155,10 @@ public class GeoDistanceRangeFilter extends Filter {
 
     @Override
     public int hashCode() {
-        int result;
+        int result = super.hashCode();
         long temp;
         temp = lat != +0.0d ? Double.doubleToLongBits(lat) : 0L;
-        result = (int) (temp ^ (temp >>> 32));
+        result = 31 * result + (int) (temp ^ (temp >>> 32));
         temp = lon != +0.0d ? Double.doubleToLongBits(lon) : 0L;
         result = 31 * result + (int) (temp ^ (temp >>> 32));
         temp = inclusiveLowerPoint != +0.0d ? Double.doubleToLongBits(inclusiveLowerPoint) : 0L;

@@ -51,7 +51,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.Adler32;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
 import static org.hamcrest.Matchers.*;
 
 public class StoreTest extends ElasticsearchTestCase {
@@ -480,7 +479,7 @@ public class StoreTest extends ElasticsearchTestCase {
             output.close();
         }
         store.renameFile("foo.bar", "bar.foo");
-        assertThat(store.directory().listAll().length, is(1));
+        assertThat(numNonExtraFiles(store), is(1));
         final long lastChecksum;
         try (IndexInput input = store.directory().openInput("bar.foo", IOContext.DEFAULT)) {
             lastChecksum = CodecUtil.checksumEntireFile(input);
@@ -503,7 +502,7 @@ public class StoreTest extends ElasticsearchTestCase {
             output.close();
         }
         store.renameFile("foo.bar", "bar.foo");
-        assertThat(store.directory().listAll().length, is(1));
+        assertThat(numNonExtraFiles(store), is(1));
         assertDeleteContent(store, directoryService);
         IOUtils.close(store);
     }
@@ -697,7 +696,7 @@ public class StoreTest extends ElasticsearchTestCase {
 
     public static void assertConsistent(Store store, Store.MetadataSnapshot metadata) throws IOException {
         for (String file : store.directory().listAll()) {
-            if (!IndexWriter.WRITE_LOCK_NAME.equals(file) && !IndexFileNames.OLD_SEGMENTS_GEN.equals(file) && !Store.isChecksum(file)) {
+            if (!IndexWriter.WRITE_LOCK_NAME.equals(file) && !IndexFileNames.OLD_SEGMENTS_GEN.equals(file) && !Store.isChecksum(file) && file.startsWith("extra") == false) {
                 assertTrue(file + " is not in the map: " + metadata.asMap().size() + " vs. " + store.directory().listAll().length, metadata.asMap().containsKey(file));
             } else {
                 assertFalse(file + " is not in the map: " + metadata.asMap().size() + " vs. " + store.directory().listAll().length, metadata.asMap().containsKey(file));
@@ -924,7 +923,7 @@ public class StoreTest extends ElasticsearchTestCase {
         Store.LegacyChecksums checksums = new Store.LegacyChecksums();
         Map<String, StoreFileMetaData> legacyMeta = new HashMap<>();
         for (String file : store.directory().listAll()) {
-            if (file.equals("write.lock") || file.equals(IndexFileNames.OLD_SEGMENTS_GEN)) {
+            if (file.equals("write.lock") || file.equals(IndexFileNames.OLD_SEGMENTS_GEN) || file.startsWith("extra")) {
                 continue;
             }
             BytesRef hash = new BytesRef();
@@ -943,6 +942,9 @@ public class StoreTest extends ElasticsearchTestCase {
             int numChecksums = 0;
             int numNotFound = 0;
             for (String file : strings) {
+                if (file.startsWith("extra")) {
+                    continue;
+                }
                 assertTrue(firstMeta.contains(file) || Store.isChecksum(file) || file.equals("write.lock"));
                 if (Store.isChecksum(file)) {
                     numChecksums++;
@@ -959,6 +961,9 @@ public class StoreTest extends ElasticsearchTestCase {
             int numChecksums = 0;
             int numNotFound = 0;
             for (String file : strings) {
+                if (file.startsWith("extra")) {
+                    continue;
+                }
                 assertTrue(file, secondMeta.contains(file) || Store.isChecksum(file) || file.equals("write.lock"));
                 if (Store.isChecksum(file)) {
                     numChecksums++;
@@ -1043,7 +1048,7 @@ public class StoreTest extends ElasticsearchTestCase {
             length = output.getFilePointer();
         }
 
-        assertTrue(store.directory().listAll().length > 0);
+        assertTrue(numNonExtraFiles(store) > 0);
         stats = store.stats();
         assertEquals(stats.getSizeInBytes(), length);
 
@@ -1065,5 +1070,15 @@ public class StoreTest extends ElasticsearchTestCase {
             }
         }
         ExceptionsHelper.rethrowAndSuppress(exceptions);
+    }
+
+    public int numNonExtraFiles(Store store) throws IOException {
+        int numNonExtra = 0;
+        for (String file : store.directory().listAll()) {
+            if (file.startsWith("extra") == false) {
+                numNonExtra++;
+            }
+        }
+        return numNonExtra;
     }
 }

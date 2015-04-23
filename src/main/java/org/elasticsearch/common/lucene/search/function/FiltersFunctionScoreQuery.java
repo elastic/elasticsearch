@@ -175,7 +175,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 return subQueryExpl;
             }
             // First: Gather explanations for all filters
-            List<ComplexExplanation> filterExplanations = new ArrayList<>();
+            List<Explanation> filterExplanations = new ArrayList<>();
             float weightSum = 0;
             for (FilterFunction filterFunction : filterFunctions) {
 
@@ -191,18 +191,16 @@ public class FiltersFunctionScoreQuery extends Query {
                     Explanation functionExplanation = filterFunction.function.getLeafScoreFunction(context).explainScore(doc, subQueryExpl);
                     double factor = functionExplanation.getValue();
                     float sc = CombineFunction.toFloat(factor);
-                    ComplexExplanation filterExplanation = new ComplexExplanation(true, sc, "function score, product of:");
-                    filterExplanation.addDetail(new Explanation(1.0f, "match filter: " + filterFunction.filter.toString()));
-                    filterExplanation.addDetail(functionExplanation);
+                    Explanation filterExplanation = Explanation.match(sc, "function score, product of:",
+                            Explanation.match(1.0f, "match filter: " + filterFunction.filter.toString()), functionExplanation);
                     filterExplanations.add(filterExplanation);
                 }
             }
             if (filterExplanations.size() == 0) {
                 float sc = getBoost() * subQueryExpl.getValue();
-                Explanation res = new ComplexExplanation(true, sc, "function score, no filter match, product of:");
-                res.addDetail(subQueryExpl);
-                res.addDetail(new Explanation(getBoost(), "queryBoost"));
-                return res;
+                return Explanation.match(sc, "function score, no filter match, product of:",
+                        subQueryExpl,
+                        Explanation.match(getBoost(), "queryBoost"));
             }
 
             // Second: Compute the factor that would have been computed by the
@@ -242,12 +240,11 @@ public class FiltersFunctionScoreQuery extends Query {
                     }
                 }
             }
-            ComplexExplanation factorExplanaition = new ComplexExplanation(true, CombineFunction.toFloat(factor),
-                    "function score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]");
-            for (int i = 0; i < filterExplanations.size(); i++) {
-                factorExplanaition.addDetail(filterExplanations.get(i));
-            }
-            return combineFunction.explain(getBoost(), subQueryExpl, factorExplanaition, maxBoost);
+            Explanation factorExplanation = Explanation.match(
+                    CombineFunction.toFloat(factor),
+                    "function score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]",
+                    filterExplanations);
+            return combineFunction.explain(getBoost(), subQueryExpl, factorExplanation, maxBoost);
         }
     }
 

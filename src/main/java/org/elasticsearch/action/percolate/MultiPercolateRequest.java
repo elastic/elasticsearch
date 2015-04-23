@@ -37,12 +37,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 
 /**
  * A multi percolate request that encapsulates multiple {@link PercolateRequest} instances in a single api call.
@@ -175,13 +175,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
     private void parsePercolateAction(XContentParser parser, PercolateRequest percolateRequest, boolean allowExplicitIndex) throws IOException {
         String globalIndex = indices != null && indices.length > 0 ? indices[0] : null;
 
-        Map<String, Object> header = parseToMap(parser);
-
-        IndicesOptions defaultOptions = indicesOptions;
-        boolean ignoreUnavailable = defaultOptions.ignoreUnavailable();
-        boolean allowNoIndices = defaultOptions.allowNoIndices();
-        boolean expandWildcardsOpen = defaultOptions.expandWildcardsOpen();
-        boolean expandWildcardsClosed = defaultOptions.expandWildcardsClosed();
+        Map<String, Object> header = parser.map();
 
         if (header.containsKey("id")) {
             GetRequest getRequest = new GetRequest(globalIndex);
@@ -189,52 +183,27 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
             for (Map.Entry<String, Object> entry : header.entrySet()) {
                 Object value = entry.getValue();
                 if ("id".equals(entry.getKey())) {
-                    getRequest.id((String) value);
+                    getRequest.id(nodeStringValue(value, null));
                     header.put("id", entry.getValue());
                 } else if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
                     if (!allowExplicitIndex) {
                         throw new ElasticsearchIllegalArgumentException("explicit index in multi percolate is not allowed");
                     }
-                    getRequest.index((String) value);
+                    getRequest.index(nodeStringValue(value, null));
                 } else if ("type".equals(entry.getKey())) {
-                    getRequest.type((String) value);
+                    getRequest.type(nodeStringValue(value, null));
                 } else if ("preference".equals(entry.getKey())) {
-                    getRequest.preference((String) value);
+                    getRequest.preference(nodeStringValue(value, null));
                 } else if ("routing".equals(entry.getKey())) {
-                    getRequest.routing((String) value);
+                    getRequest.routing(nodeStringValue(value, null));
                 } else if ("percolate_index".equals(entry.getKey()) || "percolate_indices".equals(entry.getKey()) || "percolateIndex".equals(entry.getKey()) || "percolateIndices".equals(entry.getKey())) {
-                    if (value instanceof String[]) {
-                        percolateRequest.indices((String[]) value);
-                    } else {
-                        percolateRequest.indices(Strings.splitStringByCommaToArray((String) value));
-                    }
+                    percolateRequest.indices(nodeStringArrayValue(value));
                 } else if ("percolate_type".equals(entry.getKey()) || "percolateType".equals(entry.getKey())) {
-                    percolateRequest.documentType((String) value);
+                    percolateRequest.documentType(nodeStringValue(value, null));
                 } else if ("percolate_preference".equals(entry.getKey()) || "percolatePreference".equals(entry.getKey())) {
-                    percolateRequest.preference((String) value);
+                    percolateRequest.preference(nodeStringValue(value, null));
                 } else if ("percolate_routing".equals(entry.getKey()) || "percolateRouting".equals(entry.getKey())) {
-                    percolateRequest.routing((String) value);
-                } else if ("ignore_unavailable".equals(entry.getKey()) || "ignoreUnavailable".equals(entry.getKey())) {
-                    ignoreUnavailable = Boolean.valueOf((String) value);
-                } else if ("allow_no_indices".equals(entry.getKey()) || "allowNoIndices".equals(entry.getKey())) {
-                    allowNoIndices = Boolean.valueOf((String) value);
-                } else if ("expand_wildcards".equals(entry.getKey()) || "expandWildcards".equals(entry.getKey())) {
-                    String[] wildcards;
-                    if (value instanceof String[]) {
-                        wildcards = (String[]) value;
-                    } else {
-                        wildcards = Strings.splitStringByCommaToArray((String) value);
-                    }
-
-                    for (String wildcard : wildcards) {
-                        if ("open".equals(wildcard)) {
-                            expandWildcardsOpen = true;
-                        } else if ("closed".equals(wildcard)) {
-                            expandWildcardsClosed = true;
-                        } else {
-                            throw new ElasticsearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
-                        }
-                    }
+                    percolateRequest.routing(nodeStringValue(value, null));
                 }
             }
 
@@ -258,68 +227,17 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                     if (!allowExplicitIndex) {
                         throw new ElasticsearchIllegalArgumentException("explicit index in multi percolate is not allowed");
                     }
-                    if (value instanceof String[]) {
-                        percolateRequest.indices((String[]) value);
-                    } else {
-                        percolateRequest.indices(Strings.splitStringByCommaToArray((String) value));
-                    }
+                    percolateRequest.indices(nodeStringArrayValue(value));
                 } else if ("type".equals(entry.getKey())) {
-                    percolateRequest.documentType((String) value);
+                    percolateRequest.documentType(nodeStringValue(value, null));
                 } else if ("preference".equals(entry.getKey())) {
-                    percolateRequest.preference((String) value);
+                    percolateRequest.preference(nodeStringValue(value, null));
                 } else if ("routing".equals(entry.getKey())) {
-                    percolateRequest.routing((String) value);
-                } else if ("ignore_unavailable".equals(entry.getKey()) || "ignoreUnavailable".equals(entry.getKey())) {
-                    ignoreUnavailable = Boolean.valueOf((String) value);
-                } else if ("allow_no_indices".equals(entry.getKey()) || "allowNoIndices".equals(entry.getKey())) {
-                    allowNoIndices = Boolean.valueOf((String) value);
-                } else if ("expand_wildcards".equals(entry.getKey()) || "expandWildcards".equals(entry.getKey())) {
-                    String[] wildcards;
-                    if (value instanceof String[]) {
-                        wildcards = (String[]) value;
-                    } else {
-                        wildcards = Strings.splitStringByCommaToArray((String) value);
-                    }
-
-                    for (String wildcard : wildcards) {
-                        if ("open".equals(wildcard)) {
-                            expandWildcardsOpen = true;
-                        } else if ("closed".equals(wildcard)) {
-                            expandWildcardsClosed = true;
-                        } else {
-                            throw new ElasticsearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
-                        }
-                    }
+                    percolateRequest.routing(nodeStringValue(value, null));
                 }
             }
         }
-        percolateRequest.indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed, defaultOptions));
-    }
-
-    private Map<String, Object> parseToMap(XContentParser parser) throws IOException {
-        Map<String, Object> header = new HashMap<>();
-
-        String currentFieldName = null;
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                header.put(currentFieldName, parser.text());
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                header.put(currentFieldName, parseArray(parser));
-            }
-        }
-        return header;
-    }
-
-    private String[] parseArray(XContentParser parser) throws IOException {
-        final List<String> list = new ArrayList<>();
-        assert parser.currentToken() == XContentParser.Token.START_ARRAY;
-        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            list.add(parser.text());
-        }
-        return list.toArray(new String[list.size()]);
+        percolateRequest.indicesOptions(IndicesOptions.fromMap(header, indicesOptions));
     }
 
     private int findNextMarker(byte marker, int from, BytesReference data, int length) {

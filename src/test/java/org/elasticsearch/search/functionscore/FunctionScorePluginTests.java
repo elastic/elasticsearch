@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.functionscore;
 
-import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchResponse;
@@ -33,6 +32,8 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
@@ -43,8 +44,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -142,9 +141,7 @@ public class FunctionScorePluginTests extends ElasticsearchIntegrationTest {
 
             @Override
             public Explanation explainFunction(String distanceString, double distanceVal, double scale) {
-                ComplexExplanation ce = new ComplexExplanation();
-                ce.setDescription("" + distanceVal);
-                return ce;
+                return Explanation.match((float) distanceVal, "" + distanceVal);
             }
 
             @Override

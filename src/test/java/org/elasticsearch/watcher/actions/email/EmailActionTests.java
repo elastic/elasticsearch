@@ -111,13 +111,13 @@ public class EmailActionTests extends ElasticsearchTestCase {
                 .build();
 
         if (subject != null) {
-            when(engine.render(subject, expectedModel)).thenReturn(subject.getText());
+            when(engine.render(subject, expectedModel)).thenReturn(subject.getTemplate());
         }
         if (textBody != null) {
-            when(engine.render(textBody, expectedModel)).thenReturn(textBody.getText());
+            when(engine.render(textBody, expectedModel)).thenReturn(textBody.getTemplate());
         }
         if (htmlBody != null) {
-            when(engine.render(htmlBody, expectedModel)).thenReturn(htmlBody.getText());
+            when(engine.render(htmlBody, expectedModel)).thenReturn(htmlBody.getTemplate());
         }
 
         EmailAction.Result result = executable.execute("_id", ctx, payload);
@@ -128,9 +128,9 @@ public class EmailActionTests extends ElasticsearchTestCase {
         Email actualEmail = ((EmailAction.Result.Success) result).email();
         assertThat(actualEmail.id(), is(wid.value()));
         assertThat(actualEmail, notNullValue());
-        assertThat(actualEmail.subject(), is(subject == null ? null : subject.getText()));
-        assertThat(actualEmail.textBody(), is(textBody == null ? null : textBody.getText()));
-        assertThat(actualEmail.htmlBody(), is(htmlBody == null ? null : htmlBody.getText()));
+        assertThat(actualEmail.subject(), is(subject == null ? null : subject.getTemplate()));
+        assertThat(actualEmail.textBody(), is(textBody == null ? null : textBody.getTemplate()));
+        assertThat(actualEmail.htmlBody(), is(htmlBody == null ? null : htmlBody.getTemplate()));
         if (attachPayload) {
             assertThat(actualEmail.attachments(), hasKey("data"));
         }
@@ -188,21 +188,21 @@ public class EmailActionTests extends ElasticsearchTestCase {
         }
         if (subject != null) {
             if (randomBoolean()) {
-                builder.field("subject", subject.getText());
+                builder.field("subject", subject.getTemplate());
             } else {
                 builder.field("subject", subject);
             }
         }
         if (textBody != null) {
             if (randomBoolean()) {
-                builder.field("text_body", textBody.getText());
+                builder.field("text_body", textBody.getTemplate());
             } else {
                 builder.field("text_body", textBody);
             }
         }
         if (htmlBody != null) {
             if (randomBoolean()) {
-                builder.field("html_body", htmlBody.getText());
+                builder.field("html_body", htmlBody.getTemplate());
             } else {
                 builder.field("html_body", htmlBody);
             }

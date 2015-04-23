@@ -25,22 +25,22 @@ import java.util.Objects;
  */
 public class Template implements ToXContent {
 
-    private final String text;
+    private final String template;
     private final @Nullable ScriptType type;
     private final @Nullable Map<String, Object> params;
 
-    public Template(String text) {
-        this(text, ScriptType.INLINE, ImmutableMap.<String, Object>of());
+    public Template(String template) {
+        this(template, ScriptType.INLINE, ImmutableMap.<String, Object>of());
     }
 
-    public Template(String text, ScriptType type, Map<String, Object> params) {
-        this.text = text;
+    public Template(String template, ScriptType type, Map<String, Object> params) {
+        this.template = template;
         this.type = type;
         this.params = params;
     }
 
-    public String getText() {
-        return text;
+    public String getTemplate() {
+        return template;
     }
 
     public ScriptType getType() {
@@ -56,23 +56,23 @@ public class Template implements ToXContent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Template template = (Template) o;
-        return Objects.equals(text, template.text) &&
+        return Objects.equals(this.template, template.template) &&
                 Objects.equals(type, template.type) &&
                 Objects.equals(params, template.params);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(text, type, params);
+        return Objects.hash(template, type, params);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (type == null && params == null) {
-            return builder.value(text);
+            return builder.value(template);
         }
         builder.startObject();
-        builder.field(Field.TEXT.getPreferredName(), text);
+        builder.field(Field.TEMPLATE.getPreferredName(), template);
         if (type != null) {
             builder.field(Field.TYPE.getPreferredName(), type.name().toLowerCase(Locale.ROOT));
         }
@@ -91,7 +91,7 @@ public class Template implements ToXContent {
             throw new ParseException("expected a string value or an object, but found [" + token + "] instead");
         }
 
-        String text = null;
+        String template = null;
         ScriptType type = ScriptType.INLINE;
         Map<String, Object> params = ImmutableMap.of();
 
@@ -99,11 +99,11 @@ public class Template implements ToXContent {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Field.TEXT.match(currentFieldName)) {
+            } else if (Field.TEMPLATE.match(currentFieldName)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
-                    text = parser.text();
+                    template = parser.text();
                 } else {
-                    throw new ParseException("expected a string value for field [" + currentFieldName + "], but found [" + token + "]");
+                    throw new ParseException("expected a string field [{}], but found [{}]", currentFieldName, token);
                 }
             } else if (Field.TYPE.match(currentFieldName)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
@@ -111,23 +111,23 @@ public class Template implements ToXContent {
                     try {
                         type = ScriptType.valueOf(value.toUpperCase(Locale.ROOT));
                     } catch (IllegalArgumentException iae) {
-                        throw new ParseException("unknown template type [" + value + "]");
+                        throw new ParseException("unknown template type [{}]", value);
                     }
                 }
             } else if (Field.PARAMS.match(currentFieldName)) {
                 if (token == XContentParser.Token.START_OBJECT) {
                     params = parser.map();
                 } else {
-                    throw new ParseException("expected an object for field [" + currentFieldName + "], but found [" + token + "]");
+                    throw new ParseException("expected an object for field [{}], but found [{}]", currentFieldName, token);
                 }
             } else {
-                throw new ParseException("unexpected field [" + currentFieldName + "]");
+                throw new ParseException("unexpected field [{}]", currentFieldName);
             }
         }
-        if (text == null) {
-            throw new ParseException("missing required string field [" + Field.TEXT.getPreferredName() + "]");
+        if (template == null) {
+            throw new ParseException("missing required string field [{}]", Field.TEMPLATE.getPreferredName());
         }
-        return new Template(text, type, params);
+        return new Template(template, type, params);
     }
 
     public static Builder builder(String text) {
@@ -136,12 +136,12 @@ public class Template implements ToXContent {
 
     public static class Builder {
 
-        private final String text;
+        private final String template;
         private ScriptType type;
         private HashMap<String, Object> params = new HashMap<>();
 
-        private Builder(String text) {
-            this.text = text;
+        private Builder(String template) {
+            this.template = template;
         }
 
         public Builder setType(ScriptType type) {
@@ -161,23 +161,23 @@ public class Template implements ToXContent {
 
         public Template build() {
             type = type != null ? type : ScriptType.INLINE;
-            return new Template(text, type, params);
+            return new Template(template, type, params);
         }
     }
 
     public static class ParseException extends WatcherException {
 
-        public ParseException(String msg) {
-            super(msg);
+        public ParseException(String msg, Object... args) {
+            super(msg, args);
         }
 
-        public ParseException(String msg, Throwable cause) {
-            super(msg, cause);
+        public ParseException(String msg, Throwable cause, Object... args) {
+            super(msg, cause, args);
         }
     }
 
     public interface Field {
-        ParseField TEXT = new ParseField("text");
+        ParseField TEMPLATE = new ParseField("template");
         ParseField TYPE = new ParseField("type");
         ParseField PARAMS = new ParseField("params");
     }

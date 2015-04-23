@@ -90,7 +90,7 @@ public class TemplateTests extends ElasticsearchTestCase {
         Template template = new Template("_template", randomScriptType(), ImmutableMap.<String, Object>of("param_key", "param_val"));
 
         XContentBuilder builder = jsonBuilder().startObject()
-                .field(randomFrom("text"), template.getText())
+                .field(randomFrom("template"), template.getTemplate())
                 .field(randomFrom("type"), template.getType().name())
                 .field(randomFrom("params"), template.getParams())
                 .endObject();
@@ -130,7 +130,7 @@ public class TemplateTests extends ElasticsearchTestCase {
     @Test(expected = Template.ParseException.class)
     public void testParser_Invalid_UnknownScriptType() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
-                .field("text", "_template")
+                .field("template", "_template")
                 .field("type", "unknown_type")
                 .startObject("params").endObject()
                 .endObject();

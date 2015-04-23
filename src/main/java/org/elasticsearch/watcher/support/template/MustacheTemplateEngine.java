@@ -34,7 +34,7 @@ public class MustacheTemplateEngine extends AbstractComponent implements Templat
         Map<String, Object> mergedModel = new HashMap<>();
         mergedModel.putAll(template.getParams());
         mergedModel.putAll(model);
-        ExecutableScript executable = service.executable(MustacheScriptEngineService.NAME, template.getText(), template.getType(), mergedModel);
+        ExecutableScript executable = service.executable(MustacheScriptEngineService.NAME, template.getTemplate(), template.getType(), mergedModel);
         Object result = executable.run();
         if (result instanceof BytesReference) {
             return ((BytesReference) result).toUtf8();

@@ -21,6 +21,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -149,4 +150,29 @@ public class IndexedScriptTests extends ElasticsearchIntegrationTest {
             assertThat(e.getMessage(), containsString("scripts of type [indexed], operation [aggs] and lang [expression] are disabled"));
         }
     }
+
+    // Relates to #10397
+    @Test
+    public void testUpdateScripts() {
+        createIndex("test_index");
+        ensureGreen("test_index");
+        client().prepareIndex("test_index", "test_type", "1").setSource("{\"foo\":\"bar\"}").get();
+        flush("test_index");
+
+        int iterations = randomIntBetween(2, 11);
+        for (int i = 1; i < iterations; i++) {
+            PutIndexedScriptResponse response = 
+                    client().preparePutIndexedScript(GroovyScriptEngineService.NAME, "script1", "{\"script\":\"" + i + "\"}").get();
+            assertEquals(i, response.getVersion());
+            
+            String query = "{"
+                    + " \"query\" : { \"match_all\": {}}, "
+                    + " \"script_fields\" : { \"test_field\" : { \"script_id\" : \"script1\", \"lang\":\"groovy\" } } }";    
+            SearchResponse searchResponse = client().prepareSearch().setSource(query).setIndices("test_index").setTypes("test_type").get();
+            assertHitCount(searchResponse, 1);
+            SearchHit sh = searchResponse.getHits().getAt(0);
+            assertThat((Integer)sh.field("test_field").getValue(), equalTo(i));
+        }
+    }
+
 }

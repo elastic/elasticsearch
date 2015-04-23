@@ -248,8 +248,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
      * @deprecated use the method variant that accepts the {@link ScriptContext} argument too: {@link #compile(String, String, ScriptType, ScriptContext)}
      */
     @Deprecated
-    public CompiledScript compile(String lang,  String script, ScriptType scriptType) {
-        return compile(lang, script, scriptType, ScriptContext.Standard.GENERIC_PLUGIN);
+    public CompiledScript compile(String lang,  String scriptOrId, ScriptType scriptType) {
+        return compile(lang, scriptOrId, scriptType, ScriptContext.Standard.GENERIC_PLUGIN);
     }
 
     /**
@@ -289,29 +289,31 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Compiles a script straight-away, or returns the previously compiled and cached script, without checking if it can be executed based on settings.
      */
-    public CompiledScript compileInternal(String lang,  String script, ScriptType scriptType) {
+    public CompiledScript compileInternal(String lang,  String scriptOrId, ScriptType scriptType) {
         assert scriptType != null;
         if (lang == null) {
             lang = defaultLang;
         }
         if (logger.isTraceEnabled()) {
-            logger.trace("Compiling lang: [{}] type: [{}] script: {}", lang, scriptType, script);
+            logger.trace("Compiling lang: [{}] type: [{}] script: {}", lang, scriptType, scriptOrId);
         }
 
         ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
-        CacheKey cacheKey = newCacheKey(scriptEngineService, script);
+        CacheKey cacheKey = newCacheKey(scriptEngineService, scriptOrId);
 
         if (scriptType == ScriptType.FILE) {
             CompiledScript compiled = staticCache.get(cacheKey); //On disk scripts will be loaded into the staticCache by the listener
             if (compiled == null) {
-                throw new ElasticsearchIllegalArgumentException("Unable to find on disk script " + script);
+                throw new ElasticsearchIllegalArgumentException("Unable to find on disk script " + scriptOrId);
             }
             return compiled;
         }
 
+        String script = scriptOrId;
         if (scriptType == ScriptType.INDEXED) {
-            final IndexedScript indexedScript = new IndexedScript(lang, script);
+            final IndexedScript indexedScript = new IndexedScript(lang, scriptOrId);
             script = getScriptFromIndex(indexedScript.lang, indexedScript.id);
+            cacheKey = newCacheKey(scriptEngineService, script);
         }
 
         CompiledScript compiled = cache.getIfPresent(cacheKey);

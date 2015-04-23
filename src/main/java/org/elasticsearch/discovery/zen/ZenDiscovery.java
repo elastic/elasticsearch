@@ -692,12 +692,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     static class ProcessClusterState {
         final ClusterState clusterState;
-        final PublishClusterStateAction.NewClusterStateListener.NewStateProcessed newStateProcessed;
         volatile boolean processed;
 
-        ProcessClusterState(ClusterState clusterState, PublishClusterStateAction.NewClusterStateListener.NewStateProcessed newStateProcessed) {
+        ProcessClusterState(ClusterState clusterState) {
             this.clusterState = clusterState;
-            this.newStateProcessed = newStateProcessed;
         }
     }
 
@@ -738,7 +736,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 newStateProcessed.onNewClusterStateFailed(new ElasticsearchIllegalStateException("received state from a node that is not part of the cluster"));
             } else {
 
-                final ProcessClusterState processClusterState = new ProcessClusterState(newClusterState, newStateProcessed);
+                final ProcessClusterState processClusterState = new ProcessClusterState(newClusterState);
                 processNewClusterStates.add(processClusterState);
 
                 assert newClusterState.nodes().masterNode() != null : "received a cluster state without a master";

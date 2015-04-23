@@ -23,15 +23,18 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Collections;
 
 /**
  * Base class for write action responses.
@@ -154,6 +157,11 @@ public abstract class ActionWriteResponse extends ActionResponse {
             }
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
 
         public static ShardInfo readShardInfo(StreamInput in) throws IOException {

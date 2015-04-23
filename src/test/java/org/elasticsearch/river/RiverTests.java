@@ -46,6 +46,7 @@ public class RiverTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @AwaitsFix(bugUrl="occasionally fails apparently due to synchronous mappings updates")
     public void testMultipleRiversStart() throws Exception {
         int nbRivers = between(2,10);
         logger.info("-->  testing with {} rivers...", nbRivers);

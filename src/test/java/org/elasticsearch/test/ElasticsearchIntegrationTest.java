@@ -1421,6 +1421,24 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
     }
 
+    /** Disables an index block for the specified index */
+    public static void disableIndexBlock(String index, String block) {
+        Settings settings = ImmutableSettings.builder().put(block, false).build();
+        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+    }
+
+    /** Enables an index block for the specified index */
+    public static void enableIndexBlock(String index, String block) {
+        Settings settings = ImmutableSettings.builder().put(block, true).build();
+        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+    }
+
+    /** Sets or unsets the cluster read_only mode **/
+    public static void setClusterReadOnly(boolean value) {
+        Settings settings = settingsBuilder().put(MetaData.SETTING_READ_ONLY, value).build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
+    }
+
     private static CountDownLatch newLatch(List<CountDownLatch> latches) {
         CountDownLatch l = new CountDownLatch(1);
         latches.add(l);

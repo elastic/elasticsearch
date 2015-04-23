@@ -69,7 +69,7 @@ public class TransportVerifyRepositoryAction extends TransportMasterNodeOperatio
 
     @Override
     protected ClusterBlockException checkBlock(VerifyRepositoryRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_READ, "");
     }
 
     @Override

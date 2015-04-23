@@ -58,14 +58,14 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
     @Override
     protected ClusterBlockException checkBlock(UpdateSettingsRequest request, ClusterState state) {
         // allow for dedicated changes to the metadata blocks, so we don't block those to allow to "re-enable" it
-        ClusterBlockException globalBlock = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        ClusterBlockException globalBlock = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
         if (globalBlock != null) {
             return globalBlock;
         }
         if (request.settings().getAsMap().size() == 1 && (request.settings().get(IndexMetaData.SETTING_BLOCKS_METADATA) != null || request.settings().get(IndexMetaData.SETTING_READ_ONLY) != null )) {
             return null;
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override

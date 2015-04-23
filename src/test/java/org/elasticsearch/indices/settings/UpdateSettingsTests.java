@@ -32,6 +32,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
@@ -41,8 +42,10 @@ import org.elasticsearch.index.store.support.AbstractIndexStore;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import java.util.Arrays;
+
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -382,6 +385,33 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
         } finally {
             rootLogger.removeAppender(mockAppender);
             rootLogger.setLevel(savedLevel);
+        }
+    }
+
+    @Test
+    public void testUpdateSettingsWithBlocks() {
+        createIndex("test");
+        ensureGreen("test");
+
+        Settings.Builder builder = ImmutableSettings.builder().put("index.refresh_interval", -1);
+
+        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
+            try {
+                enableIndexBlock("test", blockSetting);
+                assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(builder));
+            } finally {
+                disableIndexBlock("test", blockSetting);
+            }
+        }
+
+        // Closing an index is blocked
+        for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
+            try {
+                enableIndexBlock("test", blockSetting);
+                assertBlocked(client().admin().indices().prepareUpdateSettings("test").setSettings(builder));
+            } finally {
+                disableIndexBlock("test", blockSetting);
+            }
         }
     }
 }

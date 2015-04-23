@@ -87,10 +87,10 @@ if one of the low frequency (below the cutoff) terms in the case of an
 operator match.
 
 This query allows handling `stopwords` dynamically at runtime, is domain
-independent and doesn't require on a stopword file. It prevent scoring /
+independent and doesn't require a stopword file. It prevents scoring /
 iterating high frequency terms and only takes the terms into account if a
-more significant / lower frequency terms match a document. Yet, if all of
-the query terms are above the given `cutoff_frequency` the query is
+more significant / lower frequency term matches a document. Yet, if all
+of the query terms are above the given `cutoff_frequency` the query is
 automatically transformed into a pure conjunction (`and`) query to
 ensure fast execution.
 
@@ -98,7 +98,7 @@ The `cutoff_frequency` can either be relative to the total number of
 documents if in the range `[0..1)` or absolute if greater or equal to
 `1.0`.
 
-Here is an example showing a query composed of stopwords exclusivly:
+Here is an example showing a query composed of stopwords exclusively:
 
 [source,js]
 --------------------------------------------------

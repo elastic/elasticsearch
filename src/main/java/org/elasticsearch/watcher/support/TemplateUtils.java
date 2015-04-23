@@ -71,12 +71,12 @@ public class TemplateUtils extends AbstractComponent {
 
             IndexTemplateMetaData templateMetaData = state.metaData().templates().get(templateName);
             if (templateMetaData != null) {
-                int foundVersion = templateMetaData.getSettings().getAsInt("index.watches.template_version", -1);
+                int foundVersion = templateMetaData.getSettings().getAsInt("index.watcher.template_version", -1);
                 if (foundVersion < 0) {
                     logger.warn("found an existing index template [{}] but couldn't extract it's version. leaving it as is.", templateName);
                     return;
                 } else if (foundVersion >= expectedVersion) {
-                    logger.info("accepting existing index template [{}] (version [{}], needed [{}])", templateName, foundVersion, expectedVersion);
+                    logger.debug("accepting existing index template [{}] (version [{}], needed [{}])", templateName, foundVersion, expectedVersion);
                     return;
                 } else {
                     logger.info("replacing existing index template [{}] (version [{}], needed [{}])", templateName, foundVersion, expectedVersion);

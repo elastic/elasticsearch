@@ -139,7 +139,7 @@ public class CreateIndexTests extends ElasticsearchIntegrationTest{
             assertThat("message contains error about shard count: " + e.getMessage(),
                     e.getMessage().contains("index must have 1 or more primary shards"), equalTo(true));
             assertThat("message contains error about shard count: " + e.getMessage(),
-                e.getMessage().contains("index must have 0 or more replica shards"), equalTo(false));
+                e.getMessage().contains("index must have 0 or more replica shards"), equalTo(true));
         }
     }
 
@@ -176,7 +176,7 @@ public class CreateIndexTests extends ElasticsearchIntegrationTest{
             assertThat("message contains error about shard count: " + e.getMessage(),
                 e.getMessage().contains("index must have 1 or more primary shards"), equalTo(true));
             assertThat("message contains error about shard count: " + e.getMessage(),
-                e.getMessage().contains("index must have 0 or more replica shards"), equalTo(false));
+                e.getMessage().contains("index must have 0 or more replica shards"), equalTo(true));
         }
     }
 

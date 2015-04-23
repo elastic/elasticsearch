@@ -555,29 +555,37 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws ElasticsearchException {
         validateIndexName(request.index(), state);
-        String customPath = request.settings().get(IndexMetaData.SETTING_DATA_PATH, null);
+        validateIndexSettings(request.index(), request.settings());
+    }
+
+    public void validateIndexSettings(String indexName, Settings settings) throws ElasticsearchException {
+        String customPath = settings.get(IndexMetaData.SETTING_DATA_PATH, null);
         if (customPath != null && nodeEnv.isCustomPathsEnabled() == false) {
-            throw new IndexCreationException(new Index(request.index()),
-                    new ElasticsearchIllegalArgumentException("custom data_paths for indices is disabled"));
+            throw new IndexCreationException(new Index(indexName),
+                new ElasticsearchIllegalArgumentException("custom data_paths for indices is disabled"));
         }
-
-        validateNumberOfShards(request.settings());
-        validateNumberOfReplicas(request.settings());
-
-    }
-
-    public void validateNumberOfShards(Settings settings) throws ElasticsearchException {
         Integer number_of_primaries = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
+        Integer number_of_replicas = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null);
+        List<String> validationErrors = Lists.newArrayList();
         if (number_of_primaries != null && number_of_primaries <= 0) {
-            throw new ElasticsearchIllegalArgumentException("index must have 1 or more primary shards");
+            validationErrors.add("index must have 1 or more primary shards");
+        }
+        if (number_of_replicas != null && number_of_replicas < 0) {
+           validationErrors.add("index must have 0 or more replica shards");
+        }
+        if (validationErrors.isEmpty() == false) {
+            throw new ElasticsearchIllegalArgumentException(getMessage(validationErrors));
         }
     }
 
-    public void validateNumberOfReplicas(Settings settings) throws ElasticsearchException {
-        Integer number_of_replicas = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null);
-        if (number_of_replicas != null && number_of_replicas < 0) {
-            throw new ElasticsearchIllegalArgumentException("index must have 0 or more replica shards");
+    private String getMessage(List<String> validationErrors) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Validation Failed: ");
+        int index = 0;
+        for (String error : validationErrors) {
+            sb.append(++index).append(": ").append(error).append(";");
         }
+        return sb.toString();
     }
 
     private static class DefaultIndexTemplateFilter implements IndexTemplateFilter {

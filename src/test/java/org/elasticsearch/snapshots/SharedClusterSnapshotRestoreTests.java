@@ -1631,11 +1631,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .put(SETTING_NUMBER_OF_SHARDS, numberOfShards + 100)
                 .build();
 
-        Settings newIncorrectReplicasIndexSettings = ImmutableSettings.builder()
-            .put(newIndexSettings)
-            .put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(-10, -1))
-            .build();
-
         logger.info("--> try restoring while changing the number of shards - should fail");
         assertThrows(client.admin().cluster()
                 .prepareRestoreSnapshot("test-repo", "test-snap")
@@ -1643,7 +1638,11 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setIndexSettings(newIncorrectIndexSettings)
                 .setWaitForCompletion(true), SnapshotRestoreException.class);
 
-        logger.info("--> try restoring while changing negative to the number of replicas - should fail");
+        logger.info("--> try restoring while changing the number of replicas to a negative number - should fail");
+        Settings newIncorrectReplicasIndexSettings = ImmutableSettings.builder()
+            .put(newIndexSettings)
+            .put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(-10, -1))
+            .build();
         assertThrows(client.admin().cluster()
             .prepareRestoreSnapshot("test-repo", "test-snap")
             .setIgnoreIndexSettings("index.analysis.*")

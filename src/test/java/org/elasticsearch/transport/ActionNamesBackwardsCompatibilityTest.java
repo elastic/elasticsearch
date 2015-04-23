@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.exists.ExistsAction;
+import org.elasticsearch.action.fieldstats.FieldStatsAction;
 import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptAction;
@@ -62,6 +63,9 @@ public class ActionNamesBackwardsCompatibilityTest extends ElasticsearchBackward
 
         actionsVersions.put(ExistsAction.NAME, Version.V_1_4_0_Beta1);
         actionsVersions.put(ExistsAction.NAME + "[s]", Version.V_1_4_0_Beta1);
+
+        actionsVersions.put(FieldStatsAction.NAME, Version.V_1_4_0_Beta1);
+        actionsVersions.put(FieldStatsAction.NAME + "[s]", Version.V_1_4_0_Beta1);
 
         actionsVersions.put(IndicesStore.ACTION_SHARD_EXISTS, Version.V_1_3_0);
 

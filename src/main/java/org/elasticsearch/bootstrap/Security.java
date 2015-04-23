@@ -76,6 +76,7 @@ class Security {
             paths.add(environment.workFile());
             paths.add(environment.workWithClusterFile());
             for (Path path : environment.dataFiles()) {
+                System.out.println("datapath=" + path);
                 paths.add(path);
             }
             for (Path path : environment.dataWithClusterFiles()) {
@@ -97,6 +98,8 @@ class Security {
             writer.write("grant {");
             writer.write(System.lineSeparator());
             for (Path path : paths) {
+                // data paths actually may not exist yet.
+                Files.createDirectories(path);
                 // add each path twice: once for itself, again for files underneath it
                 addPath(writer, encode(path), "read,readlink,write,delete");
                 addRecursivePath(writer, encode(path), "read,readlink,write,delete");

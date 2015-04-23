@@ -237,6 +237,8 @@ public class PrivilegeTests extends ElasticsearchTestCase {
         assertThat(predicate.apply("cluster:whatever"), is(false));
         assertThat(predicate.apply("cluster:admin/snapshot/status"), is(false));
         assertThat(predicate.apply("whatever"), is(false));
+        assertThat(predicate.apply("cluster:admin/reroute"), is(true));
+        assertThat(predicate.apply("cluster:admin/whatever"), is(false));
     }
 
     @Test

@@ -20,6 +20,8 @@ public class SystemRoleTests extends ElasticsearchTestCase {
         assertThat(SystemRole.INSTANCE.check("indices:monitor/whatever"), is(true));
         assertThat(SystemRole.INSTANCE.check("cluster:monitor/whatever"), is(true));
         assertThat(SystemRole.INSTANCE.check("internal:whatever"), is(true));
+        assertThat(SystemRole.INSTANCE.check("cluster:admin/reroute"), is(true));
+        assertThat(SystemRole.INSTANCE.check("cluster:admin/whatever"), is(false));
         assertThat(SystemRole.INSTANCE.check("indices:whatever"), is(false));
         assertThat(SystemRole.INSTANCE.check("cluster:whatever"), is(false));
         assertThat(SystemRole.INSTANCE.check("whatever"), is(false));

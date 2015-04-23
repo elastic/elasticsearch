@@ -87,6 +87,9 @@ public class ESUsersTool extends CliTool {
         public static Command parse(Terminal terminal, CommandLine cli) {
             if (cli.getArgs().length == 0) {
                 return exitCmd(ExitStatus.USAGE, terminal, "username is missing");
+            } else if (cli.getArgs().length != 1) {
+                String[] extra = Arrays.copyOfRange(cli.getArgs(), 1, cli.getArgs().length);
+                return exitCmd(ExitStatus.USAGE, terminal, "extra arguments " + Arrays.toString(extra) + " were provided. please ensure all special characters are escaped");
             }
 
             String username = cli.getArgs()[0];
@@ -178,6 +181,9 @@ public class ESUsersTool extends CliTool {
         public static Command parse(Terminal terminal, CommandLine cli) {
             if (cli.getArgs().length == 0) {
                 return exitCmd(ExitStatus.USAGE, terminal, "username is missing");
+            } else if (cli.getArgs().length != 1) {
+                String[] extra = Arrays.copyOfRange(cli.getArgs(), 1, cli.getArgs().length);
+                return exitCmd(ExitStatus.USAGE, terminal, "extra arguments " + Arrays.toString(extra) + " were provided. userdel only supports deleting one user at a time");
             }
 
             String username = cli.getArgs()[0];
@@ -244,6 +250,9 @@ public class ESUsersTool extends CliTool {
         public static Command parse(Terminal terminal, CommandLine cli) {
             if (cli.getArgs().length == 0) {
                 return exitCmd(ExitStatus.USAGE, terminal, "username is missing");
+            } else if (cli.getArgs().length != 1) {
+                String[] extra = Arrays.copyOfRange(cli.getArgs(), 1, cli.getArgs().length);
+                return exitCmd(ExitStatus.USAGE, terminal, "extra arguments " + Arrays.toString(extra) + " were provided");
             }
 
             String username = cli.getArgs()[0];
@@ -310,6 +319,9 @@ public class ESUsersTool extends CliTool {
         public static Command parse(Terminal terminal, CommandLine cli) {
             if (cli.getArgs().length == 0) {
                 return exitCmd(ExitStatus.USAGE, terminal, "username is missing");
+            } else if (cli.getArgs().length != 1) {
+                String[] extra = Arrays.copyOfRange(cli.getArgs(), 1, cli.getArgs().length);
+                return exitCmd(ExitStatus.USAGE, terminal, "extra arguments " + Arrays.toString(extra) + " were provided. please ensure all special characters are escaped");
             }
 
             String username = cli.getArgs()[0];
@@ -398,7 +410,13 @@ public class ESUsersTool extends CliTool {
         private static final CliToolConfig.Cmd CMD = cmd(NAME, Useradd.class).build();
 
         public static Command parse(Terminal terminal, CommandLine cli) {
-            String username = cli.getArgs().length > 0 ? cli.getArgs()[0] : null;
+            String username = null;
+            if (cli.getArgs().length == 1) {
+                username = cli.getArgs()[0];
+            } else if (cli.getArgs().length > 1) {
+                String[] extra = Arrays.copyOfRange(cli.getArgs(), 1, cli.getArgs().length);
+                return exitCmd(ExitStatus.USAGE, terminal, "extra arguments " + Arrays.toString(extra) + " were provided. list can be used without a user or with a single user");
+            }
             return new ListUsersAndRoles(terminal, username);
         }
 

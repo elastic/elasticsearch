@@ -20,7 +20,6 @@ import org.junit.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.PosixFileAttributeView;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -43,6 +42,15 @@ public class ESUsersToolTests extends CliToolTestCase {
         assertThat(new String(cmd.passwd.internalChars()), equalTo("changeme"));
         assertThat(cmd.roles, notNullValue());
         assertThat(cmd.roles, arrayContaining("r1", "r2", "r3"));
+    }
+
+    @Test
+    public void testUseraddExtraArgs() throws Exception {
+        ESUsersTool tool = new ESUsersTool();
+        CliTool.Command command = tool.parse("useradd", args("username -p changeme -r r1,r2,r3 r4 r6"));
+        assertThat(command, instanceOf(CliTool.Command.Exit.class));
+        CliTool.Command.Exit exit = (CliTool.Command.Exit) command;
+        assertThat(exit.status(), is(CliTool.ExitStatus.USAGE));
     }
 
     @Test
@@ -224,6 +232,15 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     @Test
+    public void testUserdel_Parse_ExtraArgs() throws Exception {
+        ESUsersTool tool = new ESUsersTool();
+        CliTool.Command command = tool.parse("userdel", args("user1 user2"));
+        assertThat(command, instanceOf(ESUsersTool.Command.Exit.class));
+        ESUsersTool.Command.Exit exit = (ESUsersTool.Command.Exit) command;
+        assertThat(exit.status(), equalTo(CliTool.ExitStatus.USAGE));
+    }
+
+    @Test
     public void testUserdel_Cmd() throws Exception {
         Path userFile = writeFile("user1:hash2");
         Path userRolesFile = writeFile("r3:user1\nr4:user1");
@@ -319,6 +336,15 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     @Test
+    public void testPasswd_Parse_ExtraArgs() throws Exception {
+        ESUsersTool tool = new ESUsersTool();
+        CliTool.Command command = tool.parse("passwd", args("user1 user2 -p changeme"));
+        assertThat(command, instanceOf(ESUsersTool.Command.Exit.class));
+        ESUsersTool.Command.Exit cmd = (ESUsersTool.Command.Exit) command;
+        assertThat(cmd.status(), is(CliTool.ExitStatus.USAGE));
+    }
+
+    @Test
     public void testPasswd_Parse_MissingPassword() throws Exception {
         final AtomicReference<Boolean> secretRequested = new AtomicReference<>(false);
         Terminal terminal = new MockTerminal() {
@@ -397,6 +423,15 @@ public class ESUsersToolTests extends CliToolTestCase {
         assertThat(rolesCommand.username, is("someuser"));
         assertThat(rolesCommand.addRoles, arrayContaining("test1", "test2", "test3"));
         assertThat(rolesCommand.removeRoles, arrayContaining("test4", "test5", "test6"));
+    }
+
+    @Test
+    public void testRoles_Parse_ExtraArgs() throws Exception {
+        ESUsersTool tool = new ESUsersTool();
+        CliTool.Command command = tool.parse("roles", args("someuser -a test1,test2,test3 foo -r test4,test5,test6 bar"));
+        assertThat(command, instanceOf(ESUsersTool.Command.Exit.class));
+        ESUsersTool.Command.Exit cmd = (ESUsersTool.Command.Exit) command;
+        assertThat(cmd.status(), is(CliTool.ExitStatus.USAGE));
     }
 
     @Test
@@ -584,6 +619,15 @@ public class ESUsersToolTests extends CliToolTestCase {
         assertThat(command, instanceOf(ESUsersTool.ListUsersAndRoles.class));
         ESUsersTool.ListUsersAndRoles listUsersAndRolesCommand = (ESUsersTool.ListUsersAndRoles) command;
         assertThat(listUsersAndRolesCommand.username, is("someuser"));
+    }
+
+    @Test
+    public void testListUsersAndRoles_Cmd_parsingExtraArgs() throws Exception {
+        ESUsersTool tool = new ESUsersTool();
+        CliTool.Command command = tool.parse("list", args("someuser two"));
+        assertThat(command, instanceOf(ESUsersTool.Command.Exit.class));
+        ESUsersTool.Command.Exit cmd = (ESUsersTool.Command.Exit) command;
+        assertThat(cmd.status(), is(CliTool.ExitStatus.USAGE));
     }
 
     @Test

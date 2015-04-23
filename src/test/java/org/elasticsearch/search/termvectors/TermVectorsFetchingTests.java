@@ -75,7 +75,6 @@ public class TermVectorsFetchingTests extends ElasticsearchIntegrationTest {
 
         String[] disallowedParameters = new String[]{"_index", "_type", "_id", "doc", "_routing", "routing",
                 "_version", "version", "_version_type", "version_type", "_versionType", "versionType"};
-        SearchResponse resp;
         for (String param : disallowedParameters) {
             String request = 
                     "{\"" +
@@ -84,10 +83,10 @@ public class TermVectorsFetchingTests extends ElasticsearchIntegrationTest {
                         "\"term_vectors\": " + "{\"" + param + "\":\"\"}" +
                     "}";
             try {
-                resp = client().prepareSearch("test").setTypes("type").setSource(new BytesArray(new BytesRef(request))).get();
-                assertFailures(resp);
+                client().prepareSearch("test").setTypes("type").setSource(new BytesArray(new BytesRef(request))).get();
+                fail("Expected search phase execution failure.");
             } catch (SearchPhaseExecutionException e) {
-                assertThat(e.getDetailedMessage().contains("The parameter \"" + param + "\" is not allowed!"), equalTo(true));
+                assertTrue(e.getMessage().contains("The parameter \"" + param + "\" is not allowed!"));
             }
         }
     }    

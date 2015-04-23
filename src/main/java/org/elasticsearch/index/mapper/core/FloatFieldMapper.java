@@ -172,7 +172,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
         if (value instanceof BytesRef) {
             return Numbers.bytesToFloat((BytesRef) value);
         }
-        return java.lang.Float.parseFloat(value.toString());
+        return Float.parseFloat(value.toString());
     }
 
     @Override
@@ -188,14 +188,14 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
             return ((Number) value).floatValue();
         }
         if (value instanceof BytesRef) {
-            return java.lang.Float.parseFloat(((BytesRef) value).utf8ToString());
+            return Float.parseFloat(((BytesRef) value).utf8ToString());
         }
-        return java.lang.Float.parseFloat(value.toString());
+        return Float.parseFloat(value.toString());
     }
 
     @Override
     public Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-        float iValue = java.lang.Float.parseFloat(value);
+        float iValue = Float.parseFloat(value);
         final float iSim = fuzziness.asFloat();
         return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
                 iValue - iSim,
@@ -262,13 +262,13 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
                     }
                     value = nullValue;
                 } else {
-                    value = java.lang.Float.parseFloat(sExternalValue);
+                    value = Float.parseFloat(sExternalValue);
                 }
             } else {
                 value = ((Number) externalValue).floatValue();
             }
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(names.fullName(), java.lang.Float.toString(value), boost);
+                context.allEntries().addText(names.fullName(), Float.toString(value), boost);
             }
         } else {
             XContentParser parser = context.parser();
@@ -400,7 +400,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
 
         @Override
         public String numericAsString() {
-            return java.lang.Float.toString(number);
+            return Float.toString(number);
         }
     }
 

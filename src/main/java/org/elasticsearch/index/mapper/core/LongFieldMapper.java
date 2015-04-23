@@ -167,7 +167,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         if (value instanceof BytesRef) {
             return Numbers.bytesToLong((BytesRef) value);
         }
-        return java.lang.Long.parseLong(value.toString());
+        return Long.parseLong(value.toString());
     }
 
     @Override
@@ -179,7 +179,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
 
     @Override
     public Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-        long iValue = java.lang.Long.parseLong(value);
+        long iValue = Long.parseLong(value);
         final long iSim = fuzziness.asLong();
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 iValue - iSim,
@@ -246,13 +246,13 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
                     }
                     value = nullValue;
                 } else {
-                    value = java.lang.Long.parseLong(sExternalValue);
+                    value = Long.parseLong(sExternalValue);
                 }
             } else {
                 value = ((Number) externalValue).longValue();
             }
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(names.fullName(), java.lang.Long.toString(value), boost);
+                context.allEntries().addText(names.fullName(), Long.toString(value), boost);
             }
         } else {
             XContentParser parser = context.parser();
@@ -371,7 +371,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
 
         @Override
         public String numericAsString() {
-            return java.lang.Long.toString(number);
+            return Long.toString(number);
         }
     }
 }

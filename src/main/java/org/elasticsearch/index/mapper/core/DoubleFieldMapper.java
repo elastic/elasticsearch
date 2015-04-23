@@ -172,7 +172,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
         if (value instanceof BytesRef) {
             return Numbers.bytesToDouble((BytesRef) value);
         }
-        return java.lang.Double.parseDouble(value.toString());
+        return Double.parseDouble(value.toString());
     }
 
     @Override
@@ -185,7 +185,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
 
     @Override
     public Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-        double iValue = java.lang.Double.parseDouble(value);
+        double iValue = Double.parseDouble(value);
         double iSim = fuzziness.asDouble();
         return NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,
                 iValue - iSim,
@@ -256,13 +256,13 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
                     }
                     value = nullValue;
                 } else {
-                    value = java.lang.Double.parseDouble(sExternalValue);
+                    value = Double.parseDouble(sExternalValue);
                 }
             } else {
                 value = ((Number) externalValue).doubleValue();
             }
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(names.fullName(), java.lang.Double.toString(value), boost);
+                context.allEntries().addText(names.fullName(), Double.toString(value), boost);
             }
         } else {
             XContentParser parser = context.parser();
@@ -393,7 +393,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
 
         @Override
         public String numericAsString() {
-            return java.lang.Double.toString(number);
+            return Double.toString(number);
         }
     }
 
@@ -401,7 +401,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
 
         public static final FieldType TYPE = new FieldType();
         static {
-          TYPE.setDocValuesType(DocValuesType.BINARY);
+            TYPE.setDocValuesType(DocValuesType.BINARY);
           TYPE.freeze();
         }
 

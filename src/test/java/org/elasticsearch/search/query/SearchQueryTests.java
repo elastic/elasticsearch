@@ -483,7 +483,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                     client().prepareSearch().setQuery(matchQuery("field1", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).get();
                     fail("SearchPhaseExecutionException should have been thrown");
                 } catch (SearchPhaseExecutionException e) {
-                    assertTrue(e.getMessage().contains("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery"));
+                    assertTrue(e.toString().contains("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery"));
                 }
                 cluster().wipeIndices("test");
             } catch (MapperParsingException ex) {
@@ -563,7 +563,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
             fail("expected SearchPhaseExecutionException (total failure)");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-            assertThat(e.getMessage(), containsString("unit [D] not supported for date math"));
+            assertThat(e.toString(), containsString("unit [D] not supported for date math"));
         }
     }
 
@@ -2493,8 +2493,8 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                     .get();
             fail("query is invalid and should have produced a parse exception");
         } catch (Exception e) {
-            assertThat("query could not be parsed due to bad format: " + e.getMessage(),
-                    e.getMessage().contains("Illegal value for id, expecting a string or number, got: START_ARRAY"),
+            assertThat("query could not be parsed due to bad format: " + e.toString(),
+                    e.toString().contains("Illegal value for id, expecting a string or number, got: START_ARRAY"),
                     equalTo(true));
         }
     }

@@ -495,7 +495,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     retry(e);
                     return;
                 }
-                if (e instanceof ElasticsearchException && ((ElasticsearchException) e).status() == RestStatus.CONFLICT) {
+                if (ExceptionsHelper.status(e) == RestStatus.CONFLICT) {
                     if (logger.isTraceEnabled()) {
                         logger.trace(shard.shortSummary() + ": Failed to execute [" + internalRequest.request() + "]", e);
                     }
@@ -822,10 +822,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     int slot = 0;
                     failuresArray = new ActionWriteResponse.ShardInfo.Failure[shardReplicaFailures.size()];
                     for (Map.Entry<String, Throwable> entry : shardReplicaFailures.entrySet()) {
-                        String reason = ExceptionsHelper.detailedMessage(entry.getValue());
                         RestStatus restStatus = ExceptionsHelper.status(entry.getValue());
                         failuresArray[slot++] = new ActionWriteResponse.ShardInfo.Failure(
-                                shardId.getIndex(), shardId.getId(), entry.getKey(), reason, restStatus, false
+                                shardId.getIndex(), shardId.getId(), entry.getKey(), entry.getValue(), restStatus, false
                         );
                     }
                 } else {

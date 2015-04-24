@@ -1191,7 +1191,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
             queryParser.parse(query).query();
             fail();
         } catch (QueryParsingException ex) {
-            assertThat(ex.getMessage(), equalTo("[test] [terms] query does not support multiple fields"));
+            assertThat(ex.getMessage(), equalTo("[terms] query does not support multiple fields"));
         }
     }
 
@@ -1207,7 +1207,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
             queryParser.parse(query).query();
             fail();
         } catch (QueryParsingException ex) {
-            assertThat(ex.getMessage(), equalTo("[test] [terms] filter does not support multiple fields"));
+            assertThat(ex.getMessage(), equalTo("[terms] filter does not support multiple fields"));
         }
     }
 

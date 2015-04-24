@@ -520,7 +520,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                     ).get();
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("No mapping found for [xyz] in order to sort on"));
+            assertThat(e.toString(), containsString("No mapping found for [xyz] in order to sort on"));
         }
     }
 
@@ -553,7 +553,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                     .get();
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
+            assertThat(e.toString(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
         }
     }
 

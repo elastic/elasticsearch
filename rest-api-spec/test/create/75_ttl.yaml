@@ -89,7 +89,7 @@
           type:    test
           id:      1
  - do:
-      catch: /AlreadyExpiredException/
+      catch: /already_expired_exception/
       create:
           index:     test_1
           type:      test

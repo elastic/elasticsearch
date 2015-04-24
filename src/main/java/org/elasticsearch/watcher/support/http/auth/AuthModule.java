@@ -7,6 +7,9 @@ package org.elasticsearch.watcher.support.http.auth;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
+import org.elasticsearch.watcher.support.http.auth.basic.ApplicableBasicAuth;
+import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
+import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
 
 /**
  */
@@ -14,9 +17,12 @@ public class AuthModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        MapBinder<String, HttpAuth.Parser> parsersBinder = MapBinder.newMapBinder(binder(), String.class, HttpAuth.Parser.class);
-        bind(BasicAuth.Parser.class).asEagerSingleton();
-        parsersBinder.addBinding(BasicAuth.TYPE).to(BasicAuth.Parser.class);
+
+        MapBinder<String, HttpAuthFactory> parsersBinder = MapBinder.newMapBinder(binder(), String.class, HttpAuthFactory.class);
+
+        bind(BasicAuthFactory.class).asEagerSingleton();
+        parsersBinder.addBinding(BasicAuth.TYPE).to(BasicAuthFactory.class);
+
         bind(HttpAuthRegistry.class).asEagerSingleton();
     }
 }

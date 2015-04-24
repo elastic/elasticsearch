@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.actions.email.service;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.watcher.support.secret.SecretService;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -25,7 +26,7 @@ public class AccountsTests extends ElasticsearchTestCase {
                 .put("default_account", "account1");
         addAccountSettings("account1", builder);
 
-        Accounts accounts = new Accounts(builder.build(), logger);
+        Accounts accounts = new Accounts(builder.build(), new SecretService.PlainText(), logger);
         Account account = accounts.account("account1");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
@@ -39,7 +40,7 @@ public class AccountsTests extends ElasticsearchTestCase {
         ImmutableSettings.Builder builder = ImmutableSettings.builder();
         addAccountSettings("account1", builder);
 
-        Accounts accounts = new Accounts(builder.build(), logger);
+        Accounts accounts = new Accounts(builder.build(), new SecretService.PlainText(), logger);
         Account account = accounts.account("account1");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
@@ -55,7 +56,7 @@ public class AccountsTests extends ElasticsearchTestCase {
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
 
-        Accounts accounts = new Accounts(builder.build(), logger);
+        Accounts accounts = new Accounts(builder.build(), new SecretService.PlainText(), logger);
         Account account = accounts.account("account1");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
@@ -74,7 +75,7 @@ public class AccountsTests extends ElasticsearchTestCase {
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
 
-        Accounts accounts = new Accounts(builder.build(), logger);
+        Accounts accounts = new Accounts(builder.build(), new SecretService.PlainText(), logger);
         Account account = accounts.account("account1");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
@@ -92,13 +93,13 @@ public class AccountsTests extends ElasticsearchTestCase {
                 .put("default_account", "unknown");
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
-        new Accounts(builder.build(), logger);
+        new Accounts(builder.build(), new SecretService.PlainText(), logger);
     }
 
     @Test
     public void testNoAccount() throws Exception {
         ImmutableSettings.Builder builder = ImmutableSettings.builder();
-        Accounts accounts = new Accounts(builder.build(), logger);
+        Accounts accounts = new Accounts(builder.build(), new SecretService.PlainText(), logger);
         Account account = accounts.account(null);
         assertThat(account, nullValue());
     }
@@ -107,7 +108,7 @@ public class AccountsTests extends ElasticsearchTestCase {
     public void testNoAccount_WithDefaultAccount() throws Exception {
         ImmutableSettings.Builder builder = ImmutableSettings.builder()
                 .put("default_account", "unknown");
-        new Accounts(builder.build(), logger);
+        new Accounts(builder.build(), new SecretService.PlainText(), logger);
     }
 
     private void addAccountSettings(String name, ImmutableSettings.Builder builder) {

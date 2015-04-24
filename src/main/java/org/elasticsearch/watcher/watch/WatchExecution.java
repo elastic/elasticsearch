@@ -73,10 +73,14 @@ public class WatchExecution implements ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (inputResult != null) {
-            builder.startObject(Parser.INPUT_RESULT_FIELD.getPreferredName()).field(inputResult.type(), inputResult).endObject();
+            builder.startObject(Parser.INPUT_RESULT_FIELD.getPreferredName())
+                    .field(inputResult.type(), inputResult, params)
+                    .endObject();
         }
         if (conditionResult != null) {
-            builder.startObject(Parser.CONDITION_RESULT_FIELD.getPreferredName()).field(conditionResult.type(), conditionResult).endObject();
+            builder.startObject(Parser.CONDITION_RESULT_FIELD.getPreferredName())
+                    .field(conditionResult.type(), conditionResult, params)
+                    .endObject();
         }
         if (throttleResult != null && throttleResult.throttle()) {
             builder.field(Parser.THROTTLED.getPreferredName(), throttleResult.throttle());
@@ -85,11 +89,13 @@ public class WatchExecution implements ToXContent {
             }
         }
         if (transformResult != null) {
-            builder.startObject(Transform.Field.TRANSFORM_RESULT.getPreferredName()).field(transformResult.type(), transformResult).endObject();
+            builder.startObject(Transform.Field.TRANSFORM_RESULT.getPreferredName())
+                    .field(transformResult.type(), transformResult, params)
+                    .endObject();
         }
         builder.startObject(Parser.ACTIONS_RESULTS.getPreferredName());
         for (ActionWrapper.Result actionResult : actionsResults) {
-            builder.field(actionResult.id(), actionResult);
+            builder.field(actionResult.id(), actionResult, params);
         }
         builder.endObject();
         builder.endObject();

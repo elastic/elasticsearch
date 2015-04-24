@@ -37,7 +37,7 @@ public class ExecutableActions implements Iterable<ActionWrapper>, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         for (ActionWrapper action : actions) {
-            builder.field(action.id(), action);
+            builder.field(action.id(), action, params);
         }
         return builder.endObject();
     }
@@ -99,7 +99,7 @@ public class ExecutableActions implements Iterable<ActionWrapper>, ToXContent {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             for (ActionWrapper.Result result : results.values()) {
-                builder.field(result.id(), result);
+                builder.field(result.id(), result, params);
             }
             return builder.endObject();
         }

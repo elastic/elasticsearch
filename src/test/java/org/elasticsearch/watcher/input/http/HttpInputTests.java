@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.watcher.input.http;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.joda.time.DateTime;
@@ -25,9 +27,12 @@ import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.http.*;
-import org.elasticsearch.watcher.support.http.auth.BasicAuth;
 import org.elasticsearch.watcher.support.http.auth.HttpAuth;
+import org.elasticsearch.watcher.support.http.auth.HttpAuthFactory;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
+import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
+import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
+import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
@@ -55,13 +60,15 @@ public class HttpInputTests extends ElasticsearchTestCase {
 
     private HttpClient httpClient;
     private HttpInputFactory httpParser;
+    private SecretService secretService;
     private TemplateEngine templateEngine;
 
     @Before
     public void init() throws Exception {
         httpClient = mock(HttpClient.class);
         templateEngine = mock(TemplateEngine.class);
-        HttpAuthRegistry registry = new HttpAuthRegistry(ImmutableMap.<String, HttpAuth.Parser>of("basic", new BasicAuth.Parser()));
+        secretService = mock(SecretService.class);
+        HttpAuthRegistry registry = new HttpAuthRegistry(ImmutableMap.<String, HttpAuthFactory>of("basic", new BasicAuthFactory(secretService)));
         httpParser = new HttpInputFactory(ImmutableSettings.EMPTY, httpClient, templateEngine, new HttpRequest.Parser(registry), new HttpRequestTemplate.Parser(registry));
     }
 
@@ -110,7 +117,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
         String body = randomBoolean() ? randomAsciiOfLength(3) : null;
         Map<String, Template> params = randomBoolean() ? new MapBuilder<String, Template>().put("a", new Template("b")).map() : null;
         Map<String, Template> headers = randomBoolean() ? new MapBuilder<String, Template>().put("c", new Template("d")).map() : null;
-        HttpAuth auth = randomBoolean() ? new BasicAuth("username", "password") : null;
+        HttpAuth auth = randomBoolean() ? new BasicAuth("username", "password".toCharArray()) : null;
         HttpRequestTemplate.Builder requestBuilder = HttpRequestTemplate.builder(host, port)
                 .scheme(scheme)
                 .method(httpMethod)
@@ -125,7 +132,8 @@ public class HttpInputTests extends ElasticsearchTestCase {
             requestBuilder.putHeaders(headers);
         }
 
-        XContentParser parser = XContentHelper.createParser(jsonBuilder().value(InputBuilders.httpInput(requestBuilder).build()).bytes());
+        BytesReference source = jsonBuilder().value(InputBuilders.httpInput(requestBuilder).build()).bytes();
+        XContentParser parser = XContentHelper.createParser(source);
         parser.nextToken();
         HttpInput result = httpParser.parseInput("_id", parser);
 

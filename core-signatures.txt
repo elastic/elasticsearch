@@ -67,4 +67,7 @@ org.elasticsearch.common.joda.time.DateTime#<init>(int, int, int, int, int, int)
 org.elasticsearch.common.joda.time.DateTime#<init>(int, int, int, int, int, int, int)
 org.elasticsearch.common.joda.time.DateTime#now()
 
+@defaultMessage params is not passed down to the serialized xcontent
+org.elasticsearch.common.xcontent.XContentBuilder#field(java.lang.String, org.elasticsearch.common.xcontent.ToXContent)
+
 

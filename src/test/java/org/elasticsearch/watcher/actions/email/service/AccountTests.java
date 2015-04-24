@@ -9,6 +9,8 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.email.service.support.EmailServer;
+import org.elasticsearch.watcher.support.secret.Secret;
+import org.elasticsearch.watcher.support.secret.SecretService;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -157,7 +159,7 @@ public class AccountTests extends ElasticsearchTestCase {
                 .put("smtp.port", server.port())
                 .put("smtp.user", USERNAME)
                 .put("smtp.password", PASSWORD)
-                .build()), logger);
+                .build()), new SecretService.PlainText(), logger);
 
         Email email = Email.builder()
                 .id("_id")
@@ -197,7 +199,7 @@ public class AccountTests extends ElasticsearchTestCase {
                 .put("smtp.port", server.port())
                 .put("smtp.user", USERNAME)
                 .put("smtp.password", PASSWORD)
-                .build()), logger);
+                .build()), new SecretService.PlainText(), logger);
 
         Email email = Email.builder()
                 .id("_id")
@@ -240,7 +242,7 @@ public class AccountTests extends ElasticsearchTestCase {
         Account account = new Account(new Account.Config("default", ImmutableSettings.builder()
                 .put("smtp.host", "localhost")
                 .put("smtp.port", server.port())
-                .build()), logger);
+                .build()), new SecretService.PlainText(), logger);
 
         Email email = Email.builder()
                 .id("_id")
@@ -258,7 +260,7 @@ public class AccountTests extends ElasticsearchTestCase {
             }
         });
 
-        account.send(email, new Authentication(USERNAME, PASSWORD.toCharArray()), Profile.STANDARD);
+        account.send(email, new Authentication(USERNAME, new Secret(PASSWORD.toCharArray())), Profile.STANDARD);
 
         if (!latch.await(5, TimeUnit.SECONDS)) {
             fail("waiting for email too long");

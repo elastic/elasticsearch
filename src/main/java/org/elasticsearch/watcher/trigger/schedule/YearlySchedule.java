@@ -48,9 +48,13 @@ public class YearlySchedule extends CronnableSchedule {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (params.paramAsBoolean("normalize", false) && times.length == 1) {
-            return builder.value(times[0]);
+            return times[0].toXContent(builder, params);
         }
-        return builder.value(times);
+        builder.startArray();
+        for (YearTimes yearTimes : times) {
+            yearTimes.toXContent(builder, params);
+        }
+        return builder.endArray();
     }
 
     public static Builder builder() {

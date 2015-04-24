@@ -57,7 +57,7 @@ public class ChainTransform implements Transform {
         builder.startArray();
         for (Transform transform : transforms) {
             builder.startObject()
-                    .field(transform.type(), transform)
+                    .field(transform.type(), transform, params)
                     .endObject();
         }
         return builder.endArray();
@@ -111,7 +111,7 @@ public class ChainTransform implements Transform {
             builder.startArray(Field.RESULTS.getPreferredName());
             for (Transform.Result result : results) {
                 builder.startObject()
-                        .field(result.type(), result)
+                        .field(result.type(), result, params)
                         .endObject();
             }
             return builder.endArray();

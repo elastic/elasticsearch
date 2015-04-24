@@ -24,6 +24,7 @@ import org.elasticsearch.watcher.support.TemplateUtils;
 import org.elasticsearch.watcher.support.clock.ClockModule;
 import org.elasticsearch.watcher.support.http.HttpClientModule;
 import org.elasticsearch.watcher.support.init.InitializingModule;
+import org.elasticsearch.watcher.support.secret.SecretModule;
 import org.elasticsearch.watcher.support.template.TemplateModule;
 import org.elasticsearch.watcher.transform.TransformModule;
 import org.elasticsearch.watcher.transport.WatcherTransportModule;
@@ -58,7 +59,8 @@ public class WatcherModule extends AbstractModule implements SpawnModules {
                 new ActionModule(),
                 new HistoryModule(),
                 new ExecutionModule(),
-                new WatcherShieldModule(settings));
+                new WatcherShieldModule(settings),
+                new SecretModule(settings));
     }
 
     @Override

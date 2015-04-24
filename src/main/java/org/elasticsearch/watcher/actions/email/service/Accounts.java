@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.actions.email.service;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.watcher.support.secret.SecretService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -19,12 +20,12 @@ public class Accounts {
     private final String defaultAccountName;
     private final Map<String, Account> accounts;
 
-    public Accounts(Settings settings, ESLogger logger) {
+    public Accounts(Settings settings, SecretService secretService, ESLogger logger) {
         Settings accountsSettings = settings.getAsSettings("account");
         accounts = new HashMap<>();
         for (String name : accountsSettings.names()) {
             Account.Config config = new Account.Config(name, accountsSettings.getAsSettings(name));
-            Account account = new Account(config, logger);
+            Account account = new Account(config, secretService, logger);
             accounts.put(name, account);
         }
 

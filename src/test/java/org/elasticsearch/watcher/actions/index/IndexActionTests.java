@@ -27,6 +27,7 @@ import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.http.HttpClient;
+import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
@@ -43,6 +44,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.Matchers.*;
+import static org.mockito.Mockito.mock;
 
 /**
  */
@@ -57,7 +59,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         Watch watch = WatcherTestUtils.createTestWatch("testAlert",
                 ClientProxy.of(client()),
                 ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class)),
-                new HttpClient(ImmutableSettings.EMPTY),
+                new HttpClient(ImmutableSettings.EMPTY, mock(HttpAuthRegistry.class)),
                 new EmailService() {
                     @Override
                     public EmailService.EmailSent send(Email email, Authentication auth, Profile profile) {

@@ -17,11 +17,11 @@ import java.util.Map;
  */
 public class HttpAuthRegistry {
 
-    private final ImmutableMap<String, HttpAuth.Parser> parsers;
+    private final ImmutableMap<String, HttpAuthFactory> factories;
 
     @Inject
-    public HttpAuthRegistry(Map<String, HttpAuth.Parser> parsers) {
-        this.parsers = ImmutableMap.copyOf(parsers);
+    public HttpAuthRegistry(Map<String, HttpAuthFactory> factories) {
+        this.factories = ImmutableMap.copyOf(factories);
     }
 
     public HttpAuth parse(XContentParser parser) throws IOException {
@@ -32,14 +32,22 @@ public class HttpAuthRegistry {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT && type != null) {
-                HttpAuth.Parser inputParser = parsers.get(type);
-                if (inputParser == null) {
+                HttpAuthFactory factory = factories.get(type);
+                if (factory == null) {
                     throw new HttpAuthException("unknown http auth type [" + type + "]");
                 }
-                auth = inputParser.parse(parser);
+                auth = factory.parse(parser);
             }
         }
         return auth;
+    }
+
+    public <A extends HttpAuth, AA extends ApplicableHttpAuth<A>> AA createApplicable(A auth) {
+        HttpAuthFactory factory = factories.get(auth.type());
+        if (factory == null) {
+            throw new HttpAuthException("unknown http auth type [{}]", auth.type());
+        }
+        return (AA) factory.createApplicable(auth);
     }
 
 }

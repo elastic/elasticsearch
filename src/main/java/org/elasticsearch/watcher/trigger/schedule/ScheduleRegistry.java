@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
-import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.WatcherSettingsException;
 
 import java.io.IOException;
 import java.util.Map;

@@ -12,6 +12,8 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.watcher.support.http.auth.ApplicableHttpAuth;
+import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 
 import javax.net.ssl.*;
 import java.io.IOException;
@@ -42,10 +44,12 @@ public class HttpClient extends AbstractComponent {
     private static final String SETTINGS_SSL_SHIELD_TRUSTSTORE_ALGORITHM = SETTINGS_SSL_SHIELD_PREFIX + "truststore.algorithm";
 
     final SSLSocketFactory sslSocketFactory;
+    final HttpAuthRegistry httpAuthRegistry;
 
     @Inject
-    public HttpClient(Settings settings) {
+    public HttpClient(Settings settings, HttpAuthRegistry httpAuthRegistry) {
         super(settings);
+        this.httpAuthRegistry = httpAuthRegistry;
         if (!settings.getByPrefix(SETTINGS_SSL_PREFIX).getAsMap().isEmpty() ||
                 !settings.getByPrefix(SETTINGS_SSL_SHIELD_PREFIX).getAsMap().isEmpty()) {
             sslSocketFactory = createSSLSocketFactory(settings);
@@ -93,8 +97,9 @@ public class HttpClient extends AbstractComponent {
             }
         }
         if (request.auth() != null) {
-            logger.debug("applying auth headers");
-            request.auth().update(urlConnection);
+            logger.trace("applying auth headers");
+            ApplicableHttpAuth applicableAuth = httpAuthRegistry.createApplicable(request.auth);
+            applicableAuth.apply(urlConnection);
         }
         urlConnection.setUseCaches(false);
         urlConnection.setRequestProperty("Accept-Charset", Charsets.UTF_8.name());
@@ -110,11 +115,11 @@ public class HttpClient extends AbstractComponent {
         byte[] body = Streams.copyToByteArray(urlConnection.getInputStream());
 
         HttpResponse response = new HttpResponse(urlConnection.getResponseCode(), body);
-        logger.debug("http status code: {}", response.status());
+        logger.debug("http status code [{}]", response.status());
         return response;
     }
 
-    /** SSL Initialization * */
+    /** SSL Initialization **/
     private SSLSocketFactory createSSLSocketFactory(Settings settings) {
         SSLContext sslContext;
         // Initialize sslContext
@@ -132,10 +137,10 @@ public class HttpClient extends AbstractComponent {
                 trustStoreAlgorithm = TrustManagerFactory.getDefaultAlgorithm();
             }
 
-            logger.debug("SSL: using trustStore[{}], trustAlgorithm[{}]", trustStore, trustStoreAlgorithm);
+            logger.debug("using trustStore [{}] and trustAlgorithm [{}]", trustStore, trustStoreAlgorithm);
             Path path = Paths.get(trustStore);
             if (Files.notExists(path)) {
-                throw new ElasticsearchIllegalStateException("Truststore at path [" + trustStore + "] does not exist");
+                throw new ElasticsearchIllegalStateException("could not find truststore [" + trustStore + "]");
             }
 
             KeyManager[] keyManagers;
@@ -156,13 +161,13 @@ public class HttpClient extends AbstractComponent {
                 // Retrieve the trust managers from the factory
                 trustManagers = trustFactory.getTrustManagers();
             } catch (Exception e) {
-                throw new RuntimeException("Failed to initialize a TrustManagerFactory", e);
+                throw new RuntimeException("http client failed to initialize a TrustManagerFactory", e);
             }
 
             sslContext = SSLContext.getInstance(sslContextProtocol);
             sslContext.init(keyManagers, trustManagers, new SecureRandom());
         } catch (Exception e) {
-            throw new RuntimeException("[http.client] failed to initialize the SSLContext", e);
+            throw new RuntimeException("http client failed to initialize the SSLContext", e);
         }
         return sslContext.getSocketFactory();
     }

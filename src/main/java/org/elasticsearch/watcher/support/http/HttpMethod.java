@@ -6,12 +6,15 @@
 package org.elasticsearch.watcher.support.http;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.Locale;
 
 /**
  */
-public enum HttpMethod {
+public enum HttpMethod implements ToXContent {
 
     HEAD("HEAD"),
     GET("GET"),
@@ -45,5 +48,11 @@ public enum HttpMethod {
             default:
                 throw new ElasticsearchIllegalArgumentException("unsupported http method [" + value + "]");
         }
+    }
+
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.value(name().toLowerCase(Locale.ROOT));
     }
 }

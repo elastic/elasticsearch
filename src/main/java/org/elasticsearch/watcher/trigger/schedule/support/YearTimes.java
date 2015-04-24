@@ -108,11 +108,15 @@ public class YearTimes implements Times {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
-                .field(MONTH_FIELD.getPreferredName(), months)
-                .field(DAY_FIELD.getPreferredName(), days)
-                .field(TIME_FIELD.getPreferredName(), (Object[]) times)
-                .endObject();
+        builder.startObject();
+        builder.field(MONTH_FIELD.getPreferredName(), months);
+        builder.field(DAY_FIELD.getPreferredName(), days);
+        builder.startArray(TIME_FIELD.getPreferredName());
+        for (DayTimes dayTimes : times) {
+            dayTimes.toXContent(builder, params);
+        }
+        builder.endArray();
+        return builder.endObject();
     }
 
     public static Builder builder() {

@@ -32,7 +32,7 @@ public abstract class ExecutableInput<I extends Input, R extends Input.Result> i
         return input.type();
     }
 
-    I input() {
+    public I input() {
         return input;
     }
 

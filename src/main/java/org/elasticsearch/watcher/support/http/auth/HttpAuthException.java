@@ -11,11 +11,11 @@ import org.elasticsearch.watcher.WatcherException;
  */
 public class HttpAuthException extends WatcherException {
 
-    public HttpAuthException(String msg) {
-        super(msg);
+    public HttpAuthException(String msg, Object... args) {
+        super(msg, args);
     }
 
-    public HttpAuthException(String msg, Throwable cause) {
-        super(msg, cause);
+    public HttpAuthException(String msg, Throwable cause, Object... args) {
+        super(msg, cause, args);
     }
 }

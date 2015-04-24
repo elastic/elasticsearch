@@ -41,6 +41,7 @@ import org.elasticsearch.watcher.support.http.HttpMethod;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.secret.Secret;
 import org.elasticsearch.watcher.support.template.xmustache.XMustacheTemplateEngine;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
@@ -159,7 +160,7 @@ public final class WatcherTestUtils {
 
         TemplateEngine templateEngine = new XMustacheTemplateEngine(ImmutableSettings.EMPTY, scriptService);
 
-        Authentication auth = new Authentication("testname", "testpassword".toCharArray());
+        Authentication auth = new Authentication("testname", new Secret("testpassword".toCharArray()));
 
         EmailAction action = new EmailAction(email, "testaccount", auth, Profile.STANDARD, false);
         ExecutableEmailAction executale = new ExecutableEmailAction(action, logger, emailService, templateEngine);

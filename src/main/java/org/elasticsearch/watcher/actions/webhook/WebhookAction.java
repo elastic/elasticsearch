@@ -98,8 +98,8 @@ public class WebhookAction implements Action {
 
             @Override
             protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                return builder.field(Field.REQUEST.getPreferredName(), request)
-                        .field(Field.RESPONSE.getPreferredName(), response);
+                return builder.field(Field.REQUEST.getPreferredName(), request, params)
+                        .field(Field.RESPONSE.getPreferredName(), response, params);
             }
         }
 
@@ -137,7 +137,7 @@ public class WebhookAction implements Action {
 
             @Override
             protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                return builder.field(Field.SIMULATED_REQUEST.getPreferredName(), request);
+                return builder.field(Field.SIMULATED_REQUEST.getPreferredName(), request, params);
             }
         }
 

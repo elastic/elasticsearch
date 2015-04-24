@@ -41,7 +41,7 @@ public interface Input extends ToXContent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject()
-                    .field(Field.PAYLOAD.getPreferredName(), payload);
+                    .field(Field.PAYLOAD.getPreferredName(), payload, params);
             toXContentBody(builder, params);
             return builder.endObject();
         }

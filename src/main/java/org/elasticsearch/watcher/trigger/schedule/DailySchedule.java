@@ -50,9 +50,13 @@ public class DailySchedule extends CronnableSchedule {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (params.paramAsBoolean("normalize", false) && times.length == 1) {
-            builder.field(Parser.AT_FIELD.getPreferredName(), times[0]);
+            builder.field(Parser.AT_FIELD.getPreferredName(), times[0], params);
         } else {
-            builder.field(Parser.AT_FIELD.getPreferredName(), (Object[]) times);
+            builder.startArray(Parser.AT_FIELD.getPreferredName());
+            for (DayTimes dayTimes : times) {
+                dayTimes.toXContent(builder, params);
+            }
+            builder.endArray();
         }
         return builder.endObject();
     }

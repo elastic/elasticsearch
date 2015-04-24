@@ -11,9 +11,14 @@ import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.base.Charsets;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.watcher.support.http.auth.BasicAuth;
+import org.elasticsearch.watcher.support.http.auth.HttpAuthFactory;
+import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
+import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
+import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
+import org.elasticsearch.watcher.support.secret.SecretService;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -30,16 +35,20 @@ public class HttpClientTest extends ElasticsearchTestCase {
 
     private MockWebServer webServer;
     private HttpClient httpClient;
+    private HttpAuthRegistry authRegistry;
+    private SecretService secretService;
 
-    private int webPort = 9200;
+    private int webPort;
 
     @Before
     public void init() throws Exception {
-        for (; webPort < 9300; webPort++) {
+        secretService = new SecretService.PlainText();
+        authRegistry = new HttpAuthRegistry(ImmutableMap.<String, HttpAuthFactory>of(BasicAuth.TYPE, new BasicAuthFactory(secretService)));
+        for (webPort = 9200; webPort < 9300; webPort++) {
             try {
                 webServer = new MockWebServer();
                 webServer.start(webPort);
-                httpClient = new HttpClient(ImmutableSettings.EMPTY);
+                httpClient = new HttpClient(ImmutableSettings.EMPTY, authRegistry);
                 return;
             } catch (BindException be) {
                 logger.warn("port [{}] was already in use trying next port", webPort);
@@ -95,7 +104,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
         HttpRequest.Builder request = HttpRequest.builder("localhost", webPort)
                 .method(HttpMethod.POST)
                 .path("/test")
-                .auth(new BasicAuth("user", "pass"))
+                .auth(new BasicAuth("user", "pass".toCharArray()))
                 .body("body");
         HttpResponse response = httpClient.execute(request.build());
         assertThat(response.status(), equalTo(200));
@@ -111,7 +120,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
                 ImmutableSettings.builder()
                         .put(HttpClient.SETTINGS_SSL_TRUSTSTORE, resource.toString())
                         .put(HttpClient.SETTINGS_SSL_TRUSTSTORE_PASSWORD, "testnode")
-                        .build());
+                        .build(), authRegistry);
         webServer.useHttps(httpClient.sslSocketFactory, false);
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));

@@ -18,7 +18,7 @@ public interface Condition extends ToXContent {
     abstract class Result implements ToXContent {
 
         private final String type;
-        private final boolean met;
+        protected final boolean met;
 
         public Result(String type, boolean met) {
             this.type = type;

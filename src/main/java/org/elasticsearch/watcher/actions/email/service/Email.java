@@ -118,23 +118,23 @@ public class Email implements ToXContent {
         builder.startObject();
         builder.field(Field.ID.getPreferredName(), id);
         if (from != null) {
-            builder.field(Field.FROM.getPreferredName(), from);
+            builder.field(Field.FROM.getPreferredName(), from, params);
         }
         if (replyTo != null) {
-            builder.field(Field.REPLY_TO.getPreferredName(), (ToXContent) replyTo);
+            builder.field(Field.REPLY_TO.getPreferredName(), replyTo, params);
         }
         if (priority != null) {
-            builder.field(Field.PRIORITY.getPreferredName(), priority);
+            builder.field(Field.PRIORITY.getPreferredName(), priority, params);
         }
         builder.field(Field.SENT_DATE.getPreferredName(), sentDate);
         if (to != null) {
-            builder.field(Field.TO.getPreferredName(), (ToXContent) to);
+            builder.field(Field.TO.getPreferredName(), to, params);
         }
         if (cc != null) {
-            builder.field(Field.CC.getPreferredName(), (ToXContent) cc);
+            builder.field(Field.CC.getPreferredName(), cc, params);
         }
         if (bcc != null) {
-            builder.field(Field.BCC.getPreferredName(), (ToXContent) bcc);
+            builder.field(Field.BCC.getPreferredName(), bcc, params);
         }
         builder.field(Field.SUBJECT.getPreferredName(), subject);
         builder.field(Field.TEXT_BODY.getPreferredName(), textBody);
@@ -492,7 +492,7 @@ public class Email implements ToXContent {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startArray();
             for (Address address : addresses) {
-                builder.value(address);
+                address.toXContent(builder, params);
             }
             return builder.endArray();
         }

@@ -29,11 +29,12 @@ import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.http.*;
-import org.elasticsearch.watcher.support.http.auth.BasicAuth;
-import org.elasticsearch.watcher.support.http.auth.HttpAuth;
+import org.elasticsearch.watcher.support.http.auth.HttpAuthFactory;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
+import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.support.template.xmustache.XMustacheScriptEngineService;
@@ -74,6 +75,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
 
     private ThreadPool tp = null;
     private ScriptServiceProxy scriptService;
+    private SecretService secretService;
     private TemplateEngine templateEngine;
     private HttpAuthRegistry authRegistry;
     private Template testBody;
@@ -92,9 +94,10 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         engineServiceSet.add(mustacheScriptEngineService);
         scriptService = ScriptServiceProxy.of(new ScriptService(settings, new Environment(), engineServiceSet, new ResourceWatcherService(settings, tp), new NodeSettingsService(settings)));
         templateEngine = new XMustacheTemplateEngine(settings, scriptService);
+        secretService = mock(SecretService.class);
         testBody = new Template(TEST_BODY_STRING );
         testPath = new Template(TEST_PATH_STRING);
-        authRegistry = new HttpAuthRegistry(ImmutableMap.of("basic", (HttpAuth.Parser) new BasicAuth.Parser()));
+        authRegistry = new HttpAuthRegistry(ImmutableMap.of("basic", (HttpAuthFactory) new BasicAuthFactory(secretService)));
     }
 
     @After

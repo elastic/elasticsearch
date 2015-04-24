@@ -40,7 +40,7 @@ public interface Transform extends ToXContent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(Field.PAYLOAD.getPreferredName(), payload);
+            builder.field(Field.PAYLOAD.getPreferredName(), payload, params);
             xContentBody(builder, params);
             return builder.endObject();
         }

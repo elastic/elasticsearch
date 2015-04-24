@@ -60,11 +60,12 @@ import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpMethod;
 import org.elasticsearch.watcher.support.http.HttpRequest;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
-import org.elasticsearch.watcher.support.http.auth.BasicAuth;
-import org.elasticsearch.watcher.support.http.auth.HttpAuth;
+import org.elasticsearch.watcher.support.http.auth.HttpAuthFactory;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
+import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
@@ -104,6 +105,7 @@ public class WatchTests extends ElasticsearchTestCase {
     private EmailService emailService;
     private TemplateEngine templateEngine;
     private HttpAuthRegistry authRegistry;
+    private SecretService secretService;
     private ESLogger logger;
     private Settings settings = ImmutableSettings.EMPTY;
 
@@ -114,7 +116,8 @@ public class WatchTests extends ElasticsearchTestCase {
         httpClient = mock(HttpClient.class);
         emailService = mock(EmailService.class);
         templateEngine = mock(TemplateEngine.class);
-        authRegistry = new HttpAuthRegistry(ImmutableMap.of("basic", (HttpAuth.Parser) new BasicAuth.Parser()));
+        secretService = mock(SecretService.class);
+        authRegistry = new HttpAuthRegistry(ImmutableMap.of("basic", (HttpAuthFactory) new BasicAuthFactory(secretService)));
         logger = Loggers.getLogger(WatchTests.class);
     }
 
@@ -128,6 +131,7 @@ public class WatchTests extends ElasticsearchTestCase {
         ScheduleRegistry scheduleRegistry = registry(schedule);
         TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(ImmutableSettings.EMPTY, scheduleRegistry);
         TriggerService triggerService = new TriggerService(ImmutableSettings.EMPTY, ImmutableSet.of(triggerEngine));
+        SecretService secretService = new SecretService.PlainText();
 
         ExecutableInput input = randomInput();
         InputRegistry inputRegistry = registry(input);
@@ -150,7 +154,7 @@ public class WatchTests extends ElasticsearchTestCase {
 
         BytesReference bytes = XContentFactory.jsonBuilder().value(watch).bytes();
         logger.info(bytes.toUtf8());
-        Watch.Parser watchParser = new Watch.Parser(settings, mock(LicenseService.class), conditionRegistry, triggerService, transformRegistry, actionRegistry, inputRegistry, SystemClock.INSTANCE);
+        Watch.Parser watchParser = new Watch.Parser(settings, mock(LicenseService.class), conditionRegistry, triggerService, transformRegistry, actionRegistry, inputRegistry, SystemClock.INSTANCE, secretService);
 
         boolean includeStatus = randomBoolean();
         Watch parsedWatch = watchParser.parse("_name", includeStatus, bytes);

@@ -19,10 +19,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.watch.WatchStore;
 
 import java.io.IOException;
@@ -67,7 +68,7 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
 
             BytesReference watchSource = null;
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-                builder.value(watch);
+                watch.toXContent(builder, WatcherParams.builder().hideSecrets(true).build());
                 watchSource = builder.bytes();
             } catch (IOException e) {
                 listener.onFailure(e);

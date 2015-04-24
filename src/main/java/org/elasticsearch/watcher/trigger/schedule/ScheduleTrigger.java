@@ -51,7 +51,7 @@ public class ScheduleTrigger implements Trigger {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().field(schedule.type(), schedule).endObject();
+        return builder.startObject().field(schedule.type(), schedule, params).endObject();
     }
 
     public static Builder builder(Schedule schedule) {

@@ -51,7 +51,7 @@ public class SimpleInput implements Input {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.value(payload);
+        return payload.toXContent(builder, params);
     }
 
     public static SimpleInput parse(String watchId, XContentParser parser) throws IOException {

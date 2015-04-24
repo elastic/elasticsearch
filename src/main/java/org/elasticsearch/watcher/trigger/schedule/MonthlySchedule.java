@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
-import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.watcher.trigger.schedule.support.MonthTimes;
 
 import java.io.IOException;
@@ -48,9 +48,13 @@ public class MonthlySchedule extends CronnableSchedule {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (params.paramAsBoolean("normalize", false) && times.length == 1) {
-            return  builder.value(times[0]);
+            return times[0].toXContent(builder, params);
         }
-        return builder.value(times);
+        builder.startArray();
+        for (MonthTimes monthTimes : times) {
+            monthTimes.toXContent(builder, params);
+        }
+        return builder.endArray();
     }
 
     public static Builder builder() {

@@ -32,6 +32,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
+import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
@@ -641,14 +642,18 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
     /** Shield related settings */
 
-    static class ShieldSettings {
+    public static class ShieldSettings {
 
-        static boolean auditLogsEnabled = SystemPropertyUtil.getBoolean("tests.audit_logs", false);
+        public static final String TEST_USERNAME = "test";
+        public static final String TEST_PASSWORD = "changeme";
+
+        static boolean auditLogsEnabled = SystemPropertyUtil.getBoolean("tests.audit_logs", true);
+        static byte[] systemKey = generateKey(); // must be the same for all nodes
 
         public static final String IP_FILTER = "allow: all\n";
 
         public static final String USERS =
-                "test:{plain}changeme\n" +
+                TEST_USERNAME + ":{plain}" + TEST_PASSWORD + "\n" +
                 "admin:{plain}changeme\n" +
                 "monitor:{plain}changeme";
 
@@ -685,8 +690,18 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
                     .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
                     .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", ROLES))
                     .put("shield.transport.n2n.ip_filter.file", writeFile(folder, "ip_filter.yml", IP_FILTER))
+                    .put("shield.system_key.file", writeFile(folder, "system_key.yml", systemKey))
+                    .put("shield.authc.sign_user_header", false)
                     .put("shield.audit.enabled", auditLogsEnabled)
                     .build();
+        }
+
+        static byte[] generateKey() {
+            try {
+                return InternalCryptoService.generateKey();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         }
 
         static File createFolder(File parent, String name) {
@@ -717,6 +732,5 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
             return file.toFile().getAbsolutePath();
         }
     }
-
 
 }

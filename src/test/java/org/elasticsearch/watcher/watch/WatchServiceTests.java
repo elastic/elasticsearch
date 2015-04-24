@@ -34,6 +34,7 @@ public class WatchServiceTests extends ElasticsearchTestCase {
 
     private TriggerService triggerService;
     private WatchStore watchStore;
+    private Watch.Parser watchParser;
     private WatcherService watcherService;
     private ExecutionService executionService;
     private WatchLockService watchLockService;
@@ -42,9 +43,10 @@ public class WatchServiceTests extends ElasticsearchTestCase {
     public void init() throws Exception {
         triggerService = mock(TriggerService.class);
         watchStore = mock(WatchStore.class);
+        watchParser = mock(Watch.Parser.class);
         executionService =  mock(ExecutionService.class);
         watchLockService = mock(WatchLockService.class);
-        watcherService = new WatcherService(ImmutableSettings.EMPTY, triggerService, watchStore, executionService, watchLockService);
+        watcherService = new WatcherService(ImmutableSettings.EMPTY, triggerService, watchStore, watchParser, executionService, watchLockService);
         Field field = WatcherService.class.getDeclaredField("state");
         field.setAccessible(true);
         AtomicReference<WatcherService.State> state = (AtomicReference<WatcherService.State>) field.get(watcherService);
@@ -61,7 +63,8 @@ public class WatchServiceTests extends ElasticsearchTestCase {
 
         WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
         when(watchLockService.acquire(any(String.class))).thenReturn(lock);
-        when(watchStore.put(any(String.class), any(BytesReference.class))).thenReturn(watchPut);
+        when(watchParser.parseWithSecrets(any(String.class), eq(false), any(BytesReference.class))).thenReturn(watch);
+        when(watchStore.put(watch)).thenReturn(watchPut);
         IndexResponse response = watcherService.putWatch("_name", new BytesArray("{}"));
         assertThat(response, sameInstance(indexResponse));
 
@@ -84,7 +87,8 @@ public class WatchServiceTests extends ElasticsearchTestCase {
 
         WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
         when(watchLockService.acquire(any(String.class))).thenReturn(lock);
-        when(watchStore.put(any(String.class), any(BytesReference.class))).thenReturn(watchPut);
+        when(watchParser.parseWithSecrets(any(String.class), eq(false), any(BytesReference.class))).thenReturn(watch);
+        when(watchStore.put(watch)).thenReturn(watchPut);
         IndexResponse response = watcherService.putWatch("_name", new BytesArray("{}"));
         assertThat(response, sameInstance(indexResponse));
 

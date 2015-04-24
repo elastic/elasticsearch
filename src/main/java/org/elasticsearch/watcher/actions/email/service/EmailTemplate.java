@@ -155,31 +155,47 @@ public class EmailTemplate implements ToXContent {
 
     public XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
         if (from != null) {
-            builder.field(Email.Field.FROM.getPreferredName(), from);
+            builder.field(Email.Field.FROM.getPreferredName(), from, params);
         }
         if (replyTo != null) {
-            builder.field(Email.Field.REPLY_TO.getPreferredName(), (Object[]) replyTo);
+            builder.startArray(Email.Field.REPLY_TO.getPreferredName());
+            for (Template template : replyTo) {
+                template.toXContent(builder, params);
+            }
+            builder.endArray();
         }
         if (priority != null) {
-            builder.field(Email.Field.PRIORITY.getPreferredName(), priority);
+            builder.field(Email.Field.PRIORITY.getPreferredName(), priority, params);
         }
         if (to != null) {
-            builder.field(Email.Field.TO.getPreferredName(), (Object[]) to);
+            builder.startArray(Email.Field.TO.getPreferredName());
+            for (Template template : to) {
+                template.toXContent(builder, params);
+            }
+            builder.endArray();
         }
         if (cc != null) {
-            builder.field(Email.Field.CC.getPreferredName(), (Object[]) cc);
+            builder.startArray(Email.Field.CC.getPreferredName());
+            for (Template template : cc) {
+                template.toXContent(builder, params);
+            }
+            builder.endArray();
         }
         if (bcc != null) {
-            builder.field(Email.Field.BCC.getPreferredName(), (Object[]) bcc);
+            builder.startArray(Email.Field.BCC.getPreferredName());
+            for (Template template : bcc) {
+                template.toXContent(builder, params);
+            }
+            builder.endArray();
         }
         if (subject != null) {
-            builder.field(Email.Field.SUBJECT.getPreferredName(), subject);
+            builder.field(Email.Field.SUBJECT.getPreferredName(), subject, params);
         }
         if (textBody != null) {
-            builder.field(Email.Field.TEXT_BODY.getPreferredName(), textBody);
+            builder.field(Email.Field.TEXT_BODY.getPreferredName(), textBody, params);
         }
         if (htmlBody != null) {
-            builder.field(Email.Field.HTML_BODY.getPreferredName(), htmlBody);
+            builder.field(Email.Field.HTML_BODY.getPreferredName(), htmlBody, params);
         }
         return builder;
     }

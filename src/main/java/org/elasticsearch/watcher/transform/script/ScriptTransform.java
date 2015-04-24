@@ -76,7 +76,7 @@ public class ScriptTransform implements Transform {
 
         @Override
         protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-            return null;
+            return builder;
         }
 
         public static Result parse(String watchId, XContentParser parser) throws IOException {

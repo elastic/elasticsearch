@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.support.WatcherUtils;
+import org.elasticsearch.watcher.support.http.auth.ApplicableHttpAuth;
 import org.elasticsearch.watcher.support.http.auth.HttpAuth;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 
@@ -32,7 +33,9 @@ public class HttpRequest implements ToXContent {
     final @Nullable HttpAuth auth;
     final @Nullable String body;
 
-    public HttpRequest(String host, int port, @Nullable Scheme scheme, @Nullable HttpMethod method, @Nullable String path, @Nullable ImmutableMap<String, String> params, @Nullable ImmutableMap<String, String> headers, @Nullable HttpAuth auth, @Nullable String body) {
+    public HttpRequest(String host, int port, @Nullable Scheme scheme, @Nullable HttpMethod method, @Nullable String path,
+                       @Nullable ImmutableMap<String, String> params, @Nullable ImmutableMap<String, String> headers,
+                       @Nullable HttpAuth auth, @Nullable String body) {
         this.host = host;
         this.port = port;
         this.scheme = scheme != null ? scheme : Scheme.HTTP;
@@ -89,8 +92,8 @@ public class HttpRequest implements ToXContent {
         builder.startObject();
         builder.field(Field.HOST.getPreferredName(), host);
         builder.field(Field.PORT.getPreferredName(), port);
-        builder.field(Field.SCHEME.getPreferredName(), scheme);
-        builder.field(Field.METHOD.getPreferredName(), method);
+        builder.field(Field.SCHEME.getPreferredName(), scheme, params);
+        builder.field(Field.METHOD.getPreferredName(), method, params);
         if (path != null) {
             builder.field(Field.PATH.getPreferredName(), path);
         }
@@ -101,7 +104,7 @@ public class HttpRequest implements ToXContent {
             builder.field(Field.HEADERS.getPreferredName(), headers);
         }
         if (auth != null) {
-            builder.field(Field.AUTH.getPreferredName(), auth);
+            builder.field(Field.AUTH.getPreferredName(), auth, params);
         }
         if (body != null) {
             builder.field(Field.BODY.getPreferredName(), body);

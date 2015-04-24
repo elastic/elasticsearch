@@ -61,5 +61,11 @@ public class WatcherShieldModule extends AbstractModule implements PreProcessMod
     protected void configure() {
         bind(ShieldIntegration.class).asEagerSingleton();
         bind(WatcherUserHolder.class).toProvider(Providers.of(userHolder));
+        if (enabled) {
+            bind(WatcherSettingsFilter.Shield.class).asEagerSingleton();
+            bind(WatcherSettingsFilter.class).to(WatcherSettingsFilter.Shield.class);
+        } else {
+            bind(WatcherSettingsFilter.class).toInstance(WatcherSettingsFilter.Noop.INSTANCE);
+        }
     }
 }

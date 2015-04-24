@@ -10,6 +10,9 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.watcher.shield.WatcherSettingsFilter;
+import org.elasticsearch.watcher.support.secret.Secret;
+import org.elasticsearch.watcher.support.secret.SecretService;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -28,7 +31,7 @@ public class InternalEmailServiceTests extends ElasticsearchTestCase {
     @Before
     public void init() throws Exception {
         accounts = mock(Accounts.class);
-        service = new InternalEmailService(ImmutableSettings.EMPTY, new NodeSettingsService(ImmutableSettings.EMPTY)) {
+        service = new InternalEmailService(ImmutableSettings.EMPTY, new SecretService.PlainText(), new NodeSettingsService(ImmutableSettings.EMPTY), WatcherSettingsFilter.Noop.INSTANCE) {
             @Override
             protected Accounts createAccounts(Settings settings, ESLogger logger) {
                 return accounts;
@@ -49,7 +52,7 @@ public class InternalEmailServiceTests extends ElasticsearchTestCase {
         when(accounts.account("account1")).thenReturn(account);
         Email email = mock(Email.class);
 
-        Authentication auth = new Authentication("user", "passwd".toCharArray());
+        Authentication auth = new Authentication("user", new Secret("passwd".toCharArray()));
         Profile profile = randomFrom(Profile.values());
         when(account.send(email, auth, profile)).thenReturn(email);
         EmailService.EmailSent sent = service.send(email, auth, profile, "account1");

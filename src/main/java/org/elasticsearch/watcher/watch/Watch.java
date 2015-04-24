@@ -32,6 +32,8 @@ import org.elasticsearch.watcher.input.InputRegistry;
 import org.elasticsearch.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.clock.Clock;
+import org.elasticsearch.watcher.support.secret.SensitiveXContentParser;
+import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.throttle.WatchThrottler;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
@@ -47,6 +49,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.support.WatcherDateUtils.*;
 
 public class Watch implements TriggerEngine.Job, ToXContent {
@@ -140,7 +143,6 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         return nonceCounter.getAndIncrement();
     }
 
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -158,22 +160,32 @@ public class Watch implements TriggerEngine.Job, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Parser.TRIGGER_FIELD.getPreferredName()).startObject().field(trigger.type(), trigger).endObject();
-        builder.field(Parser.INPUT_FIELD.getPreferredName()).startObject().field(input.type(), input).endObject();
-        builder.field(Parser.CONDITION_FIELD.getPreferredName()).startObject().field(condition.type(), condition).endObject();
+        builder.field(Parser.TRIGGER_FIELD.getPreferredName()).startObject().field(trigger.type(), trigger, params).endObject();
+        builder.field(Parser.INPUT_FIELD.getPreferredName()).startObject().field(input.type(), input, params).endObject();
+        builder.field(Parser.CONDITION_FIELD.getPreferredName()).startObject().field(condition.type(), condition, params).endObject();
         if (transform != null) {
-            builder.field(Parser.TRANSFORM_FIELD.getPreferredName()).startObject().field(transform.type(), transform).endObject();
+            builder.field(Parser.TRANSFORM_FIELD.getPreferredName()).startObject().field(transform.type(), transform, params).endObject();
         }
         if (throttlePeriod != null) {
             builder.field(Parser.THROTTLE_PERIOD_FIELD.getPreferredName(), throttlePeriod.getMillis());
         }
-        builder.field(Parser.ACTIONS_FIELD.getPreferredName(), (ToXContent) actions);
+        builder.field(Parser.ACTIONS_FIELD.getPreferredName(), actions, params);
         if (metadata != null) {
             builder.field(Parser.META_FIELD.getPreferredName(), metadata);
         }
-        builder.field(Parser.STATUS_FIELD.getPreferredName(), status);
+        builder.field(Parser.STATUS_FIELD.getPreferredName(), status, params);
         builder.endObject();
         return builder;
+    }
+
+    public BytesReference getAsBytes() {
+        // we don't want to cache this and instead rebuild it every time on demand. The watch is in
+        // memory and we don't need this redundancy
+        try {
+            return toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS).bytes();
+        } catch (IOException ioe) {
+            throw new WatcherException("could not serialize watch [{}]", ioe, id);
+        }
     }
 
     public static class Parser extends AbstractComponent {
@@ -194,6 +206,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         private final ActionRegistry actionRegistry;
         private final InputRegistry inputRegistry;
         private final Clock clock;
+        private final SecretService secretService;
 
         private final ExecutableInput defaultInput;
         private final ExecutableCondition defaultCondition;
@@ -202,7 +215,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         @Inject
         public Parser(Settings settings, LicenseService licenseService, ConditionRegistry conditionRegistry, TriggerService triggerService,
                       TransformRegistry transformRegistry, ActionRegistry actionRegistry,
-                      InputRegistry inputRegistry, Clock clock) {
+                      InputRegistry inputRegistry, Clock clock, SecretService secretService) {
 
             super(settings);
             this.licenseService = licenseService;
@@ -212,6 +225,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             this.actionRegistry = actionRegistry;
             this.inputRegistry = inputRegistry;
             this.clock = clock;
+            this.secretService = secretService;
 
             this.defaultInput = new ExecutableNoneInput(logger);
             this.defaultCondition = new ExecutableAlwaysCondition(logger);
@@ -219,13 +233,44 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         }
 
         public Watch parse(String name, boolean includeStatus, BytesReference source) {
+            return parse(name, includeStatus, false, source);
+        }
+
+        /**
+         * Parses the watch represented by the given source. When parsing, any sensitive data that the
+         * source might contain (e.g. passwords) will be converted to {@link org.elasticsearch.watcher.support.secret.Secret secrets}
+         * Such that the returned watch will potentially hide this sensitive data behind a "secret". A secret
+         * is an abstraction around sensitive data (text). There can be different implementations of how the
+         * secret holds the data, depending on the wired up {@link SecretService}. When shield is installed, a
+         * {@link org.elasticsearch.watcher.shield.ShieldSecretService} is used, that potentially encrypts the data
+         * using Shield's configured system key.
+         *
+         * This method is only called once - when the user adds a new watch. From that moment on, all representations
+         * of the watch in the system will be use secrets for sensitive data.
+         *
+         * @see org.elasticsearch.watcher.WatcherService#putWatch(String, BytesReference)
+         */
+        public Watch parseWithSecrets(String id, boolean includeStatus, BytesReference source) {
+            return parse(id, includeStatus, true, source);
+        }
+
+        private Watch parse(String id, boolean includeStatus, boolean withSecrets, BytesReference source) {
             if (logger.isTraceEnabled()) {
                 logger.trace("parsing watch [{}] ", source.toUtf8());
             }
-            try (XContentParser parser = XContentHelper.createParser(source)) {
-                return parse(name, includeStatus, parser);
+            XContentParser parser = null;
+            try {
+                parser = XContentHelper.createParser(source);
+                if (withSecrets) {
+                    parser = new SensitiveXContentParser(parser, secretService);
+                }
+                return parse(id, includeStatus, parser);
             } catch (IOException ioe) {
-                throw new WatcherException("could not parse watch [" + name + "]", ioe);
+                throw new WatcherException("could not parse watch [{}]", ioe, id);
+            } finally {
+                if (parser != null) {
+                    parser.close();
+                }
             }
         }
 

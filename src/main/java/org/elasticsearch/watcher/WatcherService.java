@@ -26,17 +26,19 @@ import java.util.concurrent.atomic.AtomicReference;
 public class WatcherService extends AbstractComponent {
 
     private final TriggerService triggerService;
+    private final Watch.Parser watchParser;
     private final WatchStore watchStore;
     private final WatchLockService watchLockService;
     private final ExecutionService executionService;
     private final AtomicReference<State> state = new AtomicReference<>(State.STOPPED);
 
     @Inject
-    public WatcherService(Settings settings, TriggerService triggerService, WatchStore watchStore, ExecutionService executionService,
-                          WatchLockService watchLockService) {
+    public WatcherService(Settings settings, TriggerService triggerService, WatchStore watchStore, Watch.Parser watchParser,
+                          ExecutionService executionService, WatchLockService watchLockService) {
         super(settings);
         this.triggerService = triggerService;
         this.watchStore = watchStore;
+        this.watchParser = watchParser;
         this.watchLockService = watchLockService;
         this.executionService = executionService;
     }
@@ -89,18 +91,18 @@ public class WatcherService extends AbstractComponent {
         }
     }
 
-    public IndexResponse putWatch(String name, BytesReference watchSource) {
+    public IndexResponse putWatch(String id, BytesReference watchSource) {
         ensureStarted();
-        WatchLockService.Lock lock = watchLockService.acquire(name);
+        WatchLockService.Lock lock = watchLockService.acquire(id);
         try {
-            WatchStore.WatchPut result = watchStore.put(name, watchSource);
+            Watch watch = watchParser.parseWithSecrets(id, false, watchSource);
+            WatchStore.WatchPut result = watchStore.put(watch);
             if (result.previous() == null || !result.previous().trigger().equals(result.current().trigger())) {
                 triggerService.add(result.current());
             }
             return result.indexResponse();
         } catch (Exception e) {
-            logger.warn("failed to put watch [{}]", e, name);
-            throw new WatcherException("failed to put [" + watchSource.toUtf8() + "]", e);
+            throw new WatcherException("failed to put watch [{}]", e, id);
         } finally {
             lock.release();
         }

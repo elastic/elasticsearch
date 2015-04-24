@@ -118,20 +118,20 @@ public class WatchSourceBuilder implements ToXContent {
             throw new BuilderException("failed to build watch source. no trigger defined");
         }
         builder.startObject(Watch.Parser.TRIGGER_FIELD.getPreferredName())
-                .field(trigger.type(), trigger)
+                .field(trigger.type(), trigger, params)
                 .endObject();
 
         builder.startObject(Watch.Parser.INPUT_FIELD.getPreferredName())
-                .field(input.type(), input)
+                .field(input.type(), input, params)
                 .endObject();
 
         builder.startObject(Watch.Parser.CONDITION_FIELD.getPreferredName())
-                .field(condition.type(), condition)
+                .field(condition.type(), condition, params)
                 .endObject();
 
         if (transform != null) {
             builder.startObject(Watch.Parser.TRANSFORM_FIELD.getPreferredName())
-                    .field(transform.type(), transform)
+                    .field(transform.type(), transform, params)
                     .endObject();
         }
 
@@ -141,7 +141,7 @@ public class WatchSourceBuilder implements ToXContent {
 
         builder.startObject(Watch.Parser.ACTIONS_FIELD.getPreferredName());
         for (Map.Entry<String, TransformedAction> entry : actions.entrySet()) {
-            builder.field(entry.getKey(), entry.getValue());
+            builder.field(entry.getKey(), entry.getValue(), params);
         }
         builder.endObject();
 
@@ -183,10 +183,10 @@ public class WatchSourceBuilder implements ToXContent {
             builder.startObject();
             if (transform != null) {
                 builder.startObject(Transform.Field.TRANSFORM.getPreferredName())
-                        .field(transform.type(), transform)
+                        .field(transform.type(), transform, params)
                         .endObject();
             }
-            builder.field(action.type(), action);
+            builder.field(action.type(), action, params);
             return builder.endObject();
         }
     }

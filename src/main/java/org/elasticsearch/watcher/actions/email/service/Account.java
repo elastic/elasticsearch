@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.actions.email.service;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.watcher.support.secret.SecretService;
 
 import javax.activation.CommandMap;
 import javax.activation.MailcapCommandMap;
@@ -37,12 +38,14 @@ public class Account {
         CommandMap.setDefaultCommandMap(mailcap);
     }
 
-    private final ESLogger logger;
     private final Config config;
+    private final SecretService secretService;
+    private final ESLogger logger;
     private final Session session;
 
-    Account(Config config, ESLogger logger) {
+    Account(Config config, SecretService secretService, ESLogger logger) {
         this.config = config;
+        this.secretService = secretService;
         this.logger = logger;
         session = config.createSession();
     }
@@ -61,6 +64,7 @@ public class Account {
         }
 
         Transport transport = session.getTransport(SMTP_PROTOCOL);
+
         String user = auth != null ? auth.user() : null;
         if (user == null) {
             user = config.smtp.user;
@@ -68,14 +72,19 @@ public class Account {
                 user = InternetAddress.getLocalAddress(session).getAddress();
             }
         }
-        char[] password = auth != null ? auth.password() : null;
-        if (password == null) {
-            password = config.smtp.password;
+
+        String password = null;
+        if (auth != null && auth.password() != null) {
+            password = new String(auth.password().text(secretService));
+        } else if (config.smtp.password != null) {
+            password = new String(config.smtp.password);
         }
+
         if (profile == null) {
             profile = config.profile;
         }
-        transport.connect(config.smtp.host, config.smtp.port, user, password != null ? new String(password) : null);
+
+        transport.connect(config.smtp.host, config.smtp.port, user, password);
         try {
 
             MimeMessage message = profile.toMimeMessage(email, session);

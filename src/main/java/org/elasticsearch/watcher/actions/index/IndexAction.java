@@ -126,7 +126,7 @@ public class IndexAction implements Action {
             @Override
             protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
                 if (response != null) {
-                    builder.field(Field.RESPONSE.getPreferredName(), response());
+                    builder.field(Field.RESPONSE.getPreferredName(), response, params);
                 }
                 return builder;
             }
@@ -181,7 +181,7 @@ public class IndexAction implements Action {
                 return builder.startObject(Field.SIMULATED_REQUEST.getPreferredName())
                         .field(Field.INDEX.getPreferredName(), index)
                         .field(Field.DOC_TYPE.getPreferredName(), docType)
-                        .field(Field.SOURCE.getPreferredName(), source)
+                        .field(Field.SOURCE.getPreferredName(), source, params)
                         .endObject();
             }
         }

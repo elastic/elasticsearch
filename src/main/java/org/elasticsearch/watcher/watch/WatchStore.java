@@ -124,13 +124,12 @@ public class WatchStore extends AbstractComponent {
      * Creates an watch with the specified name and source. If an watch with the specified name already exists it will
      * get overwritten.
      */
-    public WatchPut put(String name, BytesReference source) {
+    public WatchPut put(Watch watch) {
         ensureStarted();
-        Watch watch = watchParser.parse(name, false, source);
-        IndexRequest indexRequest = createIndexRequest(name, source);
+        IndexRequest indexRequest = createIndexRequest(watch.id(), watch.getAsBytes());
         IndexResponse response = client.index(indexRequest);
         watch.status().version(response.getVersion());
-        Watch previous = watches.put(name, watch);
+        Watch previous = watches.put(watch.id(), watch);
         return new WatchPut(previous, watch, response);
     }
 

@@ -6,10 +6,13 @@
 package org.elasticsearch.watcher.support.http;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.Locale;
 
-public enum Scheme {
+public enum Scheme implements ToXContent {
 
     HTTP("http"),
     HTTPS("https");
@@ -34,5 +37,11 @@ public enum Scheme {
             default:
                 throw new ElasticsearchIllegalArgumentException("unsupported http scheme [" + value + "]");
         }
+    }
+
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.value(name().toLowerCase(Locale.ROOT));
     }
 }

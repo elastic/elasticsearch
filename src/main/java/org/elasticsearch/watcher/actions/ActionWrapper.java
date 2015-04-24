@@ -86,10 +86,10 @@ public class ActionWrapper implements ToXContent {
         builder.startObject();
         if (transform != null) {
             builder.startObject(Transform.Field.TRANSFORM.getPreferredName())
-                    .field(transform.type(), transform)
+                    .field(transform.type(), transform, params)
                     .endObject();
         }
-        builder.field(action.type(), action);
+        builder.field(action.type(), action, params);
         return builder.endObject();
     }
 
@@ -176,10 +176,10 @@ public class ActionWrapper implements ToXContent {
             builder.startObject();
             if (transform != null) {
                 builder.startObject(Transform.Field.TRANSFORM_RESULT.getPreferredName())
-                        .field(transform.type(), transform)
+                        .field(transform.type(), transform, params)
                         .endObject();
             }
-            builder.field(action.type(), action);
+            builder.field(action.type(), action, params);
             return builder.endObject();
         }
 

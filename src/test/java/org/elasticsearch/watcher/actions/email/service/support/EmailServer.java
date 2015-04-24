@@ -126,11 +126,11 @@ public class EmailServer {
 
 
 
-    public static interface Listener {
+    public interface Listener {
 
         void on(MimeMessage message) throws Exception;
 
-        public static class Handle {
+        class Handle {
 
             private final List<Listener> listeners;
             private final Listener listener;

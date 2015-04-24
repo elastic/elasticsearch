@@ -20,8 +20,10 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.email.service.*;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.execution.Wid;
+import org.elasticsearch.watcher.support.secret.Secret;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.watcher.watch.Payload;
 import org.junit.Test;
 
@@ -74,7 +76,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         }
         EmailTemplate email = emailBuilder.build();
 
-        Authentication auth = new Authentication("user", "passwd".toCharArray());
+        Authentication auth = new Authentication("user", new Secret("passwd".toCharArray()));
         Profile profile = randomFrom(Profile.values());
 
         boolean attachPayload = randomBoolean();
@@ -220,7 +222,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         assertThat(executable.action().getAttachData(), is(attachData));
         assertThat(executable.action().getAuth(), notNullValue());
         assertThat(executable.action().getAuth().user(), is("_user"));
-        assertThat(executable.action().getAuth().password(), is("_passwd".toCharArray()));
+        assertThat(executable.action().getAuth().password(), is(new Secret("_passwd".toCharArray())));
         assertThat(executable.action().getEmail().priority(), is(new Template(priority.name())));
         if (to != null) {
             assertThat(executable.action().getEmail().to(), arrayContainingInAnyOrder(addressesToTemplates(to)));
@@ -273,7 +275,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
             emailTemplate.replyTo(randomBoolean() ? "reply@domain" : "reply1@domain,reply2@domain");
         }
         EmailTemplate email = emailTemplate.build();
-        Authentication auth = randomBoolean() ? null : new Authentication("_user", "_passwd".toCharArray());
+        Authentication auth = randomBoolean() ? null : new Authentication("_user", new Secret("_passwd".toCharArray()));
         Profile profile = randomFrom(Profile.values());
         String account = randomAsciiOfLength(6);
         boolean attachPayload = randomBoolean();
@@ -281,14 +283,30 @@ public class EmailActionTests extends ElasticsearchTestCase {
         EmailAction action = new EmailAction(email, account, auth, profile, attachPayload);
         ExecutableEmailAction executable = new ExecutableEmailAction(action, logger, service, engine);
 
+        boolean hideSecrets = randomBoolean();
+        ToXContent.Params params = WatcherParams.builder().hideSecrets(hideSecrets).build();
+
         XContentBuilder builder = jsonBuilder();
-        executable.toXContent(builder, Attachment.XContent.EMPTY_PARAMS);
+        executable.toXContent(builder, params);
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
         ExecutableEmailAction parsed = new EmailActionFactory(ImmutableSettings.EMPTY, service, engine)
                 .parseExecutable(randomAsciiOfLength(4), randomAsciiOfLength(10), parser);
-        assertThat(parsed, equalTo(executable));
+
+        if (!hideSecrets) {
+            assertThat(parsed, equalTo(executable));
+        } else {
+            assertThat(parsed.action().getAccount(), is(executable.action().getAccount()));
+            assertThat(parsed.action().getEmail(), is(executable.action().getEmail()));
+            assertThat(parsed.action().getAttachData(), is(executable.action().getAttachData()));
+            if (auth != null) {
+                assertThat(parsed.action().getAuth().user(), is(executable.action().getAuth().user()));
+                assertThat(parsed.action().getAuth().password(), nullValue());
+                assertThat(executable.action().getAuth().password(), notNullValue());
+            }
+        }
+
     }
 
     @Test(expected = EmailActionException.class) @Repeat(iterations = 100)

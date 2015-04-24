@@ -121,24 +121,34 @@ public class HttpRequestTemplate implements ToXContent {
 
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        builder.field(Parser.SCHEME_FIELD.getPreferredName(), scheme);
+        builder.field(Parser.SCHEME_FIELD.getPreferredName(), scheme, params);
         builder.field(Parser.HOST_FIELD.getPreferredName(), host);
         builder.field(Parser.PORT_FIELD.getPreferredName(), port);
-        builder.field(Parser.METHOD_FIELD.getPreferredName(), method);
+        builder.field(Parser.METHOD_FIELD.getPreferredName(), method, params);
         if (path != null) {
-            builder.field(Parser.PATH_FIELD.getPreferredName(), path);
+            builder.field(Parser.PATH_FIELD.getPreferredName(), path, params);
         }
         if (this.params != null) {
-            builder.field(Parser.PARAMS_FIELD.getPreferredName(), this.params);
+            builder.startObject(Parser.PARAMS_FIELD.getPreferredName());
+            for (Map.Entry<String, Template> entry : this.params.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue(), params);
+            }
+            builder.endObject();
         }
         if (headers != null) {
-            builder.field(Parser.HEADERS_FIELD.getPreferredName(), headers);
+            builder.startObject(Parser.HEADERS_FIELD.getPreferredName());
+            for (Map.Entry<String, Template> entry : headers.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue(), params);
+            }
+            builder.endObject();
         }
         if (auth != null) {
-            builder.field(Parser.AUTH_FIELD.getPreferredName(), auth);
+            builder.startObject(Parser.AUTH_FIELD.getPreferredName())
+                    .field(auth.type(), auth, params)
+                    .endObject();
         }
         if (body != null) {
-            builder.field(Parser.BODY_FIELD.getPreferredName(), body);
+            builder.field(Parser.BODY_FIELD.getPreferredName(), body, params);
         }
         return builder.endObject();
     }

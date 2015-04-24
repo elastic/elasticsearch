@@ -14,6 +14,9 @@ import org.elasticsearch.watcher.actions.email.service.Authentication;
 import org.elasticsearch.watcher.actions.email.service.Email;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.email.service.Profile;
+import org.elasticsearch.watcher.support.secret.Secret;
+import org.elasticsearch.watcher.support.secret.SensitiveXContentParser;
+import org.elasticsearch.watcher.support.xcontent.WatcherParams;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -96,7 +99,9 @@ public class EmailAction implements Action {
         }
         if (auth != null) {
             builder.field(Field.USER.getPreferredName(), auth.user());
-            builder.field(Field.PASSWORD.getPreferredName(), new String(auth.password()));
+            if (!WatcherParams.hideSecrets(params)) {
+                builder.field(Field.PASSWORD.getPreferredName(), auth.password(), params);
+            }
         }
         if (profile != null) {
             builder.field(Field.PROFILE.getPreferredName(), profile.name().toLowerCase(Locale.ROOT));
@@ -112,7 +117,7 @@ public class EmailAction implements Action {
         EmailTemplate.Parser emailParser = new EmailTemplate.Parser();
         String account = null;
         String user = null;
-        String password = null;
+        Secret password = null;
         Profile profile = Profile.STANDARD;
         Boolean attachPayload = null;
 
@@ -128,7 +133,7 @@ public class EmailAction implements Action {
                     } else if (Field.USER.match(currentFieldName)) {
                         user = parser.text();
                     } else if (Field.PASSWORD.match(currentFieldName)) {
-                        password = parser.text();
+                        password = SensitiveXContentParser.secretOrNull(parser);
                     } else if (Field.PROFILE.match(currentFieldName)) {
                         profile = Profile.resolve(parser.text());
                     } else {
@@ -148,8 +153,7 @@ public class EmailAction implements Action {
 
         Authentication auth = null;
         if (user != null) {
-            char[] passwd = password != null ? password.toCharArray() : null;
-            auth = new Authentication(user, passwd);
+            auth = new Authentication(user, password);
         }
 
         return new EmailAction(emailParser.parsedTemplate(), account, auth, profile, attachPayload);
@@ -187,7 +191,7 @@ public class EmailAction implements Action {
             @Override
             public XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
                 return builder.field(Field.ACCOUNT.getPreferredName(), account)
-                        .field(Field.EMAIL.getPreferredName(), email);
+                        .field(Field.EMAIL.getPreferredName(), email, params);
             }
         }
 
@@ -225,7 +229,7 @@ public class EmailAction implements Action {
 
             @Override
             protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                return builder.field(Field.SIMULATED_EMAIL.getPreferredName(), email);
+                return builder.field(Field.SIMULATED_EMAIL.getPreferredName(), email, params);
             }
         }
 
@@ -314,7 +318,7 @@ public class EmailAction implements Action {
         }
 
         public Builder setAuthentication(String username, char[] password) {
-            this.auth = new Authentication(username, password);
+            this.auth = new Authentication(username, new Secret(password));
             return this;
         }
 

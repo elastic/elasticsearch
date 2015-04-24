@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.watcher.actions.email.service;
 
-import java.util.Arrays;
+import org.elasticsearch.watcher.support.secret.Secret;
+
 import java.util.Objects;
 
 /**
@@ -14,9 +15,9 @@ import java.util.Objects;
 public class Authentication {
 
     private final String user;
-    private final char[] password;
+    private final Secret password;
 
-    public Authentication(String user, char[] password) {
+    public Authentication(String user, Secret password) {
         this.user = user;
         this.password = password;
     }
@@ -25,7 +26,7 @@ public class Authentication {
         return user;
     }
 
-    public char[] password() {
+    public Secret password() {
         return password;
     }
 
@@ -35,7 +36,7 @@ public class Authentication {
         if (o == null || getClass() != o.getClass()) return false;
         Authentication that = (Authentication) o;
         return Objects.equals(user, that.user) &&
-                Arrays.equals(password, that.password);
+                Objects.equals(password, that.password);
     }
 
     @Override

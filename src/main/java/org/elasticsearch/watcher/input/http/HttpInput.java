@@ -51,7 +51,7 @@ public class HttpInput implements Input {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Field.REQUEST.getPreferredName(), request);
+        builder.field(Field.REQUEST.getPreferredName(), request, params);
         if (extractKeys != null) {
             builder.field(Field.EXTRACT.getPreferredName(), extractKeys);
         }
@@ -124,7 +124,7 @@ public class HttpInput implements Input {
 
         @Override
         protected XContentBuilder toXContentBody(XContentBuilder builder, Params params) throws IOException {
-            return builder.field(Field.SENT_REQUEST.getPreferredName(), sentRequest)
+            return builder.field(Field.SENT_REQUEST.getPreferredName(), sentRequest, params)
                     .field(Field.HTTP_STATUS.getPreferredName(), httpStatus);
         }
 

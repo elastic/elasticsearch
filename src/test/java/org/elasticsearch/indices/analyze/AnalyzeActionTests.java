@@ -53,18 +53,22 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
             assertThat(token.getTerm(), equalTo("this"));
             assertThat(token.getStartOffset(), equalTo(0));
             assertThat(token.getEndOffset(), equalTo(4));
+            assertThat(token.getPosition(), equalTo(0));
             token = analyzeResponse.getTokens().get(1);
             assertThat(token.getTerm(), equalTo("is"));
             assertThat(token.getStartOffset(), equalTo(5));
             assertThat(token.getEndOffset(), equalTo(7));
+            assertThat(token.getPosition(), equalTo(1));
             token = analyzeResponse.getTokens().get(2);
             assertThat(token.getTerm(), equalTo("a"));
             assertThat(token.getStartOffset(), equalTo(8));
             assertThat(token.getEndOffset(), equalTo(9));
+            assertThat(token.getPosition(), equalTo(2));
             token = analyzeResponse.getTokens().get(3);
             assertThat(token.getTerm(), equalTo("test"));
             assertThat(token.getStartOffset(), equalTo(10));
             assertThat(token.getEndOffset(), equalTo(14));
+            assertThat(token.getPosition(), equalTo(3));
         }
     }
     
@@ -107,6 +111,14 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
         assertThat(token.getTerm(), equalTo("a"));
         token = analyzeResponse.getTokens().get(3);
         assertThat(token.getTerm(), equalTo("tset"));
+
+        analyzeResponse = client().admin().indices().prepareAnalyze("of course").setTokenizer("standard").setTokenFilters("stop").get();
+        assertThat(analyzeResponse.getTokens().size(), equalTo(1));
+        assertThat(analyzeResponse.getTokens().get(0).getTerm(), equalTo("course"));
+        assertThat(analyzeResponse.getTokens().get(0).getPosition(), equalTo(1));
+        assertThat(analyzeResponse.getTokens().get(0).getStartOffset(), equalTo(3));
+        assertThat(analyzeResponse.getTokens().get(0).getEndOffset(), equalTo(9));
+
     }
 
     @Test

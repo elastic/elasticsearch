@@ -410,3 +410,7 @@ a single `expand_wildcards` parameter. See <<multi-index,the multi-index docs>> 
 The `_shutdown` API has been removed without a replacement. Nodes should be managed via operating
 systems and the provided start/stop scripts.
 
+=== Analyze API
+
+The Analyze API return 0 as first Token's position instead of 1.
+

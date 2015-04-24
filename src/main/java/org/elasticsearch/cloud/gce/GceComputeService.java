@@ -28,9 +28,10 @@ import java.util.Collection;
  */
 public interface GceComputeService {
     static final public class Fields {
-        public static final String PROJECT = "project_id";
-        public static final String ZONE = "zone";
-        public static final String REFRESH = "refresh_interval";
+        public static final String PROJECT = "cloud.gce.project_id";
+        public static final String ZONE = "cloud.gce.zone";
+        public static final String REFRESH = "cloud.gce.refresh_interval";
+        public static final String TAGS = "discovery.gce.tags";
         public static final String VERSION = "Elasticsearch/GceCloud/1.0";
     }
 

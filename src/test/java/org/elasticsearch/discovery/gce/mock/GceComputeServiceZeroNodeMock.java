@@ -72,7 +72,7 @@ public class GceComputeServiceZeroNodeMock extends GceComputeServiceAbstractMock
     @Inject
     protected GceComputeServiceZeroNodeMock(Settings settings) {
         super(settings);
-        String[] zoneList = componentSettings.getAsArray(Fields.ZONE, settings.getAsArray("cloud.gce." + Fields.ZONE));
+        String[] zoneList = settings.getAsArray(Fields.ZONE);
         this.zoneList = Lists.newArrayList(zoneList);
     }
 }

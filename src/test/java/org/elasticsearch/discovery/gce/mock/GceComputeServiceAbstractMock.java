@@ -58,7 +58,7 @@ public abstract class GceComputeServiceAbstractMock extends AbstractLifecycleCom
             logger.debug(" - node #{}: tags [{}], zone [{}]", i, tags, zone);
         }
 
-        String[] zoneList = componentSettings.getAsArray(Fields.ZONE, settings.getAsArray("cloud.gce." + Fields.ZONE));
+        String[] zoneList = settings.getAsArray(Fields.ZONE);
         this.zoneList = Lists.newArrayList(zoneList);
     }
 

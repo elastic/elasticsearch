@@ -28,6 +28,7 @@ import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.base.Function;
 import org.elasticsearch.common.collect.Iterables;
 import org.elasticsearch.common.collect.Lists;
@@ -36,7 +37,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.DiscoveryException;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -104,13 +104,9 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
     @Inject
     public GceComputeServiceImpl(Settings settings, SettingsFilter settingsFilter) {
         super(settings);
-        settingsFilter.addFilter(new GceSettingsFilter());
-
-        this.project = componentSettings.get(Fields.PROJECT, settings.get("cloud.gce." + Fields.PROJECT));
-
-        String[] zoneList = componentSettings.getAsArray(Fields.ZONE, settings.getAsArray("cloud.gce." + Fields.ZONE));
+        this.project = settings.get(Fields.PROJECT);
+        String[] zoneList = settings.getAsArray(Fields.ZONE);
         this.zoneList = Lists.newArrayList(zoneList);
-
     }
 
     public synchronized Compute client() {
@@ -145,7 +141,7 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
                     .build();
         } catch (Exception e) {
             logger.warn("unable to start GCE discovery service: {} : {}", e.getClass().getName(), e.getMessage());
-            throw new DiscoveryException("unable to start GCE discovery service", e);
+            throw new ElasticsearchIllegalArgumentException("unable to start GCE discovery service", e);
         }
 
         return this.client;

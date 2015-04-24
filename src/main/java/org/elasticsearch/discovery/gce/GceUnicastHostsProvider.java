@@ -76,17 +76,15 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         this.networkService = networkService;
         this.version = version;
 
-        this.refreshInterval = componentSettings.getAsTime(Fields.REFRESH,
-                settings.getAsTime("cloud.gce." + Fields.REFRESH, TimeValue.timeValueSeconds(0)));
-
-        this.project = componentSettings.get(Fields.PROJECT, settings.get("cloud.gce." + Fields.PROJECT));
-        this.zone = componentSettings.get(Fields.ZONE, settings.get("cloud.gce." + Fields.ZONE));
+        this.refreshInterval = settings.getAsTime(Fields.REFRESH, TimeValue.timeValueSeconds(0));
+        this.project = settings.get(Fields.PROJECT);
+        this.zone = settings.get(Fields.ZONE);
 
         // Check that we have all needed properties
         checkProperty(Fields.PROJECT, project);
         checkProperty(Fields.ZONE, zone);
 
-        this.tags = settings.getAsArray("discovery.gce.tags");
+        this.tags = settings.getAsArray(Fields.TAGS);
         if (logger.isDebugEnabled()) {
             logger.debug("using tags {}", Lists.newArrayList(this.tags));
         }
@@ -251,7 +249,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
 
     private void checkProperty(String name, String value) {
         if (!Strings.hasText(value)) {
-            logger.warn("cloud.gce.{} is not set.", name);
+            logger.warn("{} is not set.", name);
         }
     }
 }

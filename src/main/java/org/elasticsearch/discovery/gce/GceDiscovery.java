@@ -19,23 +19,16 @@
 
 package org.elasticsearch.discovery.gce;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
 import org.elasticsearch.cluster.settings.DynamicSettings;
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
-import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -48,31 +41,12 @@ public class GceDiscovery extends ZenDiscovery {
     @Inject
     public GceDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool, TransportService transportService,
                         ClusterService clusterService, NodeSettingsService nodeSettingsService, ZenPingService pingService,
-                        DiscoveryNodeService discoveryNodeService, GceComputeService gceComputeService,
-                        NetworkService networkService, DiscoverySettings discoverySettings,
-                        ElectMasterService electMasterService, @ClusterDynamicSettings DynamicSettings dynamicSettings,
-                        Version version) {
+                        DiscoverySettings discoverySettings,
+                        ElectMasterService electMasterService, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
         super(settings, clusterName, threadPool, transportService, clusterService, nodeSettingsService,
-                discoveryNodeService, pingService, electMasterService, discoverySettings, dynamicSettings);
-        if (settings.getAsBoolean("cloud.enabled", true)) {
-            ImmutableList<? extends ZenPing> zenPings = pingService.zenPings();
-            UnicastZenPing unicastZenPing = null;
-            for (ZenPing zenPing : zenPings) {
-                if (zenPing instanceof UnicastZenPing) {
-                    unicastZenPing = (UnicastZenPing) zenPing;
-                    break;
-                }
-            }
+                pingService, electMasterService, discoverySettings, dynamicSettings);
 
-            if (unicastZenPing != null) {
-                // update the unicast zen ping to add cloud hosts provider
-                // and, while we are at it, use only it and not the multicast for example
-                unicastZenPing.addHostsProvider(new GceUnicastHostsProvider(settings, gceComputeService,
-                        transportService, networkService, version));
-                pingService.zenPings(ImmutableList.of(unicastZenPing));
-            } else {
-                logger.warn("failed to apply gce unicast discovery, no unicast ping found");
-            }
-        }
+        // TODO Add again force disable multicast
+        // See related issue in AWS plugin https://github.com/elastic/elasticsearch-cloud-aws/issues/179
     }
 }

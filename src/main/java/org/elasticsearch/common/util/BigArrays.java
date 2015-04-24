@@ -364,6 +364,7 @@ public class BigArrays {
     final PageCacheRecycler recycler;
     final CircuitBreakerService breakerService;
     final boolean checkBreaker;
+    private final BigArrays circuitBreakingInstance;
 
     @Inject
     public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService) {
@@ -375,6 +376,11 @@ public class BigArrays {
         this.checkBreaker = checkBreaker;
         this.recycler = recycler;
         this.breakerService = breakerService;
+        if (checkBreaker) {
+            this.circuitBreakingInstance = this;
+        } else {
+            this.circuitBreakingInstance = new BigArrays(recycler, breakerService, true);
+        }
     }
 
     /**
@@ -410,11 +416,11 @@ public class BigArrays {
     }
 
     /**
-     * Return a new instance of this BigArrays class with circuit breaking
+     * Return an instance of this BigArrays class with circuit breaking
      * explicitly enabled, instead of only accounting enabled
      */
     public BigArrays withCircuitBreaking() {
-        return new BigArrays(this.recycler, this.breakerService, true);
+        return this.circuitBreakingInstance;
     }
 
     private <T extends AbstractBigArray> T resizeInPlace(T array, long newSize) {

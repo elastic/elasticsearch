@@ -45,7 +45,7 @@ public class CompletionFieldMapperTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        FieldMapper fieldMapper = defaultMapper.mappers().name("completion").mapper();
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
 
         CompletionFieldMapper completionFieldMapper = (CompletionFieldMapper) fieldMapper;
@@ -57,7 +57,7 @@ public class CompletionFieldMapperTests extends ElasticsearchSingleNodeTest {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
                 .field("type", "completion")
-                .field("index_analyzer", "simple")
+                .field("analyzer", "simple")
                 .field("search_analyzer", "standard")
                 .field("payloads", true)
                 .field("preserve_separators", false)
@@ -69,7 +69,7 @@ public class CompletionFieldMapperTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        FieldMapper fieldMapper = defaultMapper.mappers().name("completion").mapper();
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
 
         CompletionFieldMapper completionFieldMapper = (CompletionFieldMapper) fieldMapper;
@@ -78,7 +78,7 @@ public class CompletionFieldMapperTests extends ElasticsearchSingleNodeTest {
         builder.close();
         Map<String, Object> serializedMap = JsonXContent.jsonXContent.createParser(builder.bytes()).mapAndClose();
         Map<String, Object> configMap = (Map<String, Object>) serializedMap.get("completion");
-        assertThat(configMap.get("index_analyzer").toString(), is("simple"));
+        assertThat(configMap.get("analyzer").toString(), is("simple"));
         assertThat(configMap.get("search_analyzer").toString(), is("standard"));
         assertThat(Boolean.valueOf(configMap.get("payloads").toString()), is(true));
         assertThat(Boolean.valueOf(configMap.get("preserve_separators").toString()), is(false));
@@ -91,14 +91,14 @@ public class CompletionFieldMapperTests extends ElasticsearchSingleNodeTest {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
                 .field("type", "completion")
-                .field("index_analyzer", "simple")
+                .field("analyzer", "simple")
                 .field("search_analyzer", "simple")
                 .endObject().endObject()
                 .endObject().endObject().string();
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        FieldMapper fieldMapper = defaultMapper.mappers().name("completion").mapper();
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
 
         CompletionFieldMapper completionFieldMapper = (CompletionFieldMapper) fieldMapper;

@@ -127,9 +127,9 @@ public class ScrollSearchBenchmark {
             }
             if (scrollRequestCounter % 20 == 0) {
                 long avgTimeSpent = sumTimeSpent / 20;
-                JvmStats.Mem mem = JvmStats.jvmStats().mem();
+                JvmStats.Mem mem = JvmStats.jvmStats().getMem();
                 System.out.printf(Locale.ENGLISH, "Cursor location=%d, avg time spent=%d ms\n", (requestSize * scrollRequestCounter), (avgTimeSpent));
-                System.out.printf(Locale.ENGLISH, "heap max=%s, used=%s, percentage=%d\n", mem.getHeapMax(), mem.getHeapUsed(), mem.getHeapUsedPrecent());
+                System.out.printf(Locale.ENGLISH, "heap max=%s, used=%s, percentage=%d\n", mem.getHeapMax(), mem.getHeapUsed(), mem.getHeapUsedPercent());
                 sumTimeSpent = 0;
             }
             if (searchResponse.getHits().hits().length == 0) {

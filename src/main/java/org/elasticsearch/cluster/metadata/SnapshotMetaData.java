@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -66,12 +67,14 @@ public class SnapshotMetaData implements MetaData.Custom {
         private final ImmutableMap<ShardId, ShardSnapshotStatus> shards;
         private final ImmutableList<String> indices;
         private final ImmutableMap<String, ImmutableList<ShardId>> waitingIndices;
+        private final long startTime;
 
-        public Entry(SnapshotId snapshotId, boolean includeGlobalState, State state, ImmutableList<String> indices, ImmutableMap<ShardId, ShardSnapshotStatus> shards) {
+        public Entry(SnapshotId snapshotId, boolean includeGlobalState, State state, ImmutableList<String> indices, long startTime, ImmutableMap<ShardId, ShardSnapshotStatus> shards) {
             this.state = state;
             this.snapshotId = snapshotId;
             this.includeGlobalState = includeGlobalState;
             this.indices = indices;
+            this.startTime = startTime;
             if (shards == null) {
                 this.shards = ImmutableMap.of();
                 this.waitingIndices = ImmutableMap.of();
@@ -79,6 +82,14 @@ public class SnapshotMetaData implements MetaData.Custom {
                 this.shards = shards;
                 this.waitingIndices = findWaitingIndices(shards);
             }
+        }
+
+        public Entry(Entry entry, State state, ImmutableMap<ShardId, ShardSnapshotStatus> shards) {
+            this(entry.snapshotId, entry.includeGlobalState, state, entry.indices, entry.startTime, shards);
+        }
+
+        public Entry(Entry entry, ImmutableMap<ShardId, ShardSnapshotStatus> shards) {
+            this(entry, entry.state, shards);
         }
 
         public SnapshotId snapshotId() {
@@ -105,6 +116,10 @@ public class SnapshotMetaData implements MetaData.Custom {
             return includeGlobalState;
         }
 
+        public long startTime() {
+            return startTime;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -113,10 +128,12 @@ public class SnapshotMetaData implements MetaData.Custom {
             Entry entry = (Entry) o;
 
             if (includeGlobalState != entry.includeGlobalState) return false;
+            if (startTime != entry.startTime) return false;
             if (!indices.equals(entry.indices)) return false;
             if (!shards.equals(entry.shards)) return false;
             if (!snapshotId.equals(entry.snapshotId)) return false;
             if (state != entry.state) return false;
+            if (!waitingIndices.equals(entry.waitingIndices)) return false;
 
             return true;
         }
@@ -128,6 +145,8 @@ public class SnapshotMetaData implements MetaData.Custom {
             result = 31 * result + (includeGlobalState ? 1 : 0);
             result = 31 * result + shards.hashCode();
             result = 31 * result + indices.hashCode();
+            result = 31 * result + waitingIndices.hashCode();
+            result = 31 * result + (int) (startTime ^ (startTime >>> 32));
             return result;
         }
 
@@ -331,7 +350,8 @@ public class SnapshotMetaData implements MetaData.Custom {
                 for (int j = 0; j < indices; j++) {
                     indexBuilder.add(in.readString());
                 }
-                ImmutableMap.Builder<ShardId, ShardSnapshotStatus> builder = ImmutableMap.<ShardId, ShardSnapshotStatus>builder();
+                long startTime = in.readLong();
+                ImmutableMap.Builder<ShardId, ShardSnapshotStatus> builder = ImmutableMap.builder();
                 int shards = in.readVInt();
                 for (int j = 0; j < shards; j++) {
                     ShardId shardId = ShardId.readShardId(in);
@@ -339,7 +359,7 @@ public class SnapshotMetaData implements MetaData.Custom {
                     State shardState = State.fromValue(in.readByte());
                     builder.put(shardId, new ShardSnapshotStatus(nodeId, shardState));
                 }
-                entries[i] = new Entry(snapshotId, includeGlobalState, state, indexBuilder.build(), builder.build());
+                entries[i] = new Entry(snapshotId, includeGlobalState, state, indexBuilder.build(), startTime, builder.build());
             }
             return new SnapshotMetaData(entries);
         }
@@ -355,6 +375,7 @@ public class SnapshotMetaData implements MetaData.Custom {
                 for (String index : entry.indices()) {
                     out.writeString(index);
                 }
+                out.writeLong(entry.startTime());
                 out.writeVInt(entry.shards().size());
                 for (Map.Entry<ShardId, ShardSnapshotStatus> shardEntry : entry.shards().entrySet()) {
                     shardEntry.getKey().writeTo(out);
@@ -369,9 +390,24 @@ public class SnapshotMetaData implements MetaData.Custom {
             throw new UnsupportedOperationException();
         }
 
+        static final class Fields {
+            static final XContentBuilderString REPOSITORY = new XContentBuilderString("repository");
+            static final XContentBuilderString SNAPSHOTS = new XContentBuilderString("snapshots");
+            static final XContentBuilderString SNAPSHOT = new XContentBuilderString("snapshot");
+            static final XContentBuilderString INCLUDE_GLOBAL_STATE = new XContentBuilderString("include_global_state");
+            static final XContentBuilderString STATE = new XContentBuilderString("state");
+            static final XContentBuilderString INDICES = new XContentBuilderString("indices");
+            static final XContentBuilderString START_TIME_MILLIS = new XContentBuilderString("start_time_millis");
+            static final XContentBuilderString START_TIME = new XContentBuilderString("start_time");
+            static final XContentBuilderString SHARDS = new XContentBuilderString("shards");
+            static final XContentBuilderString INDEX = new XContentBuilderString("index");
+            static final XContentBuilderString SHARD = new XContentBuilderString("shard");
+            static final XContentBuilderString NODE = new XContentBuilderString("node");
+        }
+
         @Override
         public void toXContent(SnapshotMetaData customIndexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startArray("snapshots");
+            builder.startArray(Fields.SNAPSHOTS);
             for (Entry entry : customIndexMetaData.entries()) {
                 toXContent(entry, builder, params);
             }
@@ -380,33 +416,33 @@ public class SnapshotMetaData implements MetaData.Custom {
 
         public void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            builder.field("repository", entry.snapshotId().getRepository());
-            builder.field("snapshot", entry.snapshotId().getSnapshot());
-            builder.field("include_global_state", entry.includeGlobalState());
-            builder.field("state", entry.state());
-            builder.startArray("indices");
+            builder.field(Fields.REPOSITORY, entry.snapshotId().getRepository());
+            builder.field(Fields.SNAPSHOT, entry.snapshotId().getSnapshot());
+            builder.field(Fields.INCLUDE_GLOBAL_STATE, entry.includeGlobalState());
+            builder.field(Fields.STATE, entry.state());
+            builder.startArray(Fields.INDICES);
             {
                 for (String index : entry.indices()) {
                     builder.value(index);
                 }
             }
             builder.endArray();
-            builder.startArray("shards");
+            builder.timeValueField(Fields.START_TIME_MILLIS, Fields.START_TIME, entry.startTime());
+            builder.startArray(Fields.SHARDS);
             {
                 for (Map.Entry<ShardId, ShardSnapshotStatus> shardEntry : entry.shards.entrySet()) {
                     ShardId shardId = shardEntry.getKey();
                     ShardSnapshotStatus status = shardEntry.getValue();
                     builder.startObject();
                     {
-                        builder.field("index", shardId.getIndex());
-                        builder.field("shard", shardId.getId());
-                        builder.field("state", status.state());
-                        builder.field("node", status.nodeId());
+                        builder.field(Fields.INDEX, shardId.getIndex());
+                        builder.field(Fields.SHARD, shardId.getId());
+                        builder.field(Fields.STATE, status.state());
+                        builder.field(Fields.NODE, status.nodeId());
                     }
                     builder.endObject();
                 }
             }
-
             builder.endArray();
             builder.endObject();
         }

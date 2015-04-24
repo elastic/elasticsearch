@@ -35,8 +35,6 @@ public abstract class AbstractIndexComponent implements IndexComponent {
 
     protected final Settings indexSettings;
 
-    protected final Settings componentSettings;
-
     /**
      * Constructs a new index component, with the index name and its settings.
      *
@@ -46,23 +44,6 @@ public abstract class AbstractIndexComponent implements IndexComponent {
     protected AbstractIndexComponent(Index index, @IndexSettings Settings indexSettings) {
         this.index = index;
         this.indexSettings = indexSettings;
-        this.componentSettings = indexSettings.getComponentSettings(getClass());
-
-        this.logger = Loggers.getLogger(getClass(), indexSettings, index);
-    }
-
-    /**
-     * Constructs a new index component, with the index name and its settings, as well as settings prefix.
-     *
-     * @param index          The index name
-     * @param indexSettings  The index settings
-     * @param prefixSettings A settings prefix (like "com.mycompany") to simplify extracting the component settings
-     */
-    protected AbstractIndexComponent(Index index, @IndexSettings Settings indexSettings, String prefixSettings) {
-        this.index = index;
-        this.indexSettings = indexSettings;
-        this.componentSettings = indexSettings.getComponentSettings(prefixSettings, getClass());
-
         this.logger = Loggers.getLogger(getClass(), indexSettings, index);
     }
 

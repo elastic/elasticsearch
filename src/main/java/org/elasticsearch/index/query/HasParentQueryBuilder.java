@@ -19,6 +19,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
 
 import java.io.IOException;
 
@@ -32,6 +33,7 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
     private String scoreType;
     private float boost = 1.0f;
     private String queryName;
+    private QueryInnerHitBuilder innerHit = null;
 
     /**
      * @param parentType  The parent type
@@ -42,6 +44,7 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
         this.queryBuilder = parentQuery;
     }
 
+    @Override
     public HasParentQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;
@@ -63,6 +66,15 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
         return this;
     }
 
+    /**
+     * Sets inner hit definition in the scope of this query and reusing the defined type and query.
+     */
+    public HasParentQueryBuilder innerHit(QueryInnerHitBuilder innerHit) {
+        this.innerHit = innerHit;
+        return this;
+    }
+
+    @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(HasParentQueryParser.NAME);
         builder.field("query");
@@ -77,7 +89,11 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
         if (queryName != null) {
             builder.field("_name", queryName);
         }
-
+        if (innerHit != null) {
+            builder.startObject("inner_hits");
+            builder.value(innerHit);
+            builder.endObject();
+        }
         builder.endObject();
     }
 }

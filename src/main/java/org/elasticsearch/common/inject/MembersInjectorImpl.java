@@ -49,6 +49,7 @@ class MembersInjectorImpl<T> implements MembersInjector<T> {
         return memberInjectors;
     }
 
+    @Override
     public void injectMembers(T instance) {
         Errors errors = new Errors(typeLiteral);
         try {
@@ -66,6 +67,7 @@ class MembersInjectorImpl<T> implements MembersInjector<T> {
         }
 
         injector.callInContext(new ContextualCallable<Void>() {
+            @Override
             public Void call(InternalContext context) throws ErrorsException {
                 injectMembers(instance, errors, context);
                 return null;

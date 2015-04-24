@@ -20,23 +20,23 @@
 package org.elasticsearch.index.mapper;
 
 import com.google.common.base.Strings;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -279,10 +279,6 @@ public interface FieldMapper<T> extends Mapper {
 
     FieldDataType fieldDataType();
 
-    PostingsFormatProvider postingsFormatProvider();
-
-    DocValuesFormatProvider docValuesFormatProvider();
-
     boolean isNumeric();
 
     boolean isSortable();
@@ -300,5 +296,10 @@ public interface FieldMapper<T> extends Mapper {
      * @return If the field is available before indexing or not.
      * */
     public boolean isGenerated();
+
+    /**
+     * @return a {@link FieldStats} instance that maps to the type of this field based on the provided {@link Terms} instance.
+     */
+    FieldStats stats(Terms terms, int maxDoc) throws IOException;
 
 }

@@ -33,8 +33,6 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
-
 /**
  *
  */
@@ -102,7 +100,7 @@ public class RangeQueryParser implements QueryParser {
                     to = parser.objectBytes();
                     includeUpper = true;
                 } else if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
-                    timeZone = DateMathParser.parseZone(parser.text());
+                    timeZone = DateTimeZone.forID(parser.text());
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else if ("format".equals(currentFieldName)) {
@@ -143,7 +141,6 @@ public class RangeQueryParser implements QueryParser {
             query = new TermRangeQuery(fieldName, BytesRefs.toBytesRef(from), BytesRefs.toBytesRef(to), includeLower, includeUpper);
         }
         query.setBoost(boost);
-        query =  wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }

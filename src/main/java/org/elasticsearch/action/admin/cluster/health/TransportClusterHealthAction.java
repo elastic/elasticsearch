@@ -35,10 +35,6 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-
 /**
  *
  */
@@ -49,7 +45,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
     @Inject
     public TransportClusterHealthAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                         ClusterName clusterName, ActionFilters actionFilters) {
-        super(settings, ClusterHealthAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, ClusterHealthAction.NAME, transportService, clusterService, threadPool, actionFilters, ClusterHealthRequest.class);
         this.clusterName = clusterName;
     }
 
@@ -62,11 +58,6 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
     @Override
     protected ClusterBlockException checkBlock(ClusterHealthRequest request, ClusterState state) {
         return null; // we want users to be able to call this even when there are global blocks, just to check the health (are there blocks?)
-    }
-
-    @Override
-    protected ClusterHealthRequest newRequest() {
-        return new ClusterHealthRequest();
     }
 
     @Override
@@ -131,12 +122,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger);
         final ClusterState state = observer.observedState();
         if (waitFor == 0 || request.timeout().millis() == 0) {
-            // we check for a timeout here since this method might be called from the wait_for_events
-            // response handler which might have timed out already.
-            ClusterHealthResponse response = clusterHealth(request, state);
-            response.timedOut = request.timeout().millis() == 0;
-            // no need to wait for anything
-            listener.onResponse(response);
+            listener.onResponse(getResponse(request, state, waitFor, request.timeout().millis() == 0));
             return;
         }
         final int concreteWaitFor = waitFor;
@@ -173,15 +159,20 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
     }
 
     private boolean validateRequest(final ClusterHealthRequest request, ClusterState clusterState, final int waitFor) {
-        ClusterHealthResponse response = clusterHealth(request, clusterState);
+        ClusterHealthResponse response = clusterHealth(request, clusterState, clusterService.numberOfPendingTasks());
         return prepareResponse(request, response, clusterState, waitFor);
     }
 
     private ClusterHealthResponse getResponse(final ClusterHealthRequest request, ClusterState clusterState, final int waitFor, boolean timedOut) {
-        ClusterHealthResponse response = clusterHealth(request, clusterState);
+        ClusterHealthResponse response = clusterHealth(request, clusterState, clusterService.numberOfPendingTasks());
         boolean valid = prepareResponse(request, response, clusterState, waitFor);
         assert valid || timedOut;
-        response.timedOut = timedOut;
+        // we check for a timeout here since this method might be called from the wait_for_events
+        // response handler which might have timed out already.
+        // if the state is sufficient for what we where waiting for we don't need to mark this as timedOut.
+        // We spend too much time in waiting for events such that we might already reached a valid state.
+        // this should not mark the request as timed out
+        response.timedOut = timedOut && valid == false;
         return response;
     }
 
@@ -257,7 +248,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
     }
 
 
-    private ClusterHealthResponse clusterHealth(ClusterHealthRequest request, ClusterState clusterState) {
+    private ClusterHealthResponse clusterHealth(ClusterHealthRequest request, ClusterState clusterState, int numberOfPendingTasks) {
         if (logger.isTraceEnabled()) {
             logger.trace("Calculating health based on state version [{}]", clusterState.version());
         }
@@ -266,11 +257,11 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
             concreteIndices = clusterState.metaData().concreteIndices(request.indicesOptions(), request.indices());
         } catch (IndexMissingException e) {
             // one of the specified indices is not there - treat it as RED.
-            ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), Strings.EMPTY_ARRAY, clusterState);
+            ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), Strings.EMPTY_ARRAY, clusterState, numberOfPendingTasks);
             response.status = ClusterHealthStatus.RED;
             return response;
         }
 
-        return new ClusterHealthResponse(clusterName.value(), concreteIndices, clusterState);
+        return new ClusterHealthResponse(clusterName.value(), concreteIndices, clusterState, numberOfPendingTasks);
     }
 }

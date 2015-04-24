@@ -34,7 +34,6 @@ public class MapperParsingException extends MapperException {
         super(message, cause);
     }
 
-
     @Override
     public RestStatus status() {
         return RestStatus.BAD_REQUEST;

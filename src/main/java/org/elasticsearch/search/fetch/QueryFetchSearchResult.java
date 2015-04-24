@@ -48,10 +48,12 @@ public class QueryFetchSearchResult extends QuerySearchResultProvider implements
         this.fetchResult = fetchResult;
     }
 
+    @Override
     public long id() {
         return queryResult.id();
     }
 
+    @Override
     public SearchShardTarget shardTarget() {
         return queryResult.shardTarget();
     }
@@ -67,10 +69,12 @@ public class QueryFetchSearchResult extends QuerySearchResultProvider implements
         return true;
     }
 
+    @Override
     public QuerySearchResult queryResult() {
         return queryResult;
     }
 
+    @Override
     public FetchSearchResult fetchResult() {
         return fetchResult;
     }

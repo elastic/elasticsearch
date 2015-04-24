@@ -62,7 +62,7 @@ public class MinimumScoreCollector extends SimpleCollector {
     }
 
     @Override
-    public boolean acceptsDocsOutOfOrder() {
-        return leafCollector.acceptsDocsOutOfOrder();
+    public boolean needsScores() {
+        return true;
     }
 }

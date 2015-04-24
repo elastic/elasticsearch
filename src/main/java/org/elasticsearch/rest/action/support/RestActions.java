@@ -28,6 +28,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.rest.RestRequest;
@@ -48,6 +50,11 @@ public class RestActions {
             return Long.parseLong(ifMatch);
         }
         return Versions.MATCH_ANY;
+    }
+
+    public static long parseVersion(RestRequest request, long defaultVersion) {
+        long version = parseVersion(request);
+        return (version == Versions.MATCH_ANY) ? defaultVersion : version;
     }
 
     static final class Fields {
@@ -89,7 +96,7 @@ public class RestActions {
         if (queryString == null) {
             return null;
         }
-        QueryStringQueryBuilder queryBuilder = QueryBuilders.queryString(queryString);
+        QueryStringQueryBuilder queryBuilder = QueryBuilders.queryStringQuery(queryString);
         queryBuilder.defaultField(request.param("df"));
         queryBuilder.analyzer(request.param("analyzer"));
         String defaultOperator = request.param("default_operator");
@@ -122,5 +129,25 @@ public class RestActions {
         }
 
         return content;
+    }
+
+    /**
+     * guesses the content type from either payload or source parameter
+     * @param request Rest request
+     * @return rest content type or <code>null</code> if not applicable.
+     */
+    public static XContentType guessBodyContentType(final RestRequest request) {
+        final BytesReference restContent = RestActions.getRestContent(request);
+        if (restContent == null) {
+            return null;
+        }
+        return XContentFactory.xContentType(restContent);
+    }
+
+    /**
+     * Returns <code>true</code> if either payload or source parameter is present. Otherwise <code>false</code>
+     */
+    public static boolean hasBodyContent(final RestRequest request) {
+        return request.hasContent() || request.hasParam("source");
     }
 }

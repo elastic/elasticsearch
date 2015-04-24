@@ -63,13 +63,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.emptyArray;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -115,6 +109,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                     .endObject()
                 .endObject()
                 .endObject().endObject().endObject()));
+        ensureGreen("idx", "empty", "articles");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 50; i++) {
@@ -228,7 +223,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
     }
 
     private String key(Terms.Bucket bucket) {
-        return randomBoolean() ? bucket.getKey() : bucket.getKeyAsText().string();
+        return bucket.getKeyAsString();
     }
 
     @Test
@@ -264,6 +259,38 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
             assertThat((Long) hits.getAt(0).sortValues()[0], equalTo(higestSortValue));
             assertThat((Long) hits.getAt(1).sortValues()[0], equalTo(higestSortValue - 1));
             assertThat((Long) hits.getAt(2).sortValues()[0], equalTo(higestSortValue - 2));
+
+            assertThat(hits.getAt(0).sourceAsMap().size(), equalTo(4));
+        }
+    }
+
+    @Test
+    public void testBreadthFirst() throws Exception {
+        // breadth_first will be ignored since we need scores
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHint())
+                        .collectMode(SubAggCollectionMode.BREADTH_FIRST)
+                        .field(TERMS_AGGS_FIELD)
+                        .subAggregation(topHits("hits").setSize(3))
+                ).get();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(5));
+
+        for (int i = 0; i < 5; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("val" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("val" + i));
+            assertThat(bucket.getDocCount(), equalTo(10l));
+            TopHits topHits = bucket.getAggregations().get("hits");
+            SearchHits hits = topHits.getHits();
+            assertThat(hits.totalHits(), equalTo(10l));
+            assertThat(hits.getHits().length, equalTo(3));
 
             assertThat(hits.getAt(0).sourceAsMap().size(), equalTo(4));
         }
@@ -493,7 +520,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                     ).get();
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("No mapping found for [xyz] in order to sort on"));
+            assertThat(e.toString(), containsString("No mapping found for [xyz] in order to sort on"));
         }
     }
 
@@ -526,38 +553,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                     .get();
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
-        }
-    }
-    
-    @Test
-    public void testFailDeferredOnlyWhenScorerIsUsed() throws Exception {
-        // No track_scores or score based sort defined in top_hits agg, so don't fail:
-        SearchResponse response = client().prepareSearch("idx")
-                .setTypes("type")
-                .addAggregation(
-                        terms("terms").executionHint(randomExecutionHint()).field(TERMS_AGGS_FIELD)
-                                .collectMode(SubAggCollectionMode.BREADTH_FIRST)
-                                .subAggregation(topHits("hits").addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))))
-                .get();
-        assertSearchResponse(response);
-
-        // Score based, so fail with deferred aggs:
-        try {
-            client().prepareSearch("idx")
-                    .setTypes("type")
-                    .addAggregation(
-                            terms("terms").executionHint(randomExecutionHint()).field(TERMS_AGGS_FIELD)
-                                    .collectMode(SubAggCollectionMode.BREADTH_FIRST)
-                                    .subAggregation(topHits("hits")))
-                    .get();
-            fail();
-        } catch (Exception e) {
-            // It is considered a parse failure if the search request asks for top_hits
-            // under an aggregation with collect_mode set to breadth_first as this would
-            // require the buffering of scores alongside each document ID and that is a
-            // a RAM cost we are not willing to pay 
-            assertThat(e.getMessage(), containsString("ElasticsearchParseException"));
+            assertThat(e.toString(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
         }
     }
 
@@ -777,13 +773,13 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testNestedFetchFeatures() {
         String hlType = randomFrom("plain", "fvh", "postings");
-        HighlightBuilder.Field hlField = new HighlightBuilder.Field("message")
+        HighlightBuilder.Field hlField = new HighlightBuilder.Field("comments.message")
                 .highlightQuery(matchQuery("comments.message", "comment"))
                 .forceSource(randomBoolean()) // randomly from stored field or _source
                 .highlighterType(hlType);
 
         SearchResponse searchResponse = client().prepareSearch("articles")
-                .setQuery(nestedQuery("comments", matchQuery("message", "comment").queryName("test")))
+                .setQuery(nestedQuery("comments", matchQuery("comments.message", "comment").queryName("test")))
                 .addAggregation(
                         nested("to-comments")
                                 .path("comments")
@@ -810,21 +806,21 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
         assertThat(searchHit.getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(searchHit.getNestedIdentity().getOffset(), equalTo(0));
 
-        HighlightField highlightField = searchHit.getHighlightFields().get("message");
+        HighlightField highlightField = searchHit.getHighlightFields().get("comments.message");
         assertThat(highlightField.getFragments().length, equalTo(1));
         assertThat(highlightField.getFragments()[0].string(), equalTo("some <em>comment</em>"));
 
         // Can't explain nested hit with the main query, since both are in a different scopes, also the nested doc may not even have matched with the main query
         // If top_hits would have a query option then we can explain that query
         Explanation explanation = searchHit.explanation();
-        assertThat(explanation.toString(), containsString("Not a match"));
+        assertFalse(explanation.isMatch());
 
         // Returns the version of the root document. Nested docs don't have a separate version
         long version = searchHit.version();
         assertThat(version, equalTo(1l));
 
         // Can't use named queries for the same reason explain doesn't work:
-        assertThat(searchHit.matchedQueries(), emptyArray());
+        assertThat(searchHit.matchedQueries(), arrayContaining("test"));
 
         SearchHitField field = searchHit.field("comments.user");
         assertThat(field.getValue().toString(), equalTo("a"));
@@ -848,7 +844,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                                         nested("to-comments")
                                                 .path("comments")
                                                 .subAggregation(topHits("comments")
-                                                        .addHighlightedField(new HighlightBuilder.Field("message").highlightQuery(matchQuery("comments.message", "text")))
+                                                        .addHighlightedField(new HighlightBuilder.Field("comments.message").highlightQuery(matchQuery("comments.message", "text")))
                                                         .addSort("comments.id", SortOrder.ASC))
                                 )
                 )
@@ -856,7 +852,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
 
         Histogram histogram = searchResponse.getAggregations().get("dates");
         for (int i = 0; i < numArticles; i += 5) {
-            Histogram.Bucket bucket = histogram.getBucketByKey(i);
+            Histogram.Bucket bucket = histogram.getBuckets().get(i / 5);
             assertThat(bucket.getDocCount(), equalTo(5l));
 
             long numNestedDocs = 10 + (5 * i);
@@ -871,7 +867,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                 assertThat(searchHits.getAt(j).getNestedIdentity().getOffset(), equalTo(0));
                 assertThat((Integer) searchHits.getAt(j).sourceAsMap().get("id"), equalTo(0));
 
-                HighlightField highlightField = searchHits.getAt(j).getHighlightFields().get("message");
+                HighlightField highlightField = searchHits.getAt(j).getHighlightFields().get("comments.message");
                 assertThat(highlightField.getFragments().length, equalTo(1));
                 assertThat(highlightField.getFragments()[0].string(), equalTo("some <em>text</em>"));
             }

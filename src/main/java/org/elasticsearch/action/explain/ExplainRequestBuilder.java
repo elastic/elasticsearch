@@ -158,11 +158,12 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
     /**
      * Sets the full source of the explain request (for example, wrapping an actual query).
      */
-    public ExplainRequestBuilder setSource(BytesReference source, boolean unsafe) {
-        request().source(source, unsafe);
+    public ExplainRequestBuilder setSource(BytesReference source) {
+        request().source(source);
         return this;
     }
 
+    @Override
     protected void doExecute(ActionListener<ExplainResponse> listener) {
         if (sourceBuilder != null) {
             request.source(sourceBuilder);

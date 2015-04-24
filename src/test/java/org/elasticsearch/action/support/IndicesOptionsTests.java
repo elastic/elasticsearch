@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class IndicesOptionsTests extends ElasticsearchTestCase {
@@ -36,12 +37,12 @@ public class IndicesOptionsTests extends ElasticsearchTestCase {
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
 
             BytesStreamOutput output = new BytesStreamOutput();
-            Version outputVersion = randomVersion();
+            Version outputVersion = randomVersion(random());
             output.setVersion(outputVersion);
             indicesOptions.writeIndicesOptions(output);
 
             BytesStreamInput bytesStreamInput = new BytesStreamInput(output.bytes());
-            bytesStreamInput.setVersion(randomVersion());
+            bytesStreamInput.setVersion(randomVersion(random()));
             IndicesOptions indicesOptions2 = IndicesOptions.readIndicesOptions(bytesStreamInput);
 
             assertThat(indicesOptions2.ignoreUnavailable(), equalTo(indicesOptions.ignoreUnavailable()));
@@ -49,17 +50,8 @@ public class IndicesOptionsTests extends ElasticsearchTestCase {
             assertThat(indicesOptions2.expandWildcardsOpen(), equalTo(indicesOptions.expandWildcardsOpen()));
             assertThat(indicesOptions2.expandWildcardsClosed(), equalTo(indicesOptions.expandWildcardsClosed()));
 
-            if (outputVersion.onOrAfter(Version.V_1_2_2)) {
-                assertThat(indicesOptions2.forbidClosedIndices(), equalTo(indicesOptions.forbidClosedIndices()));
-                assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
-            } else if (outputVersion.onOrAfter(Version.V_1_2_0)) {
-                assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
-                assertThat(indicesOptions2.forbidClosedIndices(), equalTo(false));
-            } else {
-                //default value (true) if the node version doesn't support the allowAliasesToMultipleIndices flag
-                assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(true));
-                assertThat(indicesOptions2.forbidClosedIndices(), equalTo(false));
-            }
+            assertThat(indicesOptions2.forbidClosedIndices(), equalTo(indicesOptions.forbidClosedIndices()));
+            assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
         }
     }
 

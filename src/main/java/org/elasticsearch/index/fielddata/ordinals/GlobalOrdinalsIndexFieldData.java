@@ -18,19 +18,23 @@
  */
 package org.elasticsearch.index.fielddata.ordinals;
 
-import java.util.Collections;
-
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.MultiValueMode;
+
+import java.util.Collection;
+import java.util.Collections;
 
 /**
  * {@link IndexFieldData} base class for concrete global ordinals implementations.
@@ -94,7 +98,7 @@ public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponen
     }
 
     @Override
-    public Iterable<? extends Accountable> getChildResources() {
+    public Collection<Accountable> getChildResources() {
         // TODO: break down ram usage?
         return Collections.emptyList();
     }

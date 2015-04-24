@@ -23,9 +23,11 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
+
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitDocIdSet;
@@ -33,27 +35,26 @@ import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.SegmentReaderUtils;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
-import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
-import org.elasticsearch.index.shard.service.IndexShard;
-import org.elasticsearch.indices.warmer.IndicesWarmer;
+import org.elasticsearch.indices.IndicesWarmer;
+import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
@@ -70,7 +71,7 @@ import java.util.concurrent.Executor;
  * and require that it should always be around should use this cache, otherwise the
  * {@link org.elasticsearch.index.cache.filter.FilterCache} should be used instead.
  */
-public class BitsetFilterCache extends AbstractIndexComponent implements LeafReader.CoreClosedListener, RemovalListener<Object, Cache<Filter, BitsetFilterCache.Value>>, CloseableComponent {
+public class BitsetFilterCache extends AbstractIndexComponent implements LeafReader.CoreClosedListener, RemovalListener<Object, Cache<Filter, BitsetFilterCache.Value>>, Closeable {
 
     public static final String LOAD_RANDOM_ACCESS_FILTERS_EAGERLY = "index.load_fixed_bitset_filters_eagerly";
 
@@ -94,7 +95,7 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
         this.indicesWarmer = indicesWarmer;
     }
 
-    public void setIndexService(InternalIndexService indexService) {
+    public void setIndexService(IndexService indexService) {
         this.indexService = indexService;
         // First the indicesWarmer is set and then the indexService is set, because of this there is a small window of
         // time where indexService is null. This is why the warmer should only registered after indexService has been set.
@@ -113,15 +114,15 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
         loadedFilters.invalidate(ownerCoreCacheKey);
     }
 
+    @Override
     public void close() throws ElasticsearchException {
         indicesWarmer.removeListener(warmer);
         clear("close");
     }
 
     public void clear(String reason) {
-        logger.debug("Clearing all Bitsets because [{}]", reason);
+        logger.debug("clearing all bitsets because [{}]", reason);
         loadedFilters.invalidateAll();
-        loadedFilters.cleanUp();
     }
 
     private BitDocIdSet getAndLoadIfNotPresent(final Filter filter, final LeafReaderContext context) throws IOException, ExecutionException {
@@ -130,7 +131,7 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
         Cache<Filter, Value> filterToFbs = loadedFilters.get(coreCacheReader, new Callable<Cache<Filter, Value>>() {
             @Override
             public Cache<Filter, Value> call() throws Exception {
-                SegmentReaderUtils.registerCoreListener(context.reader(), BitsetFilterCache.this);
+                context.reader().addCoreClosedListener(BitsetFilterCache.this);
                 return CacheBuilder.newBuilder().build();
             }
         });
@@ -144,7 +145,11 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
                 } else {
                     BitDocIdSet.Builder builder = new BitDocIdSet.Builder(context.reader().maxDoc());
                     if (docIdSet != null && docIdSet != DocIdSet.EMPTY) {
-                        builder.or(docIdSet.iterator());
+                        DocIdSetIterator iterator = docIdSet.iterator();
+                        // some filters (QueryWrapperFilter) return not null or DocIdSet.EMPTY if there no matching docs
+                        if (iterator != null) {
+                            builder.or(iterator);
+                        }
                     }
                     BitDocIdSet bits = builder.build();
                     // code expects this to be non-null
@@ -219,15 +224,18 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
             }
         }
 
-        public String toString() {
+        @Override
+        public String toString(String field) {
             return "random_access(" + filter + ")";
         }
 
+        @Override
         public boolean equals(Object o) {
             if (!(o instanceof BitDocIdSetFilterWrapper)) return false;
             return this.filter.equals(((BitDocIdSetFilterWrapper) o).filter);
         }
 
+        @Override
         public int hashCode() {
             return filter.hashCode() ^ 0x1117BF26;
         }
@@ -236,7 +244,7 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
     final class BitDocIdSetFilterWarmer extends IndicesWarmer.Listener {
 
         @Override
-        public TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, IndicesWarmer.WarmerContext context, ThreadPool threadPool) {
+        public IndicesWarmer.TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, IndicesWarmer.WarmerContext context, ThreadPool threadPool) {
             if (!loadRandomAccessFiltersEagerly) {
                 return TerminationHandle.NO_WAIT;
             }
@@ -259,7 +267,7 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
             }
 
             if (hasNested) {
-                warmUp.add(NonNestedDocsFilter.INSTANCE);
+                warmUp.add(Queries.newNonNestedFilter());
             }
 
             final Executor executor = threadPool.executor(executor());

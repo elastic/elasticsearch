@@ -68,7 +68,7 @@ public class RestTable {
 
     public static RestResponse buildTextPlainResponse(Table table, RestChannel channel) throws IOException {
         RestRequest request = channel.request();
-        boolean verbose = request.paramAsBoolean("v", false);
+        boolean verbose = request.paramAsBoolean("v", true);
 
         List<DisplayHeader> headers = buildDisplayHeaders(table, request);
         int[] width = buildWidths(table, request, verbose, headers);
@@ -93,7 +93,7 @@ public class RestTable {
             out.append("\n");
         }
         out.close();
-        return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes(), true);
+        return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes());
     }
 
     private static List<DisplayHeader> buildDisplayHeaders(Table table, RestRequest request) {

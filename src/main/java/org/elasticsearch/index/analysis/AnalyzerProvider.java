@@ -31,5 +31,6 @@ public interface AnalyzerProvider<T extends Analyzer> extends Provider<T> {
 
     AnalyzerScope scope();
 
+    @Override
     T get();
 }

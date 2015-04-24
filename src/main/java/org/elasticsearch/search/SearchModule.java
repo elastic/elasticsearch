@@ -20,9 +20,11 @@
 package org.elasticsearch.search;
 
 import com.google.common.collect.ImmutableList;
+
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.SpawnModules;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
@@ -32,6 +34,7 @@ import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsFetchSubPhase;
 import org.elasticsearch.search.fetch.matchedqueries.MatchedQueriesFetchSubPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.source.FetchSourceSubPhase;
@@ -46,16 +49,27 @@ import org.elasticsearch.search.suggest.SuggestModule;
  */
 public class SearchModule extends AbstractModule implements SpawnModules {
 
+    private final Settings settings;
+
+    public SearchModule(Settings settings) {
+        this.settings = settings;
+    }
+
     @Override
     public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(new TransportSearchModule(), new HighlightModule(), new SuggestModule(), new FunctionScoreModule(), new AggregationModule());
+        return ImmutableList.of(
+                new SearchServiceModule(settings),
+                new TransportSearchModule(),
+                new HighlightModule(),
+                new SuggestModule(),
+                new FunctionScoreModule(),
+                new AggregationModule());
     }
 
     @Override
     protected void configure() {
         bind(DfsPhase.class).asEagerSingleton();
         bind(QueryPhase.class).asEagerSingleton();
-        bind(SearchService.class).asEagerSingleton();
         bind(SearchPhaseController.class).asEagerSingleton();
 
         bind(FetchPhase.class).asEagerSingleton();
@@ -66,6 +80,7 @@ public class SearchModule extends AbstractModule implements SpawnModules {
         bind(VersionFetchSubPhase.class).asEagerSingleton();
         bind(MatchedQueriesFetchSubPhase.class).asEagerSingleton();
         bind(HighlightPhase.class).asEagerSingleton();
+        bind(InnerHitsFetchSubPhase.class).asEagerSingleton();
 
         bind(SearchServiceTransportAction.class).asEagerSingleton();
         bind(MoreLikeThisFetchService.class).asEagerSingleton();

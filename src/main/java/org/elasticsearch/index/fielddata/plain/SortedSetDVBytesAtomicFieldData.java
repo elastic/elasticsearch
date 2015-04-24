@@ -19,16 +19,16 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.util.Accountable;
-
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 
 /**
@@ -63,7 +63,7 @@ public final class SortedSetDVBytesAtomicFieldData extends AbstractAtomicOrdinal
     }
     
     @Override
-    public Iterable<? extends Accountable> getChildResources() {
+    public Collection<Accountable> getChildResources() {
         return Collections.emptyList();
     }
 

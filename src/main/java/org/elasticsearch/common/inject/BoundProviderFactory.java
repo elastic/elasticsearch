@@ -42,6 +42,7 @@ class BoundProviderFactory<T> implements InternalFactory<T>, CreationListener {
         this.source = source;
     }
 
+    @Override
     public void notify(Errors errors) {
         try {
             providerFactory = injector.getInternalFactory(providerKey, errors.withSource(source));
@@ -50,6 +51,7 @@ class BoundProviderFactory<T> implements InternalFactory<T>, CreationListener {
         }
     }
 
+    @Override
     public T get(Errors errors, InternalContext context, Dependency<?> dependency)
             throws ErrorsException {
         errors = errors.withSource(providerKey);

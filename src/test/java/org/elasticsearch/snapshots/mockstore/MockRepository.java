@@ -19,21 +19,31 @@
 
 package org.elasticsearch.snapshots.mockstore;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.fs.FsRepository;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -62,6 +72,8 @@ public class MockRepository extends FsRepository {
 
     private final String randomPrefix;
 
+    private volatile boolean blockOnInitialization;
+
     private volatile boolean blockOnControlFiles;
 
     private volatile boolean blockOnDataFiles;
@@ -75,10 +87,19 @@ public class MockRepository extends FsRepository {
         randomDataFileIOExceptionRate = repositorySettings.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
         blockOnControlFiles = repositorySettings.settings().getAsBoolean("block_on_control", false);
         blockOnDataFiles = repositorySettings.settings().getAsBoolean("block_on_data", false);
-        randomPrefix = repositorySettings.settings().get("random");
+        blockOnInitialization = repositorySettings.settings().getAsBoolean("block_on_init", false);
+        randomPrefix = repositorySettings.settings().get("random", "default");
         waitAfterUnblock = repositorySettings.settings().getAsLong("wait_after_unblock", 0L);
         logger.info("starting mock repository with random prefix " + randomPrefix);
         mockBlobStore = new MockBlobStore(super.blobStore());
+    }
+
+    @Override
+    public void initializeSnapshot(SnapshotId snapshotId, ImmutableList<String> indices, MetaData metaData) {
+        if (blockOnInitialization ) {
+            blockExecution();
+        }
+        super.initializeSnapshot(snapshotId, indices, metaData);
     }
 
     private static RepositorySettings overrideSettings(RepositorySettings repositorySettings, ClusterService clusterService) {
@@ -92,9 +113,9 @@ public class MockRepository extends FsRepository {
     }
 
     private static Settings localizeLocation(Settings settings, ClusterService clusterService) {
-        File location = new File(settings.get("location"));
-        location = new File(location, clusterService.localNode().getId());
-        return settingsBuilder().put(settings).put("location", location.getAbsolutePath()).build();
+        Path location = PathUtils.get(settings.get("location"));
+        location = location.resolve(clusterService.localNode().getId());
+        return settingsBuilder().put(settings).put("location", location.toAbsolutePath()).build();
     }
 
     private void addFailure() {
@@ -112,12 +133,8 @@ public class MockRepository extends FsRepository {
         return mockBlobStore;
     }
 
-    public boolean blocked() {
-        return mockBlobStore.blocked();
-    }
-
     public void unblock() {
-        mockBlobStore.unblockExecution();
+        unblockExecution();
     }
 
     public void blockOnDataFiles(boolean blocked) {
@@ -126,6 +143,37 @@ public class MockRepository extends FsRepository {
 
     public void blockOnControlFiles(boolean blocked) {
         blockOnControlFiles = blocked;
+    }
+
+    public synchronized void unblockExecution() {
+        if (blocked) {
+            blocked = false;
+            // Clean blocking flags, so we wouldn't try to block again
+            blockOnDataFiles = false;
+            blockOnControlFiles = false;
+            blockOnInitialization = false;
+            this.notifyAll();
+        }
+    }
+
+    public boolean blocked() {
+        return blocked;
+    }
+
+    private synchronized boolean blockExecution() {
+        logger.debug("Blocking execution");
+        boolean wasBlocked = false;
+        try {
+            while (blockOnDataFiles || blockOnControlFiles || blockOnInitialization) {
+                blocked = true;
+                this.wait();
+                wasBlocked = true;
+            }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        }
+        logger.debug("Unblocking execution");
+        return wasBlocked;
     }
 
     public class MockBlobStore extends BlobStoreWrapper {
@@ -151,34 +199,6 @@ public class MockRepository extends FsRepository {
             return new MockBlobContainer(super.blobContainer(path));
         }
 
-        public synchronized void unblockExecution() {
-            if (blocked) {
-                blocked = false;
-                // Clean blocking flags, so we wouldn't try to block again
-                blockOnDataFiles = false;
-                blockOnControlFiles = false;
-                this.notifyAll();
-            }
-        }
-
-        public boolean blocked() {
-            return blocked;
-        }
-
-        private synchronized boolean blockExecution() {
-            boolean wasBlocked = false;
-            try {
-                while (blockOnDataFiles || blockOnControlFiles) {
-                    blocked = true;
-                    this.wait();
-                    wasBlocked = true;
-                }
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
-            }
-            return wasBlocked;
-        }
-
         private class MockBlobContainer extends BlobContainerWrapper {
             private MessageDigest digest;
 
@@ -200,9 +220,7 @@ public class MockRepository extends FsRepository {
                     int i = 0;
                     return ((bytes[i++] & 0xFF) << 24) | ((bytes[i++] & 0xFF) << 16)
                             | ((bytes[i++] & 0xFF) << 8) | (bytes[i++] & 0xFF);
-                } catch (NoSuchAlgorithmException ex) {
-                    throw new ElasticsearchException("cannot calculate hashcode", ex);
-                } catch (UnsupportedEncodingException ex) {
+                } catch (NoSuchAlgorithmException | UnsupportedEncodingException ex) {
                     throw new ElasticsearchException("cannot calculate hashcode", ex);
                 }
             }
@@ -274,12 +292,6 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void deleteBlobsByFilter(BlobNameFilter filter) throws IOException {
-                maybeIOExceptionOrBlock("");
-                super.deleteBlobsByFilter(filter);
-            }
-
-            @Override
             public ImmutableMap<String, BlobMetaData> listBlobs() throws IOException {
                 maybeIOExceptionOrBlock("");
                 return super.listBlobs();
@@ -289,6 +301,12 @@ public class MockRepository extends FsRepository {
             public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
                 maybeIOExceptionOrBlock(blobNamePrefix);
                 return super.listBlobsByPrefix(blobNamePrefix);
+            }
+
+            @Override
+            public void move(String sourceBlob, String targetBlob) throws IOException {
+                maybeIOExceptionOrBlock(targetBlob);
+                super.move(sourceBlob, targetBlob);
             }
 
             @Override

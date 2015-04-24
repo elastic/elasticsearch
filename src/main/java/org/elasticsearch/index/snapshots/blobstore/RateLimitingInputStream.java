@@ -46,7 +46,7 @@ public class RateLimitingInputStream extends FilterInputStream {
         this.listener = listener;
     }
 
-    private void maybePause(int bytes) {
+    private void maybePause(int bytes) throws IOException {
         bytesSinceLastRateLimit += bytes;
         if (bytesSinceLastRateLimit >= rateLimiter.getMinPauseCheckBytes()) {
             long pause = rateLimiter.pause(bytesSinceLastRateLimit);

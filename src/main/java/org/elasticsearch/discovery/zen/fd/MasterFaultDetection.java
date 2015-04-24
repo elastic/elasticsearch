@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.zen.NotMasterException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -76,7 +77,7 @@ public class MasterFaultDetection extends FaultDetection {
 
         logger.debug("[master] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
 
-        transportService.registerHandler(MASTER_PING_ACTION_NAME, new MasterPingRequestHandler());
+        transportService.registerRequestHandler(MASTER_PING_ACTION_NAME, MasterPingRequest.class, ThreadPool.Names.SAME, new MasterPingRequestHandler());
     }
 
     public DiscoveryNode masterNode() {
@@ -153,6 +154,7 @@ public class MasterFaultDetection extends FaultDetection {
         this.masterNode = null;
     }
 
+    @Override
     public void close() {
         super.close();
         stop("closing");
@@ -255,11 +257,11 @@ public class MasterFaultDetection extends FaultDetection {
                                     if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
                                         handleTransportDisconnect(masterToPing);
                                         return;
-                                    } else if (exp.getCause() instanceof NoLongerMasterException) {
+                                    } else if (exp.getCause() instanceof NotMasterException) {
                                         logger.debug("[master] pinging a master {} that is no longer a master", masterNode);
                                         notifyMasterFailure(masterToPing, "no longer master");
                                         return;
-                                    } else if (exp.getCause() instanceof NotMasterException) {
+                                    } else if (exp.getCause() instanceof ThisIsNotTheMasterYouAreLookingForException) {
                                         logger.debug("[master] pinging a master {} that is not the master", masterNode);
                                         notifyMasterFailure(masterToPing, "not master");
                                         return;
@@ -292,20 +294,14 @@ public class MasterFaultDetection extends FaultDetection {
         }
     }
 
-    static class NoLongerMasterException extends ElasticsearchIllegalStateException {
-        @Override
-        public Throwable fillInStackTrace() {
-            return null;
-        }
-    }
+    /** Thrown when a ping reaches the wrong node */
+    static class ThisIsNotTheMasterYouAreLookingForException extends ElasticsearchIllegalStateException {
 
-    static class NotMasterException extends ElasticsearchIllegalStateException {
-
-        NotMasterException(String msg) {
+        ThisIsNotTheMasterYouAreLookingForException(String msg) {
             super(msg);
         }
 
-        NotMasterException() {
+        ThisIsNotTheMasterYouAreLookingForException() {
         }
 
         @Override
@@ -321,12 +317,7 @@ public class MasterFaultDetection extends FaultDetection {
         }
     }
 
-    private class MasterPingRequestHandler extends BaseTransportRequestHandler<MasterPingRequest> {
-
-        @Override
-        public MasterPingRequest newInstance() {
-            return new MasterPingRequest();
-        }
+    private class MasterPingRequestHandler implements TransportRequestHandler<MasterPingRequest> {
 
         @Override
         public void messageReceived(final MasterPingRequest request, final TransportChannel channel) throws Exception {
@@ -334,13 +325,13 @@ public class MasterFaultDetection extends FaultDetection {
             // check if we are really the same master as the one we seemed to be think we are
             // this can happen if the master got "kill -9" and then another node started using the same port
             if (!request.masterNodeId.equals(nodes.localNodeId())) {
-                throw new NotMasterException();
+                throw new ThisIsNotTheMasterYouAreLookingForException();
             }
 
             // ping from nodes of version < 1.4.0 will have the clustername set to null
             if (request.clusterName != null && !request.clusterName.equals(clusterName)) {
                 logger.trace("master fault detection ping request is targeted for a different [{}] cluster then us [{}]", request.clusterName, clusterName);
-                throw new NotMasterException("master fault detection ping request is targeted for a different [" + request.clusterName + "] cluster then us [" + clusterName + "]");
+                throw new ThisIsNotTheMasterYouAreLookingForException("master fault detection ping request is targeted for a different [" + request.clusterName + "] cluster then us [" + clusterName + "]");
             }
 
             // when we are elected as master or when a node joins, we use a cluster state update thread
@@ -360,7 +351,7 @@ public class MasterFaultDetection extends FaultDetection {
                         // if we are no longer master, fail...
                         DiscoveryNodes nodes = currentState.nodes();
                         if (!nodes.localNodeMaster()) {
-                            throw new NoLongerMasterException();
+                            throw new NotMasterException();
                         }
                         if (!nodes.nodeExists(request.nodeId)) {
                             throw new NodeDoesNotExistOnMasterException();
@@ -394,11 +385,6 @@ public class MasterFaultDetection extends FaultDetection {
                 channel.sendResponse(new MasterPingResponseResponse());
             }
         }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
     }
 
 
@@ -423,9 +409,7 @@ public class MasterFaultDetection extends FaultDetection {
             super.readFrom(in);
             nodeId = in.readString();
             masterNodeId = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-                clusterName = ClusterName.readClusterName(in);
-            }
+            clusterName = ClusterName.readClusterName(in);
         }
 
         @Override
@@ -433,9 +417,7 @@ public class MasterFaultDetection extends FaultDetection {
             super.writeTo(out);
             out.writeString(nodeId);
             out.writeString(masterNodeId);
-            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-                clusterName.writeTo(out);
-            }
+            clusterName.writeTo(out);
         }
     }
 

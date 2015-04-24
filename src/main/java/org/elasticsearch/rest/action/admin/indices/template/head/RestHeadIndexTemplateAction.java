@@ -46,6 +46,7 @@ public class RestHeadIndexTemplateAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(request.param("name"));
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
+        getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));
         client.admin().indices().getTemplates(getIndexTemplatesRequest, new RestResponseListener<GetIndexTemplatesResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetIndexTemplatesResponse getIndexTemplatesResponse) {

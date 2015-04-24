@@ -19,12 +19,8 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.text.BytesText;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -92,13 +88,8 @@ public class StringTerms extends InternalTerms {
         }
 
         @Override
-        public String getKey() {
-            return termBytes.utf8ToString();
-        }
-
-        @Override
-        public Text getKeyAsText() {
-            return new BytesText(new BytesArray(termBytes));
+        public Object getKey() {
+            return getKeyAsString();
         }
 
         @Override
@@ -108,13 +99,13 @@ public class StringTerms extends InternalTerms {
         }
 
         @Override
-        int compareTerm(Terms.Bucket other) {
-            return BytesRef.getUTF8SortedAsUnicodeComparator().compare(termBytes, ((Bucket) other).termBytes);
+        public String getKeyAsString() {
+            return termBytes.utf8ToString();
         }
 
         @Override
-        Object getKeyAsObject() {
-            return getKeyAsText();
+        int compareTerm(Terms.Bucket other) {
+            return BytesRef.getUTF8SortedAsUnicodeComparator().compare(termBytes, ((Bucket) other).termBytes);
         }
 
         @Override
@@ -127,7 +118,7 @@ public class StringTerms extends InternalTerms {
             termBytes = in.readBytesRef();
             docCount = in.readVLong();
             docCountError = -1;
-            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1) && showDocCountError) {
+            if (showDocCountError) {
                 docCountError = in.readLong();
             }
             aggregations = InternalAggregations.readAggregations(in);
@@ -137,7 +128,7 @@ public class StringTerms extends InternalTerms {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBytesRef(termBytes);
             out.writeVLong(getDocCount());
-            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1) && showDocCountError) {
+            if (showDocCountError) {
                 out.writeLong(docCountError);
             }
             aggregations.writeTo(out);
@@ -175,24 +166,13 @@ public class StringTerms extends InternalTerms {
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            this.docCountError = in.readLong();
-        } else {
-            this.docCountError = -1;
-        }
+        this.docCountError = in.readLong();
         this.order = InternalOrder.Streams.readOrder(in);
         this.requiredSize = readSize(in);
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            this.shardSize = readSize(in);
-            this.showTermDocCountError = in.readBoolean();
-        } else {
-            this.shardSize = requiredSize;
-            this.showTermDocCountError = false;
-        }
+        this.shardSize = readSize(in);
+        this.showTermDocCountError = in.readBoolean();
         this.minDocCount = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
-            this.otherDocCount = in.readVLong();
-        }
+        this.otherDocCount = in.readVLong();
         int size = in.readVInt();
         List<InternalTerms.Bucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -206,19 +186,13 @@ public class StringTerms extends InternalTerms {
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeLong(docCountError);
-        }
+        out.writeLong(docCountError);
         InternalOrder.Streams.writeOrder(order, out);
         writeSize(requiredSize, out);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            writeSize(shardSize, out);
-            out.writeBoolean(showTermDocCountError);
-        }
+        writeSize(shardSize, out);
+        out.writeBoolean(showTermDocCountError);
         out.writeVLong(minDocCount);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
-            out.writeVLong(otherDocCount);
-        }
+        out.writeVLong(otherDocCount);
         out.writeVInt(buckets.size());
         for (InternalTerms.Bucket bucket : buckets) {
             bucket.writeTo(out);

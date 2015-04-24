@@ -5,7 +5,7 @@
                 "born" : {
                     "gte": "2012-01-01",
                     "lte": "now",
-                    "time_zone": "+1:00"
+                    "time_zone": "+01:00"
                 }
             }
         }

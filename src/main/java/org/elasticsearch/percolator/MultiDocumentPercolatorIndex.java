@@ -65,10 +65,11 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
             } else {
                 memoryIndex = new MemoryIndex(true);
             }
-            memoryIndices[i] = indexDoc(d, parsedDocument.analyzer(), memoryIndex).createSearcher().getIndexReader();
+            Analyzer analyzer = context.mapperService().documentMapper(parsedDocument.type()).mappers().indexAnalyzer();
+            memoryIndices[i] = indexDoc(d, analyzer, memoryIndex).createSearcher().getIndexReader();
         }
-        MultiReader mReader = new MultiReader(memoryIndices, true);
         try {
+            MultiReader mReader = new MultiReader(memoryIndices, true);
             LeafReader slowReader = SlowCompositeReaderWrapper.wrap(mReader);
             DocSearcher docSearcher = new DocSearcher(new IndexSearcher(slowReader), rootDocMemoryIndex);
             context.initialize(docSearcher, parsedDocument);
@@ -96,35 +97,19 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
         return memoryIndex;
     }
 
-    private class DocSearcher implements Engine.Searcher {
+    private class DocSearcher extends Engine.Searcher {
 
-        private final IndexSearcher searcher;
         private final MemoryIndex rootDocMemoryIndex;
 
         private DocSearcher(IndexSearcher searcher, MemoryIndex rootDocMemoryIndex) {
-            this.searcher = searcher;
+            super("percolate", searcher);
             this.rootDocMemoryIndex = rootDocMemoryIndex;
-        }
-
-        @Override
-        public String source() {
-            return "percolate";
-        }
-
-        @Override
-        public IndexReader reader() {
-            return searcher.getIndexReader();
-        }
-
-        @Override
-        public IndexSearcher searcher() {
-            return searcher;
         }
 
         @Override
         public void close() throws ElasticsearchException {
             try {
-                searcher.getIndexReader().close();
+                this.reader().close();
                 rootDocMemoryIndex.reset();
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to close IndexReader in percolator with nested doc", e);

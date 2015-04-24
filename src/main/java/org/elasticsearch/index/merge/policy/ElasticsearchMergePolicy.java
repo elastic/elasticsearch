@@ -19,24 +19,15 @@
 
 package org.elasticsearch.index.merge.policy;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.packed.GrowableWriter;
-import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -57,7 +48,13 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
     private static ESLogger logger = Loggers.getLogger(ElasticsearchMergePolicy.class);
 
     private final MergePolicy delegate;
+
+    // True if the next merge request should do segment upgrades:
     private volatile boolean upgradeInProgress;
+
+    // True if the next merge request should only upgrade ancient (an older Lucene major version than current) segments;
+    private volatile boolean upgradeOnlyAncientSegments;
+
     private static final int MAX_CONCURRENT_UPGRADE_MERGES = 5;
 
     /** @param delegate the merge policy to wrap */
@@ -66,93 +63,12 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
     }
 
     /** Return an "upgraded" view of the reader. */
-    static LeafReader filter(LeafReader reader) throws IOException {
-        final FieldInfos fieldInfos = reader.getFieldInfos();
-        final FieldInfo versionInfo = fieldInfos.fieldInfo(VersionFieldMapper.NAME);
-        if (versionInfo != null && versionInfo.getDocValuesType() != DocValuesType.NONE) {
-            // the reader is a recent one, it has versions and they are stored
-            // in a numeric doc values field
-            return reader;
-        }
-        // The segment is an old one, load all versions in memory and hide
-        // them behind a numeric doc values field
-        final Terms terms = reader.terms(UidFieldMapper.NAME);
-        if (terms == null || !terms.hasPayloads()) {
-            // The segment doesn't have an _uid field or doesn't have paylods
-            // don't try to do anything clever. If any other segment has versions
-            // all versions of this segment will be initialized to 0
-            return reader;
-        }
-        final TermsEnum uids = terms.iterator(null);
-        final GrowableWriter versions = new GrowableWriter(2, reader.maxDoc(), PackedInts.DEFAULT);
-        DocsAndPositionsEnum dpe = null;
-        for (BytesRef uid = uids.next(); uid != null; uid = uids.next()) {
-            dpe = uids.docsAndPositions(reader.getLiveDocs(), dpe, DocsAndPositionsEnum.FLAG_PAYLOADS);
-            assert dpe != null : "field has payloads";
-            for (int doc = dpe.nextDoc(); doc != DocsEnum.NO_MORE_DOCS; doc = dpe.nextDoc()) {
-                dpe.nextPosition();
-                final BytesRef payload = dpe.getPayload();
-                if (payload != null && payload.length == 8) {
-                    final long version = Numbers.bytesToLong(payload);
-                    versions.set(doc, version);
-                    break;
-                }
-            }
-        }
-        // Build new field infos, doc values, and return a filter reader
-        final FieldInfo newVersionInfo;
-        if (versionInfo == null) {
-            // Find a free field number
-            int fieldNumber = 0;
-            for (FieldInfo fi : fieldInfos) {
-                fieldNumber = Math.max(fieldNumber, fi.number + 1);
-            }
-            // TODO: lots of things can wrong here...
-            newVersionInfo = new FieldInfo(VersionFieldMapper.NAME,               // field name
-                                           fieldNumber,                           // field number
-                                           false,                                 // store term vectors
-                                           false,                                 // omit norms
-                                           false,                                 // store payloads
-                                           IndexOptions.NONE,                     // index options
-                                           DocValuesType.NUMERIC,                 // docvalues
-                                           -1,                                    // docvalues generation
-                                           Collections.<String, String>emptyMap() // attributes
-                                           );
-        } else {
-            newVersionInfo = versionInfo;
-        }
-        newVersionInfo.checkConsistency(); // fail merge immediately if above code is wrong
-        final ArrayList<FieldInfo> fieldInfoList = new ArrayList<>();
-        for (FieldInfo info : fieldInfos) {
-            if (info != versionInfo) {
-                fieldInfoList.add(info);
-            }
-        }
-        fieldInfoList.add(newVersionInfo);
-        final FieldInfos newFieldInfos = new FieldInfos(fieldInfoList.toArray(new FieldInfo[fieldInfoList.size()]));
-        final NumericDocValues versionValues = new NumericDocValues() {
-            @Override
-            public long get(int index) {
-                return versions.get(index);
-            }
-        };
-        return new FilterLeafReader(reader) {
-            @Override
-            public FieldInfos getFieldInfos() {
-                return newFieldInfos;
-            }
-            @Override
-            public NumericDocValues getNumericDocValues(String field) throws IOException {
-                if (VersionFieldMapper.NAME.equals(field)) {
-                    return versionValues;
-                }
-                return super.getNumericDocValues(field);
-            }
-            @Override
-            public Bits getDocsWithField(String field) throws IOException {
-                return new Bits.MatchAllBits(in.maxDoc());
-            }
-        };
+    static CodecReader filter(CodecReader reader) throws IOException {
+        // convert 0.90.x _uid payloads to _version docvalues if needed
+        reader = VersionFieldUpgrader.wrap(reader);
+        // TODO: remove 0.90.x/1.x freqs/prox/payloads from _uid? 
+        // the previous code never did this, so some indexes carry around trash.
+        return reader;
     }
 
     static class IndexUpgraderOneMerge extends OneMerge {
@@ -162,13 +78,12 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
         }
 
         @Override
-        public List<LeafReader> getMergeReaders() throws IOException {
-            final List<LeafReader> readers = super.getMergeReaders();
-            ImmutableList.Builder<LeafReader> newReaders = ImmutableList.builder();
-            for (LeafReader reader : readers) {
+        public List<CodecReader> getMergeReaders() throws IOException {
+            final List<CodecReader> newReaders = new ArrayList<>();
+            for (CodecReader reader : super.getMergeReaders()) {
                 newReaders.add(filter(reader));
             }
-            return newReaders.build();
+            return newReaders;
         }
 
     }
@@ -204,6 +119,26 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
         return upgradedMergeSpecification(delegate.findMerges(mergeTrigger, segmentInfos, writer));
     }
 
+    private boolean shouldUpgrade(SegmentCommitInfo info) {
+        org.apache.lucene.util.Version old = info.info.getVersion();
+        org.apache.lucene.util.Version cur = Version.CURRENT.luceneVersion;
+
+        // Something seriously wrong if this trips:
+        assert old.major <= cur.major;
+
+        if (cur.major > old.major) {
+            // Always upgrade segment if Lucene's major version is too old
+            return true;
+        }
+        if (upgradeOnlyAncientSegments == false && cur.minor > old.minor) {
+            // If it's only a minor version difference, and we are not upgrading only ancient segments,
+            // also upgrade:
+            return true;
+        }
+        // Version matches, or segment is not ancient and we are only upgrading ancient segments:
+        return false;
+    }
+
     @Override
     public MergeSpecification findForcedMerges(SegmentInfos segmentInfos,
         int maxSegmentCount, Map<SegmentCommitInfo,Boolean> segmentsToMerge, IndexWriter writer)
@@ -212,27 +147,35 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
         if (upgradeInProgress) {
             MergeSpecification spec = new IndexUpgraderMergeSpecification();
             for (SegmentCommitInfo info : segmentInfos) {
-                org.apache.lucene.util.Version old = info.info.getVersion();
-                org.apache.lucene.util.Version cur = Version.CURRENT.luceneVersion;
-                if (cur.major > old.major ||
-                    cur.major == old.major && cur.minor > old.minor) {
+
+                if (shouldUpgrade(info)) {
+
                     // TODO: Use IndexUpgradeMergePolicy instead.  We should be comparing codecs,
                     // for now we just assume every minor upgrade has a new format.
                     logger.debug("Adding segment " + info.info.name + " to be upgraded");
                     spec.add(new OneMerge(Lists.newArrayList(info)));
                 }
+
+                // TODO: we could check IndexWriter.getMergingSegments and avoid adding merges that IW will just reject?
+
                 if (spec.merges.size() == MAX_CONCURRENT_UPGRADE_MERGES) {
                     // hit our max upgrades, so return the spec.  we will get a cascaded call to continue.
                     logger.debug("Returning " + spec.merges.size() + " merges for upgrade");
                     return spec;
                 }
             }
+
             // We must have less than our max upgrade merges, so the next return will be our last in upgrading mode.
-            upgradeInProgress = false;
             if (spec.merges.isEmpty() == false) {
-                logger.debug("Return " + spec.merges.size() + " merges for end of upgrade");
+                logger.debug("Returning " + spec.merges.size() + " merges for end of upgrade");
                 return spec;
             }
+
+            // Only set this once there are 0 segments needing upgrading, because when we return a
+            // spec, IndexWriter may (silently!) reject that merge if some of the segments we asked
+            // to be merged were already being (naturally) merged:
+            upgradeInProgress = false;
+
             // fall through, so when we don't have any segments to upgrade, the delegate policy
             // has a chance to decide what to do (e.g. collapse the segments to satisfy maxSegmentCount)
         }
@@ -257,8 +200,9 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
      * {@link IndexWriter#forceMerge} that is handled by this {@link MergePolicy}, as well as
      * cascading calls made by {@link IndexWriter}.
      */
-    public void setUpgradeInProgress(boolean upgrade) {
+    public void setUpgradeInProgress(boolean upgrade, boolean onlyAncientSegments) {
         this.upgradeInProgress = upgrade;
+        this.upgradeOnlyAncientSegments = onlyAncientSegments;
     }
 
     @Override

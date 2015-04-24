@@ -88,7 +88,6 @@ public class ManyMappingsBenchmark {
         System.setProperty("es.logger.prefix", "");
         Natives.tryMlockall();
         Settings settings = settingsBuilder()
-                .put("gateway.type", "local")
                 .put(SETTING_NUMBER_OF_SHARDS, 5)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();

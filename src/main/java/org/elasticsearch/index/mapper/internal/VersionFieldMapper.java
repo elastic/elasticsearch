@@ -22,14 +22,19 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.InternalMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
@@ -55,20 +60,13 @@ public class VersionFieldMapper extends AbstractFieldMapper<Long> implements Int
 
     public static class Builder extends Mapper.Builder<Builder, VersionFieldMapper> {
 
-        DocValuesFormatProvider docValuesFormat;
-
         public Builder() {
             super(Defaults.NAME);
         }
 
         @Override
         public VersionFieldMapper build(BuilderContext context) {
-            return new VersionFieldMapper(docValuesFormat);
-        }
-
-        public Builder docValuesFormat(DocValuesFormatProvider docValuesFormat) {
-            this.docValuesFormat = docValuesFormat;
-            return this;
+            return new VersionFieldMapper(context.indexSettings());
         }
     }
 
@@ -80,9 +78,8 @@ public class VersionFieldMapper extends AbstractFieldMapper<Long> implements Int
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
-                if (fieldName.equals(DOC_VALUES_FORMAT)) {
-                    String docValuesFormatName = fieldNode.toString();
-                    builder.docValuesFormat(parserContext.docValuesFormatService().get(docValuesFormatName));
+                if (fieldName.equals(DOC_VALUES_FORMAT) && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                    // ignore in 1.x, reject in 2.x
                     iterator.remove();
                 }
             }
@@ -97,12 +94,8 @@ public class VersionFieldMapper extends AbstractFieldMapper<Long> implements Int
         }
     };
 
-    public VersionFieldMapper() {
-        this(null);
-    }
-
-    VersionFieldMapper(DocValuesFormatProvider docValuesFormat) {
-        super(new Names(NAME, NAME, NAME, NAME), Defaults.BOOST, Defaults.FIELD_TYPE, null, null, null, null, docValuesFormat, null, null, null, ImmutableSettings.EMPTY);
+    public VersionFieldMapper(Settings indexSettings) {
+        super(new Names(NAME, NAME, NAME, NAME), Defaults.BOOST, Defaults.FIELD_TYPE, true, null, null, null, null, null, indexSettings);
     }
 
     @Override
@@ -119,8 +112,9 @@ public class VersionFieldMapper extends AbstractFieldMapper<Long> implements Int
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public Mapper parse(ParseContext context) throws IOException {
         // _version added in preparse
+        return null;
     }
 
     @Override
@@ -164,47 +158,16 @@ public class VersionFieldMapper extends AbstractFieldMapper<Long> implements Int
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-
-        if (!includeDefaults && (docValuesFormat == null || docValuesFormat.name().equals(defaultDocValuesFormat()))) {
-            return builder;
-        }
-
-        builder.startObject(CONTENT_TYPE);
-        if (docValuesFormat != null) {
-            if (includeDefaults || !docValuesFormat.name().equals(defaultDocValuesFormat())) {
-                builder.field(DOC_VALUES_FORMAT, docValuesFormat.name());
-            }
-        } else {
-            String format = defaultDocValuesFormat();
-            if (format == null) {
-                format = DocValuesFormatService.DEFAULT_FORMAT;
-            }
-            builder.field(DOC_VALUES_FORMAT, format);
-        }
-
-        builder.endObject();
         return builder;
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        if (mergeContext.mergeFlags().simulate()) {
-            return;
-        }
-        AbstractFieldMapper<?> fieldMergeWith = (AbstractFieldMapper<?>) mergeWith;
-        if (fieldMergeWith.docValuesFormatProvider() != null) {
-            this.docValuesFormat = fieldMergeWith.docValuesFormatProvider();
-        }
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+        // nothing to do
     }
 
     @Override
     public void close() {
         fieldCache.remove();
-    }
-
-    @Override
-    public boolean hasDocValues() {
-        return true;
     }
 }

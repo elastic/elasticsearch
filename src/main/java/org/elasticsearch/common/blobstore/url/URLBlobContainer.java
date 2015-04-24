@@ -73,6 +73,19 @@ public class URLBlobContainer extends AbstractBlobContainer {
      * This operation is not supported by URLBlobContainer
      */
     @Override
+    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
+        throw new UnsupportedOperationException("URL repository doesn't support this operation");
+    }
+
+    @Override
+    public void move(String from, String to) throws IOException {
+        throw new UnsupportedOperationException("URL repository doesn't support this operation");
+    }
+
+    /**
+     * This operation is not supported by URLBlobContainer
+     */
+    @Override
     public void deleteBlob(String blobName) throws IOException {
         throw new UnsupportedOperationException("URL repository is read only");
     }

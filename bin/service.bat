@@ -13,7 +13,7 @@ if not exist "%JAVA_HOME%\bin\java.exe" (
 echo JAVA_HOME points to an invalid Java installation (no java.exe found in "%JAVA_HOME%"^). Exiting...
 goto:eof
 )
-"%JAVA_HOME%\bin\java" -version 2>&1 | find "64-Bit" >nul:
+"%JAVA_HOME%\bin\java" -version 2>&1 | "%windir%\System32\find" "64-Bit" >nul:
 
 if errorlevel 1 goto x86
 set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x64.exe
@@ -118,8 +118,8 @@ goto:eof
 )
 
 :foundJVM
-if "%ES_MIN_MEM%" == "" set ES_MIN_MEM=256m
-if "%ES_MAX_MEM%" == "" set ES_MAX_MEM=1g
+if "%ES_MIN_MEM%" == "" set ES_MIN_MEM=${packaging.elasticsearch.heap.min}
+if "%ES_MAX_MEM%" == "" set ES_MAX_MEM=${packaging.elasticsearch.heap.max}
 
 if NOT "%ES_HEAP_SIZE%" == "" set ES_MIN_MEM=%ES_HEAP_SIZE%
 if NOT "%ES_HEAP_SIZE%" == "" set ES_MAX_MEM=%ES_HEAP_SIZE%

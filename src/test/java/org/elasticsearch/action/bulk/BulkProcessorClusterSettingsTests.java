@@ -48,7 +48,7 @@ public class BulkProcessorClusterSettingsTests extends ElasticsearchIntegrationT
         assertEquals(3, responses.length);
         assertFalse("Operation on existing index should succeed", responses[0].isFailed());
         assertTrue("Missing index should have been flagged", responses[1].isFailed());
-        assertEquals("IndexMissingException[[wontwork] missing]", responses[1].getFailureMessage());
+        assertEquals("[wontwork] no such index", responses[1].getFailureMessage());
         assertFalse("Operation on existing index should succeed", responses[2].isFailed());
     }
 }

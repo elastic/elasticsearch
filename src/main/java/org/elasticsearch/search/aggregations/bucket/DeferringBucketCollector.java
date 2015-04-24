@@ -21,108 +21,111 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
-import org.elasticsearch.search.aggregations.FilteringBucketCollector;
-import org.elasticsearch.search.aggregations.RecordingBucketCollector;
-import org.elasticsearch.search.aggregations.RecordingPerReaderBucketCollector;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
 
 /**
- * Buffers the matches in a collect stream and can replay a subset of the collected buckets
- * to a deferred set of collectors.
- * The rationale for not bundling all this logic into {@link RecordingBucketCollector} is to allow
- * the possibility of alternative recorder impl choices while keeping the logic in here for
- * setting {@link AggregationContext}'s setNextReader method and preparing the appropriate choice 
- * of filtering logic for stream replay. These felt like agg-specific functions that should be kept away
- * from the {@link RecordingBucketCollector} impl which is concentrated on efficient storage of doc and bucket IDs  
+ * A {@link BucketCollector} that records collected doc IDs and buckets and
+ * allows to replay a subset of the collected buckets.
  */
-public class DeferringBucketCollector extends BucketCollector implements Releasable {
-    
-    private final BucketCollector deferred;
-    private final RecordingBucketCollector recording;
-    private final AggregationContext context;
-    private FilteringBucketCollector filteredCollector;
+public abstract class DeferringBucketCollector extends BucketCollector {
 
+    private BucketCollector collector;
+    /** Sole constructor. */
+    public DeferringBucketCollector() {}
 
-    public DeferringBucketCollector (BucketCollector deferred, AggregationContext context) {
-        this.deferred = deferred;
-        this.recording = new RecordingPerReaderBucketCollector(context);
-        this.context = context;
-    }
-
-    @Override
-    public void setNextReader(LeafReaderContext reader) {
-        recording.setNextReader(reader);
-    }
-
-    @Override
-    public void collect(int docId, long bucketOrdinal) throws IOException {
-        recording.collect(docId, bucketOrdinal);
-    }
-
-    @Override
-    public void postCollection() throws IOException {
-        recording.postCollection();
+    /** Set the deferred collectors. */
+    public void setDeferredCollector(Iterable<BucketCollector> deferredCollectors) {
+        this.collector = BucketCollector.wrap(deferredCollectors);
     }
     
+
+    public final void replay(long... selectedBuckets) throws IOException
+    {
+        prepareSelectedBuckets(selectedBuckets);
+    }
+
+    public abstract void prepareSelectedBuckets(long... selectedBuckets) throws IOException;
+
     /**
-     * Plays a selection of the data cached from previous collect calls to the
-     * deferred collector.
-     * 
-     * @param survivingBucketOrds
-     *            the valid bucket ords for which deferred collection should be
-     *            attempted
+     * Wrap the provided aggregator so that it behaves (almost) as if it had
+     * been collected directly.
      */
-    public void prepareSelectedBuckets(long... survivingBucketOrds) {
-        
-        BucketCollector subs = new BucketCollector() {
-            @Override
-            public void setNextReader(LeafReaderContext reader) {
-                // Need to set AggregationContext otherwise ValueSources in aggs
-                // don't read any values
-              context.setNextReader(reader);
-              deferred.setNextReader(reader);
-            }
+    public Aggregator wrap(final Aggregator in) {
+        return new WrappedAggregator(in);
+    }
 
-            @Override
-            public void collect(int docId, long bucketOrdinal) throws IOException {
-                deferred.collect(docId, bucketOrdinal);
-            }
+    protected class WrappedAggregator extends Aggregator {
+        private Aggregator in;
 
-            @Override
-            public void postCollection() throws IOException {
-                deferred.postCollection();
-            }
-
-            @Override
-            public void gatherAnalysis(BucketAnalysisCollector results, long bucketOrdinal) {
-                deferred.gatherAnalysis(results, bucketOrdinal);
-            }
-        };
-
-        filteredCollector = new FilteringBucketCollector(survivingBucketOrds, subs, context.bigArrays());
-        try {
-            recording.replayCollection(filteredCollector);
-        } catch (IOException e) {
-            throw new QueryPhaseExecutionException(context.searchContext(), "Failed to replay deferred set of matching docIDs", e);
+        WrappedAggregator(Aggregator in) {
+            this.in = in;
         }
-    }
 
-    
+        @Override
+        public boolean needsScores() {
+            return in.needsScores();
+        }
 
-    @Override
-    public void close() throws ElasticsearchException {
-        Releasables.close(recording, filteredCollector);
-    }
+        @Override
+        public void close() throws ElasticsearchException {
+            in.close();
+        }
 
-    @Override
-    public void gatherAnalysis(BucketAnalysisCollector analysisCollector, long bucketOrdinal)  {
-        filteredCollector.gatherAnalysis(analysisCollector, bucketOrdinal);
+        @Override
+        public String name() {
+            return in.name();
+        }
+
+        @Override
+        public Aggregator parent() {
+            return in.parent();
+        }
+
+        @Override
+        public AggregationContext context() {
+            return in.context();
+        }
+
+        @Override
+        public Aggregator subAggregator(String name) {
+            return in.subAggregator(name);
+        }
+
+        @Override
+        public InternalAggregation buildAggregation(long bucket) throws IOException {
+            return in.buildAggregation(bucket);
+        }
+
+        @Override
+        public InternalAggregation buildEmptyAggregation() {
+            return in.buildEmptyAggregation();
+        }
+
+        @Override
+        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+            throw new ElasticsearchIllegalStateException(
+                    "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
+        }
+
+        @Override
+        public void preCollection() throws IOException {
+            throw new ElasticsearchIllegalStateException(
+                    "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
+        }
+
+        @Override
+        public void postCollection() throws IOException {
+            throw new ElasticsearchIllegalStateException(
+                    "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
+        }
+
     }
 
 }

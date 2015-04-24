@@ -23,7 +23,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -40,6 +39,7 @@ import static org.hamcrest.Matchers.sameInstance;
  */
 public class StatsTests extends AbstractNumericTests {
 
+    @Override
     @Test
     public void testEmptyAggregation() throws Exception {
 
@@ -53,7 +53,7 @@ public class StatsTests extends AbstractNumericTests {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
-        Histogram.Bucket bucket = histo.getBucketByKey(1l);
+        Histogram.Bucket bucket = histo.getBuckets().get(1);
         assertThat(bucket, notNullValue());
 
         Stats stats = bucket.getAggregations().get("stats");
@@ -66,6 +66,7 @@ public class StatsTests extends AbstractNumericTests {
         assertThat(Double.isNaN(stats.getAvg()), is(true));
     }
 
+    @Override
     @Test
     public void testUnmapped() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
@@ -87,6 +88,7 @@ public class StatsTests extends AbstractNumericTests {
         assertThat(stats.getCount(), equalTo(0l));
     }
 
+    @Override
     @Test
     public void testSingleValuedField() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -108,6 +110,29 @@ public class StatsTests extends AbstractNumericTests {
         assertThat(stats.getCount(), equalTo(10l));
     }
 
+    public void testSingleValuedField_WithFormatter() throws Exception {
+
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(stats("stats").format("0000.0").field("value")).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+
+        Stats stats = searchResponse.getAggregations().get("stats");
+        assertThat(stats, notNullValue());
+        assertThat(stats.getName(), equalTo("stats"));
+        assertThat(stats.getAvg(), equalTo((double) (1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10) / 10));
+        assertThat(stats.getAvgAsString(), equalTo("0005.5"));
+        assertThat(stats.getMin(), equalTo(1.0));
+        assertThat(stats.getMinAsString(), equalTo("0001.0"));
+        assertThat(stats.getMax(), equalTo(10.0));
+        assertThat(stats.getMaxAsString(), equalTo("0010.0"));
+        assertThat(stats.getSum(), equalTo((double) 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10));
+        assertThat(stats.getSumAsString(), equalTo("0055.0"));
+        assertThat(stats.getCount(), equalTo(10l));
+        assertThat(stats.getCountAsString(), equalTo("0010.0"));
+    }
+
+    @Override
     @Test
     public void testSingleValuedField_getProperty() throws Exception {
 
@@ -146,6 +171,7 @@ public class StatsTests extends AbstractNumericTests {
         assertThat((double) global.getProperty("stats.count"), equalTo((double) expectedCountValue));
     }
 
+    @Override
     @Test
     public void testSingleValuedField_PartiallyUnmapped() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
@@ -167,6 +193,7 @@ public class StatsTests extends AbstractNumericTests {
         assertThat(stats.getCount(), equalTo(10l));
     }
 
+    @Override
     @Test
     public void testSingleValuedField_WithValueScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -188,6 +215,7 @@ public class StatsTests extends AbstractNumericTests {
         assertThat(stats.getCount(), equalTo(10l));
     }
 
+    @Override
     @Test
     public void testSingleValuedField_WithValueScript_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -209,6 +237,7 @@ public class StatsTests extends AbstractNumericTests {
         assertThat(stats.getCount(), equalTo(10l));
     }
 
+    @Override
     @Test
     public void testMultiValuedField() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -230,6 +259,7 @@ public class StatsTests extends AbstractNumericTests {
         assertThat(stats.getCount(), equalTo(20l));
     }
 
+    @Override
     @Test
     public void testMultiValuedField_WithValueScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -251,6 +281,7 @@ public class StatsTests extends AbstractNumericTests {
         assertThat(stats.getCount(), equalTo(20l));
     }
 
+    @Override
     @Test
     public void testMultiValuedField_WithValueScript_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -272,6 +303,7 @@ public class StatsTests extends AbstractNumericTests {
         assertThat(stats.getCount(), equalTo(20l));
     }
 
+    @Override
     @Test
     public void testScript_SingleValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -293,6 +325,7 @@ public class StatsTests extends AbstractNumericTests {
         assertThat(stats.getCount(), equalTo(10l));
     }
 
+    @Override
     @Test
     public void testScript_SingleValued_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -314,8 +347,8 @@ public class StatsTests extends AbstractNumericTests {
         assertThat(stats.getCount(), equalTo(10l));
     }
 
+    @Override
     @Test
-    @TestLogging("search:TRACE")
     public void testScript_ExplicitSingleValued_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
@@ -336,6 +369,7 @@ public class StatsTests extends AbstractNumericTests {
         assertThat(stats.getCount(), equalTo(10l));
     }
 
+    @Override
     @Test
     public void testScript_MultiValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -357,6 +391,7 @@ public class StatsTests extends AbstractNumericTests {
         assertThat(stats.getCount(), equalTo(20l));
     }
 
+    @Override
     @Test
     public void testScript_ExplicitMultiValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -378,6 +413,7 @@ public class StatsTests extends AbstractNumericTests {
         assertThat(stats.getCount(), equalTo(20l));
     }
 
+    @Override
     @Test
     public void testScript_MultiValued_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")

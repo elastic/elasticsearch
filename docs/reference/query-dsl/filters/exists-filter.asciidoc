@@ -74,8 +74,3 @@ no values in the `user` field and thus would not match the `exists` filter:
 { "foo": "bar" }
 --------------------------------------------------
 
-
-[float]
-==== Caching
-
-The result of the filter is always cached.

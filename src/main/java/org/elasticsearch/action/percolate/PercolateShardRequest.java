@@ -110,9 +110,7 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
         source = in.readBytesReference();
         docSource = in.readBytesReference();
         onlyCount = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-            numberOfShards = in.readVInt();
-        }
+        numberOfShards = in.readVInt();
     }
 
     @Override
@@ -122,9 +120,7 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
         out.writeBytesReference(source);
         out.writeBytesReference(docSource);
         out.writeBoolean(onlyCount);
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeVInt(numberOfShards);
-        }
+        out.writeVInt(numberOfShards);
     }
 
 }

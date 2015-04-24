@@ -19,7 +19,6 @@
 
 package org.elasticsearch.explain;
 
-import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.explain.ExplainResponse;
@@ -40,7 +39,7 @@ import java.io.ByteArrayOutputStream;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.queryString;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -262,7 +261,7 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
 
         refresh();
 
-        ExplainResponse explainResponse = client().prepareExplain("test", "type", "1").setQuery(queryString("past:[now-2M/d TO now/d]")).get();
+        ExplainResponse explainResponse = client().prepareExplain("test", "type", "1").setQuery(queryStringQuery("past:[now-2M/d TO now/d]")).get();
         assertThat(explainResponse.isExists(), equalTo(true));
         assertThat(explainResponse.isMatch(), equalTo(true));
     }
@@ -275,7 +274,7 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
     @Test
     public void streamExplainTest() throws Exception {
 
-        Explanation exp = new Explanation((float) 2.0, "some explanation");
+        Explanation exp = Explanation.match(2f, "some explanation");
 
         // write
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
@@ -289,8 +288,7 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
         Explanation result = Lucene.readExplanation(esBuffer);
         assertThat(exp.toString(),equalTo(result.toString()));
 
-        exp = new ComplexExplanation(true, 2.0f, "some explanation");
-        exp.addDetail(new Explanation(2.0f,"another explanation"));
+        exp = Explanation.match(2.0f, "some explanation", Explanation.match(2.0f,"another explanation"));
 
         // write complex
         outBuffer = new ByteArrayOutputStream();

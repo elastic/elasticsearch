@@ -21,6 +21,8 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
@@ -31,6 +33,7 @@ import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
+import java.io.IOException;
 import java.util.Locale;
 
 /**
@@ -438,39 +441,61 @@ public enum MultiValueMode {
      *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      */
-    // TODO: technically innerDocs need not be BitSet: only needs advance() ?
-    public NumericDocValues select(final SortedNumericDocValues values, final long missingValue, final BitSet rootDocs, final BitSet innerDocs, int maxDoc) {
-        if (rootDocs == null || innerDocs == null) {
+    public NumericDocValues select(final SortedNumericDocValues values, final long missingValue, final BitSet rootDocs, final DocIdSet innerDocSet, int maxDoc) throws IOException {
+        if (rootDocs == null || innerDocSet == null) {
             return select(DocValues.emptySortedNumeric(maxDoc), missingValue);
         }
+        final DocIdSetIterator innerDocs = innerDocSet.iterator();
+        if (innerDocs == null) {
+            return select(DocValues.emptySortedNumeric(maxDoc), missingValue);
+        }
+
         return new NumericDocValues() {
+
+            int lastSeenRootDoc = 0;
+            long lastEmittedValue = missingValue;
 
             @Override
             public long get(int rootDoc) {
                 assert rootDocs.get(rootDoc) : "can only sort root documents";
-                if (rootDoc == 0) {
-                    return missingValue;
+                assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
+                // If via compareBottom this method has previously invoked for the same rootDoc then we need to use the
+                // last seen value, because innerDocs can't re-iterate over nested child docs it has already emitted,
+                // because DocIdSetIterator can only advance forwards.
+                if (rootDoc == lastSeenRootDoc) {
+                    return lastEmittedValue;
                 }
-
-                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
-                final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
-
-                long accumulated = startLong();
-                int numValues = 0;
-
-                for (int doc = firstNestedDoc; doc != -1 && doc < rootDoc; doc = innerDocs.nextSetBit(doc + 1)) {
-                    values.setDocument(doc);
-                    final int count = values.count();
-                    for (int i = 0; i < count; ++i) {
-                        final long value = values.valueAt(i);
-                        accumulated = apply(accumulated, value);
+                try {
+                    final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                    final int firstNestedDoc;
+                    if (innerDocs.docID() > prevRootDoc) {
+                        firstNestedDoc = innerDocs.docID();
+                    } else {
+                        firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
                     }
-                    numValues += count;
-                }
 
-                return numValues == 0
-                        ? missingValue
-                        : reduce(accumulated, numValues);
+                    long accumulated = startLong();
+                    int numValues = 0;
+
+                    for (int doc = firstNestedDoc; doc < rootDoc; doc = innerDocs.nextDoc()) {
+                        values.setDocument(doc);
+                        final int count = values.count();
+                        for (int i = 0; i < count; ++i) {
+                            final long value = values.valueAt(i);
+                            accumulated = apply(accumulated, value);
+                        }
+                        numValues += count;
+                    }
+                    lastSeenRootDoc = rootDoc;
+                    if (numValues == 0) {
+                        lastEmittedValue = missingValue;
+                    } else {
+                        lastEmittedValue = reduce(accumulated, numValues);
+                    }
+                    return lastEmittedValue;
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
         };
     }
@@ -531,39 +556,60 @@ public enum MultiValueMode {
      *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      */
-    // TODO: technically innerDocs need not be BitSet: only needs advance() ?
-    public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue, final BitSet rootDocs, final BitSet innerDocs, int maxDoc) {
-        if (rootDocs == null || innerDocs == null) {
+    public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue, final BitSet rootDocs, final DocIdSet innerDocSet, int maxDoc) throws IOException {
+        if (rootDocs == null || innerDocSet == null) {
             return select(FieldData.emptySortedNumericDoubles(maxDoc), missingValue);
         }
+
+        final DocIdSetIterator innerDocs = innerDocSet.iterator();
+        if (innerDocs == null) {
+            return select(FieldData.emptySortedNumericDoubles(maxDoc), missingValue);
+        }
+
         return new NumericDoubleValues() {
+
+            int lastSeenRootDoc = 0;
+            double lastEmittedValue = missingValue;
 
             @Override
             public double get(int rootDoc) {
                 assert rootDocs.get(rootDoc) : "can only sort root documents";
-                if (rootDoc == 0) {
-                    return missingValue;
+                assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
+                if (rootDoc == lastSeenRootDoc) {
+                    return lastEmittedValue;
                 }
-
-                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
-                final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
-
-                double accumulated = startDouble();
-                int numValues = 0;
-
-                for (int doc = firstNestedDoc; doc != -1 && doc < rootDoc; doc = innerDocs.nextSetBit(doc + 1)) {
-                    values.setDocument(doc);
-                    final int count = values.count();
-                    for (int i = 0; i < count; ++i) {
-                        final double value = values.valueAt(i);
-                        accumulated = apply(accumulated, value);
+                try {
+                    final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                    final int firstNestedDoc;
+                    if (innerDocs.docID() > prevRootDoc) {
+                        firstNestedDoc = innerDocs.docID();
+                    } else {
+                        firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
                     }
-                    numValues += count;
-                }
 
-                return numValues == 0
-                        ? missingValue
-                        : reduce(accumulated, numValues);
+                    double accumulated = startDouble();
+                    int numValues = 0;
+
+                    for (int doc = firstNestedDoc; doc > prevRootDoc && doc < rootDoc; doc = innerDocs.nextDoc()) {
+                        values.setDocument(doc);
+                        final int count = values.count();
+                        for (int i = 0; i < count; ++i) {
+                            final double value = values.valueAt(i);
+                            accumulated = apply(accumulated, value);
+                        }
+                        numValues += count;
+                    }
+
+                    lastSeenRootDoc = rootDoc;
+                    if (numValues == 0) {
+                        lastEmittedValue = missingValue;
+                    } else {
+                        lastEmittedValue = reduce(accumulated, numValues);
+                    }
+                    return lastEmittedValue;
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
         };
     }
@@ -615,11 +661,16 @@ public enum MultiValueMode {
      *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      */
-    // TODO: technically innerDocs need not be BitSet: only needs advance() ?
-    public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue, final BitSet rootDocs, final BitSet innerDocs, int maxDoc) {
-        if (rootDocs == null || innerDocs == null) {
+    public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue, final BitSet rootDocs, final DocIdSet innerDocSet, int maxDoc) throws IOException {
+        if (rootDocs == null || innerDocSet == null) {
             return select(FieldData.emptySortedBinary(maxDoc), missingValue);
         }
+
+        final DocIdSetIterator innerDocs = innerDocSet.iterator();
+        if (innerDocs == null) {
+            return select(FieldData.emptySortedBinary(maxDoc), missingValue);
+        }
+
         final BinaryDocValues selectedValues = select(values, new BytesRef());
         final Bits docsWithValue;
         if (FieldData.unwrapSingleton(values) != null) {
@@ -631,35 +682,54 @@ public enum MultiValueMode {
 
             final BytesRefBuilder spare = new BytesRefBuilder();
 
+            int lastSeenRootDoc = 0;
+            BytesRef lastEmittedValue = missingValue;
+
             @Override
             public BytesRef get(int rootDoc) {
                 assert rootDocs.get(rootDoc) : "can only sort root documents";
-                if (rootDoc == 0) {
-                    return missingValue;
+                assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
+                if (rootDoc == lastSeenRootDoc) {
+                    return lastEmittedValue;
                 }
 
-                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
-                final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
+                try {
+                    final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                    final int firstNestedDoc;
+                    if (innerDocs.docID() > prevRootDoc) {
+                        firstNestedDoc = innerDocs.docID();
+                    } else {
+                        firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
+                    }
 
-                BytesRefBuilder accumulated = null;
+                    BytesRefBuilder accumulated = null;
 
-                for (int doc = firstNestedDoc; doc != -1 && doc < rootDoc; doc = innerDocs.nextSetBit(doc + 1)) {
-                    values.setDocument(doc);
-                    final BytesRef innerValue = selectedValues.get(doc);
-                    if (innerValue.length > 0 || docsWithValue == null || docsWithValue.get(doc)) {
-                        if (accumulated == null) {
-                            spare.copyBytes(innerValue);
-                            accumulated = spare;
-                        } else {
-                            final BytesRef applied = apply(accumulated.get(), innerValue);
-                            if (applied == innerValue) {
-                                accumulated.copyBytes(innerValue);
+                    for (int doc = firstNestedDoc; doc > prevRootDoc && doc < rootDoc; doc = innerDocs.nextDoc()) {
+                        values.setDocument(doc);
+                        final BytesRef innerValue = selectedValues.get(doc);
+                        if (innerValue.length > 0 || docsWithValue == null || docsWithValue.get(doc)) {
+                            if (accumulated == null) {
+                                spare.copyBytes(innerValue);
+                                accumulated = spare;
+                            } else {
+                                final BytesRef applied = apply(accumulated.get(), innerValue);
+                                if (applied == innerValue) {
+                                    accumulated.copyBytes(innerValue);
+                                }
                             }
                         }
                     }
-                }
 
-                return accumulated == null ? missingValue : accumulated.get();
+                    lastSeenRootDoc = rootDoc;
+                    if (accumulated == null) {
+                        lastEmittedValue = missingValue;
+                    } else {
+                        lastEmittedValue = accumulated.get();
+                    }
+                    return lastEmittedValue;
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
         };
     }
@@ -709,13 +779,21 @@ public enum MultiValueMode {
      *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      */
-    // TODO: technically innerDocs need not be BitSet: only needs advance() ?
-    public SortedDocValues select(final RandomAccessOrds values, final BitSet rootDocs, final BitSet innerDocs) {
-        if (rootDocs == null || innerDocs == null) {
-            return select((RandomAccessOrds) DocValues.emptySortedSet());
+    public SortedDocValues select(final RandomAccessOrds values, final BitSet rootDocs, final DocIdSet innerDocSet) throws IOException {
+        if (rootDocs == null || innerDocSet == null) {
+            return select(DocValues.emptySortedSet());
         }
+
+        final DocIdSetIterator innerDocs = innerDocSet.iterator();
+        if (innerDocs == null) {
+            return select(DocValues.emptySortedSet());
+        }
+
         final SortedDocValues selectedValues = select(values);
         return new SortedDocValues() {
+
+            int lastSeenRootDoc = 0;
+            int lastEmittedOrd = -1;
 
             @Override
             public BytesRef lookupOrd(int ord) {
@@ -730,26 +808,37 @@ public enum MultiValueMode {
             @Override
             public int getOrd(int rootDoc) {
                 assert rootDocs.get(rootDoc) : "can only sort root documents";
-                if (rootDoc == 0) {
-                    return -1;
+                assert rootDoc >= lastSeenRootDoc : "can only evaluate current and upcoming root docs";
+                if (rootDoc == lastSeenRootDoc) {
+                    return lastEmittedOrd;
                 }
 
-                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
-                final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
-                int ord = -1;
+                try {
+                    final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                    final int firstNestedDoc;
+                    if (innerDocs.docID() > prevRootDoc) {
+                        firstNestedDoc = innerDocs.docID();
+                    } else {
+                        firstNestedDoc = innerDocs.advance(prevRootDoc + 1);
+                    }
+                    int ord = -1;
 
-                for (int doc = firstNestedDoc; doc != -1 && doc < rootDoc; doc = innerDocs.nextSetBit(doc + 1)) {
-                    final int innerOrd = selectedValues.getOrd(doc);
-                    if (innerOrd != -1) {
-                        if (ord == -1) {
-                            ord = innerOrd;
-                        } else {
-                            ord = applyOrd(ord, innerOrd);
+                    for (int doc = firstNestedDoc; doc > prevRootDoc && doc < rootDoc; doc = innerDocs.nextDoc()) {
+                        final int innerOrd = selectedValues.getOrd(doc);
+                        if (innerOrd != -1) {
+                            if (ord == -1) {
+                                ord = innerOrd;
+                            } else {
+                                ord = applyOrd(ord, innerOrd);
+                            }
                         }
                     }
-                }
 
-                return ord;
+                    lastSeenRootDoc = rootDoc;
+                    return lastEmittedOrd = ord;
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
         };
     }

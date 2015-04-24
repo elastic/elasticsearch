@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.warmer.get;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -45,7 +44,7 @@ public class TransportGetWarmersAction extends TransportClusterInfoAction<GetWar
 
     @Inject
     public TransportGetWarmersAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, GetWarmersAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, GetWarmersAction.NAME, transportService, clusterService, threadPool, actionFilters, GetWarmersRequest.class);
     }
 
     @Override
@@ -56,12 +55,7 @@ public class TransportGetWarmersAction extends TransportClusterInfoAction<GetWar
 
     @Override
     protected ClusterBlockException checkBlock(GetWarmersRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
-    }
-
-    @Override
-    protected GetWarmersRequest newRequest() {
-        return new GetWarmersRequest();
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override

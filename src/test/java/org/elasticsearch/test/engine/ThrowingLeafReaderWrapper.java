@@ -129,8 +129,8 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
         }
 
         @Override
-        public TermsEnum iterator(TermsEnum reuse) throws IOException {
-            TermsEnum termsEnum = super.iterator(reuse);
+        public TermsEnum iterator() throws IOException {
+            TermsEnum termsEnum = super.iterator();
             thrower.maybeThrow(Flags.TermsEnum);
             return new ThrowingTermsEnum(termsEnum, thrower);
         }
@@ -146,15 +146,13 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
         }
 
         @Override
-        public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags) throws IOException {
-            thrower.maybeThrow(Flags.DocsEnum);
-            return super.docs(liveDocs, reuse, flags);
-        }
-
-        @Override
-        public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, int flags) throws IOException {
-            thrower.maybeThrow(Flags.DocsAndPositionsEnum);
-            return super.docsAndPositions(liveDocs, reuse, flags);
+        public PostingsEnum postings(Bits liveDocs, PostingsEnum reuse, int flags) throws IOException {
+            if ((flags & PostingsEnum.POSITIONS) != 0) {
+                thrower.maybeThrow(Flags.DocsAndPositionsEnum);
+            } else {
+                thrower.maybeThrow(Flags.DocsEnum);
+            }
+            return super.postings(liveDocs, reuse, flags);
         }
     }
 

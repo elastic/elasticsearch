@@ -18,35 +18,18 @@
  */
 package org.elasticsearch.indices;
 
-import com.google.common.base.Predicate;
-import com.google.common.collect.Maps;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.service.IndexShard;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION;
-import static org.elasticsearch.common.settings.ImmutableSettings.builder;
-import static org.elasticsearch.index.shard.IndexShardState.*;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class IndicesLifecycleListenerSingleNodeTests extends ElasticsearchSingleNodeTest {
@@ -65,8 +48,8 @@ public class IndicesLifecycleListenerSingleNodeTests extends ElasticsearchSingle
         ensureGreen();
         getInstanceFromNode(IndicesLifecycle.class).addListener(new IndicesLifecycle.Listener() {
             @Override
-            public void afterIndexClosed(Index index) {
-                assertEquals(counter.get(), 3);
+            public void afterIndexClosed(Index index, @IndexSettings Settings indexSettings) {
+                assertEquals(counter.get(), 5);
                 counter.incrementAndGet();
             }
 
@@ -77,19 +60,31 @@ public class IndicesLifecycleListenerSingleNodeTests extends ElasticsearchSingle
             }
 
             @Override
-            public void afterIndexDeleted(Index index) {
-                assertEquals(counter.get(), 4);
+            public void afterIndexDeleted(Index index, @IndexSettings Settings indexSettings) {
+                assertEquals(counter.get(), 6);
                 counter.incrementAndGet();
             }
 
             @Override
-            public void beforeIndexDeleted(IndexService indexService) {
+              public void beforeIndexDeleted(IndexService indexService) {
                 assertEquals(counter.get(), 2);
+                counter.incrementAndGet();
+            }
+
+            @Override
+            public void beforeIndexShardDeleted(ShardId shardId, Settings indexSettings) {
+                assertEquals(counter.get(), 3);
+                counter.incrementAndGet();
+            }
+
+            @Override
+            public void afterIndexShardDeleted(ShardId shardId, Settings indexSettings) {
+                assertEquals(counter.get(), 4);
                 counter.incrementAndGet();
             }
         });
         assertAcked(client().admin().indices().prepareDelete("test").get());
-        assertEquals(5, counter.get());
+        assertEquals(7, counter.get());
     }
 
 }

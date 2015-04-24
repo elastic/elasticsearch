@@ -2,7 +2,8 @@
 "Test cat nodes output":
 
   - do:
-      cat.nodes: {}
+      cat.nodes:
+        v: false
 
   - match:
       $body: |

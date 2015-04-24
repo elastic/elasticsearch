@@ -386,6 +386,7 @@ public class RangeQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
      * weightings) have their score multiplied by the boost provided.
      */
+    @Override
     public RangeQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;
@@ -402,8 +403,8 @@ public class RangeQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
     /**
      * In case of date field, we can adjust the from/to fields using a timezone
      */
-    public RangeQueryBuilder timeZone(String preZone) {
-        this.timeZone = preZone;
+    public RangeQueryBuilder timeZone(String timezone) {
+        this.timeZone = timezone;
         return this;
     }
 

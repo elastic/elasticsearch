@@ -36,7 +36,7 @@ curl -X PUT localhost:9200/music/song/_mapping -d '{
         "properties" : {
             "name" : { "type" : "string" },
             "suggest" : { "type" : "completion",
-                          "index_analyzer" : "simple",
+                          "analyzer" : "simple",
                           "search_analyzer" : "simple",
                           "payloads" : true
             }
@@ -47,16 +47,15 @@ curl -X PUT localhost:9200/music/song/_mapping -d '{
 
 Mapping supports the following parameters:
 
-`index_analyzer`::
+`analyzer`::
     The index analyzer to use, defaults to `simple`.
-
-`search_analyzer`::
-    The search analyzer to use, defaults to `simple`.
     In case you are wondering why we did not opt for the `standard`
     analyzer: We try to have easy to understand behaviour here, and if you
     index the field content `At the Drive-in`, you will not get any
     suggestions for `a`, nor for `d` (the first non stopword).
 
+`search_analyzer`::
+    The search analyzer to use, defaults to value of `analyzer`.
 
 `payloads`::
     Enables the storing of payloads, defaults to `false`

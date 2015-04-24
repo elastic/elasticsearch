@@ -83,7 +83,7 @@ public class GeoPointCompressedIndexFieldData extends AbstractIndexGeoPointField
         Terms terms = reader.terms(getFieldNames().indexName());
         AtomicGeoPointFieldData data = null;
         // TODO: Use an actual estimator to estimate before loading.
-        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA));
+        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker(CircuitBreaker.FIELDDATA));
         if (terms == null) {
             data = AbstractAtomicGeoPointFieldData.empty(reader.maxDoc());
             estimator.afterLoad(null, data.ramBytesUsed());
@@ -101,7 +101,7 @@ public class GeoPointCompressedIndexFieldData extends AbstractIndexGeoPointField
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
         boolean success = false;
         try (OrdinalsBuilder builder = new OrdinalsBuilder(terms.size(), reader.maxDoc(), acceptableTransientOverheadRatio)) {
-            final GeoPointEnum iter = new GeoPointEnum(builder.buildFromTerms(terms.iterator(null)));
+            final GeoPointEnum iter = new GeoPointEnum(builder.buildFromTerms(terms.iterator()));
             GeoPoint point;
             while ((point = iter.next()) != null) {
                 final long ord = builder.currentOrdinal();

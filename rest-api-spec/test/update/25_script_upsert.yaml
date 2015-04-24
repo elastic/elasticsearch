@@ -1,6 +1,9 @@
 ---
 "Script upsert":
 
+  - skip:
+      features: groovy_scripting
+
   - do:
       update:
           index:    test_1
@@ -37,7 +40,7 @@
           id:     1
 
   - match:  { _source.foo: xxx }
-  
+
   - do:
       update:
           index:    test_1
@@ -57,4 +60,4 @@
 
   - match:  { _source.foo: xxx }
 
-  
+

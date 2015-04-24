@@ -21,6 +21,7 @@ package org.elasticsearch.plugins;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.rest.RestStatus;
@@ -30,8 +31,9 @@ import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Test;
 
-import java.io.File;
 import java.net.URISyntaxException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -47,16 +49,12 @@ public class SitePluginTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        try {
-            File pluginDir = new File(SitePluginTests.class.getResource("/org/elasticsearch/plugins").toURI());
-            return settingsBuilder()
-                    .put(super.nodeSettings(nodeOrdinal))
-                    .put("path.plugins", pluginDir.getAbsolutePath())
-                    .put("force.http.enabled", true)
-                    .build();
-        } catch (URISyntaxException ex) {
-            throw new RuntimeException(ex);
-        }
+        Path pluginDir = getDataPath("/org/elasticsearch/plugins");
+        return settingsBuilder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("path.plugins", pluginDir.toAbsolutePath())
+                .put("force.http.enabled", true)
+                .build();
     }
 
     public HttpRequestBuilder httpClient() {

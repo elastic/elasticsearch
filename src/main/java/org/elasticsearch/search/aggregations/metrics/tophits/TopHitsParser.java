@@ -30,6 +30,7 @@ import org.elasticsearch.search.fetch.script.ScriptFieldsParseElement;
 import org.elasticsearch.search.fetch.source.FetchSourceParseElement;
 import org.elasticsearch.search.highlight.HighlighterParseElement;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
 
 import java.io.IOException;
@@ -63,7 +64,7 @@ public class TopHitsParser implements Aggregator.Parser {
 
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
-        TopHitsContext topHitsContext = new TopHitsContext(context);
+        SubSearchContext subSearchContext = new SubSearchContext(context);
         XContentParser.Token token;
         String currentFieldName = null;
         try {
@@ -71,26 +72,26 @@ public class TopHitsParser implements Aggregator.Parser {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if ("sort".equals(currentFieldName)) {
-                    sortParseElement.parse(parser, topHitsContext);
+                    sortParseElement.parse(parser, subSearchContext);
                 } else if ("_source".equals(currentFieldName)) {
-                    sourceParseElement.parse(parser, topHitsContext);
+                    sourceParseElement.parse(parser, subSearchContext);
                 } else if (token.isValue()) {
                     switch (currentFieldName) {
                         case "from":
-                            topHitsContext.from(parser.intValue());
+                            subSearchContext.from(parser.intValue());
                             break;
                         case "size":
-                            topHitsContext.size(parser.intValue());
+                            subSearchContext.size(parser.intValue());
                             break;
                         case "track_scores":
                         case "trackScores":
-                            topHitsContext.trackScores(parser.booleanValue());
+                            subSearchContext.trackScores(parser.booleanValue());
                             break;
                         case "version":
-                            topHitsContext.version(parser.booleanValue());
+                            subSearchContext.version(parser.booleanValue());
                             break;
                         case "explain":
-                            topHitsContext.explain(parser.booleanValue());
+                            subSearchContext.explain(parser.booleanValue());
                             break;
                         default:
                             throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
@@ -98,11 +99,11 @@ public class TopHitsParser implements Aggregator.Parser {
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     switch (currentFieldName) {
                         case "highlight":
-                            highlighterParseElement.parse(parser, topHitsContext);
+                            highlighterParseElement.parse(parser, subSearchContext);
                             break;
                         case "scriptFields":
                         case "script_fields":
-                            scriptFieldsParseElement.parse(parser, topHitsContext);
+                            scriptFieldsParseElement.parse(parser, subSearchContext);
                             break;
                         default:
                             throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
@@ -111,7 +112,7 @@ public class TopHitsParser implements Aggregator.Parser {
                     switch (currentFieldName) {
                         case "fielddataFields":
                         case "fielddata_fields":
-                            fieldDataFieldsParseElement.parse(parser, topHitsContext);
+                            fieldDataFieldsParseElement.parse(parser, subSearchContext);
                             break;
                         default:
                             throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
@@ -123,7 +124,7 @@ public class TopHitsParser implements Aggregator.Parser {
         } catch (Exception e) {
             throw ExceptionsHelper.convertToElastic(e);
         }
-        return new TopHitsAggregator.Factory(aggregationName, fetchPhase, topHitsContext);
+        return new TopHitsAggregator.Factory(aggregationName, fetchPhase, subSearchContext);
     }
 
 }

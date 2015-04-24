@@ -130,11 +130,12 @@ See <<index-modules-shard-query-cache>> for more details.
 === Returning only aggregation results
 
 There are many occasions when aggregations are required but search hits are not.  For these cases the hits can be ignored by 
-adding `search_type=count` to the request URL parameters. For example:
+setting `size=0`. For example:
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/twitter/tweet/_search?search_type=count' -d '{
+$ curl -XGET 'http://localhost:9200/twitter/tweet/_search' -d '{
+  "size": 0,
   "aggregations": {
     "my_agg": {
       "terms": {
@@ -146,8 +147,7 @@ $ curl -XGET 'http://localhost:9200/twitter/tweet/_search?search_type=count' -d 
 '
 --------------------------------------------------
 
-Setting `search_type` to `count` avoids executing the fetch phase of the search making the request more efficient.  See 
-<<search-request-search-type>> for more information on the `search_type` parameter.
+Setting `size` to `0` avoids executing the fetch phase of the search making the request more efficient.
 
 [float]
 === Metadata

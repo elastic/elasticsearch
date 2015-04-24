@@ -34,6 +34,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -741,6 +742,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    public SearchRequestBuilder addInnerHit(String name, InnerHitsBuilder.InnerHit innerHit) {
+        innerHitsBuilder().addInnerHit(name, innerHit);
+        return this;
+    }
+
     /**
      * Delegates to {@link org.elasticsearch.search.suggest.SuggestBuilder#setText(String)}.
      */
@@ -844,20 +850,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * {@link #setExtraSource(BytesReference)}.
      */
     public SearchRequestBuilder setSource(BytesReference source) {
-        request.source(source, false);
+        request.source(source);
         return this;
     }
-
-    /**
-     * Sets the source of the request as a json string. Note, settings anything other
-     * than the search type will cause this source to be overridden, consider using
-     * {@link #setExtraSource(BytesReference)}.
-     */
-    public SearchRequestBuilder setSource(BytesReference source, boolean unsafe) {
-        request.source(source, unsafe);
-        return this;
-    }
-
 
     /**
      * Sets the source of the request as a json string. Note, settings anything other
@@ -873,15 +868,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets the source of the request as a json string. Allows to set other parameters.
      */
     public SearchRequestBuilder setExtraSource(BytesReference source) {
-        request.extraSource(source, false);
-        return this;
-    }
-
-    /**
-     * Sets the source of the request as a json string. Allows to set other parameters.
-     */
-    public SearchRequestBuilder setExtraSource(BytesReference source, boolean unsafe) {
-        request.extraSource(source, unsafe);
+        request.extraSource(source);
         return this;
     }
 
@@ -969,7 +956,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     public SearchRequestBuilder setTemplateSource(BytesReference source) {
-        request.templateSource(source, true);
+        request.templateSource(source);
         return this;
     }
 
@@ -1030,6 +1017,10 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     private HighlightBuilder highlightBuilder() {
         return sourceBuilder().highlighter();
+    }
+
+    private InnerHitsBuilder innerHitsBuilder() {
+        return sourceBuilder().innerHitsBuilder();
     }
 
     private SuggestBuilder suggestBuilder() {

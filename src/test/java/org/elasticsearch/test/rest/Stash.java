@@ -23,7 +23,10 @@ import com.google.common.collect.Maps;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -31,9 +34,11 @@ import java.util.Map;
  * Allows to cache the last obtained test response and or part of it within variables
  * that can be used as input values in following requests and assertions.
  */
-public class Stash {
+public class Stash implements ToXContent {
 
     private static final ESLogger logger = Loggers.getLogger(Stash.class);
+
+    public static final Stash EMPTY = new Stash();
 
     private final Map<String, Object> stash = Maps.newHashMap();
 
@@ -41,7 +46,7 @@ public class Stash {
      * Allows to saved a specific field in the stash as key-value pair
      */
     public void stashValue(String key, Object value) {
-        logger.debug("stashing [{}]=[{}]", key, value);
+        logger.trace("stashing [{}]=[{}]", key, value);
         Object old = stash.put(key, value);
         if (old != null && old != value) {
             logger.trace("replaced stashed value [{}] with same key [{}]", old, key);
@@ -93,7 +98,7 @@ public class Stash {
     @SuppressWarnings("unchecked")
     private void unstashObject(Object obj) {
         if (obj instanceof List) {
-            List list = (List)obj;
+            List list = (List) obj;
             for (int i = 0; i < list.size(); i++) {
                 Object o = list.get(i);
                 if (isStashedValue(o)) {
@@ -113,5 +118,11 @@ public class Stash {
                 }
             }
         }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("stash", stash);
+        return builder;
     }
 }

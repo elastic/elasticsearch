@@ -25,9 +25,9 @@ package org.elasticsearch.common.breaker;
  */
 public class NoopCircuitBreaker implements CircuitBreaker {
 
-    private final Name name;
+    private final String name;
 
-    public NoopCircuitBreaker(Name name) {
+    public NoopCircuitBreaker(String name) {
         this.name = name;
     }
 
@@ -67,7 +67,7 @@ public class NoopCircuitBreaker implements CircuitBreaker {
     }
 
     @Override
-    public Name getName() {
+    public String getName() {
         return this.name;
     }
 }

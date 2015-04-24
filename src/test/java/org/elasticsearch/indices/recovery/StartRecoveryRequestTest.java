@@ -33,6 +33,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.Collections;
 
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -42,7 +43,7 @@ public class StartRecoveryRequestTest extends ElasticsearchTestCase {
 
     @Test
     public void testSerialization() throws Exception {
-        Version targetNodeVersion = randomVersion();
+        Version targetNodeVersion = randomVersion(random());
         StartRecoveryRequest outRequest = new StartRecoveryRequest(
                 new ShardId("test", 0),
                 new DiscoveryNode("a", new LocalTransportAddress("1"), targetNodeVersion),
@@ -70,11 +71,7 @@ public class StartRecoveryRequestTest extends ElasticsearchTestCase {
         assertThat(outRequest.markAsRelocated(), equalTo(inRequest.markAsRelocated()));
         assertThat(outRequest.existingFiles(), equalTo(inRequest.existingFiles()));
         assertThat(outRequest.recoveryId(), equalTo(inRequest.recoveryId()));
-        if (targetNodeVersion.onOrAfter(Version.V_1_2_2)) {
-            assertThat(outRequest.recoveryType(), equalTo(inRequest.recoveryType()));
-        } else {
-            assertThat(inRequest.recoveryType(), nullValue());
-        }
+        assertThat(outRequest.recoveryType(), equalTo(inRequest.recoveryType()));
     }
 
 

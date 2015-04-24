@@ -34,5 +34,6 @@ public interface ShardIterator extends ShardsIterator, Comparable<ShardIterator>
     /**
      * Resets the iterator.
      */
+    @Override
     void reset();
 }

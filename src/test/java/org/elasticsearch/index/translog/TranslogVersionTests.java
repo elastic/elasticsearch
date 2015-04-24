@@ -25,7 +25,6 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.EOFException;
-import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -38,7 +37,7 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
 
     @Test
     public void testV0LegacyTranslogVersion() throws Exception {
-        Path translogFile = getResourcePath("/org/elasticsearch/index/translog/translog-v0.binary");
+        Path translogFile = getDataPath("/org/elasticsearch/index/translog/translog-v0.binary");
         assertThat("test file should exist", Files.exists(translogFile), equalTo(true));
         TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
         assertThat("a version0 stream is returned", stream instanceof LegacyTranslogStream, equalTo(true));
@@ -67,11 +66,12 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
         } catch (EOFException e) {
             // success
         }
+        in.close();
     }
 
     @Test
     public void testV1ChecksummedTranslogVersion() throws Exception {
-        Path translogFile = getResourcePath("/org/elasticsearch/index/translog/translog-v1.binary");
+        Path translogFile = getDataPath("/org/elasticsearch/index/translog/translog-v1.binary");
         assertThat("test file should exist", Files.exists(translogFile), equalTo(true));
         TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
         assertThat("a version1 stream is returned", stream instanceof ChecksummedTranslogStream, equalTo(true));
@@ -102,12 +102,13 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
             }
         }
         assertThat("there should be 5 translog operations", opNum, equalTo(5));
+        in.close();
     }
 
     @Test
     public void testCorruptedTranslogs() throws Exception {
         try {
-            Path translogFile = getResourcePath("/org/elasticsearch/index/translog/translog-v1-corrupted-magic.binary");
+            Path translogFile = getDataPath("/org/elasticsearch/index/translog/translog-v1-corrupted-magic.binary");
             assertThat("test file should exist", Files.exists(translogFile), equalTo(true));
             TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
             fail("should have thrown an exception about the header being corrupt");
@@ -117,7 +118,7 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
         }
 
         try {
-            Path translogFile = getResourcePath("/org/elasticsearch/index/translog/translog-invalid-first-byte.binary");
+            Path translogFile = getDataPath("/org/elasticsearch/index/translog/translog-invalid-first-byte.binary");
             assertThat("test file should exist", Files.exists(translogFile), equalTo(true));
             TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
             fail("should have thrown an exception about the header being corrupt");
@@ -127,7 +128,7 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
         }
 
         try {
-            Path translogFile = getResourcePath("/org/elasticsearch/index/translog/translog-v1-corrupted-body.binary");
+            Path translogFile = getDataPath("/org/elasticsearch/index/translog/translog-v1-corrupted-body.binary");
             assertThat("test file should exist", Files.exists(translogFile), equalTo(true));
             TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
             try (StreamInput in = stream.openInput(translogFile)) {
@@ -145,5 +146,27 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
                     e.getMessage().contains("translog stream is corrupted"), equalTo(true));
         }
 
+    }
+
+    @Test
+    public void testTruncatedTranslog() throws Exception {
+        try {
+            Path translogFile = getDataPath("/org/elasticsearch/index/translog/translog-v1-truncated.binary");
+            assertThat("test file should exist", Files.exists(translogFile), equalTo(true));
+            TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
+            try (StreamInput in = stream.openInput(translogFile)) {
+                while (true) {
+                    try {
+                        stream.read(in);
+                    } catch (EOFException e) {
+                        break;
+                    }
+                }
+            }
+            fail("should have thrown an exception about the body being truncated");
+        } catch (TruncatedTranslogException e) {
+            assertThat("translog truncated: " + e.getMessage(),
+                    e.getMessage().contains("reached premature end of file, translog is truncated"), equalTo(true));
+        }
     }
 }

@@ -46,7 +46,9 @@ public interface PrivateBinder extends Binder {
      */
     AnnotatedElementBuilder expose(TypeLiteral<?> type);
 
+    @Override
     PrivateBinder withSource(Object source);
 
+    @Override
     PrivateBinder skipSources(Class... classesToSkip);
 }

@@ -1,7 +1,7 @@
 [[query-dsl-missing-filter]]
 === Missing Filter
 
-Returns documents that have no non-`null` values in the original field:
+Returns documents that have only `null` values or no value in the original field:
 
 [source,js]
 --------------------------------------------------
@@ -130,9 +130,3 @@ When set to `false` (the default), these documents will not be included.
 --
 
 NOTE: Either `existence` or `null_value` or both must be set to `true`.
-
-
-[float]
-==== Caching
-
-The result of the filter is always cached.

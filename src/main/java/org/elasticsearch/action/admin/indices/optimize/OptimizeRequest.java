@@ -30,9 +30,6 @@ import java.io.IOException;
  * A request to optimize one or more indices. In order to optimize on all the indices, pass an empty array or
  * <tt>null</tt> for the indices.
  * <p/>
- * <p>{@link #waitForMerge(boolean)} allows to control if the call will block until the optimize completes and
- * defaults to <tt>true</tt>.
- * <p/>
  * <p>{@link #maxNumSegments(int)} allows to control the number of segments to optimize down to. By default, will
  * cause the optimize process to optimize down to half the configured number of segments.
  *
@@ -43,18 +40,18 @@ import java.io.IOException;
 public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> {
 
     public static final class Defaults {
-        public static final boolean WAIT_FOR_MERGE = true;
         public static final int MAX_NUM_SEGMENTS = -1;
         public static final boolean ONLY_EXPUNGE_DELETES = false;
         public static final boolean FLUSH = true;
         public static final boolean UPGRADE = false;
+        public static final boolean UPGRADE_ONLY_ANCIENT_SEGMENTS = false;
     }
-
-    private boolean waitForMerge = Defaults.WAIT_FOR_MERGE;
+    
     private int maxNumSegments = Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;
     private boolean upgrade = Defaults.UPGRADE;
+    private boolean upgradeOnlyAncientSegments = Defaults.UPGRADE_ONLY_ANCIENT_SEGMENTS;
 
     /**
      * Constructs an optimization request over one or more indices.
@@ -67,21 +64,6 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
 
     public OptimizeRequest() {
 
-    }
-
-    /**
-     * Should the call block until the optimize completes. Defaults to <tt>true</tt>.
-     */
-    public boolean waitForMerge() {
-        return waitForMerge;
-    }
-
-    /**
-     * Should the call block until the optimize completes. Defaults to <tt>true</tt>.
-     */
-    public OptimizeRequest waitForMerge(boolean waitForMerge) {
-        this.waitForMerge = waitForMerge;
-        return this;
     }
 
     /**
@@ -149,25 +131,50 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         return this;
     }
 
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        waitForMerge = in.readBoolean();
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-            upgrade = in.readBoolean();
-        }
+        upgrade = in.readBoolean();
+        upgradeOnlyAncientSegments = in.readBoolean();
     }
 
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(waitForMerge);
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
-        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            out.writeBoolean(upgrade);
-        }
+        out.writeBoolean(upgrade);
+        out.writeBoolean(upgradeOnlyAncientSegments);
+    }
+
+    /**
+     * Should the merge upgrade only the ancient (older major version of Lucene) segments?
+     * Defaults to <tt>false</tt>.
+     */
+    public boolean upgradeOnlyAncientSegments() {
+        return upgradeOnlyAncientSegments;
+    }
+
+    /**
+     * See {@link #upgradeOnlyAncientSegments()}
+     */
+    public OptimizeRequest upgradeOnlyAncientSegments(boolean upgradeOnlyAncientSegments) {
+        this.upgradeOnlyAncientSegments = upgradeOnlyAncientSegments;
+        return this;
+    }
+
+    @Override
+    public String toString() {
+        return "OptimizeRequest{" +
+                "maxNumSegments=" + maxNumSegments +
+                ", onlyExpungeDeletes=" + onlyExpungeDeletes +
+                ", flush=" + flush +
+                ", upgrade=" + upgrade +
+                ", upgradeOnlyAncientSegments=" + upgradeOnlyAncientSegments +
+                '}';
     }
 }

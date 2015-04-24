@@ -31,13 +31,14 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.join.BitDocIdSetCachingWrapperFilter;
 import org.apache.lucene.search.join.ScoreMode;
@@ -47,7 +48,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.common.lucene.search.NotFilter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -76,6 +77,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         d.add(new SortedSetDocValuesField(name, new BytesRef(value)));
     }
 
+    @Override
     protected void fillSingleValueAllSet() throws Exception {
         Document d = new Document();
         addField(d, "_id", "1");
@@ -93,6 +95,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         writer.addDocument(d);
     }
 
+    @Override
     protected void add2SingleValuedDocumentsAndDeleteOneOfThem() throws Exception {
         Document d = new Document();
         addField(d, "_id", "1");
@@ -109,6 +112,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         writer.deleteDocuments(new Term("_id", "1"));
     }
 
+    @Override
     protected void fillSingleValueWithMissing() throws Exception {
         Document d = new Document();
         addField(d, "_id", "1");
@@ -126,6 +130,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         writer.addDocument(d);
     }
 
+    @Override
     protected void fillMultiValueAllSet() throws Exception {
         Document d = new Document();
         addField(d, "_id", "1");
@@ -145,6 +150,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         writer.addDocument(d);
     }
 
+    @Override
     protected void fillMultiValueWithMissing() throws Exception {
         Document d = new Document();
         addField(d, "_id", "1");
@@ -163,6 +169,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         writer.addDocument(d);
     }
 
+    @Override
     protected void fillAllMissing() throws Exception {
         Document d = new Document();
         addField(d, "_id", "1");
@@ -177,6 +184,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         writer.addDocument(d);
     }
 
+    @Override
     protected void fillExtendedMvSet() throws Exception {
         Document d = new Document();
         addField(d, "_id", "1");
@@ -398,8 +406,8 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
             missingValue = new BytesRef(TestUtil.randomSimpleString(getRandom()));
             break;
         }
-        Filter parentFilter = new TermFilter(new Term("type", "parent"));
-        Filter childFilter = new NotFilter(parentFilter);
+        Filter parentFilter = new QueryWrapperFilter(new TermQuery(new Term("type", "parent")));
+        Filter childFilter = new QueryWrapperFilter(Queries.not(parentFilter));
         Nested nested = createNested(parentFilter, childFilter);
         BytesRefFieldComparatorSource nestedComparatorSource = new BytesRefFieldComparatorSource(fieldData, missingValue, sortMode, nested);
         ToParentBlockJoinQuery query = new ToParentBlockJoinQuery(new FilteredQuery(new MatchAllDocsQuery(), childFilter), new BitDocIdSetCachingWrapperFilter(parentFilter), ScoreMode.None);
@@ -467,7 +475,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         fillExtendedMvSet();
         refreshReader();
         FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("global_values", "fixed"));
-        IndexOrdinalsFieldData ifd = getForField(fieldDataType, "value");
+        IndexOrdinalsFieldData ifd = getForField(fieldDataType, "value", hasDocValues());
         IndexOrdinalsFieldData globalOrdinals = ifd.loadGlobal(topLevelReader);
         assertThat(topLevelReader.leaves().size(), equalTo(3));
 
@@ -594,11 +602,12 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         fillExtendedMvSet();
         refreshReader();
         FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("global_values", "fixed").put("cache", "node"));
-        IndexOrdinalsFieldData ifd = getForField(fieldDataType, "value");
+        IndexOrdinalsFieldData ifd = getForField(fieldDataType, "value", hasDocValues());
         IndexOrdinalsFieldData globalOrdinals = ifd.loadGlobal(topLevelReader);
         assertThat(ifd.loadGlobal(topLevelReader), sameInstance(globalOrdinals));
         // 3 b/c 1 segment level caches and 1 top level cache
-        assertThat(indicesFieldDataCache.getCache().size(), equalTo(4l));
+        // in case of doc values, we don't cache atomic FD, so only the top-level cache is there
+        assertThat(indicesFieldDataCache.getCache().size(), equalTo(hasDocValues() ? 1L : 4L));
 
         IndexOrdinalsFieldData cachedInstance = null;
         for (Accountable ramUsage : indicesFieldDataCache.getCache().asMap().values()) {
@@ -610,7 +619,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         assertThat(cachedInstance, sameInstance(globalOrdinals));
         topLevelReader.close();
         // Now only 3 segment level entries, only the toplevel reader has been closed, but the segment readers are still used by IW
-        assertThat(indicesFieldDataCache.getCache().size(), equalTo(3l));
+        assertThat(indicesFieldDataCache.getCache().size(), equalTo(hasDocValues() ? 0L : 3L));
 
         refreshReader();
         assertThat(ifd.loadGlobal(topLevelReader), not(sameInstance(globalOrdinals)));

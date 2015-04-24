@@ -21,6 +21,7 @@ package org.elasticsearch.search.sort;
 
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
@@ -47,6 +48,7 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -68,6 +70,8 @@ import static org.hamcrest.Matchers.*;
  */
 public class SimpleSortTests extends ElasticsearchIntegrationTest {
 
+    @TestLogging("action.search.type:TRACE")
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9421")
     public void testIssue8226() {
         int numIndices = between(5, 10);
         final boolean useMapping = randomBoolean();
@@ -87,6 +91,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse = client().prepareSearch()
                 .addSort(new FieldSortBuilder("entry").order(SortOrder.DESC).unmappedType(useMapping ? null : "long"))
                 .setSize(10).get();
+        logClusterState();
         assertSearchResponse(searchResponse);
 
         for (int j = 1; j < searchResponse.getHits().hits().length; j++) {
@@ -99,6 +104,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch()
                 .addSort(new FieldSortBuilder("entry").order(SortOrder.ASC).unmappedType(useMapping ? null : "long"))
                 .setSize(10).get();
+        logClusterState();
         assertSearchResponse(searchResponse);
 
         for (int j = 1; j < searchResponse.getHits().hits().length; j++) {
@@ -150,7 +156,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
 
     public void testIssue6639() throws ExecutionException, InterruptedException {
         assertAcked(prepareCreate("$index")
-                .addMapping("$type","{\"$type\": {\"_boost\": {\"name\": \"boost\", \"null_value\": 1.0}, \"properties\": {\"grantee\": {\"index\": \"not_analyzed\", \"term_vector\": \"with_positions_offsets\", \"type\": \"string\", \"analyzer\": \"snowball\", \"boost\": 1.0, \"store\": \"yes\"}}}}"));
+                .addMapping("$type","{\"$type\": {\"properties\": {\"grantee\": {\"index\": \"not_analyzed\", \"term_vector\": \"with_positions_offsets\", \"type\": \"string\", \"analyzer\": \"snowball\", \"boost\": 1.0, \"store\": \"yes\"}}}}"));
         indexRandom(true,
                 client().prepareIndex("$index", "$type", "data.activity.5").setSource("{\"django_ct\": \"data.activity\", \"grantee\": \"Grantee 1\"}"),
                 client().prepareIndex("$index", "$type", "data.activity.6").setSource("{\"django_ct\": \"data.activity\", \"grantee\": \"Grantee 2\"}"));
@@ -452,14 +458,14 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         Random random = getRandom();
         assertAcked(prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("str_value").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .startObject("str_value").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
                         .startObject("boolean_value").field("type", "boolean").endObject()
-                        .startObject("byte_value").field("type", "byte").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
-                        .startObject("short_value").field("type", "short").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
-                        .startObject("integer_value").field("type", "integer").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
-                        .startObject("long_value").field("type", "long").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
-                        .startObject("float_value").field("type", "float").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
-                        .startObject("double_value").field("type", "double").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .startObject("byte_value").field("type", "byte").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
+                        .startObject("short_value").field("type", "short").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
+                        .startObject("integer_value").field("type", "integer").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
+                        .startObject("long_value").field("type", "long").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
+                        .startObject("float_value").field("type", "float").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
+                        .startObject("double_value").field("type", "double").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
                         .endObject().endObject().endObject()));
         ensureGreen();
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -795,7 +801,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("min", "retval = Long.MAX_VALUE; for (v in doc['lvalue'].values){ retval = min(v, retval) }; retval")
-                .addSort("ord", SortOrder.ASC).setSize(10)
+                .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long")).setSize(10)
                 .execute().actionGet();
 
         assertNoFailures(searchResponse);
@@ -808,7 +814,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("min", "retval = Double.MAX_VALUE; for (v in doc['dvalue'].values){ retval = min(v, retval) }; retval")
-                .addSort("ord", SortOrder.ASC).setSize(10)
+                .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long")).setSize(10)
                 .execute().actionGet();
 
         assertNoFailures(searchResponse);
@@ -822,7 +828,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("min", "retval = Integer.MAX_VALUE; for (v in doc['svalue'].values){ retval = min(Integer.parseInt(v), retval) }; retval")
-                .addSort("ord", SortOrder.ASC).setSize(10)
+                .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long")).setSize(10)
                 .execute().actionGet();
 
         assertNoFailures(searchResponse);
@@ -836,7 +842,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("min", "retval = Double.MAX_VALUE; for (v in doc['gvalue'].values){ retval = min(v.lon, retval) }; retval")
-                .addSort("ord", SortOrder.ASC).setSize(10)
+                .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long")).setSize(10)
                 .execute().actionGet();
 
         assertNoFailures(searchResponse);
@@ -853,7 +859,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         // We have to specify mapping explicitly because by the time search is performed dynamic mapping might not
         // be propagated to all nodes yet and sort operation fail when the sort field is not defined
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("svalue").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                .startObject("svalue").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
                 .endObject().endObject().endObject().string();
         assertAcked(prepareCreate("test").addMapping("type1", mapping));
         ensureGreen();
@@ -950,11 +956,11 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
                         .startObject("properties")
                             .startObject("i_value")
                                 .field("type", "integer")
-                                .startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject()
+                                .startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject()
                             .endObject()
                             .startObject("d_value")
                                 .field("type", "float")
-                                .startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject()
+                                .startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject()
                             .endObject()
                         .endObject()
                         .endObject()
@@ -1016,7 +1022,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
     }
 
-    @Test
+    @Test @Slow
     public void testSortMissingStrings() throws ElasticsearchException, IOException {
         assertAcked(prepareCreate("test").addMapping("type1",
                 XContentFactory.jsonBuilder()
@@ -1048,6 +1054,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         flush();
         refresh();
 
+        // TODO: WTF?
         try {
             Thread.sleep(2000);
         } catch (InterruptedException e) {
@@ -1124,7 +1131,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         } catch (SearchPhaseExecutionException e) {
             //we check that it's a parse failure rather than a different shard failure
             for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
-                assertThat(shardSearchFailure.reason(), containsString("Parse Failure [No mapping found for [kkk] in order to sort on]"));
+                assertThat(shardSearchFailure.toString(), containsString("[No mapping found for [kkk] in order to sort on]"));
             }
         }
 
@@ -1139,13 +1146,13 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
     public void testSortMVField() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("long_values").field("type", "long").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
-                        .startObject("int_values").field("type", "integer").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
-                        .startObject("short_values").field("type", "short").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
-                        .startObject("byte_values").field("type", "byte").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
-                        .startObject("float_values").field("type", "float").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
-                        .startObject("double_values").field("type", "double").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
-                        .startObject("string_values").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .startObject("long_values").field("type", "long").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
+                        .startObject("int_values").field("type", "integer").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
+                        .startObject("short_values").field("type", "short").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
+                        .startObject("byte_values").field("type", "byte").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
+                        .startObject("float_values").field("type", "float").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
+                        .startObject("double_values").field("type", "double").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
+                        .startObject("string_values").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
                         .endObject().endObject().endObject()));
         ensureGreen();
 
@@ -1454,7 +1461,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
     public void testSortOnRareField() throws ElasticsearchException, IOException {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("string_values").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .startObject("string_values").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
                         .endObject().endObject().endObject()));
         ensureGreen();
         client().prepareIndex("test", "type1", Integer.toString(1)).setSource(jsonBuilder().startObject()
@@ -1553,19 +1560,18 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
     }
 
     public void testSortMetaField() throws Exception {
-        final boolean idDocValues = maybeDocValues();
-        final boolean timestampDocValues = maybeDocValues();
+        final boolean idDocValues = random().nextBoolean();
+        final boolean timestampDocValues = random().nextBoolean();
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp").field("enabled", true).field("store", true).field("index", !timestampDocValues || randomBoolean() ? "not_analyzed" : "no").field("doc_values", timestampDocValues).endObject()
+                .endObject().endObject();
         assertAcked(prepareCreate("test")
-            .addMapping("typ", XContentFactory.jsonBuilder().startObject().startObject("typ")
-                        .startObject("_uid").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
-                        .startObject("_id").field("index", !idDocValues || randomBoolean() ? "not_analyzed" : "no").startObject("fielddata").field("format", idDocValues ? "doc_values" : null).endObject().endObject()
-                        .startObject("_timestamp").field("enabled", true).field("store", true).field("index", !timestampDocValues || randomBoolean() ? "not_analyzed" : "no").startObject("fielddata").field("format", timestampDocValues ? "doc_values" : null).endObject().endObject()
-                        .endObject().endObject()));
+            .addMapping("type", mapping));
         ensureGreen();
         final int numDocs = randomIntBetween(10, 20);
         IndexRequestBuilder[] indexReqs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; ++i) {
-            indexReqs[i] = client().prepareIndex("test", "typ", Integer.toString(i)).setTimestamp(Integer.toString(randomInt(1000))).setSource();
+            indexReqs[i] = client().prepareIndex("test", "type", Integer.toString(i)).setTimestamp(Integer.toString(randomInt(1000))).setSource();
         }
         indexRandom(true, indexReqs);
 
@@ -1584,7 +1590,8 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
             previous = uid;
         }
 
-        /*searchResponse = client().prepareSearch()
+        /*
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(randomIntBetween(1, numDocs + 5))
                 .addSort("_id", order)

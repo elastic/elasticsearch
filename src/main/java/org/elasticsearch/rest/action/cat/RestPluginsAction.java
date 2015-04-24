@@ -77,6 +77,7 @@ public class RestPluginsAction extends AbstractCatAction {
     Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders();
+        table.addCell("id", "default:false;desc:unique node id");
         table.addCell("name", "alias:n;desc:node name");
         table.addCell("component", "alias:c;desc:component");
         table.addCell("version", "alias:v;desc:component version");
@@ -96,6 +97,7 @@ public class RestPluginsAction extends AbstractCatAction {
 
             for (PluginInfo pluginInfo : info.getPlugins().getInfos()) {
                 table.startRow();
+                table.addCell(node.id());
                 table.addCell(node.name());
                 table.addCell(pluginInfo.getName());
                 table.addCell(pluginInfo.getVersion());

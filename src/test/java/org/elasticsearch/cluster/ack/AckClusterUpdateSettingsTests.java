@@ -22,6 +22,8 @@ package org.elasticsearch.cluster.ack;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -99,7 +101,8 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
             for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
                 for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                     for (ShardRouting shardRouting : indexShardRoutingTable) {
-                        if (clusterState.nodes().get(shardRouting.currentNodeId()).id().equals(excludedNodeId)) {
+                        assert clusterState.nodes() != null;
+                        if (shardRouting.unassigned() == false && clusterState.nodes().get(shardRouting.currentNodeId()).id().equals(excludedNodeId)) {
                             //if the shard is still there it must be relocating and all nodes need to know, since the request was acknowledged
                             //reroute happens as part of the update settings and we made sure no throttling comes into the picture via settings
                             assertThat(shardRouting.relocating(), equalTo(true));
@@ -139,5 +142,18 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
 
     private static ClusterState getLocalClusterState(Client client) {
         return client.admin().cluster().prepareState().setLocal(true).get().getState();
+    }
+
+    @Test
+    public void testOpenIndexNoAcknowledgement() {
+        createIndex("test");
+        ensureGreen();
+        removePublishTimeout();
+        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test").execute().actionGet();
+        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
+
+        OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen("test").setTimeout("0s").get();
+        assertThat(openIndexResponse.isAcknowledged(), equalTo(false));
+        ensureGreen("test"); // make sure that recovery from disk has completed, so that check index doesn't fail.
     }
 }

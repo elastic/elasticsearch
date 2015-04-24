@@ -19,16 +19,21 @@
 package org.elasticsearch.search.aggregations.metrics.valuecount;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.Map;
@@ -41,37 +46,40 @@ import java.util.Map;
  */
 public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
-    private final ValuesSource valuesSource;
-    private SortedBinaryDocValues values;
+    final ValuesSource valuesSource;
+    final ValueFormatter formatter;
 
     // a count per bucket
     LongArray counts;
 
-    public ValueCountAggregator(String name, long expectedBucketsCount, ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-        super(name, 0, aggregationContext, parent, metaData);
+    public ValueCountAggregator(String name, ValuesSource valuesSource, @Nullable ValueFormatter formatter,
+            AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
+        super(name, aggregationContext, parent, metaData);
         this.valuesSource = valuesSource;
+        this.formatter = formatter;
         if (valuesSource != null) {
-            // expectedBucketsCount == 0 means it's a top level bucket
-            final long initialSize = expectedBucketsCount < 2 ? 1 : expectedBucketsCount;
-            counts = bigArrays.newLongArray(initialSize, true);
+            counts = context.bigArrays().newLongArray(1, true);
         }
     }
 
     @Override
-    public boolean shouldCollect() {
-        return valuesSource != null;
-    }
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        if (valuesSource == null) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
+        }
+        final BigArrays bigArrays = context.bigArrays();
+        final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+        return new LeafBucketCollectorBase(sub, values) {
 
-    @Override
-    public void setNextReader(LeafReaderContext reader) {
-        values = valuesSource.bytesValues();
-    }
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                counts = bigArrays.grow(counts, bucket + 1);
+                values.setDocument(doc);
+                counts.increment(bucket, values.count());
+            }
 
-    @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        counts = bigArrays.grow(counts, owningBucketOrdinal + 1);
-        values.setDocument(doc);
-        counts.increment(owningBucketOrdinal, values.count());
+        };
     }
 
     @Override
@@ -80,17 +88,16 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        if (valuesSource == null) {
-            return new InternalValueCount(name, 0, getMetaData());
+    public InternalAggregation buildAggregation(long bucket) {
+        if (valuesSource == null || bucket >= counts.size()) {
+            return buildEmptyAggregation();
         }
-        assert owningBucketOrdinal < counts.size();
-        return new InternalValueCount(name, counts.get(owningBucketOrdinal), getMetaData());
+        return new InternalValueCount(name, counts.get(bucket), formatter, metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalValueCount(name, 0l, getMetaData());
+        return new InternalValueCount(name, 0l, formatter, metaData());
     }
 
     @Override
@@ -98,20 +105,21 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         Releasables.close(counts);
     }
 
-    public static class Factory<VS extends ValuesSource> extends ValuesSourceAggregatorFactory.LeafOnly<VS, Map<String, Object>> {
+    public static class Factory<VS extends ValuesSource> extends ValuesSourceAggregatorFactory.LeafOnly<VS> {
 
         public Factory(String name, ValuesSourceConfig<VS> config) {
             super(name, InternalValueCount.TYPE.name(), config);
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new ValueCountAggregator(name, 0, null, aggregationContext, parent, metaData);
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
+            return new ValueCountAggregator(name, null, config.formatter(), aggregationContext, parent, metaData);
         }
 
         @Override
-        protected Aggregator create(VS valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
-            return new ValueCountAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, metaData);
+        protected Aggregator doCreateInternal(VS valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
+            return new ValueCountAggregator(name, valuesSource, config.formatter(), aggregationContext, parent,
+                    metaData);
         }
 
     }

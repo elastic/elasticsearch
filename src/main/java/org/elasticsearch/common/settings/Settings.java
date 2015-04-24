@@ -42,19 +42,6 @@ import java.util.Set;
 public interface Settings extends ToXContent {
 
     /**
-     * Component settings for a specific component. Returns all the settings for the given class, where the
-     * FQN of the class is used, without the <tt>org.elasticsearch<tt> prefix. If there is no <tt>org.elasticsearch</tt>
-     * prefix, then the prefix used is the first part of the package name (<tt>org</tt> / <tt>com</tt> / ...)
-     */
-    Settings getComponentSettings(Class component);
-
-    /**
-     * Component settings for a specific component. Returns all the settings for the given class, where the
-     * FQN of the class is used, without provided prefix.
-     */
-    Settings getComponentSettings(String prefix, Class component);
-
-    /**
      * A settings that are filtered (and key is removed) with the specified prefix.
      */
     Settings getByPrefix(String prefix);

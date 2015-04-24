@@ -34,11 +34,7 @@ public class SignificanceHeuristicStreams {
     private static ImmutableMap<String, Stream> STREAMS = ImmutableMap.of();
 
     public static SignificanceHeuristic read(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
-            return stream(in.readString()).readResult(in);
-        } else {
-            return JLHScore.INSTANCE;
-        }
+        return stream(in.readString()).readResult(in);
     }
 
     /**

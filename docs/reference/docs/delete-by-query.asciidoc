@@ -30,11 +30,11 @@ commands is:
 --------------------------------------------------
 {
     "_indices" : {
-        "twitter" : { 
+        "twitter" : {
             "_shards" : {
-                "total" : 5,
-                "successful" : 5,
-                "failed" : 0
+                "total" : 10,
+                "failed" : 0,
+                "successful" : 10,
             }
         }
     }
@@ -123,15 +123,6 @@ there, replicated across all shards replicas.
 The routing value (a comma separated list of the routing values) can be
 specified to control which shards the delete by query request will be
 executed on.
-
-[float]
-[[replication-type]]
-=== Replication Type
-
-The replication of the operation can be done in an asynchronous manner
-to the replicas (the operation will return once it has be executed on
-the primary shard). The `replication` parameter can be set to `async`
-(defaults to `sync`) in order to enable it.
 
 [float]
 [[delete-by-query-consistency]]

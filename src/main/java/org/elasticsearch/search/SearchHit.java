@@ -200,6 +200,11 @@ public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitFie
     SearchShardTarget getShard();
 
     /**
+     * @return Inner hits or <code>null</code> if there are none
+     */
+    Map<String, SearchHits> getInnerHits();
+
+    /**
      * Encapsulates the nested identity of a hit.
      */
     public interface NestedIdentity {

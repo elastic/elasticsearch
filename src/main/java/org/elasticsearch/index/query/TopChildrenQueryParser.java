@@ -23,6 +23,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -31,7 +32,6 @@ import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.index.search.child.TopChildrenQuery;
-import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 
 import java.io.IOException;
 
@@ -128,12 +128,12 @@ public class TopChildrenQueryParser implements QueryParser {
 
         BitDocIdSetFilter nonNestedDocsFilter = null;
         if (childDocMapper.hasNestedObjects()) {
-            nonNestedDocsFilter = parseContext.bitsetFilter(NonNestedDocsFilter.INSTANCE);
+            nonNestedDocsFilter = parseContext.bitsetFilter(Queries.newNonNestedFilter());
         }
 
         innerQuery.setBoost(boost);
         // wrap the query with type query
-        innerQuery = new FilteredQuery(innerQuery, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
+        innerQuery = new FilteredQuery(innerQuery, parseContext.cacheFilter(childDocMapper.typeFilter(), null, parseContext.autoFilterCachePolicy()));
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
         TopChildrenQuery query = new TopChildrenQuery(parentChildIndexFieldData, innerQuery, childType, parentType, scoreType, factor, incrementalFactor, nonNestedDocsFilter);
         if (queryName != null) {

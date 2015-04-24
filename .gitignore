@@ -1,6 +1,8 @@
 .idea/
 .gradle/
 *.iml
+*.ipr
+*.iws
 work/
 /data/
 /plugins/

@@ -23,28 +23,32 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -94,7 +98,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             ByteFieldMapper fieldMapper = new ByteFieldMapper(buildNames(context),
                     fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue, ignoreMalformed(context),
-                    coerce(context), postingsProvider, docValuesProvider, similarity, normsLoading, 
+                    coerce(context), similarity, normsLoading, 
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -128,13 +132,12 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
 
     protected ByteFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                               Byte nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, 
-                              PostingsFormatProvider postingsProvider,
-                              DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity, Loading normsLoading,
+                              SimilarityProvider similarity, Loading normsLoading,
                               @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(names, precisionStep, boost, fieldType, docValues,
                 ignoreMalformed, coerce, new NamedAnalyzer("_byte/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
-                new NamedAnalyzer("_byte/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)), postingsProvider,
-                docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
+                new NamedAnalyzer("_byte/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)),
+                similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
@@ -200,13 +203,6 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     }
 
     @Override
-    public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        int iValue = parseValue(value);
-        return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
-                iValue, iValue, true, true);
-    }
-
-    @Override
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseValueAsInt(lowerTerm),
@@ -215,18 +211,12 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     }
 
     @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        int iValue = parseValueAsInt(value);
-        return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
-                iValue, iValue, true, true);
-    }
-
-    @Override
-    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
+    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
+            @Nullable QueryParseContext context) {
+        return Queries.wrap(NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseValueAsInt(lowerTerm),
                 upperTerm == null ? null : parseValueAsInt(upperTerm),
-                includeLower, includeUpper);
+                includeLower, includeUpper));
     }
 
     @Override
@@ -242,10 +232,10 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
         if (nullValue == null) {
             return null;
         }
-        return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
+        return Queries.wrap(NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 nullValue.intValue(),
                 nullValue.intValue(),
-                true, true);
+                true, true));
     }
 
     @Override
@@ -338,12 +328,12 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        super.merge(mergeWith, mergeContext);
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+        super.merge(mergeWith, mergeResult);
         if (!this.getClass().equals(mergeWith.getClass())) {
             return;
         }
-        if (!mergeContext.mergeFlags().simulate()) {
+        if (!mergeResult.simulate()) {
             this.nullValue = ((ByteFieldMapper) mergeWith).nullValue;
             this.nullValueAsString = ((ByteFieldMapper) mergeWith).nullValueAsString;
         }
@@ -364,6 +354,15 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
         } else if (includeDefaults) {
             builder.field("include_in_all", false);
         }
+    }
+
+    @Override
+    public FieldStats stats(Terms terms, int maxDoc) throws IOException {
+        long minValue = NumericUtils.getMinInt(terms);
+        long maxValue = NumericUtils.getMaxInt(terms);
+        return new FieldStats.Long(
+                maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue
+        );
     }
 
     public static class CustomByteNumericField extends CustomNumericField {

@@ -3,9 +3,8 @@
 if DEFINED JAVA_HOME goto cont
 
 :err
-echo JAVA_HOME environment variable must be set!
-pause
-exit
+ECHO JAVA_HOME environment variable must be set! 1>&2
+EXIT /B 1 
 
 :cont
 set SCRIPT_DIR=%~dp0
@@ -15,11 +14,11 @@ for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 REM ***** JAVA options *****
 
 if "%ES_MIN_MEM%" == "" (
-set ES_MIN_MEM=256m
+set ES_MIN_MEM=${packaging.elasticsearch.heap.min}
 )
 
 if "%ES_MAX_MEM%" == "" (
-set ES_MAX_MEM=1g
+set ES_MAX_MEM=${packaging.elasticsearch.heap.max}
 )
 
 if NOT "%ES_HEAP_SIZE%" == "" (
@@ -43,9 +42,6 @@ if NOT "%ES_DIRECT_SIZE%" == "" (
 set JAVA_OPTS=%JAVA_OPTS% -XX:MaxDirectMemorySize=%ES_DIRECT_SIZE%
 )
 
-REM reduce the per-thread stack size
-set JAVA_OPTS=%JAVA_OPTS% -Xss256k
-
 REM set to headless, just in case
 set JAVA_OPTS=%JAVA_OPTS% -Djava.awt.headless=true
 
@@ -63,12 +59,19 @@ set JAVA_OPTS=%JAVA_OPTS% -XX:+UseCMSInitiatingOccupancyOnly
 REM When running under Java 7
 REM JAVA_OPTS=%JAVA_OPTS% -XX:+UseCondCardMark
 
-if NOT "%ES_USE_GC_LOGGING%" == "" set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCDetails
-if NOT "%ES_USE_GC_LOGGING%" == "" set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCTimeStamps
-if NOT "%ES_USE_GC_LOGGING%" == "" set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintClassHistogram
-if NOT "%ES_USE_GC_LOGGING%" == "" set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintTenuringDistribution
-if NOT "%ES_USE_GC_LOGGING%" == "" set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCApplicationStoppedTime
-if NOT "%ES_USE_GC_LOGGING%" == "" set JAVA_OPTS=%JAVA_OPTS% -Xloggc:%ES_HOME%/logs/gc.log
+if "%ES_GC_LOG_FILE%" == "" goto nogclog
+
+:gclog
+set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCDetails
+set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCTimeStamps
+set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintClassHistogram
+set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintTenuringDistribution
+set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCApplicationStoppedTime
+set JAVA_OPTS=%JAVA_OPTS% -Xloggc:%ES_GC_LOG_FILE%
+for %%F in ("%ES_GC_LOG_FILE%") do set ES_GC_LOG_FILE_DIRECTORY=%%~dpF
+if NOT EXIST "%ES_GC_LOG_FILE_DIRECTORY%\." mkdir "%ES_GC_LOG_FILE_DIRECTORY%"
+
+:nogclog
 
 REM Causes the JVM to dump its heap on OutOfMemory.
 set JAVA_OPTS=%JAVA_OPTS% -XX:+HeapDumpOnOutOfMemoryError
@@ -78,6 +81,9 @@ REM JAVA_OPTS=%JAVA_OPTS% -XX:HeapDumpPath=$ES_HOME/logs/heapdump.hprof
 
 REM Disables explicit GC
 set JAVA_OPTS=%JAVA_OPTS% -XX:+DisableExplicitGC
+
+REM Ensure UTF-8 encoding by default (e.g. filenames)
+set JAVA_OPTS=%JAVA_OPTS% -Dfile.encoding=UTF-8
 
 set ES_CLASSPATH=%ES_CLASSPATH%;%ES_HOME%/lib/${project.build.finalName}.jar;%ES_HOME%/lib/*;%ES_HOME%/lib/sigar/*
 set ES_PARAMS=-Delasticsearch -Des-foreground=yes -Des.path.home="%ES_HOME%"

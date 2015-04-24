@@ -37,9 +37,9 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.DefaultSearchContext;
@@ -71,7 +71,8 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
                                   TransportService transportService, IndicesService indicesService,
                                   ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
                                   BigArrays bigArrays, ActionFilters actionFilters) {
-        super(settings, ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                ExplainRequest.class, ThreadPool.Names.GET);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.pageCacheRecycler = pageCacheRecycler;
@@ -82,10 +83,6 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
     protected void doExecute(ExplainRequest request, ActionListener<ExplainResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
         super.doExecute(request, listener);
-    }
-
-    protected String executor() {
-        return ThreadPool.Names.GET; // Or use Names.SEARCH?
     }
 
     @Override
@@ -146,10 +143,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
         }
     }
 
-    protected ExplainRequest newRequest() {
-        return new ExplainRequest();
-    }
-
+    @Override
     protected ExplainResponse newResponse() {
         return new ExplainResponse();
     }

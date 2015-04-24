@@ -41,6 +41,7 @@ public class SpanFirstQueryBuilder extends BaseQueryBuilder implements SpanQuery
         this.end = end;
     }
 
+    @Override
     public SpanFirstQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;

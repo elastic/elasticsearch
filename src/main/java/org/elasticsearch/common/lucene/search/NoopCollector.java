@@ -45,7 +45,7 @@ public class NoopCollector extends SimpleCollector {
     }
 
     @Override
-    public boolean acceptsDocsOutOfOrder() {
-        return true;
+    public boolean needsScores() {
+        return false;
     }
 }

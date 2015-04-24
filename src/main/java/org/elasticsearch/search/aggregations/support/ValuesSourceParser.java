@@ -25,13 +25,12 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
-import org.elasticsearch.script.ScriptParameterParser;
+import org.elasticsearch.script.*;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
@@ -79,8 +78,6 @@ public class ValuesSourceParser<VS extends ValuesSource> {
     private boolean scriptable = true;
     private boolean formattable = false;
     private ValueType targetValueType = null;
-    private boolean requiresSortedValues = false;
-    private boolean requiresUniqueValues = false;
     private ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
 
     private Input input = new Input();
@@ -154,7 +151,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
             return config;
         }
 
-        FieldMapper<?> mapper = context.smartNameFieldMapper(input.field);
+        FieldMapper<?> mapper = context.smartNameFieldMapperFromAnyType(input.field);
         if (mapper == null) {
             Class<VS> valuesSourceType = valueType != null ? (Class<VS>) valueType.getValuesSourceType() : this.valuesSourceType;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
@@ -189,7 +186,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
     }
 
     private SearchScript createScript() {
-        return input.script == null ? null : context.scriptService().search(context.lookup(), input.lang, input.script, input.scriptType, input.params);
+        return input.script == null ? null : context.scriptService().search(context.lookup(), new Script(input.lang, input.script, input.scriptType, input.params), ScriptContext.Standard.AGGS);
     }
 
     private static ValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {
@@ -209,6 +206,9 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         }
         if (mapper instanceof IpFieldMapper) {
             return ValueFormat.IPv4;
+        }
+        if (mapper instanceof BooleanFieldMapper) {
+            return ValueFormat.BOOLEAN;
         }
         if (mapper instanceof NumberFieldMapper) {
             return format != null ? ValueFormat.Number.format(format) : ValueFormat.RAW;

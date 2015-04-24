@@ -26,8 +26,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
@@ -36,11 +36,12 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
-@ElasticsearchTestCase.CompatibilityVersion(version = Version.V_1_2_0_ID) // we throw an exception if we create an index with _field_names that is 1.3
+@ElasticsearchBackwardsCompatIntegrationTest.CompatibilityVersion(version = Version.V_1_2_0_ID) // we throw an exception if we create an index with _field_names that is 1.3
 public class PreBuiltAnalyzerIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -54,9 +55,9 @@ public class PreBuiltAnalyzerIntegrationTests extends ElasticsearchIntegrationTe
     @Test
     public void testThatPreBuiltAnalyzersAreNotClosedOnIndexClose() throws Exception {
         Map<PreBuiltAnalyzers, List<Version>> loadedAnalyzers = Maps.newHashMap();
-
         List<String> indexNames = Lists.newArrayList();
-        for (int i = 0; i < 10; i++) {
+        final int numIndices = scaledRandomIntBetween(2, 4);
+        for (int i = 0; i < numIndices; i++) {
             String indexName = randomAsciiOfLength(10).toLowerCase(Locale.ROOT);
             indexNames.add(indexName);
 
@@ -64,7 +65,7 @@ public class PreBuiltAnalyzerIntegrationTests extends ElasticsearchIntegrationTe
             PreBuiltAnalyzers preBuiltAnalyzer = PreBuiltAnalyzers.values()[randomInt];
             String name = preBuiltAnalyzer.name().toLowerCase(Locale.ROOT);
 
-            Version randomVersion = randomVersion();
+            Version randomVersion = randomVersion(random());
             if (!loadedAnalyzers.containsKey(preBuiltAnalyzer)) {
                  loadedAnalyzers.put(preBuiltAnalyzer, Lists.<Version>newArrayList());
             }
@@ -87,13 +88,14 @@ public class PreBuiltAnalyzerIntegrationTests extends ElasticsearchIntegrationTe
 
         ensureGreen();
 
+        final int numDocs = randomIntBetween(10, 100);
         // index some amount of data
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < numDocs; i++) {
             String randomIndex = indexNames.get(randomInt(indexNames.size()-1));
             String randomId = randomInt() + "";
 
             Map<String, Object> data = Maps.newHashMap();
-            data.put("foo", randomAsciiOfLength(50));
+            data.put("foo", randomAsciiOfLength(scaledRandomIntBetween(5, 50)));
 
             index(randomIndex, "type", randomId, data);
         }
@@ -101,7 +103,7 @@ public class PreBuiltAnalyzerIntegrationTests extends ElasticsearchIntegrationTe
         refresh();
 
         // close some of the indices
-        int amountOfIndicesToClose = randomInt(10-1);
+        int amountOfIndicesToClose = randomInt(numIndices-1);
         for (int i = 0; i < amountOfIndicesToClose; i++) {
             String indexName = indexNames.get(i);
             client().admin().indices().prepareClose(indexName).execute().actionGet();
@@ -137,7 +139,7 @@ public class PreBuiltAnalyzerIntegrationTests extends ElasticsearchIntegrationTe
             .endObject()
             .endObject();
 
-        Settings versionSettings = settings(randomVersion())
+        Settings versionSettings = settings(randomVersion(random()))
                 .put("index.analysis.analyzer.my_dummy.type", "custom")
                 .put("index.analysis.analyzer.my_dummy.filter", "my_dummy_token_filter")
                 .put("index.analysis.analyzer.my_dummy.char_filter", "my_dummy_char_filter")

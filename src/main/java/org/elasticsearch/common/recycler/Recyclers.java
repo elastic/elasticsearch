@@ -92,45 +92,6 @@ public enum Recyclers {
     }
 
     /**
-     * Create a recycler that is wrapped inside a soft reference, so that it cannot cause {@link OutOfMemoryError}s.
-     */
-    public static <T> Recycler<T> soft(final Recycler.Factory<T> factory) {
-        return new FilterRecycler<T>() {
-
-            SoftReference<Recycler<T>> ref;
-
-            {
-                ref = new SoftReference<>(null);
-            }
-
-            @Override
-            protected Recycler<T> getDelegate() {
-                Recycler<T> recycler = ref.get();
-                if (recycler == null) {
-                    recycler = factory.build();
-                    ref = new SoftReference<>(recycler);
-                }
-                return recycler;
-            }
-
-        };
-    }
-
-    /**
-     * Create a recycler that wraps data in a SoftReference.
-     *
-     * @see #soft(org.elasticsearch.common.recycler.Recycler.Factory)
-     */
-    public static <T> Recycler.Factory<T> softFactory(final Recycler.Factory<T> factory) {
-        return new Recycler.Factory<T>() {
-            @Override
-            public Recycler<T> build() {
-                return soft(factory);
-            }
-        };
-    }
-
-    /**
      * Wrap the provided recycler so that calls to {@link Recycler#obtain()} and {@link Recycler.V#close()} are protected by
      * a lock.
      */

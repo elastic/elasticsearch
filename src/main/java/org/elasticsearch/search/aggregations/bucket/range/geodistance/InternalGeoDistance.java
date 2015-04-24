@@ -35,7 +35,7 @@ import java.util.Map;
 /**
  *
  */
-public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucket> implements GeoDistance {
+public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucket> {
 
     public static final Type TYPE = new Type("geo_distance", "gdist");
 
@@ -72,7 +72,7 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
 
     public static final Factory FACTORY = new Factory();
 
-    static class Bucket extends InternalRange.Bucket implements GeoDistance.Bucket {
+    static class Bucket extends InternalRange.Bucket {
 
         Bucket(boolean keyed, @Nullable ValueFormatter formatter) {
             super(keyed, formatter);

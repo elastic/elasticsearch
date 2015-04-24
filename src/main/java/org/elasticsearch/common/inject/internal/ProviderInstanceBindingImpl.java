@@ -47,34 +47,41 @@ public final class ProviderInstanceBindingImpl<T> extends BindingImpl<T>
         this.providerInstance = providerInstance;
     }
 
+    @Override
     public <V> V acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
         return visitor.visit(this);
     }
 
+    @Override
     public Provider<? extends T> getProviderInstance() {
         return providerInstance;
     }
 
+    @Override
     public Set<InjectionPoint> getInjectionPoints() {
         return injectionPoints;
     }
 
+    @Override
     public Set<Dependency<?>> getDependencies() {
         return providerInstance instanceof HasDependencies
                 ? ImmutableSet.copyOf(((HasDependencies) providerInstance).getDependencies())
                 : Dependency.forInjectionPoints(injectionPoints);
     }
 
+    @Override
     public BindingImpl<T> withScoping(Scoping scoping) {
         return new ProviderInstanceBindingImpl<>(
                 getSource(), getKey(), scoping, injectionPoints, providerInstance);
     }
 
+    @Override
     public BindingImpl<T> withKey(Key<T> key) {
         return new ProviderInstanceBindingImpl<>(
                 getSource(), key, getScoping(), injectionPoints, providerInstance);
     }
 
+    @Override
     public void applyTo(Binder binder) {
         getScoping().applyTo(
                 binder.withSource(getSource()).bind(getKey()).toProvider(getProviderInstance()));

@@ -39,12 +39,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class TransportMultiSearchAction extends HandledTransportAction<MultiSearchRequest, MultiSearchResponse> {
 
     private final ClusterService clusterService;
-
     private final TransportSearchAction searchAction;
 
     @Inject
     public TransportMultiSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService, TransportSearchAction searchAction, ActionFilters actionFilters) {
-        super(settings, MultiSearchAction.NAME, threadPool, transportService, actionFilters);
+        super(settings, MultiSearchAction.NAME, threadPool, transportService, actionFilters, MultiSearchRequest.class);
         this.clusterService = clusterService;
         this.searchAction = searchAction;
     }
@@ -81,10 +80,5 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
                 }
             });
         }
-    }
-
-    @Override
-    public MultiSearchRequest newRequestInstance() {
-        return new MultiSearchRequest();
     }
 }

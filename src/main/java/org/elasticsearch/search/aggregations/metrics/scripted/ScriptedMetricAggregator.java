@@ -21,19 +21,25 @@ package org.elasticsearch.search.aggregations.metrics.scripted;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.*;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 
 public class ScriptedMetricAggregator extends MetricsAggregator {
@@ -47,14 +53,12 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
     private final Map<String, Object> params;
     // initial parameters for {reduce}
     private final Map<String, Object> reduceParams;
-    private ScriptService scriptService;
-    private ScriptType reduceScriptType;
+    private final ScriptType reduceScriptType;
 
     protected ScriptedMetricAggregator(String name, String scriptLang, ScriptType initScriptType, String initScript,
             ScriptType mapScriptType, String mapScript, ScriptType combineScriptType, String combineScript, ScriptType reduceScriptType,
-            String reduceScript, Map<String, Object> params, Map<String, Object> reduceParams, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
-        super(name, 1, BucketAggregationMode.PER_BUCKET, context, parent, metaData);
-        this.scriptService = context.searchContext().scriptService();
+            String reduceScript, Map<String, Object> params, Map<String, Object> reduceParams, AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, metaData);
         this.scriptLang = scriptLang;
         this.reduceScriptType = reduceScriptType;
         if (params == null) {
@@ -68,12 +72,13 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         } else {
             this.reduceParams = reduceParams;
         }
+        ScriptService scriptService = context.searchContext().scriptService();
         if (initScript != null) {
-            scriptService.executable(scriptLang, initScript, initScriptType, this.params).run();
+            scriptService.executable(new Script(scriptLang, initScript, initScriptType, this.params), ScriptContext.Standard.AGGS).run();
         }
-        this.mapScript = scriptService.search(context.searchContext().lookup(), scriptLang, mapScript, mapScriptType, this.params);
+        this.mapScript = scriptService.search(context.searchContext().lookup(), new Script(scriptLang, mapScript, mapScriptType, this.params), ScriptContext.Standard.AGGS);
         if (combineScript != null) {
-            this.combineScript = scriptService.executable(scriptLang, combineScript, combineScriptType, this.params);
+            this.combineScript = scriptService.executable(new Script(scriptLang, combineScript, combineScriptType, this.params), ScriptContext.Standard.AGGS);
         } else {
             this.combineScript = null;
         }
@@ -81,19 +86,22 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
     }
 
     @Override
-    public boolean shouldCollect() {
-        return true;
+    public boolean needsScores() {
+        return true; // TODO: how can we know if the script relies on scores?
     }
 
     @Override
-    public void setNextReader(LeafReaderContext reader) {
-        mapScript.setNextReader(reader);
-    }
-
-    @Override
-    public void collect(int docId, long bucketOrdinal) throws IOException {
-        mapScript.setNextDocId(docId);
-        mapScript.run();
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        final LeafSearchScript leafMapScript = mapScript.getLeafSearchScript(ctx);
+        return new LeafBucketCollectorBase(sub, mapScript) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                assert bucket == 0 : bucket;
+                leafMapScript.setDocument(doc);
+                leafMapScript.run();
+            }
+        };
     }
 
     @Override
@@ -104,12 +112,12 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         } else {
             aggregation = params.get("_agg");
         }
-        return new InternalScriptedMetric(name, aggregation, scriptLang, reduceScriptType, reduceScript, reduceParams, getMetaData());
+        return new InternalScriptedMetric(name, aggregation, scriptLang, reduceScriptType, reduceScript, reduceParams, metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalScriptedMetric(name, null, scriptLang, reduceScriptType, reduceScript, reduceParams, getMetaData());
+        return new InternalScriptedMetric(name, null, scriptLang, reduceScriptType, reduceScript, reduceParams, metaData());
     }
 
     public static class Factory extends AggregatorFactory {
@@ -143,7 +151,10 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
+            if (collectsFromSingleBucket == false) {
+                return asMultiBucketAggregator(this, context, parent);
+            }
             Map<String, Object> params = null;
             if (this.params != null) {
                 params = deepCopyParams(this.params, context.searchContext());

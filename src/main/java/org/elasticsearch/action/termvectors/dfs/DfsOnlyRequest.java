@@ -53,13 +53,12 @@ public class DfsOnlyRequest extends BroadcastOperationRequest<DfsOnlyRequest> {
 
         // build a search request with a query of all the terms
         final BoolQueryBuilder boolBuilder = boolQuery();
-        TermsEnum iterator = null;
         for (String fieldName : termVectorsFields) {
             if ((selectedFields != null) && (!selectedFields.contains(fieldName))) {
                 continue;
             }
             Terms terms = termVectorsFields.terms(fieldName);
-            iterator = terms.iterator(iterator);
+            TermsEnum iterator = terms.iterator();
             while (iterator.next() != null) {
                 String text = iterator.term().utf8ToString();
                 boolBuilder.should(QueryBuilders.termQuery(fieldName, text));
@@ -76,11 +75,6 @@ public class DfsOnlyRequest extends BroadcastOperationRequest<DfsOnlyRequest> {
     @Override
     public ActionRequestValidationException validate() {
         return searchRequest.validate();
-    }
-
-    @Override
-    protected void beforeStart() {
-        searchRequest.beforeStart();
     }
 
     @Override

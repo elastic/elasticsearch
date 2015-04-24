@@ -25,9 +25,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -113,7 +111,8 @@ public class DiscoveryNode implements Streamable, Serializable {
      * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
      * and updated.
      * </p>
-     * @param nodeId the nodes unique id.
+     *
+     * @param nodeId  the nodes unique id.
      * @param address the nodes transport address
      * @param version the version of the node.
      */
@@ -129,11 +128,12 @@ public class DiscoveryNode implements Streamable, Serializable {
      * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
      * and updated.
      * </p>
-     * @param nodeName the nodes name
-     * @param nodeId the nodes unique id.
-     * @param address the nodes transport address
+     *
+     * @param nodeName   the nodes name
+     * @param nodeId     the nodes unique id.
+     * @param address    the nodes transport address
      * @param attributes node attributes
-     * @param version the version of the node.
+     * @param version    the version of the node.
      */
     public DiscoveryNode(String nodeName, String nodeId, TransportAddress address, Map<String, String> attributes, Version version) {
         this(nodeName, nodeId, NetworkUtils.getLocalHostName(""), NetworkUtils.getLocalHostAddress(""), address, attributes, version);
@@ -147,13 +147,14 @@ public class DiscoveryNode implements Streamable, Serializable {
      * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
      * and updated.
      * </p>
-     * @param nodeName the nodes name
-     * @param nodeId the nodes unique id.
-     * @param hostName the nodes hostname
+     *
+     * @param nodeName    the nodes name
+     * @param nodeId      the nodes unique id.
+     * @param hostName    the nodes hostname
      * @param hostAddress the nodes host address
-     * @param address the nodes transport address
-     * @param attributes node attributes
-     * @param version the version of the node.
+     * @param address     the nodes transport address
+     * @param attributes  node attributes
+     * @param version     the version of the node.
      */
     public DiscoveryNode(String nodeName, String nodeId, String hostName, String hostAddress, TransportAddress address, Map<String, String> attributes, Version version) {
         if (nodeName != null) {
@@ -340,8 +341,9 @@ public class DiscoveryNode implements Streamable, Serializable {
 
     @Override
     public boolean equals(Object obj) {
-        if (!(obj instanceof DiscoveryNode))
+        if (!(obj instanceof DiscoveryNode)) {
             return false;
+        }
 
         DiscoveryNode other = (DiscoveryNode) obj;
         return this.nodeId.equals(other.nodeId);
@@ -371,5 +373,20 @@ public class DiscoveryNode implements Streamable, Serializable {
             sb.append(attributes);
         }
         return sb.toString();
+    }
+
+    // we need this custom serialization logic because Version is not serializable (because org.apache.lucene.util.Version is not serializable)
+    private void writeObject(java.io.ObjectOutputStream out)
+            throws IOException {
+        StreamOutput streamOutput = new OutputStreamStreamOutput(out);
+        streamOutput.setVersion(Version.CURRENT.minimumCompatibilityVersion());
+        this.writeTo(streamOutput);
+    }
+
+    private void readObject(java.io.ObjectInputStream in)
+            throws IOException, ClassNotFoundException {
+        StreamInput streamInput = new InputStreamStreamInput(in);
+        streamInput.setVersion(Version.CURRENT.minimumCompatibilityVersion());
+        this.readFrom(streamInput);
     }
 }

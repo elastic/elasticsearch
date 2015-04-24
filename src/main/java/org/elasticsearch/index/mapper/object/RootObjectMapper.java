@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.object;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -206,6 +207,14 @@ public class RootObjectMapper extends ObjectMapper {
         this.numericDetection = numericDetection;
     }
 
+    @Override
+    public ObjectMapper mappingUpdate(Mapper mapper) {
+        RootObjectMapper update = (RootObjectMapper) super.mappingUpdate(mapper);
+        // dynamic templates are irrelevant for dynamic mappings updates
+        update.dynamicTemplates = new DynamicTemplate[0];
+        return update;
+    }
+
     public boolean dateDetection() {
         return this.dateDetection;
     }
@@ -251,9 +260,9 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    protected void doMerge(ObjectMapper mergeWith, MergeContext mergeContext) {
+    protected void doMerge(ObjectMapper mergeWith, MergeResult mergeResult) {
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
-        if (!mergeContext.mergeFlags().simulate()) {
+        if (!mergeResult.simulate()) {
             // merge them
             List<DynamicTemplate> mergedTemplates = Lists.newArrayList(Arrays.asList(this.dynamicTemplates));
             for (DynamicTemplate template : mergeWithObject.dynamicTemplates) {

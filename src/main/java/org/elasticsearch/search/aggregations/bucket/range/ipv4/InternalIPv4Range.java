@@ -35,7 +35,7 @@ import java.util.Map;
 /**
  *
  */
-public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> implements IPv4Range {
+public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> {
 
     public static final long MAX_IP = 4294967296l;
 
@@ -73,7 +73,7 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> i
 
     public static final Factory FACTORY = new Factory();
 
-    public static class Bucket extends InternalRange.Bucket implements IPv4Range.Bucket {
+    public static class Bucket extends InternalRange.Bucket {
 
         public Bucket(boolean keyed) {
             super(keyed, ValueFormatter.IPv4);
@@ -89,13 +89,13 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> i
 
         @Override
         public String getFromAsString() {
-            double from = getFrom().doubleValue();
+            double from = ((Number) this.from).doubleValue();
             return Double.isInfinite(from) ? null : from == 0 ? null : ValueFormatter.IPv4.format(from);
         }
 
         @Override
         public String getToAsString() {
-            double to = getTo().doubleValue();
+            double to = ((Number) this.to).doubleValue();
             return Double.isInfinite(to) ? null : MAX_IP == to ? null : ValueFormatter.IPv4.format(to);
         }
 

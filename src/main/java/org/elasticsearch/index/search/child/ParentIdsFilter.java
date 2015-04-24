@@ -18,16 +18,18 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.queries.TermFilter;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
@@ -38,7 +40,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LongBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.search.AndFilter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.mapper.Uid;
@@ -46,8 +48,6 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * Advantages over using this filter over Lucene's TermsFilter in the parent child context:
@@ -63,13 +63,12 @@ final class ParentIdsFilter extends Filter {
         if (numFoundParents == 1) {
             BytesRef id = globalValues.lookupOrd((int) parentOrds.nextSetBit(0));
             if (nonNestedDocsFilter != null) {
-                List<Filter> filters = Arrays.asList(
-                        new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))),
-                        nonNestedDocsFilter
-                );
-                return new AndFilter(filters);
+                BooleanQuery bq = new BooleanQuery();
+                bq.add(new TermQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))), Occur.MUST);
+                bq.add(nonNestedDocsFilter, Occur.MUST);
+                return Queries.wrap(bq);
             } else {
-                return new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
+                return Queries.wrap(new TermQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))));
             }
         } else {
             BytesRefHash parentIds= null;
@@ -96,13 +95,12 @@ final class ParentIdsFilter extends Filter {
         if (numFoundParents == 1) {
             BytesRef id = globalValues.lookupOrd((int) parentIdxs.get(0));
             if (nonNestedDocsFilter != null) {
-                List<Filter> filters = Arrays.asList(
-                        new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))),
-                        nonNestedDocsFilter
-                );
-                return new AndFilter(filters);
+                BooleanQuery bq = new BooleanQuery();
+                bq.add(new TermQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))), Occur.MUST);
+                bq.add(nonNestedDocsFilter, Occur.MUST);
+                return Queries.wrap(bq);
             } else {
-                return new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
+                return Queries.wrap(new TermQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))));
             }
         } else {
             BytesRefHash parentIds = null;
@@ -140,7 +138,7 @@ final class ParentIdsFilter extends Filter {
             return null;
         }
 
-        TermsEnum termsEnum = terms.iterator(null);
+        TermsEnum termsEnum = terms.iterator();
         BytesRefBuilder uidSpare = new BytesRefBuilder();
         BytesRef idSpare = new BytesRef();
 
@@ -153,7 +151,7 @@ final class ParentIdsFilter extends Filter {
             nonNestedDocs = nonNestedDocsFilter.getDocIdSet(context).bits();
         }
 
-        DocsEnum docsEnum = null;
+        PostingsEnum docsEnum = null;
         BitSet result = null;
         int size = (int) parentIds.size();
         for (int i = 0; i < size; i++) {
@@ -161,7 +159,7 @@ final class ParentIdsFilter extends Filter {
             BytesRef uid = Uid.createUidAsBytes(parentTypeBr, idSpare, uidSpare);
             if (termsEnum.seekExact(uid)) {
                 int docId;
-                docsEnum = termsEnum.docs(acceptDocs, docsEnum, DocsEnum.FLAG_NONE);
+                docsEnum = termsEnum.postings(acceptDocs, docsEnum, PostingsEnum.NONE);
                 if (result == null) {
                     docId = docsEnum.nextDoc();
                     if (docId != DocIdSetIterator.NO_MORE_DOCS) {
@@ -191,5 +189,30 @@ final class ParentIdsFilter extends Filter {
             }
         }
         return result == null ? null : new BitDocIdSet(result);
+    }
+
+    @Override
+    public String toString(String field) {
+        return "parentsFilter(type=" + parentTypeBr.utf8ToString() + ")";
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        ParentIdsFilter other = (ParentIdsFilter) obj;
+        return parentTypeBr.equals(other.parentTypeBr)
+                && parentIds.equals(other.parentIds)
+                && nonNestedDocsFilter.equals(nonNestedDocsFilter);
+    }
+
+    @Override
+    public int hashCode() {
+        int h = super.hashCode();
+        h = 31 * h + parentTypeBr.hashCode();
+        h = 31 * h + parentIds.hashCode();
+        h = 31 * h + nonNestedDocsFilter.hashCode();
+        return h;
     }
 }

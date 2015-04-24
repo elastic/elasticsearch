@@ -40,6 +40,7 @@ import org.elasticsearch.discovery.*;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.HashSet;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
@@ -272,13 +273,21 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         return clusterName.value() + "/" + localNode.id();
     }
 
+    @Override
     public void publish(ClusterState clusterState, final Discovery.AckListener ackListener) {
         if (!master) {
             throw new ElasticsearchIllegalStateException("Shouldn't publish state when not master");
         }
         LocalDiscovery[] members = members();
         if (members.length > 0) {
-            publish(members, clusterState, new AckClusterStatePublishResponseHandler(members.length - 1, ackListener));
+            Set<DiscoveryNode> nodesToPublishTo = new HashSet<>(members.length);
+            for (LocalDiscovery localDiscovery : members) {
+                if (localDiscovery.master) {
+                    continue;
+                }
+                nodesToPublishTo.add(localDiscovery.localNode);
+            }
+            publish(members, clusterState, new AckClusterStatePublishResponseHandler(nodesToPublishTo, ackListener));
         }
     }
 
@@ -291,7 +300,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         return members.toArray(new LocalDiscovery[members.size()]);
     }
 
-    private void publish(LocalDiscovery[] members, ClusterState clusterState, final ClusterStatePublishResponseHandler publishResponseHandler) {
+    private void publish(LocalDiscovery[] members, ClusterState clusterState, final BlockingClusterStatePublishResponseHandler publishResponseHandler) {
 
         try {
             // we do the marshaling intentionally, to check it works well...
@@ -301,7 +310,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 if (discovery.master) {
                     continue;
                 }
-                final ClusterState nodeSpecificClusterState = ClusterState.Builder.fromBytes(clusterStateBytes, discovery.localNode, clusterName);
+                final ClusterState nodeSpecificClusterState = ClusterState.Builder.fromBytes(clusterStateBytes, discovery.localNode);
                 nodeSpecificClusterState.status(ClusterState.ClusterStateStatus.RECEIVED);
                 // ignore cluster state messages that do not include "me", not in the game yet...
                 if (nodeSpecificClusterState.nodes().localNode() != null) {
@@ -355,7 +364,11 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 try {
                     boolean awaited = publishResponseHandler.awaitAllNodes(publishTimeout);
                     if (!awaited) {
-                        logger.debug("awaiting all nodes to process published state {} timed out, timeout {}", clusterState.version(), publishTimeout);
+                        DiscoveryNode[] pendingNodes = publishResponseHandler.pendingNodes();
+                        // everyone may have just responded
+                        if (pendingNodes.length > 0) {
+                            logger.warn("timed out waiting for all nodes to process published state [{}] (timeout [{}], pending nodes: {})", clusterState.version(), publishTimeout, pendingNodes);
+                        }
                     }
                 } catch (InterruptedException e) {
                     // ignore & restore interrupt

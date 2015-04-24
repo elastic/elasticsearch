@@ -23,8 +23,8 @@ import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.LocalTransportAddress;
-import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 
@@ -38,11 +38,10 @@ public class RecoveryStatusTests extends ElasticsearchSingleNodeTest {
     
     public void testRenameTempFiles() throws IOException {
         IndexService service = createIndex("foo");
-        RecoveryState state = new RecoveryState();
 
-        InternalIndexShard indexShard = (InternalIndexShard) service.shard(0);
+        IndexShard indexShard = service.shard(0);
         DiscoveryNode node = new DiscoveryNode("foo", new LocalTransportAddress("bar"), Version.CURRENT);
-        RecoveryStatus status = new RecoveryStatus(indexShard, node, state, new RecoveryTarget.RecoveryListener() {
+        RecoveryStatus status = new RecoveryStatus(indexShard, node, new RecoveryTarget.RecoveryListener() {
             @Override
             public void onRecoveryDone(RecoveryState state) {
             }
@@ -67,10 +66,12 @@ public class RecoveryStatusTests extends ElasticsearchSingleNodeTest {
             }
         }
         assertNotNull(expectedFile);
+        indexShard.close("foo", false);// we have to close it here otherwise rename fails since the write.lock is held by the engine
         status.renameAllTempFiles();
         strings = Sets.newHashSet(status.store().directory().listAll());
         assertTrue(strings.toString(), strings.contains("foo.bar"));
         assertFalse(strings.toString(), strings.contains(expectedFile));
-        status.markAsDone();
+        // we must fail the recovery because marking it as done will try to move the shard to POST_RECOVERY, which will fail because it's started
+        status.fail(new RecoveryFailedException(status.state(), "end of test. OK.", null), false);
     }
 }

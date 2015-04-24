@@ -20,30 +20,45 @@
 package org.elasticsearch.index.mapper.string;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.index.FieldInfo;
+import com.google.common.collect.Lists;
+
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.DocumentMapper.MergeFlags;
-import org.elasticsearch.index.mapper.DocumentMapper.MergeResult;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
@@ -204,6 +219,79 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(fieldType.omitNorms(), equalTo(false));
         assertParseIdemPotent(fieldType, defaultMapper);
     }
+    
+    @Test
+    public void testSearchQuoteAnalyzerSerialization() throws Exception {
+        // Cases where search_quote_analyzer should not be added to the mapping.
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("field1")
+                    .field("type", "string")
+                    .field("position_offset_gap", 1000)
+                .endObject()
+                .startObject("field2")
+                    .field("type", "string")
+                    .field("position_offset_gap", 1000)
+                    .field("analyzer", "standard")
+                .endObject()
+                .startObject("field3")
+                    .field("type", "string")
+                    .field("position_offset_gap", 1000)
+                    .field("analyzer", "standard")
+                    .field("search_analyzer", "simple")
+                .endObject()
+                .startObject("field4")
+                    .field("type", "string")
+                    .field("position_offset_gap", 1000)
+                    .field("analyzer", "standard")
+                    .field("search_analyzer", "simple")
+                    .field("search_quote_analyzer", "simple")
+                .endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse(mapping);
+        for (String fieldName : Lists.newArrayList("field1", "field2", "field3", "field4")) {
+            Map<String, Object> serializedMap = getSerializedMap(fieldName, mapper);
+            assertFalse(serializedMap.containsKey("search_quote_analyzer"));
+        }
+        
+        // Cases where search_quote_analyzer should be present.
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("field1")
+                    .field("type", "string")
+                    .field("position_offset_gap", 1000)
+                    .field("search_quote_analyzer", "simple")
+                .endObject()
+                .startObject("field2")
+                    .field("type", "string")
+                    .field("position_offset_gap", 1000)
+                    .field("analyzer", "standard")
+                    .field("search_analyzer", "standard")
+                    .field("search_quote_analyzer", "simple")
+                .endObject()
+                .endObject()
+                .endObject().endObject().string();
+        
+        mapper = parser.parse(mapping);
+        for (String fieldName : Lists.newArrayList("field1", "field2")) {
+            Map<String, Object> serializedMap = getSerializedMap(fieldName, mapper);
+            assertEquals(serializedMap.get("search_quote_analyzer"), "simple");
+        }
+    }
+    
+    private Map<String, Object> getSerializedMap(String fieldName, DocumentMapper mapper) throws Exception {
+        FieldMapper<?> fieldMapper = mapper.mappers().smartNameFieldMapper(fieldName);
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        fieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
+        builder.close();
+        
+        Map<String, Object> fieldMap = JsonXContent.jsonXContent.createParser(builder.bytes()).mapAndClose();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> result = (Map<String, Object>) fieldMap.get(fieldName);
+        return result;
+    }
 
     @Test
     public void testTermVectors() throws Exception {
@@ -280,34 +368,83 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(doc.rootDoc().getField("field6").fieldType().storeTermVectorPayloads(), equalTo(true));
     }
 
-    public void testDocValues() throws Exception {
-        // doc values only work on non-analyzed content
+    public void testDocValuesFielddata() throws Exception {
+        IndexService indexService = createIndex("index");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
         final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
-        try {
-            new StringFieldMapper.Builder("anything").fieldDataSettings(DOC_VALUES_SETTINGS).build(ctx);
-            fail();
-        } catch (Exception e) { /* OK */ }
-        new StringFieldMapper.Builder("anything").tokenized(false).fieldDataSettings(DOC_VALUES_SETTINGS).build(ctx);
-        new StringFieldMapper.Builder("anything").index(false).fieldDataSettings(DOC_VALUES_SETTINGS).build(ctx);
 
         assertFalse(new StringFieldMapper.Builder("anything").index(false).build(ctx).hasDocValues());
         assertTrue(new StringFieldMapper.Builder("anything").index(false).fieldDataSettings(DOC_VALUES_SETTINGS).build(ctx).hasDocValues());
         assertTrue(new StringFieldMapper.Builder("anything").index(false).docValues(true).build(ctx).hasDocValues());
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("str1")
+                .field("type", "string")
+                .startObject("fielddata")
+                    .field("format", "fst")
+                .endObject()
+            .endObject()
+            .startObject("str2")
+                .field("type", "string")
+                .field("index", "not_analyzed")
+                .startObject("fielddata")
+                    .field("format", "doc_values")
+                .endObject()
+            .endObject()
+            .endObject()
+            .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = parser.parse(mapping);
+
+        ParsedDocument parsedDoc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+            .startObject()
+            .field("str1", "1234")
+            .field("str2", "1234")
+            .endObject()
+            .bytes());
+        final Document doc = parsedDoc.rootDoc();
+        assertEquals(DocValuesType.NONE, docValuesType(doc, "str1"));
+        assertEquals(DocValuesType.SORTED_SET, docValuesType(doc, "str2"));
+    }
+
+    public void testDocValues() throws Exception {
+        // doc values only work on non-analyzed content
+        final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
+        try {
+            new StringFieldMapper.Builder("anything").docValues(true).build(ctx);
+            fail();
+        } catch (Exception e) { /* OK */ }
+
+        assertFalse(new StringFieldMapper.Builder("anything").index(false).build(ctx).hasDocValues());
+        assertTrue(new StringFieldMapper.Builder("anything").index(true).tokenized(false).build(ctx).hasDocValues());
+        assertFalse(new StringFieldMapper.Builder("anything").index(true).tokenized(true).build(ctx).hasDocValues());
+        assertFalse(new StringFieldMapper.Builder("anything").index(false).tokenized(false).docValues(false).build(ctx).hasDocValues());
+        assertTrue(new StringFieldMapper.Builder("anything").index(false).docValues(true).build(ctx).hasDocValues());
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                 .startObject("str1")
                     .field("type", "string")
-                    .startObject("fielddata")
-                        .field("format", "fst")
-                    .endObject()
+                    .field("index", "no")
                 .endObject()
                 .startObject("str2")
                     .field("type", "string")
                     .field("index", "not_analyzed")
-                    .startObject("fielddata")
-                        .field("format", "doc_values")
-                    .endObject()
+                .endObject()
+                .startObject("str3")
+                    .field("type", "string")
+                    .field("index", "analyzed")
+                .endObject()
+                .startObject("str4")
+                    .field("type", "string")
+                    .field("index", "not_analyzed")
+                    .field("doc_values", false)
+                .endObject()
+                .startObject("str5")
+                    .field("type", "string")
+                    .field("index", "no")
+                    .field("doc_values", true)
                 .endObject()
                 .endObject()
                 .endObject().endObject().string();
@@ -318,13 +455,21 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject()
                 .field("str1", "1234")
                 .field("str2", "1234")
+                .field("str3", "1234")
+                .field("str4", "1234")
+                .field("str5", "1234")
                 .endObject()
                 .bytes());
         final Document doc = parsedDoc.rootDoc();
         assertEquals(DocValuesType.NONE, docValuesType(doc, "str1"));
         assertEquals(DocValuesType.SORTED_SET, docValuesType(doc, "str2"));
+        assertEquals(DocValuesType.NONE, docValuesType(doc, "str3"));
+        assertEquals(DocValuesType.NONE, docValuesType(doc, "str4"));
+        assertEquals(DocValuesType.SORTED_SET, docValuesType(doc, "str5"));
+        
     }
 
+    // TODO: this function shouldn't be necessary.  parsing should just add a single field that is indexed and dv
     public static DocValuesType docValuesType(Document document, String fieldName) {
         for (IndexableField field : document.getFields(fieldName)) {
             if (field.fieldType().docValuesType() != DocValuesType.NONE) {
@@ -354,8 +499,8 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         String updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", false).endObject()
                 .endObject().endObject().endObject().endObject().string();
-        MergeResult mergeResult = defaultMapper.merge(parser.parse(updatedMapping), MergeFlags.mergeFlags().simulate(false));
-        assertFalse(Arrays.toString(mergeResult.conflicts()), mergeResult.hasConflicts());
+        MergeResult mergeResult = defaultMapper.merge(parser.parse(updatedMapping).mapping(), false);
+        assertFalse(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts());
 
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -369,10 +514,24 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", true).endObject()
                 .endObject().endObject().endObject().endObject().string();
-        mergeResult = defaultMapper.merge(parser.parse(updatedMapping), MergeFlags.mergeFlags());
+        mergeResult = defaultMapper.merge(parser.parse(updatedMapping).mapping(), true);
         assertTrue(mergeResult.hasConflicts());
-        assertEquals(1, mergeResult.conflicts().length);
-        assertTrue(mergeResult.conflicts()[0].contains("cannot enable norms"));
+        assertEquals(1, mergeResult.buildConflicts().length);
+        assertTrue(mergeResult.buildConflicts()[0].contains("cannot enable norms"));
+    }
+
+    public void testTermsFilter() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "string").field("index", "not_analyzed").endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = parser.parse(mapping);
+        FieldMapper<?> mapper = defaultMapper.mappers().getMapper("field");
+        assertNotNull(mapper);
+        assertTrue(mapper instanceof StringFieldMapper);
+        assertEquals(Queries.newMatchNoDocsFilter(), mapper.termsFilter(Collections.emptyList(), null));
+        assertEquals(new QueryWrapperFilter(new TermQuery(new Term("field", "value"))), mapper.termsFilter(Collections.singletonList("value"), null));
+        assertEquals(new QueryWrapperFilter(new TermsQuery(new Term("field", "value1"), new Term("field", "value2"))), mapper.termsFilter(Arrays.asList("value1", "value2"), null));
     }
 
 }

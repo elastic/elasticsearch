@@ -23,9 +23,13 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.GeoPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 
-import java.util.List;
 import java.util.Locale;
 
 /**
@@ -398,8 +402,7 @@ public enum GeoDistance {
                 @Override
                 public void setDocument(int doc) {
                     geoPointValues.setDocument(doc);
-                    count = geoPointValues.count() * distances.length;
-                    grow();
+                    resize(geoPointValues.count() * distances.length);
                     int valueCounter = 0;
                     for (FixedSourceDistance distance : distances) {
                         for (int i = 0; i < geoPointValues.count(); ++i) {

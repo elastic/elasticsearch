@@ -22,7 +22,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.jboss.netty.handler.codec.http.HttpResponse;
 import org.junit.Test;
@@ -46,7 +46,7 @@ public class NettyPipeliningDisabledIntegrationTest extends ElasticsearchIntegra
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put(InternalNode.HTTP_ENABLED, true).put("http.pipelining", false).build();
+        return settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put(Node.HTTP_ENABLED, true).put("http.pipelining", false).build();
     }
 
     @Test
@@ -71,8 +71,7 @@ public class NettyPipeliningDisabledIntegrationTest extends ElasticsearchIntegra
      * checks if all responses are there, but also tests that they are out of order because pipelining is disabled
      */
     private void assertResponsesOutOfOrder(List<String> opaqueIds) {
-        String message = String.format(Locale.ROOT, "Expected returned http message ids to be out of order: %s", opaqueIds);
-        assertThat(opaqueIds, hasItems("0", "1", "2", "3", "4", "5", "6"));
-        assertThat(message, opaqueIds, not(contains("0", "1", "2", "3", "4", "5", "6")));
+        String message = String.format(Locale.ROOT, "Expected returned http message ids to be in any order of: %s", opaqueIds);
+        assertThat(message, opaqueIds, containsInAnyOrder("0", "1", "2", "3", "4", "5", "6"));
     }
 }

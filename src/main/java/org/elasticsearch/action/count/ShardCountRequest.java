@@ -109,12 +109,7 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
             }
         }
         nowInMillis = in.readVLong();
-
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            terminateAfter = in.readVInt();
-        } else {
-            terminateAfter = DEFAULT_TERMINATE_AFTER;
-        }
+        terminateAfter = in.readVInt();
     }
 
     @Override
@@ -137,9 +132,6 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
             out.writeVInt(0);
         }
         out.writeVLong(nowInMillis);
-
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeVInt(terminateAfter);
-        }
+        out.writeVInt(terminateAfter);
     }
 }

@@ -39,8 +39,8 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -65,18 +65,16 @@ import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_
 public class TransportCountAction extends TransportBroadcastOperationAction<CountRequest, CountResponse, ShardCountRequest, ShardCountResponse> {
 
     private final IndicesService indicesService;
-
     private final ScriptService scriptService;
-
     private final PageCacheRecycler pageCacheRecycler;
-
     private final BigArrays bigArrays;
 
     @Inject
     public TransportCountAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                 IndicesService indicesService, ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
                                 BigArrays bigArrays, ActionFilters actionFilters) {
-        super(settings, CountAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, CountAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                CountRequest.class, ShardCountRequest.class, ThreadPool.Names.SEARCH);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.pageCacheRecycler = pageCacheRecycler;
@@ -87,21 +85,6 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     protected void doExecute(CountRequest request, ActionListener<CountResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
         super.doExecute(request, listener);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SEARCH;
-    }
-
-    @Override
-    protected CountRequest newRequest() {
-        return new CountRequest();
-    }
-
-    @Override
-    protected ShardCountRequest newShardRequest() {
-        return new ShardCountRequest();
     }
 
     @Override

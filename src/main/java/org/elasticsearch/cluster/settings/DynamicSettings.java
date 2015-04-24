@@ -31,6 +31,11 @@ public class DynamicSettings {
 
     private ImmutableMap<String, Validator> dynamicSettings = ImmutableMap.of();
 
+
+    public boolean isDynamicOrLoggingSetting(String key) {
+        return hasDynamicSetting(key) || key.startsWith("logger.");
+    }
+
     public boolean hasDynamicSetting(String key) {
         for (String dynamicSetting : dynamicSettings.keySet()) {
             if (Regex.simpleMatch(dynamicSetting, key)) {

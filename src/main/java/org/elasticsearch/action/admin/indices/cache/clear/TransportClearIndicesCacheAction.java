@@ -33,11 +33,10 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.cache.filter.terms.IndicesTermsFilterCache;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -53,27 +52,16 @@ import static com.google.common.collect.Lists.newArrayList;
 public class TransportClearIndicesCacheAction extends TransportBroadcastOperationAction<ClearIndicesCacheRequest, ClearIndicesCacheResponse, ShardClearIndicesCacheRequest, ShardClearIndicesCacheResponse> {
 
     private final IndicesService indicesService;
-    private final IndicesTermsFilterCache termsFilterCache;
     private final IndicesQueryCache indicesQueryCache;
 
     @Inject
     public TransportClearIndicesCacheAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                            TransportService transportService, IndicesService indicesService, IndicesTermsFilterCache termsFilterCache,
+                                            TransportService transportService, IndicesService indicesService,
                                             IndicesQueryCache indicesQueryCache, ActionFilters actionFilters) {
-        super(settings, ClearIndicesCacheAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, ClearIndicesCacheAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                ClearIndicesCacheRequest.class, ShardClearIndicesCacheRequest.class, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
-        this.termsFilterCache = termsFilterCache;
         this.indicesQueryCache = indicesQueryCache;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected ClearIndicesCacheRequest newRequest() {
-        return new ClearIndicesCacheRequest();
     }
 
     @Override
@@ -99,11 +87,6 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
     }
 
     @Override
-    protected ShardClearIndicesCacheRequest newShardRequest() {
-        return new ShardClearIndicesCacheRequest();
-    }
-
-    @Override
     protected ShardClearIndicesCacheRequest newShardRequest(int numShards, ShardRouting shard, ClearIndicesCacheRequest request) {
         return new ShardClearIndicesCacheRequest(shard.shardId(), request);
     }
@@ -124,12 +107,10 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
             if (request.filterCache()) {
                 clearedAtLeastOne = true;
                 service.cache().filter().clear("api");
-                termsFilterCache.clear("api");
             }
             if (request.filterKeys() != null && request.filterKeys().length > 0) {
                 clearedAtLeastOne = true;
                 service.cache().filter().clear("api", request.filterKeys());
-                termsFilterCache.clear("api", request.filterKeys());
             }
             if (request.fieldDataCache()) {
                 clearedAtLeastOne = true;
@@ -163,7 +144,6 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
                 } else {
                     service.cache().clear("api");
                     service.fieldData().clear();
-                    termsFilterCache.clear("api");
                     indicesQueryCache.clear(shard);
                 }
             }
@@ -181,12 +161,12 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, ClearIndicesCacheRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, ClearIndicesCacheRequest request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, concreteIndices);
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
     }
 
 }

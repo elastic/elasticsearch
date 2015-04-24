@@ -31,7 +31,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -39,7 +39,7 @@ import java.io.StringReader;
 import java.util.Arrays;
 import java.util.List;
 
-public class XMoreLikeThisTests extends ElasticsearchLuceneTestCase {
+public class XMoreLikeThisTests extends ElasticsearchTestCase {
 
     private void addDoc(RandomIndexWriter writer, String[] texts) throws IOException {
         Document doc = new Document();

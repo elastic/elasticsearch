@@ -106,7 +106,7 @@ public class PercolatorFacetsAndAggregationsTests extends ElasticsearchIntegrati
             assertThat(aggregations.get(0).getName(), equalTo("a"));
             List<Terms.Bucket> buckets = new ArrayList<>(((Terms) aggregations.get(0)).getBuckets());
             assertThat(buckets.size(), equalTo(1));
-            assertThat(buckets.get(0).getKeyAsText().string(), equalTo("b"));
+            assertThat(buckets.get(0).getKeyAsString(), equalTo("b"));
             assertThat(buckets.get(0).getDocCount(), equalTo((long) expectedCount[i % values.length]));
         }
     }

@@ -20,7 +20,9 @@
 package org.elasticsearch.common.util.concurrent;
 
 import com.google.common.annotations.Beta;
+
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.transport.Transports;
 
 import java.util.concurrent.*;
 import java.util.concurrent.locks.AbstractQueuedSynchronizer;
@@ -62,7 +64,8 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * @author Sven Mawson
  * @since 1.0
  */
-// Same as AbstractFuture from Guava, but without the listeners
+// Same as AbstractFuture from Guava, but without the listeners and with
+// additional assertions
 public abstract class BaseFuture<V> implements Future<V> {
 
     /**
@@ -89,6 +92,7 @@ public abstract class BaseFuture<V> implements Future<V> {
     @Override
     public V get(long timeout, TimeUnit unit) throws InterruptedException,
             TimeoutException, ExecutionException {
+        Transports.assertNotTransportThread("Blocking operation");
         return sync.get(unit.toNanos(timeout));
     }
 
@@ -110,6 +114,7 @@ public abstract class BaseFuture<V> implements Future<V> {
      */
     @Override
     public V get() throws InterruptedException, ExecutionException {
+        Transports.assertNotTransportThread("Blocking operation");
         return sync.get();
     }
 

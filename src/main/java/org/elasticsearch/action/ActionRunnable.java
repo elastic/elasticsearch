@@ -37,6 +37,7 @@ public abstract class ActionRunnable<Response> extends AbstractRunnable {
      * Calls the action listeners {@link ActionListener#onFailure(Throwable)} method with the given exception.
      * This method is invoked for all exception thrown by {@link #doRun()}
      */
+    @Override
     public void onFailure(Throwable t) {
         listener.onFailure(t);
     }

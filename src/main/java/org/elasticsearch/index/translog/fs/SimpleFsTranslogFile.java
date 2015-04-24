@@ -64,18 +64,22 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
         this.lastSyncPosition += headerSize;
     }
 
+    @Override
     public long id() {
         return this.id;
     }
 
+    @Override
     public int estimatedNumberOfOperations() {
         return operationCounter;
     }
 
+    @Override
     public long translogSizeInBytes() {
         return lastWrittenPosition;
     }
 
+    @Override
     public Translog.Location add(BytesReference data) throws IOException {
         rwl.writeLock().lock();
         try {
@@ -90,6 +94,7 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
         }
     }
 
+    @Override
     public byte[] read(Translog.Location location) throws IOException {
         rwl.readLock().lock();
         try {
@@ -99,6 +104,7 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
         }
     }
 
+    @Override
     public void close() throws IOException {
         if (closed.compareAndSet(false, true)) {
             try {
@@ -112,6 +118,7 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
     /**
      * Returns a snapshot on this file, <tt>null</tt> if it failed to snapshot.
      */
+    @Override
     public FsChannelSnapshot snapshot() throws TranslogException {
         if (channelReference.tryIncRef()) {
             boolean success = false;
@@ -151,6 +158,7 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
         return channelReference.file();
     }
 
+    @Override
     public void sync() throws IOException {
         // check if we really need to sync here...
         if (!syncNeeded()) {

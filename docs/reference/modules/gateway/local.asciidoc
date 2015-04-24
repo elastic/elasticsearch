@@ -39,7 +39,7 @@ cluster by default.  This functionality has two purposes:
    cluster, the new node can be shut down and removed.
 
 The import of dangling indices can be controlled with the
-`gateway.local.auto_import_dangled` which accepts:
+`gateway.auto_import_dangled` which accepts:
 
 [horizontal]
 `yes`::
@@ -52,5 +52,5 @@ The import of dangling indices can be controlled with the
 
 `no`::
 
-    Delete dangling indices after `gateway.local.dangling_timeout`, which
+    Delete dangling indices after `gateway.dangling_timeout`, which
     defaults to 2 hours.

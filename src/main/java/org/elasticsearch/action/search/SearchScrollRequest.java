@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -100,9 +99,6 @@ public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().before(Version.V_1_2_0)) {
-            in.readByte(); // backward comp. for operation threading
-        }
         scrollId = in.readString();
         if (in.readBoolean()) {
             scroll = readScroll(in);
@@ -112,9 +108,6 @@ public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_1_2_0)) {
-            out.writeByte((byte) 2); // operation threading
-        }
         out.writeString(scrollId);
         if (scroll == null) {
             out.writeBoolean(false);

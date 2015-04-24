@@ -22,8 +22,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.text.StringText;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -92,13 +90,13 @@ public class DoubleTerms extends InternalTerms {
         }
 
         @Override
-        public String getKey() {
+        public String getKeyAsString() {
             return String.valueOf(term);
         }
 
         @Override
-        public Text getKeyAsText() {
-            return new StringText(String.valueOf(term));
+        public Object getKey() {
+            return term;
         }
 
         @Override
@@ -108,12 +106,7 @@ public class DoubleTerms extends InternalTerms {
 
         @Override
         int compareTerm(Terms.Bucket other) {
-            return Double.compare(term, other.getKeyAsNumber().doubleValue());
-        }
-
-        @Override
-        Object getKeyAsObject() {
-            return getKeyAsNumber();
+            return Double.compare(term, ((Number) other.getKey()).doubleValue());
         }
 
         @Override
@@ -126,7 +119,7 @@ public class DoubleTerms extends InternalTerms {
             term = in.readDouble();
             docCount = in.readVLong();
             docCountError = -1;
-            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1) && showDocCountError) {
+            if (showDocCountError) {
                 docCountError = in.readLong();
             }
             aggregations = InternalAggregations.readAggregations(in);
@@ -136,7 +129,7 @@ public class DoubleTerms extends InternalTerms {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeDouble(term);
             out.writeVLong(getDocCount());
-            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1) && showDocCountError) {
+            if (showDocCountError) {
                 out.writeLong(docCountError);
             }
             aggregations.writeTo(out);
@@ -188,17 +181,10 @@ public class DoubleTerms extends InternalTerms {
         this.order = InternalOrder.Streams.readOrder(in);
         this.formatter = ValueFormatterStreams.readOptional(in);
         this.requiredSize = readSize(in);
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            this.shardSize = readSize(in);
-            this.showTermDocCountError = in.readBoolean();
-        } else {
-            this.shardSize = requiredSize;
-            this.showTermDocCountError = false;
-        }
+        this.shardSize = readSize(in);
+        this.showTermDocCountError = in.readBoolean();
         this.minDocCount = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
-            this.otherDocCount = in.readVLong();
-        }
+        this.otherDocCount = in.readVLong();
         int size = in.readVInt();
         List<InternalTerms.Bucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -218,14 +204,10 @@ public class DoubleTerms extends InternalTerms {
         InternalOrder.Streams.writeOrder(order, out);
         ValueFormatterStreams.writeOptional(formatter, out);
         writeSize(requiredSize, out);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            writeSize(shardSize, out);
-            out.writeBoolean(showTermDocCountError);
-        }
+        writeSize(shardSize, out);
+        out.writeBoolean(showTermDocCountError);
         out.writeVLong(minDocCount);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
-            out.writeVLong(otherDocCount);
-        }
+        out.writeVLong(otherDocCount);
         out.writeVInt(buckets.size());
         for (InternalTerms.Bucket bucket : buckets) {
             bucket.writeTo(out);

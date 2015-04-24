@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test.test;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.TestCluster;
 import org.junit.Test;
@@ -38,7 +37,6 @@ public class TestScopeClusterTests extends ElasticsearchIntegrationTest {
     private static Long CLUSTER_SEED = null;
 
     @Test
-    @Repeat(iterations = 10, useConstantSeed = true)
     public void testReproducible() throws IOException {
         if (ITER++ == 0) {
             CLUSTER_SEED = cluster().seed();

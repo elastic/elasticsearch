@@ -22,6 +22,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 
+import java.util.Set;
+
 /**
  * Allows to wait for all nodes to reply to the publish of a new cluster state
  * and notifies the {@link org.elasticsearch.discovery.Discovery.AckListener}
@@ -35,14 +37,14 @@ public class AckClusterStatePublishResponseHandler extends BlockingClusterStateP
 
     /**
      * Creates a new AckClusterStatePublishResponseHandler
-     * @param nonMasterNodes number of nodes that are supposed to reply to a cluster state publish from master
+     * @param publishingToNodes the set of nodes to which the cluster state will be published and should respond
      * @param ackListener the {@link org.elasticsearch.discovery.Discovery.AckListener} to notify for each response
      *                    gotten from non master nodes
      */
-    public AckClusterStatePublishResponseHandler(int nonMasterNodes, Discovery.AckListener ackListener) {
+    public AckClusterStatePublishResponseHandler(Set<DiscoveryNode> publishingToNodes, Discovery.AckListener ackListener) {
         //Don't count the master as acknowledged, because it's not done yet
         //otherwise we might end up with all the nodes but the master holding the latest cluster state
-        super(nonMasterNodes);
+        super(publishingToNodes);
         this.ackListener = ackListener;
     }
 

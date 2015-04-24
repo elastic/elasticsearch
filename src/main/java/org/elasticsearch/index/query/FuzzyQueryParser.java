@@ -32,8 +32,6 @@ import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
-
 /**
  *
  */
@@ -127,7 +125,6 @@ public class FuzzyQueryParser implements QueryParser {
         }
         query.setBoost(boost);
 
-        query =  wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }

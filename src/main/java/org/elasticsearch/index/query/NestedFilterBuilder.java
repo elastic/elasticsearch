@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
 
 import java.io.IOException;
 
@@ -34,6 +35,8 @@ public class NestedFilterBuilder extends BaseFilterBuilder {
     private Boolean cache;
     private String cacheKey;
     private String filterName;
+
+    private QueryInnerHitBuilder innerHit = null;
 
     public NestedFilterBuilder(String path, QueryBuilder queryBuilder) {
         this.path = path;
@@ -73,6 +76,14 @@ public class NestedFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    /**
+     * Sets inner hit definition in the scope of this nested filter and reusing the defined path and query.
+     */
+    public NestedFilterBuilder innerHit(QueryInnerHitBuilder innerHit) {
+        this.innerHit = innerHit;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NestedFilterParser.NAME);
@@ -95,6 +106,11 @@ public class NestedFilterBuilder extends BaseFilterBuilder {
         }
         if (cacheKey != null) {
             builder.field("_cache_key", cacheKey);
+        }
+        if (innerHit != null) {
+            builder.startObject("inner_hits");
+            builder.value(innerHit);
+            builder.endObject();
         }
         builder.endObject();
     }

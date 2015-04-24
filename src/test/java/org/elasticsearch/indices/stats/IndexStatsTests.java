@@ -19,8 +19,8 @@
 
 package org.elasticsearch.indices.stats;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.Version;
+import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -38,10 +38,13 @@ import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.cache.filter.FilterCacheModule;
+import org.elasticsearch.index.cache.filter.FilterCacheModule.FilterCacheSettings;
+import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.query.FilterBuilders;
-import org.elasticsearch.index.store.support.AbstractIndexStore;
+import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -67,6 +70,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 2, numClientNodes = 0, randomDynamicTemplates = false)
+@SuppressCodecs("*") // requires custom completion format
 public class IndexStatsTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -75,12 +79,15 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put("indices.cache.filter.clean_interval", "1ms")
                 .put(IndicesQueryCache.INDICES_CACHE_QUERY_CLEAN_INTERVAL, "1ms")
+                .put(FilterCacheSettings.FILTER_CACHE_EVERYTHING, true)
+                .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, WeightedFilterCache.class)
                 .build();
     }
 
     @Test
     public void testClearCacheFilterKeys() {
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2)).execute().actionGet();
+        ensureGreen();
         client().prepareIndex("test", "type", "1").setSource("field", "value").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
@@ -92,9 +99,9 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse = client().prepareSearch().setQuery(filteredQuery(matchAllQuery(), FilterBuilders.termFilter("field", "value").cacheKey("test_key"))).execute().actionGet();
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
-        assertThat(nodesStats.getNodes()[0].getIndices().getFilterCache().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFilterCache().getMemorySizeInBytes(), internalCluster().hasFilterCache() ? greaterThan(0l) : is(0L));
+        assertThat(nodesStats.getNodes()[0].getIndices().getFilterCache().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFilterCache().getMemorySizeInBytes(), greaterThan(0l));
         indicesStats = client().admin().indices().prepareStats("test").clear().setFilterCache(true).execute().actionGet();
-        assertThat(indicesStats.getTotal().getFilterCache().getMemorySizeInBytes(), internalCluster().hasFilterCache() ? greaterThan(0l) : is(0L));
+        assertThat(indicesStats.getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(0l));
 
         client().admin().indices().prepareClearCache().setFilterKeys("test_key").execute().actionGet();
         nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
@@ -106,6 +113,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testFieldDataStats() {
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2)).execute().actionGet();
+        ensureGreen();
         client().prepareIndex("test", "type", "1").setSource("field", "value1", "field2", "value1").execute().actionGet();
         client().prepareIndex("test", "type", "2").setSource("field", "value2", "field2", "value2").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
@@ -152,6 +160,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareCreate("test")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
                 .execute().actionGet();
+        ensureGreen();
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client().prepareIndex("test", "type", "1").setSource("field", "value1").execute().actionGet();
         client().prepareIndex("test", "type", "2").setSource("field", "value2").execute().actionGet();
@@ -181,13 +190,13 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true)
                 .execute().actionGet();
         assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
-        assertThat(nodesStats.getNodes()[0].getIndices().getFilterCache().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFilterCache().getMemorySizeInBytes(), internalCluster().hasFilterCache() ? greaterThan(0l) : is(0L));
+        assertThat(nodesStats.getNodes()[0].getIndices().getFilterCache().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFilterCache().getMemorySizeInBytes(), greaterThan(0l));
 
         indicesStats = client().admin().indices().prepareStats("test")
                 .clear().setFieldData(true).setFilterCache(true)
                 .execute().actionGet();
         assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
-        assertThat(indicesStats.getTotal().getFilterCache().getMemorySizeInBytes(), internalCluster().hasFilterCache() ? greaterThan(0l) : is(0L));
+        assertThat(indicesStats.getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(0l));
 
         client().admin().indices().prepareClearCache().execute().actionGet();
         Thread.sleep(100); // Make sure the filter cache entries have been removed...
@@ -242,7 +251,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         assertThat(client().admin().indices().prepareStats("idx").setQueryCache(true).get().getTotal().getQueryCache().getHitCount(), equalTo(0l));
         assertThat(client().admin().indices().prepareStats("idx").setQueryCache(true).get().getTotal().getQueryCache().getMissCount(), equalTo(0l));
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareSearch("idx").setSearchType(SearchType.COUNT).get().getHits().getTotalHits(), equalTo((long) numDocs));
+            assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits(), equalTo((long) numDocs));
             assertThat(client().admin().indices().prepareStats("idx").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), greaterThan(0l));
         }
         assertThat(client().admin().indices().prepareStats("idx").setQueryCache(true).get().getTotal().getQueryCache().getHitCount(), greaterThan(0l));
@@ -267,7 +276,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         });
 
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareSearch("idx").setSearchType(SearchType.COUNT).get().getHits().getTotalHits(), equalTo((long) numDocs));
+            assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits(), equalTo((long) numDocs));
             assertThat(client().admin().indices().prepareStats("idx").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), greaterThan(0l));
         }
 
@@ -276,10 +285,10 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
 
         // test explicit request parameter
 
-        assertThat(client().prepareSearch("idx").setSearchType(SearchType.COUNT).setQueryCache(false).get().getHits().getTotalHits(), equalTo((long) numDocs));
+        assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).setQueryCache(false).get().getHits().getTotalHits(), equalTo((long) numDocs));
         assertThat(client().admin().indices().prepareStats("idx").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
 
-        assertThat(client().prepareSearch("idx").setSearchType(SearchType.COUNT).setQueryCache(true).get().getHits().getTotalHits(), equalTo((long) numDocs));
+        assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).setQueryCache(true).get().getHits().getTotalHits(), equalTo((long) numDocs));
         assertThat(client().admin().indices().prepareStats("idx").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), greaterThan(0l));
 
         // set the index level setting to false, and see that the reverse works
@@ -287,10 +296,10 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareClearCache().setQueryCache(true).get(); // clean the cache
         assertAcked(client().admin().indices().prepareUpdateSettings("idx").setSettings(ImmutableSettings.builder().put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, false)));
 
-        assertThat(client().prepareSearch("idx").setSearchType(SearchType.COUNT).get().getHits().getTotalHits(), equalTo((long) numDocs));
+        assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits(), equalTo((long) numDocs));
         assertThat(client().admin().indices().prepareStats("idx").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
 
-        assertThat(client().prepareSearch("idx").setSearchType(SearchType.COUNT).setQueryCache(true).get().getHits().getTotalHits(), equalTo((long) numDocs));
+        assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).setQueryCache(true).get().getHits().getTotalHits(), equalTo((long) numDocs));
         assertThat(client().admin().indices().prepareStats("idx").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), greaterThan(0l));
     }
 
@@ -299,7 +308,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     public void nonThrottleStats() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(ImmutableSettings.builder()
-                                .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
+                                .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                                 .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
@@ -332,7 +341,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     public void throttleStats() throws Exception {
         assertAcked(prepareCreate("test")
                     .setSettings(ImmutableSettings.builder()
-                                 .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
+                                 .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                                  .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
@@ -373,7 +382,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         // Optimize & flush and wait; else we sometimes get a "Delete Index failed - not acked"
         // when ElasticsearchIntegrationTest.after tries to remove indices created by the test:
         logger.info("test: now optimize");
-        client().admin().indices().prepareOptimize("test").setWaitForMerge(true).get();
+        client().admin().indices().prepareOptimize("test").get();
         flush();
         logger.info("test: test done");
     }
@@ -510,7 +519,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
             client().prepareIndex("test1", "type2", Integer.toString(i)).setSource("field", "value").execute().actionGet();
             client().admin().indices().prepareFlush().execute().actionGet();
         }
-        client().admin().indices().prepareOptimize().setWaitForMerge(true).setMaxNumSegments(1).execute().actionGet();
+        client().admin().indices().prepareOptimize().setMaxNumSegments(1).execute().actionGet();
         stats = client().admin().indices().prepareStats()
                 .setMerge(true)
                 .execute().actionGet();
@@ -537,12 +546,12 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         assertThat(stats.getTotal().getSegments().getVersionMapMemoryInBytes(), greaterThan(0l));
 
         client().admin().indices().prepareFlush().get();
-        client().admin().indices().prepareOptimize().setWaitForMerge(true).setMaxNumSegments(1).execute().actionGet();
+        client().admin().indices().prepareOptimize().setMaxNumSegments(1).execute().actionGet();
         stats = client().admin().indices().prepareStats().setSegments(true).get();
 
         assertThat(stats.getTotal().getSegments(), notNullValue());
         assertThat(stats.getTotal().getSegments().getCount(), equalTo((long) test1.totalNumShards));
-        assumeTrue(org.elasticsearch.Version.CURRENT.luceneVersion != Version.LUCENE_4_6_0);
+        assumeTrue("test doesn't work with 4.6.0", org.elasticsearch.Version.CURRENT.luceneVersion != Version.LUCENE_4_6_0);
         assertThat(stats.getTotal().getSegments().getMemoryInBytes(), greaterThan(0l));
     }
 
@@ -655,7 +664,8 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testFlagOrdinalOrder() {
         Flag[] flags = new Flag[]{Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Merge, Flag.Flush, Flag.Refresh,
-                Flag.FilterCache, Flag.IdCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Percolate, Flag.Completion, Flag.Segments, Flag.Translog, Flag.Suggest, Flag.QueryCache};
+                Flag.FilterCache, Flag.IdCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Percolate, Flag.Completion, Flag.Segments,
+                Flag.Translog, Flag.Suggest, Flag.QueryCache, Flag.Recovery};
 
         assertThat(flags.length, equalTo(Flag.values().length));
         for (int i = 0; i < flags.length; i++) {
@@ -926,6 +936,9 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
             case QueryCache:
                 builder.setQueryCache(set);
                 break;
+            case Recovery:
+                builder.setRecovery(set);
+                break;
             default:
                 fail("new flag? " + flag);
                 break;
@@ -970,6 +983,8 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
                 return response.getSuggest() != null;
             case QueryCache:
                 return response.getQueryCache() != null;
+            case Recovery:
+                return response.getRecoveryStats() != null;
             default:
                 fail("new flag? " + flag);
                 return false;

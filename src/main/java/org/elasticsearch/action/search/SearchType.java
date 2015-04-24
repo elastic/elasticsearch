@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.ParseField;
 
 /**
  * Search type represent the manner at which the search operation is executed.
@@ -57,13 +58,17 @@ public enum SearchType {
     SCAN((byte) 4),
     /**
      * Only counts the results, will still execute aggregations and the like.
+     * @deprecated does not any improvements compared to {@link #QUERY_THEN_FETCH} with a `size` of {@code 0}
      */
+    @Deprecated
     COUNT((byte) 5);
 
     /**
      * The default search type ({@link #QUERY_THEN_FETCH}.
      */
     public static final SearchType DEFAULT = QUERY_THEN_FETCH;
+
+    private static final ParseField COUNT_VALUE = new ParseField("count").withAllDeprecated("query_then_fetch");
 
     private byte id;
 
@@ -118,7 +123,7 @@ public enum SearchType {
             return SearchType.QUERY_AND_FETCH;
         } else if ("scan".equals(searchType)) {
             return SearchType.SCAN;
-        } else if ("count".equals(searchType)) {
+        } else if (COUNT_VALUE.match(searchType)) {
             return SearchType.COUNT;
         } else {
             throw new ElasticsearchIllegalArgumentException("No search type for [" + searchType + "]");

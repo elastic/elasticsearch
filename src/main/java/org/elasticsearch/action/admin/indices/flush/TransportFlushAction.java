@@ -33,8 +33,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -53,18 +52,9 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
 
     @Inject
     public TransportFlushAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService, ActionFilters actionFilters) {
-        super(settings, FlushAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, FlushAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                FlushRequest.class, ShardFlushRequest.class, ThreadPool.Names.FLUSH);
         this.indicesService = indicesService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.FLUSH;
-    }
-
-    @Override
-    protected FlushRequest newRequest() {
-        return new FlushRequest();
     }
 
     @Override
@@ -90,11 +80,6 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
     }
 
     @Override
-    protected ShardFlushRequest newShardRequest() {
-        return new ShardFlushRequest();
-    }
-
-    @Override
     protected ShardFlushRequest newShardRequest(int numShards, ShardRouting shard, FlushRequest request) {
         return new ShardFlushRequest(shard.shardId(), request);
     }
@@ -107,8 +92,7 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
     @Override
     protected ShardFlushResponse shardOperation(ShardFlushRequest request) throws ElasticsearchException {
         IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).shardSafe(request.shardId().id());
-        indexShard.flush(new Engine.Flush().waitIfOngoing(request.waitIfOngoing()).
-                type(request.full() ? Engine.Flush.Type.NEW_WRITER : Engine.Flush.Type.COMMIT_TRANSLOG).force(request.force()));
+        indexShard.flush(request.getRequest());
         return new ShardFlushResponse(request.shardId());
     }
 
@@ -122,11 +106,11 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, FlushRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, FlushRequest countRequest, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, concreteIndices);
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
     }
 }

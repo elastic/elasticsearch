@@ -112,11 +112,6 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
     public abstract int numDataAndMasterNodes();
 
     /**
-     * Returns the number of bench nodes in the cluster.
-     */
-    public abstract int numBenchNodes();
-
-    /**
      * Returns the http addresses of the nodes within the cluster.
      * Can be used to run REST tests against the test cluster.
      */
@@ -125,6 +120,7 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
     /**
      * Closes the current cluster
      */
+    @Override
     public abstract void close() throws IOException;
 
     /**
@@ -207,11 +203,6 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
      * checking some breaker stats can increase them.
      */
     public abstract void ensureEstimatedStats();
-
-    /**
-     * Return whether or not this cluster can cache filters.
-     */
-    public abstract boolean hasFilterCache();
 
     /**
      * Returns the cluster name

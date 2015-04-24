@@ -52,8 +52,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -76,7 +76,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     public TransportUpdateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                  TransportIndexAction indexAction, TransportDeleteAction deleteAction, TransportCreateIndexAction createIndexAction,
                                  UpdateHelper updateHelper, ActionFilters actionFilters, IndicesService indicesService) {
-        super(settings, UpdateAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, UpdateAction.NAME, threadPool, clusterService, transportService, actionFilters, UpdateRequest.class);
         this.indexAction = indexAction;
         this.deleteAction = deleteAction;
         this.createIndexAction = createIndexAction;
@@ -88,11 +88,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     @Override
     protected String executor() {
         return ThreadPool.Names.INDEX;
-    }
-
-    @Override
-    protected UpdateRequest newRequest() {
-        return new UpdateRequest();
     }
 
     @Override
@@ -182,7 +177,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 indexAction.execute(upsertRequest, new ActionListener<IndexResponse>() {
                     @Override
                     public void onResponse(IndexResponse response) {
-                        UpdateResponse update = new UpdateResponse(response.getIndex(), response.getType(), response.getId(), response.getVersion(), response.isCreated());
+                        UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getIndex(), response.getType(), response.getId(), response.getVersion(), response.isCreated());
                         if (request.request().fields() != null && request.request().fields().length > 0) {
                             Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(upsertSourceBytes, true);
                             update.setGetResult(updateHelper.extractGetResult(request.request(), request.concreteIndex(), response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), upsertSourceBytes));
@@ -217,7 +212,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
                     @Override
                     public void onResponse(IndexResponse response) {
-                        UpdateResponse update = new UpdateResponse(response.getIndex(), response.getType(), response.getId(), response.getVersion(), response.isCreated());
+                        UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getIndex(), response.getType(), response.getId(), response.getVersion(), response.isCreated());
                         update.setGetResult(updateHelper.extractGetResult(request.request(), request.concreteIndex(), response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), indexSourceBytes));
                         listener.onResponse(update);
                     }
@@ -245,7 +240,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 deleteAction.execute(deleteRequest, new ActionListener<DeleteResponse>() {
                     @Override
                     public void onResponse(DeleteResponse response) {
-                        UpdateResponse update = new UpdateResponse(response.getIndex(), response.getType(), response.getId(), response.getVersion(), false);
+                        UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getIndex(), response.getType(), response.getId(), response.getVersion(), false);
                         update.setGetResult(updateHelper.extractGetResult(request.request(), request.concreteIndex(), response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), null));
                         listener.onResponse(update);
                     }

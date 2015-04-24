@@ -21,8 +21,6 @@ package org.elasticsearch.action.bulk;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
@@ -60,11 +58,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -73,30 +67,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
 
     private final AutoCreateIndex autoCreateIndex;
-
     private final boolean allowIdGeneration;
-
     private final ClusterService clusterService;
-
     private final TransportShardBulkAction shardBulkAction;
-
     private final TransportCreateIndexAction createIndexAction;
 
     @Inject
     public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
                                TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction, ActionFilters actionFilters) {
-        super(settings, BulkAction.NAME, threadPool, transportService, actionFilters);
+        super(settings, BulkAction.NAME, threadPool, transportService, actionFilters, BulkRequest.class);
         this.clusterService = clusterService;
         this.shardBulkAction = shardBulkAction;
         this.createIndexAction = createIndexAction;
 
         this.autoCreateIndex = new AutoCreateIndex(settings);
-        this.allowIdGeneration = componentSettings.getAsBoolean("action.allow_id_generation", true);
-    }
-
-    @Override
-    public BulkRequest newRequestInstance(){
-        return new BulkRequest();
+        this.allowIdGeneration = this.settings.getAsBoolean("action.bulk.action.allow_id_generation", true);
     }
 
     @Override
@@ -105,22 +90,33 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 
         if (autoCreateIndex.needToCheck()) {
-            final Set<String> indices = Sets.newHashSet();
+            // Keep track of all unique indices and all unique types per index for the create index requests:
+            final Map<String, Set<String>> indicesAndTypes = new HashMap<>();
             for (ActionRequest request : bulkRequest.requests) {
                 if (request instanceof DocumentRequest) {
                     DocumentRequest req = (DocumentRequest) request;
-                    if (!indices.contains(req.index())) {
-                        indices.add(req.index());
+                    Set<String> types = indicesAndTypes.get(req.index());
+                    if (types == null) {
+                        indicesAndTypes.put(req.index(), types = new HashSet<>());
                     }
+                    types.add(req.type());
                 } else {
                     throw new ElasticsearchException("Parsed unknown request in bulk actions: " + request.getClass().getSimpleName());
                 }
             }
-            final AtomicInteger counter = new AtomicInteger(indices.size());
+            final AtomicInteger counter = new AtomicInteger(indicesAndTypes.size());
             ClusterState state = clusterService.state();
-            for (final String index : indices) {
+            for (Map.Entry<String, Set<String>> entry : indicesAndTypes.entrySet()) {
+                final String index = entry.getKey();
                 if (autoCreateIndex.shouldAutoCreate(index, state)) {
-                    createIndexAction.execute(new CreateIndexRequest(bulkRequest).index(index).cause("auto(bulk api)").masterNodeTimeout(bulkRequest.timeout()), new ActionListener<CreateIndexResponse>() {
+                    CreateIndexRequest createIndexRequest = new CreateIndexRequest(bulkRequest);
+                    createIndexRequest.index(index);
+                    for (String type : entry.getValue()) {
+                        createIndexRequest.mapping(type);
+                    }
+                    createIndexRequest.cause("auto(bulk api)");
+                    createIndexRequest.masterNodeTimeout(bulkRequest.timeout());
+                    createIndexAction.execute(createIndexRequest, new ActionListener<CreateIndexResponse>() {
                         @Override
                         public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {
@@ -312,13 +308,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             final ShardId shardId = entry.getKey();
             final List<BulkItemRequest> requests = entry.getValue();
             BulkShardRequest bulkShardRequest = new BulkShardRequest(bulkRequest, shardId.index().name(), shardId.id(), bulkRequest.refresh(), requests.toArray(new BulkItemRequest[requests.size()]));
-            bulkShardRequest.replicationType(bulkRequest.replicationType());
             bulkShardRequest.consistencyLevel(bulkRequest.consistencyLevel());
             bulkShardRequest.timeout(bulkRequest.timeout());
             shardBulkAction.execute(bulkShardRequest, new ActionListener<BulkShardResponse>() {
                 @Override
                 public void onResponse(BulkShardResponse bulkShardResponse) {
                     for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
+                        // we may have no response if item failed
+                        if (bulkItemResponse.getResponse() != null) {
+                            bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
+                        }
                         responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                     }
                     if (counter.decrementAndGet() == 0) {

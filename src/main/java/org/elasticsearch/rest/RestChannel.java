@@ -34,11 +34,13 @@ import java.io.IOException;
 public abstract class RestChannel {
 
     protected final RestRequest request;
+    protected final boolean detailedErrorsEnabled;
 
     private BytesStreamOutput bytesOut;
 
-    protected RestChannel(RestRequest request) {
+    protected RestChannel(RestRequest request, boolean detailedErrorsEnabled) {
         this.request = request;
+        this.detailedErrorsEnabled = detailedErrorsEnabled;
     }
 
     public XContentBuilder newBuilder() throws IOException {
@@ -94,6 +96,10 @@ public abstract class RestChannel {
 
     public RestRequest request() {
         return this.request;
+    }
+
+    public boolean detailedErrorsEnabled() {
+        return detailedErrorsEnabled;
     }
 
     public abstract void sendResponse(RestResponse response);

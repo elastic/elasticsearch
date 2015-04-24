@@ -62,6 +62,7 @@ public class WrapperFilterParser implements FilterParser {
             context.reset(qSourceParser);
             Filter result = context.parseInnerFilter();
             parser.nextToken();
+            parseContext.combineNamedFilters(context);
             return result;
         }
     }

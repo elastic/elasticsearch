@@ -19,14 +19,12 @@
 
 package org.elasticsearch.stresstest.fullrestart;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -34,12 +32,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.node.internal.InternalNode;
 
-import java.io.File;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
@@ -54,8 +49,6 @@ public class FullRestartStressTest {
     private final ESLogger logger = Loggers.getLogger(getClass());
 
     private int numberOfNodes = 4;
-
-    private boolean clearNodeWork = false;
 
     private int numberOfIndices = 5;
     private int textTokens = 150;
@@ -109,11 +102,6 @@ public class FullRestartStressTest {
         return this;
     }
 
-    public FullRestartStressTest clearNodeWork(boolean clearNodeWork) {
-        this.clearNodeWork = clearNodeWork;
-        return this;
-    }
-
     public void run() throws Exception {
         long numberOfRounds = 0;
         Random random = new Random(0);
@@ -159,7 +147,7 @@ public class FullRestartStressTest {
             // verify search
             for (int i = 0; i < (nodes.length * 5); i++) {
                 // do a search with norms field, so we don't rely on match all filtering cache
-                SearchResponse search = client.client().prepareSearch().setQuery(matchAllQuery().normsField("field")).execute().actionGet();
+                SearchResponse search = client.client().prepareSearch().setQuery(matchAllQuery()).execute().actionGet();
                 logger.debug("index_count [{}], expected_count [{}]", search.getHits().totalHits(), indexCounter.get());
                 if (count.getCount() != indexCounter.get()) {
                     logger.warn("!!! search does not match, index_count [{}], expected_count [{}]", search.getHits().totalHits(), indexCounter.get());
@@ -198,15 +186,7 @@ public class FullRestartStressTest {
 
             client.close();
             for (Node node : nodes) {
-                File[] nodeDatas = ((InternalNode) node).injector().getInstance(NodeEnvironment.class).nodeDataLocations();
                 node.close();
-                if (clearNodeWork && !settings.get("gateway.type").equals("local")) {
-                    try {
-                        IOUtils.rm(FileSystemUtils.toPaths(nodeDatas));
-                    } catch (Exception ex) {
-                        logger.debug("failed to remove node data locations", ex);
-                    }
-                }
             }
 
             if ((System.currentTimeMillis() - testStart) > period.millis()) {
@@ -223,7 +203,6 @@ public class FullRestartStressTest {
         int numberOfNodes = 2;
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("index.shard.check_on_startup", true)
-                .put("gateway.type", "local")
                 .put("gateway.recover_after_nodes", numberOfNodes)
                 .put("index.number_of_shards", 1)
                 .put("path.data", "data/data1,data/data2")
@@ -232,7 +211,6 @@ public class FullRestartStressTest {
         FullRestartStressTest test = new FullRestartStressTest()
                 .settings(settings)
                 .period(TimeValue.timeValueMinutes(20))
-                .clearNodeWork(false) // only applies to shared gateway
                 .numberOfNodes(numberOfNodes)
                 .numberOfIndices(1)
                 .textTokens(150)

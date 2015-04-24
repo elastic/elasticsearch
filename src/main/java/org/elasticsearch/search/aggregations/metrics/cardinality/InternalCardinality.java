@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
@@ -51,9 +53,10 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
 
     private HyperLogLogPlusPlus counts;
 
-    InternalCardinality(String name, HyperLogLogPlusPlus counts, Map<String, Object> metaData) {
+    InternalCardinality(String name, HyperLogLogPlusPlus counts, @Nullable ValueFormatter formatter, Map<String, Object> metaData) {
         super(name, metaData);
         this.counts = counts;
+        this.valueFormatter = formatter;
     }
 
     private InternalCardinality() {
@@ -96,14 +99,14 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
     }
 
     @Override
-    public InternalAggregation reduce(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         InternalCardinality reduced = null;
         for (InternalAggregation aggregation : aggregations) {
             final InternalCardinality cardinality = (InternalCardinality) aggregation;
             if (cardinality.counts != null) {
                 if (reduced == null) {
-                    reduced = new InternalCardinality(name, new HyperLogLogPlusPlus(cardinality.counts.precision(), BigArrays.NON_RECYCLING_INSTANCE, 1), getMetaData());
+                    reduced = new InternalCardinality(name, new HyperLogLogPlusPlus(cardinality.counts.precision(),
+                            BigArrays.NON_RECYCLING_INSTANCE, 1), this.valueFormatter, getMetaData());
                 }
                 reduced.merge(cardinality);
             }
@@ -125,7 +128,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         final long cardinality = getValue();
         builder.field(CommonFields.VALUE, cardinality);
-        if (valueFormatter != null) {
+        if (valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
             builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(cardinality));
         }
         return builder;

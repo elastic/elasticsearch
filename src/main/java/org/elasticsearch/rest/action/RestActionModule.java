@@ -28,7 +28,6 @@ import org.elasticsearch.rest.action.admin.cluster.repositories.verify.RestVerif
 import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthAction;
 import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotThreadsAction;
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
-import org.elasticsearch.rest.action.admin.cluster.node.restart.RestNodesRestartAction;
 import org.elasticsearch.rest.action.admin.cluster.node.shutdown.RestNodesShutdownAction;
 import org.elasticsearch.rest.action.admin.cluster.node.stats.RestNodesStatsAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.delete.RestDeleteRepositoryAction;
@@ -61,7 +60,6 @@ import org.elasticsearch.rest.action.admin.indices.exists.indices.RestIndicesExi
 import org.elasticsearch.rest.action.admin.indices.exists.types.RestTypesExistsAction;
 import org.elasticsearch.rest.action.admin.indices.flush.RestFlushAction;
 import org.elasticsearch.rest.action.admin.indices.get.RestGetIndicesAction;
-import org.elasticsearch.rest.action.admin.indices.mapping.delete.RestDeleteMappingAction;
 import org.elasticsearch.rest.action.admin.indices.mapping.get.RestGetFieldMappingAction;
 import org.elasticsearch.rest.action.admin.indices.mapping.get.RestGetMappingAction;
 import org.elasticsearch.rest.action.admin.indices.mapping.put.RestPutMappingAction;
@@ -81,12 +79,12 @@ import org.elasticsearch.rest.action.admin.indices.warmer.delete.RestDeleteWarme
 import org.elasticsearch.rest.action.admin.indices.warmer.get.RestGetWarmerAction;
 import org.elasticsearch.rest.action.admin.indices.warmer.put.RestPutWarmerAction;
 import org.elasticsearch.rest.action.admin.indices.recovery.RestRecoveryAction;
-import org.elasticsearch.rest.action.bench.RestBenchAction;
 import org.elasticsearch.rest.action.bulk.RestBulkAction;
 import org.elasticsearch.rest.action.cat.*;
 import org.elasticsearch.rest.action.delete.RestDeleteAction;
 import org.elasticsearch.rest.action.deletebyquery.RestDeleteByQueryAction;
 import org.elasticsearch.rest.action.explain.RestExplainAction;
+import org.elasticsearch.rest.action.fieldstats.RestFieldStatsAction;
 import org.elasticsearch.rest.action.get.RestGetAction;
 import org.elasticsearch.rest.action.get.RestGetSourceAction;
 import org.elasticsearch.rest.action.get.RestHeadAction;
@@ -135,7 +133,6 @@ public class RestActionModule extends AbstractModule {
         bind(RestNodesStatsAction.class).asEagerSingleton();
         bind(RestNodesHotThreadsAction.class).asEagerSingleton();
         bind(RestNodesShutdownAction.class).asEagerSingleton();
-        bind(RestNodesRestartAction.class).asEagerSingleton();
         bind(RestClusterStatsAction.class).asEagerSingleton();
         bind(RestClusterStateAction.class).asEagerSingleton();
         bind(RestClusterHealthAction.class).asEagerSingleton();
@@ -184,7 +181,6 @@ public class RestActionModule extends AbstractModule {
         bind(RestGetWarmerAction.class).asEagerSingleton();
 
         bind(RestPutMappingAction.class).asEagerSingleton();
-        bind(RestDeleteMappingAction.class).asEagerSingleton();
         bind(RestGetMappingAction.class).asEagerSingleton();
         bind(RestGetFieldMappingAction.class).asEagerSingleton();
 
@@ -222,8 +218,6 @@ public class RestActionModule extends AbstractModule {
         bind(RestExplainAction.class).asEagerSingleton();
 
         bind(RestRecoveryAction.class).asEagerSingleton();
-        // Benchmark API
-        bind(RestBenchAction.class).asEagerSingleton();
 
         // Templates API
         bind(RestGetSearchTemplateAction.class).asEagerSingleton();
@@ -235,6 +229,8 @@ public class RestActionModule extends AbstractModule {
         bind(RestPutIndexedScriptAction.class).asEagerSingleton();
         bind(RestDeleteIndexedScriptAction.class).asEagerSingleton();
 
+
+        bind(RestFieldStatsAction.class).asEagerSingleton();
 
         // cat API
         Multibinder<AbstractCatAction> catActionMultibinder = Multibinder.newSetBinder(binder(), AbstractCatAction.class);

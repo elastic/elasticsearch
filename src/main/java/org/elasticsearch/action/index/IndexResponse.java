@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.index;
 
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -31,7 +31,7 @@ import java.io.IOException;
  * @see org.elasticsearch.action.index.IndexRequest
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
-public class IndexResponse extends ActionResponse {
+public class IndexResponse extends ActionWriteResponse {
 
     private String index;
     private String id;
@@ -89,8 +89,8 @@ public class IndexResponse extends ActionResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readSharedString();
-        type = in.readSharedString();
+        index = in.readString();
+        type = in.readString();
         id = in.readString();
         version = in.readLong();
         created = in.readBoolean();
@@ -99,8 +99,8 @@ public class IndexResponse extends ActionResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeSharedString(index);
-        out.writeSharedString(type);
+        out.writeString(index);
+        out.writeString(type);
         out.writeString(id);
         out.writeLong(version);
         out.writeBoolean(created);

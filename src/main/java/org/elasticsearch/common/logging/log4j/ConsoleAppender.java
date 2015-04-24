@@ -22,6 +22,7 @@ package org.elasticsearch.common.logging.log4j;
 import org.apache.log4j.Layout;
 import org.apache.log4j.WriterAppender;
 import org.apache.log4j.helpers.LogLog;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
@@ -137,6 +138,8 @@ public class ConsoleAppender extends WriterAppender {
     /**
      * Prepares the appender for use.
      */
+    @Override
+    @SuppressForbidden(reason = "System#out")
     public void activateOptions() {
         if (follow) {
             if (target.equals(SYSTEM_ERR)) {
@@ -158,6 +161,7 @@ public class ConsoleAppender extends WriterAppender {
     /**
      * {@inheritDoc}
      */
+    @Override
     protected
     final void closeWriter() {
         if (follow) {
@@ -170,23 +174,29 @@ public class ConsoleAppender extends WriterAppender {
      * An implementation of OutputStream that redirects to the
      * current System.err.
      */
+    @SuppressForbidden(reason = "System#err")
     private static class SystemErrStream extends OutputStream {
         public SystemErrStream() {
         }
 
+        @Override
         public void close() {
         }
 
+        @Override
         public void flush() {
             System.err.flush();
         }
 
+        @Override
         public void write(final byte[] b) throws IOException {
             if (!Loggers.consoleLoggingEnabled()) {
                 return;
             }
             System.err.write(b);
         }
+
+        @Override
 
         public void write(final byte[] b, final int off, final int len)
                 throws IOException {
@@ -196,6 +206,7 @@ public class ConsoleAppender extends WriterAppender {
             System.err.write(b, off, len);
         }
 
+        @Override
         public void write(final int b) throws IOException {
             if (!Loggers.consoleLoggingEnabled()) {
                 return;
@@ -208,17 +219,21 @@ public class ConsoleAppender extends WriterAppender {
      * An implementation of OutputStream that redirects to the
      * current System.out.
      */
+    @SuppressForbidden(reason = "System#err")
     private static class SystemOutStream extends OutputStream {
         public SystemOutStream() {
         }
 
+        @Override
         public void close() {
         }
 
+        @Override
         public void flush() {
             System.out.flush();
         }
 
+        @Override
         public void write(final byte[] b) throws IOException {
             if (!Loggers.consoleLoggingEnabled()) {
                 return;
@@ -226,6 +241,7 @@ public class ConsoleAppender extends WriterAppender {
             System.out.write(b);
         }
 
+        @Override
         public void write(final byte[] b, final int off, final int len)
                 throws IOException {
             if (!Loggers.consoleLoggingEnabled()) {
@@ -234,6 +250,7 @@ public class ConsoleAppender extends WriterAppender {
             System.out.write(b, off, len);
         }
 
+        @Override
         public void write(final int b) throws IOException {
             if (!Loggers.consoleLoggingEnabled()) {
                 return;

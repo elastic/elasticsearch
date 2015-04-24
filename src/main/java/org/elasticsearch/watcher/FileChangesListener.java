@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.watcher;
 
-import java.io.File;
+import java.nio.file.Path;
 
 /**
  * Callback interface that file changes File Watcher is using to notify listeners about changes.
@@ -27,49 +27,49 @@ public class FileChangesListener {
     /**
      * Called for every file found in the watched directory during initialization
      */
-    public void onFileInit(File file) {
+    public void onFileInit(Path file) {
 
     }
 
     /**
      * Called for every subdirectory found in the watched directory during initialization
      */
-    public void onDirectoryInit(File file) {
+    public void onDirectoryInit(Path file) {
 
     }
 
     /**
      * Called for every new file found in the watched directory
      */
-    public void onFileCreated(File file) {
+    public void onFileCreated(Path file) {
 
     }
 
     /**
      * Called for every file that disappeared in the watched directory
      */
-    public void onFileDeleted(File file) {
+    public void onFileDeleted(Path file) {
 
     }
 
     /**
      * Called for every file that was changed in the watched directory
      */
-    public void onFileChanged(File file) {
+    public void onFileChanged(Path file) {
 
     }
 
     /**
      * Called for every new subdirectory found in the watched directory
      */
-    public void onDirectoryCreated(File file) {
+    public void onDirectoryCreated(Path file) {
 
     }
 
     /**
      * Called for every file that disappeared in the watched directory
      */
-    public void onDirectoryDeleted(File file) {
+    public void onDirectoryDeleted(Path file) {
 
     }
 }

@@ -39,8 +39,6 @@ import org.elasticsearch.index.query.support.QueryParsers;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
-
 public class MatchQuery {
 
     public static enum Type {
@@ -176,28 +174,15 @@ public class MatchQuery {
         }
 
         if (mapper != null && mapper.useTermQueryWithQueryString() && !forceAnalyzeQueryString()) {
-            if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
-                String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
-                try {
-                    return wrapSmartNameQuery(mapper.termQuery(value, parseContext), smartNameFieldMappers, parseContext);
-                } catch (RuntimeException e) {
-                    if (lenient) {
-                        return null;
-                    }
-                    throw e;
-                } finally {
-                    QueryParseContext.setTypes(previousTypes);
+            try {
+                return mapper.termQuery(value, parseContext);
+            } catch (RuntimeException e) {
+                if (lenient) {
+                    return null;
                 }
-            } else {
-                try {
-                    return wrapSmartNameQuery(mapper.termQuery(value, parseContext), smartNameFieldMappers, parseContext);
-                } catch (RuntimeException e) {
-                    if (lenient) {
-                        return null;
-                    }
-                    throw e;
-                }
+                throw e;
             }
+            
         }
         Analyzer analyzer = getAnalyzer(mapper, smartNameFieldMappers);
         MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, mapper);
@@ -225,7 +210,7 @@ public class MatchQuery {
         if (query == null) {
             return zeroTermsQuery();
         } else {
-            return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
+            return query;
         }
     }
 

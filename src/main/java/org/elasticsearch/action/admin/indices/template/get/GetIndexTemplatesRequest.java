@@ -77,13 +77,11 @@ public class GetIndexTemplatesRequest extends MasterNodeReadOperationRequest<Get
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         names = in.readStringArray();
-        readLocal(in, Version.V_1_0_0_RC2);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(names);
-        writeLocal(out, Version.V_1_0_0_RC2);
     }
 }

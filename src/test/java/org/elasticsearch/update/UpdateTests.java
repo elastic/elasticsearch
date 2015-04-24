@@ -19,10 +19,6 @@
 
 package org.elasticsearch.update;
 
-import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.util.LuceneTestCase.Slow;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -34,18 +30,16 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.merge.policy.AbstractMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -72,7 +66,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                         .startObject()
                         .startObject("type1")
                         .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
-                        .startObject("_ttl").field("enabled", true).field("store", "yes").endObject()
+                        .startObject("_ttl").field("enabled", true).endObject()
                         .endObject()
                         .endObject()));
     }
@@ -473,7 +467,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                         .startObject("subtype1")
                         .startObject("_parent").field("type", "type1").endObject()
                         .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
-                        .startObject("_ttl").field("enabled", true).field("store", "yes").endObject()
+                        .startObject("_ttl").field("enabled", true).endObject()
                         .endObject()
                         .endObject())
                 .execute().actionGet();
@@ -614,23 +608,6 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
     }
 
 
-    public static class NoMergePolicyProvider  extends AbstractMergePolicyProvider<MergePolicy> {
-
-        @Inject
-        public NoMergePolicyProvider(Store store) {
-            super(store);
-        }
-
-        @Override
-        public MergePolicy getMergePolicy() {
-            return NoMergePolicy.INSTANCE;
-        }
-
-        @Override
-        public void close() throws ElasticsearchException {
-        }
-    }
-
     @Test
     @Slow
     public void stressUpdateDeleteConcurrency() throws Exception {
@@ -640,7 +617,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                         .startObject()
                         .startObject("type1")
                         .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
-                        .startObject("_ttl").field("enabled", true).field("store", "yes").endObject()
+                        .startObject("_ttl").field("enabled", true).endObject()
                         .endObject()
                         .endObject())
                 .setSettings(ImmutableSettings.builder().put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)));
@@ -724,7 +701,6 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                                         .setScript("ctx._source.field += 1", ScriptService.ScriptType.INLINE)
                                         .setRetryOnConflict(retryOnConflict)
                                         .setUpsert(jsonBuilder().startObject().field("field", 1).endObject())
-                                        .setListenerThreaded(false)
                                         .request();
                                 client().update(ur, new UpdateListener(j));
                             } catch (NoNodeAvailableException nne) {
@@ -742,9 +718,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
 
                             try {
                                 deleteRequestsOutstanding.acquire();
-                                DeleteRequest dr = client().prepareDelete("test", "type1", Integer.toString(j))
-                                        .setListenerThreaded(false)
-                                        .setOperationThreaded(false).request();
+                                DeleteRequest dr = client().prepareDelete("test", "type1", Integer.toString(j)).request();
                                 client().delete(dr, new DeleteListener(j));
                             } catch (NoNodeAvailableException nne) {
                                 deleteRequestsOutstanding.release();

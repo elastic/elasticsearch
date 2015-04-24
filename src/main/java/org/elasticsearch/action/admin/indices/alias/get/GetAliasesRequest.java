@@ -20,7 +20,7 @@ package org.elasticsearch.action.admin.indices.alias.get;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Strings;
@@ -31,7 +31,7 @@ import java.io.IOException;
 
 /**
  */
-public class GetAliasesRequest extends MasterNodeReadOperationRequest<GetAliasesRequest> implements IndicesRequest.Replaceable {
+public class GetAliasesRequest extends MasterNodeReadOperationRequest<GetAliasesRequest> implements AliasesRequest {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] aliases = Strings.EMPTY_ARRAY;
@@ -55,6 +55,7 @@ public class GetAliasesRequest extends MasterNodeReadOperationRequest<GetAliases
         return this;
     }
 
+    @Override
     public GetAliasesRequest aliases(String... aliases) {
         this.aliases = aliases;
         return this;
@@ -70,8 +71,14 @@ public class GetAliasesRequest extends MasterNodeReadOperationRequest<GetAliases
         return indices;
     }
 
+    @Override
     public String[] aliases() {
         return aliases;
+    }
+
+    @Override
+    public boolean expandAliasesWildcards() {
+        return true;
     }
 
     @Override
@@ -90,7 +97,6 @@ public class GetAliasesRequest extends MasterNodeReadOperationRequest<GetAliases
         indices = in.readStringArray();
         aliases = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        readLocal(in, Version.V_1_0_0_RC2);
     }
 
     @Override
@@ -99,6 +105,5 @@ public class GetAliasesRequest extends MasterNodeReadOperationRequest<GetAliases
         out.writeStringArray(indices);
         out.writeStringArray(aliases);
         indicesOptions.writeIndicesOptions(out);
-        writeLocal(out, Version.V_1_0_0_RC2);
     }
 }

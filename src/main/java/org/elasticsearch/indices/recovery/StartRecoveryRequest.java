@@ -115,9 +115,7 @@ public class StartRecoveryRequest extends TransportRequest {
             StoreFileMetaData md = StoreFileMetaData.readStoreFileMetaData(in);
             existingFiles.put(md.name(), md);
         }
-        if (in.getVersion().onOrAfter(Version.V_1_2_2)) {
-            recoveryType = RecoveryState.Type.fromId(in.readByte());
-        }
+        recoveryType = RecoveryState.Type.fromId(in.readByte());
     }
 
     @Override
@@ -132,8 +130,6 @@ public class StartRecoveryRequest extends TransportRequest {
         for (StoreFileMetaData md : existingFiles.values()) {
             md.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_1_2_2)) {
-            out.writeByte(recoveryType.id());
-        }
+        out.writeByte(recoveryType.id());
     }
 }

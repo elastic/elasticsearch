@@ -19,10 +19,13 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -41,10 +44,10 @@ import java.util.Map;
 public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
     public SignificantLongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format,
-              long estimatedBucketCount, BucketCountThresholds bucketCountThresholds,
-              AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory, IncludeExclude.LongFilter includeExclude, Map<String, Object> metaData) {
+              BucketCountThresholds bucketCountThresholds,
+              AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory, IncludeExclude.LongFilter includeExclude, Map<String, Object> metaData) throws IOException {
 
-        super(name, factories, valuesSource, format, estimatedBucketCount, null, bucketCountThresholds, aggregationContext, parent, SubAggCollectionMode.DEPTH_FIRST, false, includeExclude, metaData);
+        super(name, factories, valuesSource, format, null, bucketCountThresholds, aggregationContext, parent, SubAggCollectionMode.DEPTH_FIRST, false, includeExclude, metaData);
         this.termsAggFactory = termsAggFactory;
     }
 
@@ -52,13 +55,19 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
     private final SignificantTermsAggregatorFactory termsAggFactory;
 
     @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        super.collect(doc, owningBucketOrdinal);
-        numCollectedDocs++;
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        return new LeafBucketCollectorBase(super.getLeafCollector(ctx, sub), null) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                super.collect(doc, bucket);
+                numCollectedDocs++;
+            }
+        };
     }
 
     @Override
-    public SignificantLongTerms buildAggregation(long owningBucketOrdinal) {
+    public SignificantLongTerms buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
 
         final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
@@ -93,7 +102,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
-        return new SignificantLongTerms(subsetSize, supersetSize, name, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Arrays.asList(list), getMetaData());
+        return new SignificantLongTerms(subsetSize, supersetSize, name, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Arrays.asList(list), metaData());
     }
 
     @Override
@@ -102,7 +111,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
-        return new SignificantLongTerms(0, supersetSize, name, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Collections.<InternalSignificantTerms.Bucket>emptyList(), getMetaData());
+        return new SignificantLongTerms(0, supersetSize, name, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Collections.<InternalSignificantTerms.Bucket>emptyList(), metaData());
     }
 
     @Override

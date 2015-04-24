@@ -62,6 +62,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -73,6 +74,9 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.URL;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 
 /**
@@ -227,10 +231,10 @@ public class Analysis {
             }
         }
 
-        URL wordListFile = env.resolveConfig(wordListPath);
+        final URL wordListFile = env.resolveConfig(wordListPath);
 
-        try {
-            return loadWordList(new InputStreamReader(wordListFile.openStream(), Charsets.UTF_8), "#");
+        try (BufferedReader reader = FileSystemUtils.newBufferedReader(wordListFile, Charsets.UTF_8)) {
+            return loadWordList(reader, "#");
         } catch (IOException ioe) {
             String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
             throw new ElasticsearchIllegalArgumentException(message);
@@ -274,17 +278,14 @@ public class Analysis {
             return null;
         }
 
-        URL fileUrl = env.resolveConfig(filePath);
+        final URL fileUrl = env.resolveConfig(filePath);
 
-        Reader reader = null;
         try {
-            reader = new InputStreamReader(fileUrl.openStream(), Charsets.UTF_8);
+            return FileSystemUtils.newBufferedReader(fileUrl, Charsets.UTF_8);
         } catch (IOException ioe) {
             String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
             throw new ElasticsearchIllegalArgumentException(message);
         }
-
-        return reader;
     }
 
     /**

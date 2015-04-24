@@ -69,29 +69,20 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLikeThisRequest, SearchResponse> {
 
     private final TransportSearchAction searchAction;
-
     private final TransportGetAction getAction;
-
     private final IndicesService indicesService;
-
     private final ClusterService clusterService;
-
     private final TransportService transportService;
 
     @Inject
     public TransportMoreLikeThisAction(Settings settings, ThreadPool threadPool, TransportSearchAction searchAction, TransportGetAction getAction,
                                        ClusterService clusterService, IndicesService indicesService, TransportService transportService, ActionFilters actionFilters) {
-        super(settings, MoreLikeThisAction.NAME, threadPool, transportService, actionFilters);
+        super(settings, MoreLikeThisAction.NAME, threadPool, transportService, actionFilters, MoreLikeThisRequest.class);
         this.searchAction = searchAction;
         this.getAction = getAction;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.transportService = transportService;
-    }
-
-    @Override
-    public MoreLikeThisRequest newRequestInstance(){
-        return new MoreLikeThisRequest();
     }
 
     @Override
@@ -132,7 +123,6 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
                 .listenerThreaded(true)
                 .operationThreaded(true);
 
-        request.beforeLocalFork();
         getAction.execute(getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getResponse) {
@@ -149,9 +139,9 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
                     final Set<String> fields = newHashSet();
                     if (request.fields() != null) {
                         for (String field : request.fields()) {
-                            FieldMappers fieldMappers = docMapper.mappers().smartName(field);
-                            if (fieldMappers != null) {
-                                fields.add(fieldMappers.mapper().names().indexName());
+                            FieldMapper fieldMapper = docMapper.mappers().smartNameFieldMapper(field);
+                            if (fieldMapper != null) {
+                                fields.add(fieldMapper.names().indexName());
                             } else {
                                 fields.add(field);
                             }
@@ -221,7 +211,7 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
                 searchRequest.extraSource(extraSource);
 
                 if (request.searchSource() != null) {
-                    searchRequest.source(request.searchSource(), request.searchSourceUnsafe());
+                    searchRequest.source(request.searchSource());
                 }
 
                 searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {

@@ -102,12 +102,10 @@ public class BulkItemRequest implements Streamable {
             request = new UpdateRequest();
         }
         request.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_1_3_3)) {
-            if (in.readBoolean()) {
-                primaryResponse = BulkItemResponse.readBulkItem(in);
-            }
-            ignoreOnReplica = in.readBoolean();
+        if (in.readBoolean()) {
+            primaryResponse = BulkItemResponse.readBulkItem(in);
         }
+        ignoreOnReplica = in.readBoolean();
     }
 
     @Override
@@ -121,9 +119,7 @@ public class BulkItemRequest implements Streamable {
             out.writeByte((byte) 2);
         }
         request.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_1_3_3)) {
-            out.writeOptionalStreamable(primaryResponse);
-            out.writeBoolean(ignoreOnReplica);
-        }
+        out.writeOptionalStreamable(primaryResponse);
+        out.writeBoolean(ignoreOnReplica);
     }
 }

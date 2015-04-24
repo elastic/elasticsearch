@@ -28,8 +28,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
-import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
-import org.elasticsearch.cluster.routing.operation.hash.murmur3.Murmur3HashFunction;
+import org.elasticsearch.cluster.routing.HashFunction;
+import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -117,10 +117,10 @@ public class IndexMetaData {
         return factory;
     }
 
-    public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(5, "index read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA));
+    public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(5, "index read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
     public static final ClusterBlock INDEX_READ_BLOCK = new ClusterBlock(7, "index read (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.READ));
     public static final ClusterBlock INDEX_WRITE_BLOCK = new ClusterBlock(8, "index write (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE));
-    public static final ClusterBlock INDEX_METADATA_BLOCK = new ClusterBlock(9, "index metadata (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.METADATA));
+    public static final ClusterBlock INDEX_METADATA_BLOCK = new ClusterBlock(9, "index metadata (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.METADATA_READ));
 
     public static enum State {
         OPEN((byte) 0),
@@ -154,9 +154,11 @@ public class IndexMetaData {
             throw new ElasticsearchIllegalStateException("No state match for [" + state + "]");
         }
     }
-
+    public static final String INDEX_SETTING_PREFIX = "index.";
     public static final String SETTING_NUMBER_OF_SHARDS = "index.number_of_shards";
     public static final String SETTING_NUMBER_OF_REPLICAS = "index.number_of_replicas";
+    public static final String SETTING_SHADOW_REPLICAS = "index.shadow_replicas";
+    public static final String SETTING_SHARED_FILESYSTEM = "index.shared_filesystem";
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
     public static final String SETTING_READ_ONLY = "index.blocks.read_only";
     public static final String SETTING_BLOCKS_READ = "index.blocks.read";
@@ -167,6 +169,7 @@ public class IndexMetaData {
     public static final String SETTING_UUID = "index.uuid";
     public static final String SETTING_LEGACY_ROUTING_HASH_FUNCTION = "index.legacy.routing.hash.type";
     public static final String SETTING_LEGACY_ROUTING_USE_TYPE = "index.legacy.routing.use_type";
+    public static final String SETTING_DATA_PATH = "index.data_path";
     public static final String INDEX_UUID_NA_VALUE = "_na_";
 
     // hard-coded hash function as of 2.0
@@ -783,4 +786,25 @@ public class IndexMetaData {
             }
         }
     }
+
+    /**
+     * Returns <code>true</code> iff the given settings indicate that the index
+     * associated with these settings allocates it's shards on a shared
+     * filesystem. Otherwise <code>false</code>. The default setting for this
+     * is the returned value from
+     * {@link #isIndexUsingShadowReplicas(org.elasticsearch.common.settings.Settings)}.
+     */
+    public static boolean isOnSharedFilesystem(Settings settings) {
+        return settings.getAsBoolean(SETTING_SHARED_FILESYSTEM, isIndexUsingShadowReplicas(settings));
+    }
+
+    /**
+     * Returns <code>true</code> iff the given settings indicate that the index associated
+     * with these settings uses shadow replicas. Otherwise <code>false</code>. The default
+     * setting for this is <code>false</code>.
+     */
+    public static boolean isIndexUsingShadowReplicas(Settings settings) {
+        return settings.getAsBoolean(SETTING_SHADOW_REPLICAS, false);
+    }
+
 }

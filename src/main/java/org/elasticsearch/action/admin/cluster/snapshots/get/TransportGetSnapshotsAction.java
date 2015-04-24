@@ -46,18 +46,13 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeOperationAct
     @Inject
     public TransportGetSnapshotsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters) {
-        super(settings, GetSnapshotsAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, GetSnapshotsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetSnapshotsRequest.class);
         this.snapshotsService = snapshotsService;
     }
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.SNAPSHOT;
-    }
-
-    @Override
-    protected GetSnapshotsRequest newRequest() {
-        return new GetSnapshotsRequest();
+        return ThreadPool.Names.GENERIC;
     }
 
     @Override
@@ -67,31 +62,40 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeOperationAct
 
     @Override
     protected ClusterBlockException checkBlock(GetSnapshotsRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_READ, "");
     }
 
     @Override
     protected void masterOperation(final GetSnapshotsRequest request, ClusterState state, final ActionListener<GetSnapshotsResponse> listener) throws ElasticsearchException {
-        SnapshotId[] snapshotIds = new SnapshotId[request.snapshots().length];
-        for (int i = 0; i < snapshotIds.length; i++) {
-            snapshotIds[i] = new SnapshotId(request.repository(), request.snapshots()[i]);
-        }
-
         try {
             ImmutableList.Builder<SnapshotInfo> snapshotInfoBuilder = ImmutableList.builder();
-            if (snapshotIds.length > 0) {
-                for (SnapshotId snapshotId : snapshotIds) {
-                    snapshotInfoBuilder.add(new SnapshotInfo(snapshotsService.snapshot(snapshotId)));
-                }
-            } else {
+            if (isAllSnapshots(request.snapshots())) {
                 ImmutableList<Snapshot> snapshots = snapshotsService.snapshots(request.repository());
                 for (Snapshot snapshot : snapshots) {
                     snapshotInfoBuilder.add(new SnapshotInfo(snapshot));
+                }
+            } else if (isCurrentSnapshots(request.snapshots())) {
+                ImmutableList<Snapshot> snapshots = snapshotsService.currentSnapshots(request.repository());
+                for (Snapshot snapshot : snapshots) {
+                    snapshotInfoBuilder.add(new SnapshotInfo(snapshot));
+                }
+            } else {
+                for (int i = 0; i < request.snapshots().length; i++) {
+                    SnapshotId snapshotId = new SnapshotId(request.repository(), request.snapshots()[i]);
+                    snapshotInfoBuilder.add(new SnapshotInfo(snapshotsService.snapshot(snapshotId)));
                 }
             }
             listener.onResponse(new GetSnapshotsResponse(snapshotInfoBuilder.build()));
         } catch (Throwable t) {
             listener.onFailure(t);
         }
+    }
+
+    private boolean isAllSnapshots(String[] snapshots) {
+        return (snapshots.length == 0) || (snapshots.length == 1 && GetSnapshotsRequest.ALL_SNAPSHOTS.equalsIgnoreCase(snapshots[0]));
+    }
+
+    private boolean isCurrentSnapshots(String[] snapshots) {
+        return (snapshots.length == 1 && GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshots[0]));
     }
 }

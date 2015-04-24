@@ -19,10 +19,8 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.search.type.ParsedScrollId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -85,13 +83,11 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
 
     private long nowInMillis;
 
-    private boolean useSlowScroll;
-
     ShardSearchLocalRequest() {
     }
 
     ShardSearchLocalRequest(SearchRequest searchRequest, ShardRouting shardRouting, int numberOfShards,
-                            boolean useSlowScroll, String[] filteringAliases, long nowInMillis) {
+                            String[] filteringAliases, long nowInMillis) {
         this(shardRouting.shardId(), numberOfShards, searchRequest.searchType(),
                 searchRequest.source(), searchRequest.types(), searchRequest.queryCache());
 
@@ -101,7 +97,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         this.templateType = searchRequest.templateType();
         this.templateParams = searchRequest.templateParams();
         this.scroll = searchRequest.scroll();
-        this.useSlowScroll = useSlowScroll;
         this.filteringAliases = filteringAliases;
         this.nowInMillis = nowInMillis;
     }
@@ -207,11 +202,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         return scroll;
     }
 
-    @Override
-    public boolean useSlowScroll() {
-        return useSlowScroll;
-    }
-
     @SuppressWarnings("unchecked")
     protected void innerReadFrom(StreamInput in) throws IOException {
         index = in.readString();
@@ -229,26 +219,13 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         filteringAliases = in.readStringArray();
         nowInMillis = in.readVLong();
 
-        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-            templateSource = in.readBytesReference();
-            templateName = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
-                templateType = ScriptService.ScriptType.readFrom(in);
-            }
-            if (in.readBoolean()) {
-                templateParams = (Map<String, Object>) in.readGenericValue();
-            }
+        templateSource = in.readBytesReference();
+        templateName = in.readOptionalString();
+        templateType = ScriptService.ScriptType.readFrom(in);
+        if (in.readBoolean()) {
+            templateParams = (Map<String, Object>) in.readGenericValue();
         }
-        if (in.getVersion().onOrAfter(ParsedScrollId.SCROLL_SEARCH_AFTER_MINIMUM_VERSION)) {
-            useSlowScroll = in.readBoolean();
-        } else {
-            // This means that this request was send from a 1.0.x or 1.1.x node and we need to fallback to slow scroll.
-            useSlowScroll = in.getVersion().before(ParsedScrollId.SCROLL_SEARCH_AFTER_MINIMUM_VERSION);
-        }
-
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            queryCache = in.readOptionalBoolean();
-        }
+        queryCache = in.readOptionalBoolean();
     }
 
     protected void innerWriteTo(StreamOutput out, boolean asKey) throws IOException {
@@ -272,25 +249,15 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
             out.writeVLong(nowInMillis);
         }
 
-        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            out.writeBytesReference(templateSource);
-            out.writeOptionalString(templateName);
-            if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
-                ScriptService.ScriptType.writeTo(templateType, out);
-            }
-            boolean existTemplateParams = templateParams != null;
-            out.writeBoolean(existTemplateParams);
-            if (existTemplateParams) {
-                out.writeGenericValue(templateParams);
-            }
+        out.writeBytesReference(templateSource);
+        out.writeOptionalString(templateName);
+        ScriptService.ScriptType.writeTo(templateType, out);
+        boolean existTemplateParams = templateParams != null;
+        out.writeBoolean(existTemplateParams);
+        if (existTemplateParams) {
+            out.writeGenericValue(templateParams);
         }
-        if (out.getVersion().onOrAfter(ParsedScrollId.SCROLL_SEARCH_AFTER_MINIMUM_VERSION)) {
-            out.writeBoolean(useSlowScroll);
-        }
-
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeOptionalBoolean(queryCache);
-        }
+        out.writeOptionalBoolean(queryCache);
     }
 
     @Override

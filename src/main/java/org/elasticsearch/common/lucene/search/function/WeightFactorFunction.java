@@ -20,9 +20,10 @@
 package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+
+import java.io.IOException;
 
 /**
  *
@@ -53,27 +54,26 @@ public class WeightFactorFunction extends ScoreFunction {
     }
 
     @Override
-    public void setNextReader(LeafReaderContext context) {
-        scoreFunction.setNextReader(context);
-    }
+    public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
+        final LeafScoreFunction leafFunction = scoreFunction.getLeafScoreFunction(ctx);
+        return new LeafScoreFunction() {
+            @Override
+            public double score(int docId, float subQueryScore) {
+                return leafFunction.score(docId, subQueryScore) * getWeight();
+            }
 
-    @Override
-    public double score(int docId, float subQueryScore) {
-        return scoreFunction.score(docId, subQueryScore) * getWeight();
-    }
-
-    @Override
-    public Explanation explainScore(int docId, float score) {
-        Explanation functionScoreExplanation;
-        Explanation functionExplanation = scoreFunction.explainScore(docId, score);
-        functionScoreExplanation = new ComplexExplanation(true, functionExplanation.getValue() * (float) getWeight(), "product of:");
-        functionScoreExplanation.addDetail(functionExplanation);
-        functionScoreExplanation.addDetail(explainWeight());
-        return functionScoreExplanation;
+            @Override
+            public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
+                Explanation functionExplanation = leafFunction.explainScore(docId, subQueryScore);
+                return Explanation.match(
+                        functionExplanation.getValue() * (float) getWeight(), "product of:",
+                        functionExplanation, explainWeight());
+            }
+        };
     }
 
     public Explanation explainWeight() {
-        return new Explanation(getWeight(), "weight");
+        return Explanation.match(getWeight(), "weight");
     }
 
     public float getWeight() {
@@ -87,18 +87,18 @@ public class WeightFactorFunction extends ScoreFunction {
         }
 
         @Override
-        public void setNextReader(LeafReaderContext context) {
+        public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) {
+            return new LeafScoreFunction() {
+                @Override
+                public double score(int docId, float subQueryScore) {
+                    return 1.0;
+                }
 
-        }
-
-        @Override
-        public double score(int docId, float subQueryScore) {
-            return 1.0;
-        }
-
-        @Override
-        public Explanation explainScore(int docId, float subQueryScore) {
-            return new Explanation(1.0f, "constant score 1.0 - no function provided");
+                @Override
+                public Explanation explainScore(int docId, Explanation subQueryScore) {
+                    return Explanation.match(1.0f, "constant score 1.0 - no function provided");
+                }
+            };
         }
     }
 }

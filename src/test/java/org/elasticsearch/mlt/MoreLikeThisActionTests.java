@@ -20,7 +20,6 @@
 package org.elasticsearch.mlt;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -40,6 +39,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -213,10 +213,11 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
     @Test
     // See issue https://github.com/elasticsearch/elasticsearch/issues/3252
     public void testNumericField() throws Exception {
+        final String[] numericTypes = new String[]{"byte", "short", "integer", "long"};
         prepareCreate("test").addMapping("type", jsonBuilder()
                     .startObject().startObject("type")
                     .startObject("properties")
-                        .startObject("int_value").field("type", randomNumericType(getRandom())).endObject()
+                        .startObject("int_value").field("type", randomFrom(numericTypes)).endObject()
                         .startObject("string_value").field("type", "string").endObject()
                         .endObject()
                     .endObject().endObject()).execute().actionGet();
@@ -569,36 +570,27 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "alex k working on it")
     public void testMoreLikeThisArtificialDocs() throws Exception {
         int numFields = randomIntBetween(5, 10);
 
-        logger.info("Creating an index with multiple fields ...");
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1").startObject("properties");
-        for (int i = 0; i < numFields; i++) {
-            mapping.startObject("field"+i).field("type", "string").endObject();
-        }
-        mapping.endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", mapping).get());
+        createIndex("test");
         ensureGreen();
 
         logger.info("Indexing a single document ...");
         XContentBuilder doc = jsonBuilder().startObject();
         for (int i = 0; i < numFields; i++) {
-            doc.field("field"+i, generateRandomStringArray(5, 10));
+            doc.field("field"+i, generateRandomStringArray(5, 10, false));
         }
         doc.endObject();
-        List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("test", "type1", "1").setSource(doc));
-        indexRandom(true, builders);
+        indexRandom(true, client().prepareIndex("test", "type1", "0").setSource(doc));
 
         logger.info("Checking the document matches ...");
         MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery()
-                .docs((Item) new Item().doc(doc).index("test").type("type1"))
+                .like((Item) new Item().doc(doc).index("test").type("type1"))
                 .minTermFreq(0)
                 .minDocFreq(0)
                 .maxQueryTerms(100)
-                .percentTermsToMatch(1); // strict all terms must match!
+                .minimumShouldMatch("100%"); // strict all terms must match!
         SearchResponse response = client().prepareSearch("test").setTypes("type1")
                 .setQuery(mltQuery).get();
         assertSearchResponse(response);
@@ -674,5 +666,54 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
                 .setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
+    }
+
+    @Test
+    public void testMoreLikeThisIgnoreLike() throws ExecutionException, InterruptedException, IOException {
+        createIndex("test");
+        ensureGreen();
+        int numFields = randomIntBetween(5, 10);
+
+        logger.info("Create a document that has all the fields.");
+        XContentBuilder doc = jsonBuilder().startObject();
+        for (int i = 0; i < numFields; i++) {
+            doc.field("field"+i, i+"");
+        }
+        doc.endObject();
+
+        logger.info("Indexing each field value of this document as a single document.");
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < numFields; i++) {
+            builders.add(client().prepareIndex("test", "type1", i+"").setSource("field"+i, i+""));
+        }
+        indexRandom(true, builders);
+
+        logger.info("First check the document matches all indexed docs.");
+        MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery("field0")
+                .like((Item) new Item().doc(doc).index("test").type("type1"))
+                .minTermFreq(0)
+                .minDocFreq(0)
+                .maxQueryTerms(100)
+                .minimumShouldMatch("0%");
+        SearchResponse response = client().prepareSearch("test").setTypes("type1")
+                .setQuery(mltQuery).get();
+        assertSearchResponse(response);
+        assertHitCount(response, numFields);
+
+        logger.info("Now check like this doc, but ignore one doc in the index, then two and so on...");
+        List<Item> docs = new ArrayList<>();
+        for (int i = 0; i < numFields; i++) {
+            docs.add(new Item("test", "type1", i+""));
+            mltQuery = moreLikeThisQuery()
+                    .like((Item) new Item().doc(doc).index("test").type("type1"))
+                    .ignoreLike(docs.toArray(Item.EMPTY_ARRAY))
+                    .minTermFreq(0)
+                    .minDocFreq(0)
+                    .maxQueryTerms(100)
+                    .minimumShouldMatch("0%");
+            response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
+            assertSearchResponse(response);
+            assertHitCount(response, numFields - (i + 1));
+        }
     }
 }

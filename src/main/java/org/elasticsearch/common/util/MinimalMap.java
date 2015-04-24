@@ -25,46 +25,57 @@ import java.util.Set;
 
 public abstract class MinimalMap<K, V> implements Map<K, V> {
 
+    @Override
     public boolean isEmpty() {
         throw new UnsupportedOperationException("entrySet() not supported!");
     }
 
+    @Override
     public V put(K key, V value) {
         throw new UnsupportedOperationException("put(Object, Object) not supported!");
     }
 
+    @Override
     public void putAll(Map<? extends K, ? extends V> m) {
         throw new UnsupportedOperationException("putAll(Map<? extends K, ? extends V>) not supported!");
     }
 
+    @Override
     public V remove(Object key) {
         throw new UnsupportedOperationException("remove(Object) not supported!");
     }
 
+    @Override
     public void clear() {
         throw new UnsupportedOperationException("clear() not supported!");
     }
 
+    @Override
     public Set<K> keySet() {
         throw new UnsupportedOperationException("keySet() not supported!");
     }
 
+    @Override
     public Collection<V> values() {
         throw new UnsupportedOperationException("values() not supported!");
     }
 
+    @Override
     public Set<Entry<K, V>> entrySet() {
         throw new UnsupportedOperationException("entrySet() not supported!");
     }
 
+    @Override
     public boolean containsValue(Object value) {
         throw new UnsupportedOperationException("containsValue(Object) not supported!");
     }
 
+    @Override
     public int size() {
         throw new UnsupportedOperationException("size() not supported!");
     }
 
+    @Override
     public boolean containsKey(Object k) {
         throw new UnsupportedOperationException("containsKey(Object) not supported!");
     }

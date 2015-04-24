@@ -73,10 +73,10 @@ public class StoreRateLimiting {
             actualRateLimiter = null;
         } else if (actualRateLimiter == null) {
             actualRateLimiter = rateLimiter;
-            actualRateLimiter.setMbPerSec(rate.mbFrac());
+            actualRateLimiter.setMBPerSec(rate.mbFrac());
         } else {
             assert rateLimiter == actualRateLimiter;
-            rateLimiter.setMbPerSec(rate.mbFrac());
+            rateLimiter.setMBPerSec(rate.mbFrac());
         }
     }
 

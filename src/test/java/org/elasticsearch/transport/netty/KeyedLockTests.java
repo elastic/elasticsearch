@@ -120,6 +120,7 @@ public class KeyedLockTests extends ElasticsearchTestCase {
             this.safeCounter = safeCounter;
         }
 
+        @Override
         public void run() {
             try {
                 startLatch.await();

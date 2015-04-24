@@ -24,14 +24,17 @@ import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.spi.LocationInfo;
 import org.apache.log4j.spi.LoggingEvent;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.After;
 import org.junit.Test;
 
-import java.io.File;
 import java.net.URL;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -42,15 +45,17 @@ public class Log4jESLoggerTests extends ElasticsearchTestCase {
 
     private ESLogger esTestLogger;
     private TestAppender testAppender;
+    private String testLevel;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        this.testLevel = Log4jESLoggerFactory.getLogger("test").getLevel();
         LogConfigurator.reset();
-        File configDir = resolveConfigDir();
+        Path configDir = getDataPath("config");
         // Need to set custom path.conf so we can use a custom logging.yml file for the test
         Settings settings = ImmutableSettings.builder()
-                .put("path.conf", configDir.getAbsolutePath())
+                .put("path.conf", configDir.toAbsolutePath())
                 .build();
         LogConfigurator.configure(settings);
 
@@ -59,6 +64,15 @@ public class Log4jESLoggerTests extends ElasticsearchTestCase {
         assertThat(testLogger.getLevel(), equalTo(Level.TRACE));
         testAppender = new TestAppender();
         testLogger.addAppender(testAppender);
+    }
+
+    @Override
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        esTestLogger.setLevel(testLevel);
+        Logger testLogger = ((Log4jESLogger) esTestLogger).logger();
+        testLogger.removeAppender(testAppender);
     }
 
     @Test
@@ -112,11 +126,6 @@ public class Log4jESLoggerTests extends ElasticsearchTestCase {
         assertThat(locationInfo.getClassName(), equalTo(Log4jESLoggerTests.class.getCanonicalName()));
         assertThat(locationInfo.getMethodName(), equalTo("locationInfoTest"));
         
-    }
-
-    private static File resolveConfigDir() throws Exception {
-        URL url = Log4jESLoggerTests.class.getResource("config");
-        return new File(url.toURI());
     }
 
     private static class TestAppender extends AppenderSkeleton {

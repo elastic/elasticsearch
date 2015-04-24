@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.spatial4j.core.shape.ShapeCollection;
+import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import com.spatial4j.core.shape.Shape;
@@ -35,13 +35,25 @@ public class MultiPolygonBuilder extends ShapeBuilder {
 
     protected final ArrayList<BasePolygonBuilder<?>> polygons = new ArrayList<>();
 
+    public MultiPolygonBuilder() {
+        this(Orientation.RIGHT);
+    }
+
+    public MultiPolygonBuilder(Orientation orientation) {
+        super(orientation);
+    }
+
     public MultiPolygonBuilder polygon(BasePolygonBuilder<?> polygon) {
         this.polygons.add(polygon);
         return this;
     }
 
     public InternalPolygonBuilder polygon() {
-        InternalPolygonBuilder polygon = new InternalPolygonBuilder(this);
+        return polygon(Orientation.RIGHT);
+    }
+
+    public InternalPolygonBuilder polygon(Orientation orientation) {
+        InternalPolygonBuilder polygon = new InternalPolygonBuilder(this, orientation);
         this.polygon(polygon);
         return polygon;
     }
@@ -84,7 +96,7 @@ public class MultiPolygonBuilder extends ShapeBuilder {
         if (shapes.size() == 1)
             return shapes.get(0);
         else
-            return new ShapeCollection<>(shapes, SPATIAL_CONTEXT);
+            return new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
         //note: ShapeCollection is probably faster than a Multi* geom.
     }
 
@@ -92,8 +104,8 @@ public class MultiPolygonBuilder extends ShapeBuilder {
 
         private final MultiPolygonBuilder collection;
 
-        private InternalPolygonBuilder(MultiPolygonBuilder collection) {
-            super();
+        private InternalPolygonBuilder(MultiPolygonBuilder collection, Orientation orientation) {
+            super(orientation);
             this.collection = collection;
             this.shell = new Ring<>(this);
         }

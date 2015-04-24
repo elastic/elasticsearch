@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.*;
-import org.elasticsearch.action.bench.*;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -39,6 +38,9 @@ import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainRequestBuilder;
 import org.elasticsearch.action.explain.ExplainResponse;
+import org.elasticsearch.action.fieldstats.FieldStatsRequest;
+import org.elasticsearch.action.fieldstats.FieldStatsRequestBuilder;
+import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.get.*;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -683,40 +685,11 @@ public interface Client extends ElasticsearchClient<Client>, Releasable {
      */
     void clearScroll(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener);
 
-    /**
-     * Runs a benchmark on the server
-     */
-    void bench(BenchmarkRequest request, ActionListener<BenchmarkResponse> listener);
+    FieldStatsRequestBuilder prepareFieldStats();
 
-    /**
-     * Runs a benchmark on the server
-     */
-    ActionFuture<BenchmarkResponse> bench(BenchmarkRequest request);
+    ActionFuture<FieldStatsResponse> fieldStats(FieldStatsRequest request);
 
-    /**
-     * Runs a benchmark on the server
-     */
-    BenchmarkRequestBuilder prepareBench(String... indices);
-
-    /**
-     * Aborts a benchmark run on the server
-     */
-    void abortBench(AbortBenchmarkRequest request, ActionListener<AbortBenchmarkResponse> listener);
-
-    /**
-     * Aborts a benchmark run on the server
-     */
-    AbortBenchmarkRequestBuilder prepareAbortBench(String... benchmarkNames);
-
-    /**
-     * Reports on status of actively running benchmarks
-     */
-    void benchStatus(BenchmarkStatusRequest request, ActionListener<BenchmarkStatusResponse> listener);
-
-    /**
-     * Reports on status of actively running benchmarks
-     */
-    BenchmarkStatusRequestBuilder prepareBenchStatus();
+    void fieldStats(FieldStatsRequest request, ActionListener<FieldStatsResponse> listener);
 
     /**
      * Returns this clients settings

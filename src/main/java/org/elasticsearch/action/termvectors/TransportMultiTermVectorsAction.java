@@ -46,7 +46,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
     @Inject
     public TransportMultiTermVectorsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                            ClusterService clusterService, TransportShardMultiTermsVectorAction shardAction, ActionFilters actionFilters) {
-        super(settings, MultiTermVectorsAction.NAME, threadPool, transportService, actionFilters);
+        super(settings, MultiTermVectorsAction.NAME, threadPool, transportService, actionFilters, MultiTermVectorsRequest.class);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
     }
@@ -62,6 +62,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
         Map<ShardId, MultiTermVectorsShardRequest> shardRequests = new HashMap<>();
         for (int i = 0; i < request.requests.size(); i++) {
             TermVectorsRequest termVectorsRequest = request.requests.get(i);
+            termVectorsRequest.startTime = System.currentTimeMillis();
             termVectorsRequest.routing(clusterState.metaData().resolveIndexRouting(termVectorsRequest.routing(), termVectorsRequest.index()));
             if (!clusterState.metaData().hasConcreteIndex(termVectorsRequest.index())) {
                 responses.set(i, new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(termVectorsRequest.index(),
@@ -80,7 +81,6 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
             if (shardRequest == null) {
                 shardRequest = new MultiTermVectorsShardRequest(request, shardId.index().name(), shardId.id());
                 shardRequest.preference(request.preference);
-
                 shardRequests.put(shardId, shardRequest);
             }
             shardRequest.add(i, termVectorsRequest);
@@ -126,10 +126,5 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                 }
             });
         }
-    }
-
-    @Override
-    public MultiTermVectorsRequest newRequestInstance() {
-        return new MultiTermVectorsRequest();
     }
 }

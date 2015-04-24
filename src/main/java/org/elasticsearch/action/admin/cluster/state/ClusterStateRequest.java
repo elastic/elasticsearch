@@ -40,6 +40,7 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
     private boolean metaData = true;
     private boolean blocks = true;
     private String[] indices = Strings.EMPTY_ARRAY;
+    private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
     public ClusterStateRequest() {
     }
@@ -57,7 +58,7 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
         indices = Strings.EMPTY_ARRAY;
         return this;
     }
-    
+
     public ClusterStateRequest clear() {
         routingTable = false;
         nodes = false;
@@ -116,7 +117,12 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
 
     @Override
     public IndicesOptions indicesOptions() {
-        return IndicesOptions.lenientExpandOpen();
+        return this.indicesOptions;
+    }
+
+    public final ClusterStateRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
+        return this;
     }
 
     @Override
@@ -127,11 +133,7 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
         metaData = in.readBoolean();
         blocks = in.readBoolean();
         indices = in.readStringArray();
-        // fake support for indices in pre 1.2.0 versions
-        if (in.getVersion().before(Version.V_1_2_0)) {
-            in.readStringArray();
-        }
-        readLocal(in);
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
     @Override
@@ -142,10 +144,6 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
         out.writeBoolean(metaData);
         out.writeBoolean(blocks);
         out.writeStringArray(indices);
-        // fake support for indices in pre 1.2.0 versions
-        if (out.getVersion().before(Version.V_1_2_0)) {
-            out.writeStringArray(Strings.EMPTY_ARRAY);
-        }
-        writeLocal(out);
+        indicesOptions.writeIndicesOptions(out);
     }
 }

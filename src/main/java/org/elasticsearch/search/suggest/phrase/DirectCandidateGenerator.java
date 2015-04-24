@@ -73,7 +73,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         this.nonErrorLikelihood = nonErrorLikelihood;
         float thresholdFrequency = spellchecker.getThresholdFrequency();
         this.frequencyPlateau = thresholdFrequency >= 1.0f ? (int) thresholdFrequency: (int)(dictSize * thresholdFrequency);
-        termsEnum = terms.iterator(null);
+        termsEnum = terms.iterator();
     }
 
     /* (non-Javadoc)

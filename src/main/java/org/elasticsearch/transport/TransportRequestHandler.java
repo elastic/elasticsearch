@@ -24,14 +24,5 @@ package org.elasticsearch.transport;
  */
 public interface TransportRequestHandler<T extends TransportRequest> {
 
-    T newInstance();
-
     void messageReceived(T request, TransportChannel channel) throws Exception;
-
-    String executor();
-
-    /**
-     * See {@link org.elasticsearch.common.util.concurrent.AbstractRunnable#isForceExecution()}.
-     */
-    boolean isForceExecution();
 }

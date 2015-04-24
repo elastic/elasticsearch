@@ -72,9 +72,9 @@ public class MembershipAction extends AbstractComponent {
         this.listener = listener;
         this.clusterService = clusterService;
 
-        transportService.registerHandler(DISCOVERY_JOIN_ACTION_NAME, new JoinRequestRequestHandler());
-        transportService.registerHandler(DISCOVERY_JOIN_VALIDATE_ACTION_NAME, new ValidateJoinRequestRequestHandler());
-        transportService.registerHandler(DISCOVERY_LEAVE_ACTION_NAME, new LeaveRequestRequestHandler());
+        transportService.registerRequestHandler(DISCOVERY_JOIN_ACTION_NAME, JoinRequest.class, ThreadPool.Names.GENERIC, new JoinRequestRequestHandler());
+        transportService.registerRequestHandler(DISCOVERY_JOIN_VALIDATE_ACTION_NAME, ValidateJoinRequest.class, ThreadPool.Names.GENERIC, new ValidateJoinRequestRequestHandler());
+        transportService.registerRequestHandler(DISCOVERY_LEAVE_ACTION_NAME, LeaveRequest.class, ThreadPool.Names.GENERIC, new LeaveRequestRequestHandler());
     }
 
     public void close() {
@@ -112,9 +112,6 @@ public class MembershipAction extends AbstractComponent {
 
         DiscoveryNode node;
 
-        // here for backward compatibility. nodes with a version lower than 1.4.0 send this flag
-        boolean withClusterState = false;
-
         private JoinRequest() {
         }
 
@@ -126,56 +123,17 @@ public class MembershipAction extends AbstractComponent {
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             node = DiscoveryNode.readNode(in);
-            if (in.getVersion().before(Version.V_1_4_0_Beta1)) {
-                withClusterState = in.readBoolean();
-            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             node.writeTo(out);
-            if (out.getVersion().before(Version.V_1_4_0_Beta1)) {
-                // old with cluster state flag
-                out.writeBoolean(false);
-            }
         }
     }
 
 
-    // used to reply to nodes from a version older than 1.4.0 which may expect this
-    @Deprecated
-    class JoinResponse extends TransportResponse {
-
-        ClusterState clusterState;
-
-        JoinResponse() {
-        }
-
-        JoinResponse(ClusterState clusterState) {
-            this.clusterState = clusterState;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            // we don't care about cluster name. This cluster state is never used.
-            clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode(), null);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            ClusterState.Builder.writeTo(clusterState, out);
-        }
-    }
-
-    private class JoinRequestRequestHandler extends BaseTransportRequestHandler<JoinRequest> {
-
-        @Override
-        public JoinRequest newInstance() {
-            return new JoinRequest();
-        }
+    private class JoinRequestRequestHandler implements TransportRequestHandler<JoinRequest> {
 
         @Override
         public void messageReceived(final JoinRequest request, final TransportChannel channel) throws Exception {
@@ -183,12 +141,7 @@ public class MembershipAction extends AbstractComponent {
                 @Override
                 public void onSuccess() {
                     try {
-                        // nodes from a version older than 1.4.0 may ask for this
-                        if (request.withClusterState) {
-                            channel.sendResponse(new JoinResponse(clusterService.state()));
-                        } else {
-                            channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                        }
+                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
                     } catch (Throwable t) {
                         onFailure(t);
                     }
@@ -204,52 +157,20 @@ public class MembershipAction extends AbstractComponent {
                 }
             });
         }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.GENERIC;
-        }
     }
 
-    class ValidateJoinRequest extends TransportRequest {
+    static class ValidateJoinRequest extends TransportRequest {
 
         ValidateJoinRequest() {
         }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            if (in.getVersion().before(Version.V_1_4_0_Beta1)) {
-                // cluster name doesn't matter...
-                ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode(), null);
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            if (out.getVersion().before(Version.V_1_4_0_Beta1)) {
-                ClusterState.Builder.writeTo(clusterService.state(), out);
-            }
-        }
     }
 
-    private class ValidateJoinRequestRequestHandler extends BaseTransportRequestHandler<ValidateJoinRequest> {
-
-        @Override
-        public ValidateJoinRequest newInstance() {
-            return new ValidateJoinRequest();
-        }
+    class ValidateJoinRequestRequestHandler implements TransportRequestHandler<ValidateJoinRequest> {
 
         @Override
         public void messageReceived(ValidateJoinRequest request, TransportChannel channel) throws Exception {
             // for now, the mere fact that we can serialize the cluster state acts as validation....
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.GENERIC;
         }
     }
 
@@ -277,22 +198,12 @@ public class MembershipAction extends AbstractComponent {
         }
     }
 
-    private class LeaveRequestRequestHandler extends BaseTransportRequestHandler<LeaveRequest> {
-
-        @Override
-        public LeaveRequest newInstance() {
-            return new LeaveRequest();
-        }
+    private class LeaveRequestRequestHandler implements TransportRequestHandler<LeaveRequest> {
 
         @Override
         public void messageReceived(LeaveRequest request, TransportChannel channel) throws Exception {
             listener.onLeave(request.node);
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.GENERIC;
         }
     }
 }

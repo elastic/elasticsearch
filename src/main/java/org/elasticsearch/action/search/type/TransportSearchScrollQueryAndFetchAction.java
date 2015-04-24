@@ -30,10 +30,10 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
+import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 
@@ -67,12 +67,8 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
     private class AsyncAction extends AbstractAsyncAction {
 
         private final SearchScrollRequest request;
-        private volatile boolean useSlowScroll;
-
         private final ActionListener<SearchResponse> listener;
-
         private final ParsedScrollId scrollId;
-
         private final DiscoveryNodes nodes;
 
         private volatile AtomicArray<ShardSearchFailure> shardFailures;
@@ -124,9 +120,6 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
                 Tuple<String, Long> target = context[i];
                 DiscoveryNode node = nodes.get(target.v1());
                 if (node != null) {
-                    if (node.getVersion().before(ParsedScrollId.SCROLL_SEARCH_AFTER_MINIMUM_VERSION)) {
-                        useSlowScroll = true;
-                    }
                     executePhase(i, node, target.v2());
                 } else {
                     if (logger.isDebugEnabled()) {
@@ -155,10 +148,10 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
 
         void executePhase(final int shardIndex, DiscoveryNode node, final long searchId) {
             InternalScrollSearchRequest internalRequest = internalScrollSearchRequest(searchId, request);
-            searchService.sendExecuteFetch(node, internalRequest, new SearchServiceListener<QueryFetchSearchResult>() {
+            searchService.sendExecuteFetch(node, internalRequest, new ActionListener<ScrollQueryFetchSearchResult>() {
                 @Override
-                public void onResult(QueryFetchSearchResult result) {
-                    queryFetchResults.set(shardIndex, result);
+                public void onResponse(ScrollQueryFetchSearchResult result) {
+                    queryFetchResults.set(shardIndex, result.result());
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
                     }
@@ -195,7 +188,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
         }
 
         private void innerFinishHim() throws Exception {
-            ScoreDoc[] sortedShardList = searchPhaseController.sortDocs(!useSlowScroll, queryFetchResults);
+            ScoreDoc[] sortedShardList = searchPhaseController.sortDocs(true, queryFetchResults);
             final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults);
             String scrollId = null;
             if (request.scroll() != null) {

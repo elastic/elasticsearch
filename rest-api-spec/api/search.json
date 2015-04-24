@@ -1,6 +1,6 @@
 {
   "search": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-search.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-search.html",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_search",
@@ -42,6 +42,10 @@
           "type" : "list",
           "description" : "A comma-separated list of fields to return as part of a hit"
         },
+        "fielddata_fields": {
+          "type" : "list",
+          "description" : "A comma-separated list of fields to return as the field data representation of a field for each hit"
+        },
         "from": {
           "type" : "number",
           "description" : "Starting offset (default: 0)"
@@ -56,7 +60,7 @@
         },
         "expand_wildcards": {
             "type" : "enum",
-            "options" : ["open","closed"],
+            "options" : ["open","closed","none","all"],
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
         },
@@ -112,6 +116,10 @@
         "_source_include": {
           "type" : "list",
           "description" : "A list of fields to extract and return from the _source field"
+        },
+        "terminate_after": {
+          "type" : "number",
+          "description" : "The maximum number of documents to collect for each shard, upon reaching which the query execution will terminate early."
         },
         "stats": {
           "type" : "list",

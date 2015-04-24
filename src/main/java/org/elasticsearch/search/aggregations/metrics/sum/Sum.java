@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.search.aggregations.metrics.sum;
 
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 
 /**
  * An aggregation that computes the sum of the values in the current bucket.
  */
-public interface Sum extends Aggregation {
+public interface Sum extends NumericMetricsAggregation.SingleValue {
 
     /**
      * The sum.

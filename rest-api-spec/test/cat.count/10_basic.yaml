@@ -14,7 +14,8 @@
 "Test cat count output":
 
   - do:
-      cat.count: {}
+      cat.count:
+        v: false
 
   - match:
       $body: |
@@ -30,7 +31,8 @@
         refresh: true
 
   - do:
-      cat.count: {}
+      cat.count:
+        v: false
 
   - match:
       $body: |
@@ -48,6 +50,7 @@
   - do:
       cat.count:
         h: count
+        v: false
 
   - match:
       $body: |
@@ -58,6 +61,7 @@
   - do:
       cat.count:
         index: index1
+        v: false
 
   - match:
       $body: |

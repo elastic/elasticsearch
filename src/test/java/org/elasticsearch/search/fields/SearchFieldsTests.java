@@ -72,8 +72,9 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                // _timestamp is randomly enabled via templates but we don't want it here to test stored fields behaviour
+                // _timestamp and _size are randomly enabled via templates but we don't want it here to test stored fields behaviour
                 .startObject("_timestamp").field("enabled", false).endObject()
+                .startObject("_size").field("enabled", false).endObject()
                 .startObject("properties")
                 .startObject("field1").field("type", "string").field("store", "yes").endObject()
                 .startObject("field2").field("type", "string").field("store", "no").endObject()
@@ -568,7 +569,7 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(0).fields().get("float_field").value(), equalTo((Object) 5.0));
         assertThat(searchResponse.getHits().getAt(0).fields().get("double_field").value(), equalTo((Object) 6.0d));
         assertThat(searchResponse.getHits().getAt(0).fields().get("date_field").value(), equalTo((Object) 1332374400000L));
-        assertThat(searchResponse.getHits().getAt(0).fields().get("boolean_field").value().toString(), equalTo("T"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("boolean_field").value(), equalTo((Object) 1L));
 
     }
 

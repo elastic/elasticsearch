@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.core;
 import com.carrotsearch.hppc.DoubleOpenHashSet;
 import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.LongOpenHashSet;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.analysis.TokenStream;
@@ -32,10 +33,14 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -45,10 +50,12 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.FieldDataTermsFilter;
@@ -185,12 +192,11 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
     protected NumberFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                                 Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, NamedAnalyzer indexAnalyzer,
-                                NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsProvider,
-                                DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity,
+                                NamedAnalyzer searchAnalyzer, SimilarityProvider similarity,
                                 Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings,
                                 MultiFields multiFields, CopyTo copyTo) {
         // LUCENE 4 UPGRADE: Since we can't do anything before the super call, we have to push the boost check down to subclasses
-        super(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider, 
+        super(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer,
                 similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         if (precisionStep <= 0 || precisionStep >= maxPrecisionStep()) {
             this.precisionStep = Integer.MAX_VALUE;
@@ -233,7 +239,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         RuntimeException e = null;
         try {
             innerParseCreateField(context, fields);
-        } catch (IllegalArgumentException e1) {
+        } catch (IllegalArgumentException | ElasticsearchIllegalArgumentException e1) {
             e = e1;
         } catch (MapperParsingException e2) {
             e = e2;
@@ -268,22 +274,18 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         return true;
     }
 
-    /**
-     * Numeric field level query are basically range queries with same value and included. That's the recommended
-     * way to execute it.
-     */
     @Override
-    public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        return rangeQuery(value, value, true, true, context);
+    public final Query termQuery(Object value, @Nullable QueryParseContext context) {
+        TermQuery scoringQuery = new TermQuery(new Term(names.indexName(), indexedValueForSearch(value)));
+        return new ConstantScoreQuery(scoringQuery);
     }
 
-    /**
-     * Numeric field level filter are basically range queries with same value and included. That's the recommended
-     * way to execute it.
-     */
     @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        return rangeFilter(value, value, true, true, context);
+    public final Filter termFilter(Object value, @Nullable QueryParseContext context) {
+        // Made this method final because previously many subclasses duplicated
+        // the same code, returning a NumericRangeFilter, which should be less
+        // efficient than super's default impl of a single TermFilter.
+        return super.termFilter(value, context);
     }
 
     @Override
@@ -368,12 +370,12 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        super.merge(mergeWith, mergeContext);
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+        super.merge(mergeWith, mergeResult);
         if (!this.getClass().equals(mergeWith.getClass())) {
             return;
         }
-        if (!mergeContext.mergeFlags().simulate()) {
+        if (!mergeResult.simulate()) {
             NumberFieldMapper nfmMergeWith = (NumberFieldMapper) mergeWith;
             this.precisionStep = nfmMergeWith.precisionStep;
             this.includeInAll = nfmMergeWith.includeInAll;

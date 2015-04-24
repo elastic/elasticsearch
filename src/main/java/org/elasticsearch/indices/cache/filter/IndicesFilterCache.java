@@ -154,7 +154,6 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
     public void close() {
         closed = true;
         cache.invalidateAll();
-        cache.cleanUp();
     }
 
     public Cache<WeightedFilterCache.FilterCacheKey, DocIdSet> cache() {

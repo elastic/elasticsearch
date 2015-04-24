@@ -46,12 +46,8 @@ public class TransportNodesHotThreadsAction extends TransportNodesOperationActio
     @Inject
     public TransportNodesHotThreadsAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                           ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
-        super(settings, NodesHotThreadsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.GENERIC;
+        super(settings, NodesHotThreadsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+                NodesHotThreadsRequest.class, NodeRequest.class, ThreadPool.Names.GENERIC);
     }
 
     @Override
@@ -64,16 +60,6 @@ public class TransportNodesHotThreadsAction extends TransportNodesOperationActio
             }
         }
         return new NodesHotThreadsResponse(clusterName, nodes.toArray(new NodeHotThreads[nodes.size()]));
-    }
-
-    @Override
-    protected NodesHotThreadsRequest newRequest() {
-        return new NodesHotThreadsRequest();
-    }
-
-    @Override
-    protected NodeRequest newNodeRequest() {
-        return new NodeRequest();
     }
 
     @Override
@@ -92,7 +78,8 @@ public class TransportNodesHotThreadsAction extends TransportNodesOperationActio
                 .busiestThreads(request.request.threads)
                 .type(request.request.type)
                 .interval(request.request.interval)
-                .threadElementsSnapshotCount(request.request.snapshots);
+                .threadElementsSnapshotCount(request.request.snapshots)
+                .ignoreIdleThreads(request.request.ignoreIdleThreads);
         try {
             return new NodeHotThreads(clusterService.localNode(), hotThreads.detect());
         } catch (Exception e) {

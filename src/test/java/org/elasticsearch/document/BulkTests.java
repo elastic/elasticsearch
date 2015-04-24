@@ -21,6 +21,7 @@ package org.elasticsearch.document;
 
 import com.google.common.base.Charsets;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -35,6 +36,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -131,7 +133,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         assertThat(bulkResponse.getItems()[1].getResponse(), nullValue());
         assertThat(bulkResponse.getItems()[1].getFailure().getIndex(), equalTo("test"));
         assertThat(bulkResponse.getItems()[1].getFailure().getId(), equalTo("7"));
-        assertThat(bulkResponse.getItems()[1].getFailure().getMessage(), containsString("DocumentMissingException"));
+        assertThat(bulkResponse.getItems()[1].getFailure().getMessage(), containsString("document missing"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getId(), equalTo("2"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getIndex(), equalTo("test"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(3l));
@@ -171,7 +173,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                 .add(client().prepareUpdate("test", "type", "2").setDoc("field", "2"))
                 .add(client().prepareUpdate("test", "type", "1").setVersion(2l).setDoc("field", "3")).get();
 
-        assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("Version"));
+        assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("version conflict"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(2l));
         assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(3l));
 
@@ -192,7 +194,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                 .add(client().prepareUpdate("test", "type", "e1").setDoc("field", "3").setVersion(20).setVersionType(VersionType.FORCE))
                 .add(client().prepareUpdate("test", "type", "e1").setDoc("field", "3").setVersion(20).setVersionType(VersionType.INTERNAL)).get();
 
-        assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("Version"));
+        assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("version conflict"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(20l));
         assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(21l));
     }
@@ -323,7 +325,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
             int id = i + (numDocs / 2);
             if (i >= (numDocs / 2)) {
                 assertThat(response.getItems()[i].getFailure().getId(), equalTo(Integer.toString(id)));
-                assertThat(response.getItems()[i].getFailure().getMessage(), containsString("DocumentMissingException"));
+                assertThat(response.getItems()[i].getFailure().getMessage(), containsString("document missing"));
             } else {
                 assertThat(response.getItems()[i].getId(), equalTo(Integer.toString(id)));
                 assertThat(response.getItems()[i].getVersion(), equalTo(3l));
@@ -428,8 +430,8 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         byte[] addChild = new BytesArray("{ \"update\" : { \"_index\" : \"test\", \"_type\" : \"child\", \"_id\" : \"child1\", \"parent\" : \"parent1\"}}\n" +
                 "{\"doc\" : { \"field1\" : \"value1\"}, \"doc_as_upsert\" : \"true\"}\n").array();
 
-        builder.add(addParent, 0, addParent.length, false);
-        builder.add(addChild, 0, addChild.length, false);
+        builder.add(addParent, 0, addParent.length);
+        builder.add(addChild, 0, addChild.length);
 
         BulkResponse bulkResponse = builder.get();
         assertThat(bulkResponse.getItems().length, equalTo(2));
@@ -465,8 +467,8 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         byte[] addChild = new BytesArray("{\"update\" : { \"_id\" : \"child1\", \"_type\" : \"child\", \"_index\" : \"test\", \"parent\" : \"parent1\"} }\n" +
                 "{ \"script\" : \"ctx._source.field2 = 'value2'\", \"upsert\" : {\"field1\" : \"value1\"}}\n").array();
 
-        builder.add(addParent, 0, addParent.length, false);
-        builder.add(addChild, 0, addChild.length, false);
+        builder.add(addParent, 0, addParent.length);
+        builder.add(addChild, 0, addChild.length);
 
         BulkResponse bulkResponse = builder.get();
         assertThat(bulkResponse.getItems().length, equalTo(2));
@@ -503,10 +505,10 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                 "{\"index\" : { \"_id\" : \"child2\", \"_type\" : \"child\", \"_index\" : \"test\"} }\n" + "{ \"field1\" : \"value1\"}\n")
                 .array();
 
-        builder.add(addParent, 0, addParent.length, false);
-        builder.add(addChildOK, 0, addChildOK.length, false);
-        builder.add(addChildMissingRouting, 0, addChildMissingRouting.length, false);
-        builder.add(addChildOK, 0, addChildOK.length, false);
+        builder.add(addParent, 0, addParent.length);
+        builder.add(addChildOK, 0, addChildOK.length);
+        builder.add(addChildMissingRouting, 0, addChildMissingRouting.length);
+        builder.add(addChildOK, 0, addChildOK.length);
 
         BulkResponse bulkResponse = builder.get();
         assertThat(bulkResponse.getItems().length, equalTo(4));
@@ -576,7 +578,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                 "{\"index\": {\"_id\": \"2\"}}\n" +
                 "{\"name\": \"Good\", \"last_modified\" : \"2013-04-05\"}\n";
 
-        BulkResponse bulkResponse = client().prepareBulk().add(brokenBuildRequestData.getBytes(Charsets.UTF_8), 0, brokenBuildRequestData.length(), false, "test", "type").setRefresh(true).get();
+        BulkResponse bulkResponse = client().prepareBulk().add(brokenBuildRequestData.getBytes(Charsets.UTF_8), 0, brokenBuildRequestData.length(), "test", "type").setRefresh(true).get();
         assertThat(bulkResponse.getItems().length, is(2));
         assertThat(bulkResponse.getItems()[0].isFailed(), is(true));
         assertThat(bulkResponse.getItems()[1].isFailed(), is(false));
@@ -594,7 +596,8 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                         .endObject()
                     .endObject()
                 .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", builder));
+        assertAcked(prepareCreate("test").addMapping("type", builder)
+            .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2_ID));
         ensureYellow("test");
 
         String brokenBuildRequestData = "{\"index\": {} }\n" +
@@ -602,7 +605,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                 "{\"index\": { \"_id\" : \"24000\" } }\n" +
                 "{\"name\": \"Good\", \"my_routing\" : \"48000\"}\n";
 
-        BulkResponse bulkResponse = client().prepareBulk().add(brokenBuildRequestData.getBytes(Charsets.UTF_8), 0, brokenBuildRequestData.length(), false, "test", "type").setRefresh(true).get();
+        BulkResponse bulkResponse = client().prepareBulk().add(brokenBuildRequestData.getBytes(Charsets.UTF_8), 0, brokenBuildRequestData.length(), "test", "type").setRefresh(true).get();
         assertThat(bulkResponse.getItems().length, is(2));
         assertThat(bulkResponse.getItems()[0].isFailed(), is(true));
         assertThat(bulkResponse.getItems()[1].isFailed(), is(false));
@@ -620,7 +623,8 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                         .endObject()
                     .endObject()
                 .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", builder));
+        assertAcked(prepareCreate("test").addMapping("type", builder)
+            .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2_ID));
         ensureYellow("test");
 
         String brokenBuildRequestData = "{\"index\": {} }\n" +
@@ -628,7 +632,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                 "{\"index\": {} }\n" +
                 "{\"name\": \"Good\", \"my_id\" : \"48\"}\n";
 
-        BulkResponse bulkResponse = client().prepareBulk().add(brokenBuildRequestData.getBytes(Charsets.UTF_8), 0, brokenBuildRequestData.length(), false, "test", "type").setRefresh(true).get();
+        BulkResponse bulkResponse = client().prepareBulk().add(brokenBuildRequestData.getBytes(Charsets.UTF_8), 0, brokenBuildRequestData.length(), "test", "type").setRefresh(true).get();
         assertThat(bulkResponse.getItems().length, is(2));
         assertThat(bulkResponse.getItems()[0].isFailed(), is(true));
         assertThat(bulkResponse.getItems()[1].isFailed(), is(false));

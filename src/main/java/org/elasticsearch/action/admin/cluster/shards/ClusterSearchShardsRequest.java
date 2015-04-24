@@ -159,7 +159,6 @@ public class ClusterSearchShardsRequest extends MasterNodeReadOperationRequest<C
 
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        readLocal(in);
     }
 
     @Override
@@ -176,7 +175,6 @@ public class ClusterSearchShardsRequest extends MasterNodeReadOperationRequest<C
 
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
-        writeLocal(out);
     }
 
 }

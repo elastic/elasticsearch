@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.zen.fd;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -66,7 +65,7 @@ public class NodesFaultDetection extends FaultDetection {
 
         logger.debug("[node  ] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
 
-        transportService.registerHandler(PING_ACTION_NAME, new PingRequestHandler());
+        transportService.registerRequestHandler(PING_ACTION_NAME, PingRequest.class, ThreadPool.Names.SAME, new PingRequestHandler());
     }
 
     public void setLocalNode(DiscoveryNode localNode) {
@@ -115,6 +114,7 @@ public class NodesFaultDetection extends FaultDetection {
         return this;
     }
 
+    @Override
     public void close() {
         super.close();
         stop();
@@ -239,13 +239,7 @@ public class NodesFaultDetection extends FaultDetection {
         }
     }
 
-    class PingRequestHandler extends BaseTransportRequestHandler<PingRequest> {
-
-        @Override
-        public PingRequest newInstance() {
-            return new PingRequest();
-        }
-
+    class PingRequestHandler implements TransportRequestHandler<PingRequest> {
         @Override
         public void messageReceived(PingRequest request, TransportChannel channel) throws Exception {
             // if we are not the node we are supposed to be pinged, send an exception
@@ -263,11 +257,6 @@ public class NodesFaultDetection extends FaultDetection {
             notifyPingReceived(request);
 
             channel.sendResponse(new PingResponse());
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 
@@ -313,22 +302,18 @@ public class NodesFaultDetection extends FaultDetection {
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             nodeId = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-                clusterName = ClusterName.readClusterName(in);
-                masterNode = DiscoveryNode.readNode(in);
-                clusterStateVersion = in.readLong();
-            }
+            clusterName = ClusterName.readClusterName(in);
+            masterNode = DiscoveryNode.readNode(in);
+            clusterStateVersion = in.readLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(nodeId);
-            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-                clusterName.writeTo(out);
-                masterNode.writeTo(out);
-                out.writeLong(clusterStateVersion);
-            }
+            clusterName.writeTo(out);
+            masterNode.writeTo(out);
+            out.writeLong(clusterStateVersion);
         }
     }
 

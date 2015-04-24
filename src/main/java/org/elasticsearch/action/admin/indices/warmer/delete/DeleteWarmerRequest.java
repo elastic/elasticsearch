@@ -87,7 +87,7 @@ public class DeleteWarmerRequest extends AcknowledgedRequest<DeleteWarmerRequest
      * The name to delete.
      */
     @Nullable
-    String[] names() {
+    public String[] names() {
         return names;
     }
 

@@ -147,13 +147,6 @@ public class ClusterStateObserver {
         }
     }
 
-    public void close() {
-        if (observingContext.getAndSet(null) != null) {
-            clusterService.remove(clusterStateListener);
-            logger.trace("cluster state observer closed");
-        }
-    }
-
     /**
      * reset this observer to the give cluster state. Any pending waits will be canceled.
      *

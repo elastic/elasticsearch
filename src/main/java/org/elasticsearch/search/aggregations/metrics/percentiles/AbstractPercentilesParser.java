@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import com.carrotsearch.hppc.DoubleArrayList;
+
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -35,14 +36,17 @@ import java.util.Arrays;
 
 public abstract class AbstractPercentilesParser implements Aggregator.Parser {
 
-    public AbstractPercentilesParser() {
-        super();
+    private boolean formattable;
+
+    public AbstractPercentilesParser(boolean formattable) {
+        this.formattable = formattable;
     }
 
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
     
-        ValuesSourceParser<ValuesSource.Numeric> vsParser = ValuesSourceParser.numeric(aggregationName, InternalPercentiles.TYPE, context).build();
+        ValuesSourceParser<ValuesSource.Numeric> vsParser = ValuesSourceParser.numeric(aggregationName, InternalPercentiles.TYPE, context)
+                .formattable(formattable).build();
     
         double[] keys = null;
         boolean keyed = true;

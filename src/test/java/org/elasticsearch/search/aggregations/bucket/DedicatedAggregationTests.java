@@ -32,7 +32,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-
 public class DedicatedAggregationTests extends ElasticsearchIntegrationTest {
 
     // https://github.com/elasticsearch/elasticsearch/issues/7240

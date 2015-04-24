@@ -21,7 +21,6 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.IntOpenHashSet;
 import com.carrotsearch.hppc.IntSet;
-import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -50,23 +49,24 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.store.support.AbstractIndexStore;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
+import org.elasticsearch.snapshots.mockstore.MockRepositoryPlugin;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -83,20 +83,35 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
     @Test
     public void restorePersistentSettingsTest() throws Exception {
-        logger.info("--> start node");
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        logger.info("--> start 2 nodes");
+        Settings nodeSettings = settingsBuilder()
+                .put("discovery.type", "zen")
+                .put("discovery.zen.ping_timeout", "200ms")
+                .put("discovery.initial_state_timeout", "500ms")
+                .build();
+        internalCluster().startNode(nodeSettings);
         Client client = client();
+        String secondNode = internalCluster().startNode(nodeSettings);
+        logger.info("--> wait for the second node to join the cluster");
+        assertThat(client.admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut(), equalTo(false));
 
-        // Add dummy persistent setting
+        int random = randomIntBetween(10, 42);
+
         logger.info("--> set test persistent setting");
-        String settingValue = "test-" + randomInt();
-        client.admin().cluster().prepareUpdateSettings().setPersistentSettings(ImmutableSettings.settingsBuilder().put(ThreadPool.THREADPOOL_GROUP + "dummy.value", settingValue)).execute().actionGet();
+        client.admin().cluster().prepareUpdateSettings().setPersistentSettings(
+                ImmutableSettings.settingsBuilder()
+                        .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 2)
+                        .put(IndicesTTLService.INDICES_TTL_INTERVAL, random, TimeUnit.MINUTES))
+                .execute().actionGet();
+
         assertThat(client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).execute().actionGet().getState()
-                .getMetaData().persistentSettings().get(ThreadPool.THREADPOOL_GROUP + "dummy.value"), equalTo(settingValue));
+                .getMetaData().persistentSettings().getAsTime(IndicesTTLService.INDICES_TTL_INTERVAL, TimeValue.timeValueMinutes(1)).millis(), equalTo(TimeValue.timeValueMinutes(random).millis()));
+        assertThat(client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).execute().actionGet().getState()
+                .getMetaData().persistentSettings().getAsInt(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, -1), equalTo(2));
 
         logger.info("--> create repository");
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", newTempDir())).execute().actionGet();
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", createTempDir())).execute().actionGet();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> start snapshot");
@@ -106,22 +121,33 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute().actionGet().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
 
         logger.info("--> clean the test persistent setting");
-        client.admin().cluster().prepareUpdateSettings().setPersistentSettings(ImmutableSettings.settingsBuilder().put(ThreadPool.THREADPOOL_GROUP + "dummy.value", "")).execute().actionGet();
+        client.admin().cluster().prepareUpdateSettings().setPersistentSettings(
+                ImmutableSettings.settingsBuilder()
+                        .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 1)
+                        .put(IndicesTTLService.INDICES_TTL_INTERVAL, TimeValue.timeValueMinutes(1)))
+                .execute().actionGet();
         assertThat(client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).execute().actionGet().getState()
-                .getMetaData().persistentSettings().get(ThreadPool.THREADPOOL_GROUP + "dummy.value"), equalTo(""));
+                .getMetaData().persistentSettings().getAsTime(IndicesTTLService.INDICES_TTL_INTERVAL, TimeValue.timeValueMinutes(1)).millis(), equalTo(TimeValue.timeValueMinutes(1).millis()));
+
+        stopNode(secondNode);
+        assertThat(client.admin().cluster().prepareHealth().setWaitForNodes("1").get().isTimedOut(), equalTo(false));
 
         logger.info("--> restore snapshot");
         client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setRestoreGlobalState(true).setWaitForCompletion(true).execute().actionGet();
         assertThat(client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).execute().actionGet().getState()
-                .getMetaData().persistentSettings().get(ThreadPool.THREADPOOL_GROUP + "dummy.value"), equalTo(settingValue));
+                .getMetaData().persistentSettings().getAsTime(IndicesTTLService.INDICES_TTL_INTERVAL, TimeValue.timeValueMinutes(1)).millis(), equalTo(TimeValue.timeValueMinutes(random).millis()));
+
+        logger.info("--> ensure that zen discovery minimum master nodes wasn't restored");
+        assertThat(client.admin().cluster().prepareState().setRoutingTable(false).setNodes(false).execute().actionGet().getState()
+                .getMetaData().persistentSettings().getAsInt(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, -1), not(equalTo(2)));
     }
 
     @Test
     public void restoreCustomMetadata() throws Exception {
-        File tempDir = newTempDir();
+        Path tempDir = createTempDir();
 
         logger.info("--> start node");
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode();
         Client client = client();
         createIndex("test-idx");
         ensureYellow();
@@ -265,7 +291,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(
                         ImmutableSettings.settingsBuilder()
-                                .put("location", newTempDir(LifecycleScope.TEST))
+                                .put("location", createTempDir())
                                 .put("random", randomAsciiOfLength(10))
                                 .put("wait_after_unblock", 200)
                 ).get();
@@ -310,10 +336,11 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
 
         logger.info("--> creating repository");
+        Path repo = createTempDir();
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(
                         ImmutableSettings.settingsBuilder()
-                                .put("location", newTempDir(LifecycleScope.TEST))
+                                .put("location", repo)
                                 .put("random", randomAsciiOfLength(10))
                                 .put("wait_after_unblock", 200)
                 ).get();
@@ -324,6 +351,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         // Remove it from the list of available nodes
         nodes.remove(blockedNode);
 
+        int numberOfFilesBeforeSnapshot = numberOfFiles(repo);
         logger.info("--> snapshot");
         client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
 
@@ -349,15 +377,16 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
         logger.info("--> making sure that snapshot no longer exists");
         assertThrows(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute(), SnapshotMissingException.class);
+        // Subtract index file from the count
+        assertThat("not all files were deleted during snapshot cancellation", numberOfFilesBeforeSnapshot, equalTo(numberOfFiles(repo) - 1));
         logger.info("--> done");
     }
 
     @Test
-    @TestLogging("snapshots:TRACE")
     public void restoreIndexWithMissingShards() throws Exception {
         logger.info("--> start 2 nodes");
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode();
+        internalCluster().startNode();
         cluster().wipeIndices("_all");
 
         logger.info("--> create an index that will have some unallocated shards");
@@ -381,12 +410,18 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
                 .put("number_of_replicas", 0)));
         ensureGreen("test-idx-all");
 
+        logger.info("--> create an index that will be closed");
+        assertAcked(prepareCreate("test-idx-closed", 1, settingsBuilder().put("number_of_shards", 4).put("number_of_replicas", 0)));
+        ensureGreen("test-idx-closed");
+
         logger.info("--> indexing some data into test-idx-all");
         for (int i = 0; i < 100; i++) {
             index("test-idx-all", "doc", Integer.toString(i), "foo", "bar" + i);
+            index("test-idx-closed", "doc", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
         assertThat(client().prepareCount("test-idx-all").get().getCount(), equalTo(100L));
+        assertAcked(client().admin().indices().prepareClose("test-idx-closed"));
 
         logger.info("--> create an index that will have no allocated shards");
         assertAcked(prepareCreate("test-idx-none", 1, settingsBuilder().put("number_of_shards", 6)
@@ -396,17 +431,23 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         logger.info("--> create repository");
         logger.info("--> creating repository");
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", newTempDir())).execute().actionGet();
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", createTempDir())).execute().actionGet();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> start snapshot with default settings - should fail");
-        CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1").setWaitForCompletion(true).execute().actionGet();
-
+        CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
+                .setIndices("test-idx-all", "test-idx-none", "test-idx-some", "test-idx-closed")
+                .setWaitForCompletion(true).execute().actionGet();
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.FAILED));
+        assertThat(createSnapshotResponse.getSnapshotInfo().reason(), containsString("Indices don't have primary shards"));
+        assertThat(createSnapshotResponse.getSnapshotInfo().reason(), containsString("; Indices are closed [test-idx-closed]"));
+
 
         if (randomBoolean()) {
             logger.info("checking snapshot completion using status");
-            client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2").setWaitForCompletion(false).setPartial(true).execute().actionGet();
+            client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2")
+                    .setIndices("test-idx-all", "test-idx-none", "test-idx-some", "test-idx-closed")
+                    .setWaitForCompletion(false).setPartial(true).execute().actionGet();
             awaitBusy(new Predicate<Object>() {
                 @Override
                 public boolean apply(Object o) {
@@ -424,7 +465,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
             assertThat(snapshotStatuses.size(), equalTo(1));
             SnapshotStatus snapshotStatus = snapshotStatuses.get(0);
             logger.info("State: [{}], Reason: [{}]", createSnapshotResponse.getSnapshotInfo().state(), createSnapshotResponse.getSnapshotInfo().reason());
-            assertThat(snapshotStatus.getShardsStats().getTotalShards(), equalTo(18));
+            assertThat(snapshotStatus.getShardsStats().getTotalShards(), equalTo(22));
             assertThat(snapshotStatus.getShardsStats().getDoneShards(), lessThan(12));
             assertThat(snapshotStatus.getShardsStats().getDoneShards(), greaterThan(6));
 
@@ -445,9 +486,11 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
             });
         } else {
             logger.info("checking snapshot completion using wait_for_completion flag");
-            createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2").setWaitForCompletion(true).setPartial(true).execute().actionGet();
+            createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2")
+                    .setIndices("test-idx-all", "test-idx-none", "test-idx-some", "test-idx-closed")
+                    .setWaitForCompletion(true).setPartial(true).execute().actionGet();
             logger.info("State: [{}], Reason: [{}]", createSnapshotResponse.getSnapshotInfo().state(), createSnapshotResponse.getSnapshotInfo().reason());
-            assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(18));
+            assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(22));
             assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), lessThan(12));
             assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(6));
             assertThat(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap-2").execute().actionGet().getSnapshots().get(0).state(), equalTo(SnapshotState.PARTIAL));
@@ -491,16 +534,15 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     }
 
     @Test
-    @TestLogging("indices.recovery:TRACE,index.gateway:TRACE,gateway:TRACE")
     public void restoreIndexWithShardsMissingInLocalGateway() throws Exception {
         logger.info("--> start 2 nodes");
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode();
+        internalCluster().startNode();
         cluster().wipeIndices("_all");
 
         logger.info("--> create repository");
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", newTempDir())).execute().actionGet();
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", createTempDir())).execute().actionGet();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
         int numberOfShards = 6;
         logger.info("--> create an index that will have some unallocated shards");
@@ -539,16 +581,36 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
         IntSet reusedShards = IntOpenHashSet.newInstance();
         for (ShardRecoveryResponse response : client().admin().indices().prepareRecoveries("test-idx").get().shardResponses().get("test-idx")) {
-            if (response.recoveryState().getIndex().reusedByteCount() > 0) {
+            if (response.recoveryState().getIndex().reusedBytes() > 0) {
                 reusedShards.add(response.getShardId());
             }
         }
         logger.info("--> check that at least half of the shards had some reuse: [{}]", reusedShards);
-        assertThat(reusedShards.size(), greaterThanOrEqualTo(numberOfShards/2));
+        assertThat(reusedShards.size(), greaterThanOrEqualTo(numberOfShards / 2));
+    }
+
+
+    @Test
+    public void registrationFailureTest() {
+        logger.info("--> start first node");
+        internalCluster().startNode(settingsBuilder().put("plugin.types", MockRepositoryPlugin.class.getName()));
+        logger.info("--> start second node");
+        // Make sure the first node is elected as master
+        internalCluster().startNode(settingsBuilder().put("node.master", false));
+        // Register mock repositories
+        for (int i = 0; i < 5; i++) {
+            client().admin().cluster().preparePutRepository("test-repo" + i)
+                    .setType("mock").setSettings(ImmutableSettings.settingsBuilder()
+                    .put("location", createTempDir())).setVerify(false).get();
+        }
+        logger.info("--> make sure that properly setup repository can be registered on all nodes");
+        client().admin().cluster().preparePutRepository("test-repo-0")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                .put("location", createTempDir())).get();
+
     }
 
     @Test
-    @TestLogging("snapshots:TRACE,repositories:TRACE")
     @Ignore
     public void chaosSnapshotTest() throws Exception {
         final List<String> indices = new CopyOnWriteArrayList<>();
@@ -562,7 +624,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         logger.info("-->  creating repository");
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", newTempDir(LifecycleScope.SUITE))
+                        .put("location", createTempDir())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000))));
 
@@ -635,7 +697,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
         logger.info("--> update index settings to back to normal");
         assertAcked(client().admin().indices().prepareUpdateSettings("test-*").setSettings(ImmutableSettings.builder()
-                        .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "node")
+                        .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "node")
         ));
 
         // Make sure that snapshot finished - doesn't matter if it failed or succeeded
@@ -681,8 +743,8 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         }
 
         assertAcked(client().admin().indices().prepareUpdateSettings(name).setSettings(ImmutableSettings.builder()
-                        .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "all")
-                        .put(AbstractIndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, between(100, 50000))
+                        .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "all")
+                        .put(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, between(100, 50000))
         ));
     }
 

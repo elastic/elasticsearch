@@ -94,8 +94,6 @@ public class IndicesQueriesModule extends AbstractModule {
         qpBinders.addBinding().to(SpanNearQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(SpanOrQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(MoreLikeThisQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(FuzzyLikeThisQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(FuzzyLikeThisFieldQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(WrapperQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(IndicesQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(CommonTermsQueryParser.class).asEagerSingleton();

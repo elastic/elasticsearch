@@ -22,7 +22,6 @@ package org.elasticsearch.repositories;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -30,7 +29,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -58,7 +56,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
-        transportService.registerHandler(ACTION_NAME, new VerifyNodeRepositoryRequestHandler());
+        transportService.registerRequestHandler(ACTION_NAME, VerifyNodeRepositoryRequest.class, ThreadPool.Names.SAME, new VerifyNodeRepositoryRequestHandler());
     }
 
     public void close() {
@@ -73,11 +71,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
         final List<DiscoveryNode> nodes = newArrayList();
         for (ObjectCursor<DiscoveryNode> cursor : masterAndDataNodes) {
             DiscoveryNode node = cursor.value;
-            Version version = node.getVersion();
-            // Verification wasn't supported before v1.4.0 - no reason to send verification request to these nodes
-            if (version != null && version.onOrAfter(Version.V_1_4_0)) {
-                nodes.add(node);
-            }
+            nodes.add(node);
         }
         final CopyOnWriteArrayList<VerificationFailure> errors = new CopyOnWriteArrayList<>();
         final AtomicInteger counter = new AtomicInteger(nodes.size());
@@ -121,16 +115,15 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
         blobStoreIndexShardRepository.verify(verificationToken);
     }
 
-    private class VerifyNodeRepositoryRequest extends TransportRequest {
+    static class VerifyNodeRepositoryRequest extends TransportRequest {
 
         private String repository;
-
         private String verificationToken;
 
-        private VerifyNodeRepositoryRequest() {
+        VerifyNodeRepositoryRequest() {
         }
 
-        private VerifyNodeRepositoryRequest(String repository, String verificationToken) {
+        VerifyNodeRepositoryRequest(String repository, String verificationToken) {
             this.repository = repository;
             this.verificationToken = verificationToken;
         }
@@ -150,18 +143,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
         }
     }
 
-    private class VerifyNodeRepositoryRequestHandler extends BaseTransportRequestHandler<VerifyNodeRepositoryRequest> {
-
-        @Override
-        public VerifyNodeRepositoryRequest newInstance() {
-            return new VerifyNodeRepositoryRequest();
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
+    class VerifyNodeRepositoryRequestHandler implements TransportRequestHandler<VerifyNodeRepositoryRequest> {
         @Override
         public void messageReceived(VerifyNodeRepositoryRequest request, TransportChannel channel) throws Exception {
             doVerify(request.repository, request.verificationToken);

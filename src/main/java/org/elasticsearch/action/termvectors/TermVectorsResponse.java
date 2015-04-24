@@ -20,10 +20,11 @@
 package org.elasticsearch.action.termvectors;
 
 import com.google.common.collect.Iterators;
-import org.apache.lucene.index.DocsAndPositionsEnum;
 import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -53,6 +55,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
         public static final XContentBuilderString TTF = new XContentBuilderString("ttf");
         public static final XContentBuilderString DOC_FREQ = new XContentBuilderString("doc_freq");
         public static final XContentBuilderString TERM_FREQ = new XContentBuilderString("term_freq");
+        public static final XContentBuilderString SCORE = new XContentBuilderString("score");
 
         // field statistics strings
         public static final XContentBuilderString FIELD_STATISTICS = new XContentBuilderString("field_statistics");
@@ -70,9 +73,9 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
         public static final XContentBuilderString _ID = new XContentBuilderString("_id");
         public static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
         public static final XContentBuilderString FOUND = new XContentBuilderString("found");
+        public static final XContentBuilderString TOOK = new XContentBuilderString("took");
         public static final XContentBuilderString TERMS = new XContentBuilderString("terms");
         public static final XContentBuilderString TERM_VECTORS = new XContentBuilderString("term_vectors");
-
     }
 
     private BytesReference termVectors;
@@ -83,6 +86,8 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
     private long docVersion;
     private boolean exists = false;
     private boolean artificial = false;
+    private long tookInMillis;
+    private boolean hasScores = false;
 
     private boolean sourceCopied = false;
 
@@ -108,6 +113,8 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
         out.writeVLong(docVersion);
         final boolean docExists = isExists();
         out.writeBoolean(docExists);
+        out.writeBoolean(artificial);
+        out.writeVLong(tookInMillis);
         out.writeBoolean(hasTermVectors());
         if (hasTermVectors()) {
             out.writeBytesReference(headerRef);
@@ -127,6 +134,8 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
         id = in.readString();
         docVersion = in.readVLong();
         exists = in.readBoolean();
+        artificial = in.readBoolean();
+        tookInMillis = in.readVLong();
         if (in.readBoolean()) {
             headerRef = in.readBytesReference();
             termVectors = in.readBytesReference();
@@ -139,7 +148,9 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
                 headerRef = headerRef.copyBytesArray();
                 termVectors = termVectors.copyBytesArray();
             }
-            return new TermVectorsFields(headerRef, termVectors);
+            TermVectorsFields termVectorsFields = new TermVectorsFields(headerRef, termVectors);
+            hasScores = termVectorsFields.hasScores;
+            return termVectorsFields;
         } else {
             return new Fields() {
                 @Override
@@ -172,6 +183,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
         }
         builder.field(FieldStrings._VERSION, docVersion);
         builder.field(FieldStrings.FOUND, isExists());
+        builder.field(FieldStrings.TOOK, tookInMillis);
         if (!isExists()) {
             return builder;
         }
@@ -193,27 +205,29 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
         // write field statistics
         buildFieldStatistics(builder, curTerms);
         builder.startObject(FieldStrings.TERMS);
-        TermsEnum termIter = curTerms.iterator(null);
+        TermsEnum termIter = curTerms.iterator();
+        BoostAttribute boostAtt = termIter.attributes().addAttribute(BoostAttribute.class);
         for (int i = 0; i < curTerms.size(); i++) {
-            buildTerm(builder, spare, curTerms, termIter);
+            buildTerm(builder, spare, curTerms, termIter, boostAtt);
         }
         builder.endObject();
         builder.endObject();
     }
 
-    private void buildTerm(XContentBuilder builder, final CharsRefBuilder spare, Terms curTerms, TermsEnum termIter) throws IOException {
+    private void buildTerm(XContentBuilder builder, final CharsRefBuilder spare, Terms curTerms, TermsEnum termIter, BoostAttribute boostAtt) throws IOException {
         // start term, optimized writing
         BytesRef term = termIter.next();
         spare.copyUTF8Bytes(term);
         builder.startObject(spare.toString());
         buildTermStatistics(builder, termIter);
         // finally write the term vectors
-        DocsAndPositionsEnum posEnum = termIter.docsAndPositions(null, null);
+        PostingsEnum posEnum = termIter.postings(null, null, PostingsEnum.ALL);
         int termFreq = posEnum.freq();
         builder.field(FieldStrings.TERM_FREQ, termFreq);
         initMemory(curTerms, termFreq);
         initValues(curTerms, posEnum, termFreq);
         buildValues(builder, curTerms, termFreq);
+        buildScore(builder, boostAtt);
         builder.endObject();
     }
 
@@ -253,7 +267,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
         builder.endArray();
     }
 
-    private void initValues(Terms curTerms, DocsAndPositionsEnum posEnum, int termFreq) throws IOException {
+    private void initValues(Terms curTerms, PostingsEnum posEnum, int termFreq) throws IOException {
         for (int j = 0; j < termFreq; j++) {
             int nextPos = posEnum.nextPosition();
             if (curTerms.hasPositions()) {
@@ -313,6 +327,24 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
         }
     }
 
+    public void updateTookInMillis(long startTime) {
+        this.tookInMillis = Math.max(1, System.currentTimeMillis() - startTime);
+    }
+
+    public TimeValue getTook() {
+        return new TimeValue(tookInMillis);
+    }
+
+    public long getTookInMillis() {
+        return tookInMillis;
+    }
+    
+    private void buildScore(XContentBuilder builder, BoostAttribute boostAtt) throws IOException {
+        if (hasScores) {
+            builder.field(FieldStrings.SCORE, boostAtt.getBoost());
+        }
+    }
+
     public boolean isExists() {
         return exists;
     }
@@ -322,16 +354,16 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
     }
 
     public void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<Flag> flags, Fields topLevelFields) throws IOException {
-        setFields(termVectorsByField, selectedFields, flags, topLevelFields, null);
+        setFields(termVectorsByField, selectedFields, flags, topLevelFields, null, null);
     }
 
-    public void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<Flag> flags, Fields topLevelFields, @Nullable AggregatedDfs dfs) throws IOException {
+    public void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<Flag> flags, Fields topLevelFields, @Nullable AggregatedDfs dfs,
+                          TermVectorsFilter termVectorsFilter) throws IOException {
         TermVectorsWriter tvw = new TermVectorsWriter(this);
 
         if (termVectorsByField != null) {
-            tvw.setFields(termVectorsByField, selectedFields, flags, topLevelFields, dfs);
+            tvw.setFields(termVectorsByField, selectedFields, flags, topLevelFields, dfs, termVectorsFilter);
         }
-
     }
 
     public void setTermVectorsField(BytesStreamOutput output) {
@@ -345,6 +377,10 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
     public void setDocVersion(long version) {
         this.docVersion = version;
 
+    }
+
+    public Long getVersion() {
+        return docVersion;
     }
 
     public String getIndex() {

@@ -146,7 +146,7 @@ public class DeleteIndexedScriptRequest extends ActionRequest<DeleteIndexedScrip
         super.readFrom(in);
         scriptLang = in.readString();
         id = in.readString();
-        version = Versions.readVersion(in);
+        version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
     }
 
@@ -155,7 +155,7 @@ public class DeleteIndexedScriptRequest extends ActionRequest<DeleteIndexedScrip
         super.writeTo(out);
         out.writeString(scriptLang);
         out.writeString(id);
-        Versions.writeVersion(version, out);
+        out.writeLong(version);
         out.writeByte(versionType.getValue());
     }
 

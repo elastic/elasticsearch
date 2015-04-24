@@ -41,9 +41,3 @@ accept a filter.
 }    
 --------------------------------------------------
 
-[float]
-==== Caching
-
-The result of the `bool` filter is not cached by default (though
-internal filters might be). The `_cache` can be set to `true` in order
-to enable caching.

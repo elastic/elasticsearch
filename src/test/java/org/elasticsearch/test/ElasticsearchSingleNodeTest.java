@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.LifecycleScope;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -29,26 +30,28 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.engine.internal.InternalEngine;
-import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * A test that keep a singleton node started for all tests that can be used to get
@@ -57,21 +60,29 @@ import static org.hamcrest.Matchers.*;
 @Ignore
 public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase {
 
-    private static class Holder {
-        // lazy init on first access
-        private static Node NODE = newNode();
+    private static Node NODE = null;
 
-        private static void reset() {
-            assert NODE != null;
-            node().stop();
-            Holder.NODE = newNode();
-        }
+    private static void reset() {
+        assert NODE != null;
+        stopNode();
+        startNode();
+    }
+
+    private static void startNode() {
+        assert NODE == null;
+        NODE = newNode();
+    }
+
+    private static void stopNode() {
+        Node node = NODE;
+        NODE = null;
+        Releasables.close(node);
     }
 
     static void cleanup(boolean resetNode) {
         assertAcked(client().admin().indices().prepareDelete("*").get());
         if (resetNode) {
-            Holder.reset();
+            reset();
         }
         MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(),
@@ -81,8 +92,21 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
     }
 
     @After
-    public void after() {
+    public void tearDown() throws Exception {
+        logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
+        super.tearDown();
         cleanup(resetNodeAfterTest());
+    }
+
+    @BeforeClass
+    public static void setUpClass() throws Exception {
+        stopNode();
+        startNode();
+    }
+
+    @AfterClass
+    public static void tearDownClass() {
+        stopNode();
     }
 
     /**
@@ -96,13 +120,16 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
 
     private static Node newNode() {
         Node build = NodeBuilder.nodeBuilder().local(true).data(true).settings(ImmutableSettings.builder()
-                .put(ClusterName.SETTING, nodeName())
-                .put("node.name", nodeName())
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
-                .put("http.enabled", false)
-                .put("config.ignore_system_properties", true) // make sure we get what we set :)
+            .put(ClusterName.SETTING, InternalTestCluster.clusterName("single-node-cluster", randomLong()))
+            .put("path.home", createTempDir())
+            .put("node.name", nodeName())
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("script.inline", "on")
+            .put("script.indexed", "on")
+            .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
+            .put("http.enabled", false)
+            .put("config.ignore_system_properties", true) // make sure we get what we set :)
         ).build();
         build.start();
         assertThat(DiscoveryNode.localNode(build.settings()), is(true));
@@ -113,35 +140,28 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
      * Returns a client to the single-node cluster.
      */
     public static Client client() {
-        return Holder.NODE.client();
+        return NODE.client();
     }
 
     /**
      * Returns the single test nodes name.
      */
     public static String nodeName() {
-        return ElasticsearchSingleNodeTest.class.getName();
-    }
-
-    /**
-     * Returns the name of the cluster used for the single test node.
-     */
-    public static String clusterName() {
-        return ElasticsearchSingleNodeTest.class.getName();
+        return "node_s_0";
     }
 
     /**
      * Return a reference to the singleton node.
      */
     protected static Node node() {
-        return Holder.NODE;
+        return NODE;
     }
 
     /**
      * Get an instance for a particular class using the injector of the singleton node.
      */
     protected static <T> T getInstanceFromNode(Class<T> clazz) {
-        return ((InternalNode) Holder.NODE).injector().getInstance(clazz);
+        return NODE.injector().getInstance(clazz);
     }
 
     /**
@@ -192,8 +212,8 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
         return instanceFromNode.indexServiceSafe(index);
     }
 
-    protected static InternalEngine engine(IndexService service) {
-       return ((InternalEngine)((InternalIndexShard)service.shard(0)).engine());
+    protected static org.elasticsearch.index.engine.Engine engine(IndexService service) {
+        return service.shard(0).engine();
     }
 
     /**
@@ -211,7 +231,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
      * It is useful to ensure that all action on the cluster have finished and all shards that were currently relocating
      * are now allocated and started.
      */
-    public ClusterHealthStatus  ensureGreen(String... indices) {
+    public ClusterHealthStatus ensureGreen(String... indices) {
         return ensureGreen(TimeValue.timeValueSeconds(30), indices);
     }
 

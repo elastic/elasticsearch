@@ -1,0 +1,19 @@
+---
+setup:
+
+  - do:
+      indices.create:
+        index: test_1
+
+  - do:
+      indices.create:
+        index: test_2
+
+---
+"Check empty warmers when getting all warmers via /_warmer":
+
+ - do:
+    indices.get_warmer: {}
+
+ - match: { test_1.warmers: {}}
+ - match: { test_2.warmers: {}}

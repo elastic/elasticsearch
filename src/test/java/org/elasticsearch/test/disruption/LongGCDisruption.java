@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.test.disruption;
 
 import org.elasticsearch.common.unit.TimeValue;
@@ -23,76 +24,50 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
+/**
+ * Suspends all threads on the specified node in order to simulate a long gc.
+ */
 public class LongGCDisruption extends SingleNodeDisruption {
 
-    volatile boolean disrupting;
-    volatile Thread worker;
-
-    final long intervalBetweenDelaysMin;
-    final long intervalBetweenDelaysMax;
-    final long delayDurationMin;
-    final long delayDurationMax;
-
-
-    public LongGCDisruption(Random random) {
-        this(null, random);
-    }
-
-    public LongGCDisruption(String disruptedNode, Random random) {
-        this(disruptedNode, random, 100, 200, 300, 20000);
-    }
-
-    public LongGCDisruption(String disruptedNode, Random random, long intervalBetweenDelaysMin,
-                            long intervalBetweenDelaysMax, long delayDurationMin, long delayDurationMax) {
-        this(random, intervalBetweenDelaysMin, intervalBetweenDelaysMax, delayDurationMin, delayDurationMax);
-        this.disruptedNode = disruptedNode;
-    }
-
-    public LongGCDisruption(Random random,
-                            long intervalBetweenDelaysMin, long intervalBetweenDelaysMax, long delayDurationMin,
-                            long delayDurationMax) {
-        super(random);
-        this.intervalBetweenDelaysMin = intervalBetweenDelaysMin;
-        this.intervalBetweenDelaysMax = intervalBetweenDelaysMax;
-        this.delayDurationMin = delayDurationMin;
-        this.delayDurationMax = delayDurationMax;
-    }
-
-    final static AtomicInteger thread_ids = new AtomicInteger();
-
-    @Override
-    public void startDisrupting() {
-        disrupting = true;
-        worker = new Thread(new BackgroundWorker(), "long_gc_simulation_" + thread_ids.incrementAndGet());
-        worker.setDaemon(true);
-        worker.start();
-    }
-
-    @Override
-    public void stopDisrupting() {
-        if (worker == null) {
-            return;
-        }
-        logger.info("stopping long GCs on [{}]", disruptedNode);
-        disrupting = false;
-        worker.interrupt();
-        try {
-            worker.join(2 * (intervalBetweenDelaysMax + delayDurationMax));
-        } catch (InterruptedException e) {
-            logger.info("background thread failed to stop");
-        }
-        worker = null;
-    }
-
-    final static Pattern[] unsafeClasses = new Pattern[]{
+    private final static Pattern[] unsafeClasses = new Pattern[]{
             // logging has shared JVM locks - we may suspend a thread and block other nodes from doing their thing
             Pattern.compile("Logger")
     };
 
-    private boolean stopNodeThreads(String node, Set<Thread> nodeThreads) {
+    protected final String disruptedNode;
+    private Set<Thread> suspendedThreads;
+
+    public LongGCDisruption(Random random, String disruptedNode) {
+        super(random);
+        this.disruptedNode = disruptedNode;
+    }
+
+    @Override
+    public synchronized void startDisrupting() {
+        if (suspendedThreads == null) {
+            suspendedThreads = new HashSet<>();
+            stopNodeThreads(disruptedNode, suspendedThreads);
+        } else {
+            throw new IllegalStateException("can't disrupt twice, call stopDisrupting() first");
+        }
+    }
+
+    @Override
+    public synchronized void stopDisrupting() {
+        if (suspendedThreads != null) {
+            resumeThreads(suspendedThreads);
+            suspendedThreads = null;
+        }
+    }
+
+    @Override
+    public TimeValue expectedTimeToHeal() {
+        return TimeValue.timeValueMillis(0);
+    }
+
+    protected boolean stopNodeThreads(String node, Set<Thread> nodeThreads) {
         Set<Thread> allThreadsSet = Thread.getAllStackTraces().keySet();
         boolean stopped = false;
         final String nodeThreadNamePart = "[" + node + "]";
@@ -124,54 +99,9 @@ public class LongGCDisruption extends SingleNodeDisruption {
         return stopped;
     }
 
-    private void resumeThreads(Set<Thread> threads) {
+    protected void resumeThreads(Set<Thread> threads) {
         for (Thread thread : threads) {
             thread.resume();
         }
     }
-
-    private void simulateLongGC(final TimeValue duration) throws InterruptedException {
-        final String disruptionNodeCopy = disruptedNode;
-        if (disruptionNodeCopy == null) {
-            return;
-        }
-        logger.info("node [{}] goes into GC for for [{}]", disruptionNodeCopy, duration);
-        final Set<Thread> nodeThreads = new HashSet<>();
-        try {
-            while (stopNodeThreads(disruptionNodeCopy, nodeThreads)) ;
-            if (!nodeThreads.isEmpty()) {
-                Thread.sleep(duration.millis());
-            }
-        } finally {
-            logger.info("node [{}] resumes from GC", disruptionNodeCopy);
-            resumeThreads(nodeThreads);
-        }
-    }
-
-    @Override
-    public TimeValue expectedTimeToHeal() {
-        return TimeValue.timeValueMillis(0);
-    }
-
-    class BackgroundWorker implements Runnable {
-
-        @Override
-        public void run() {
-            while (disrupting && disruptedNode != null) {
-                try {
-                    TimeValue duration = new TimeValue(delayDurationMin + random.nextInt((int) (delayDurationMax - delayDurationMin)));
-                    simulateLongGC(duration);
-
-                    duration = new TimeValue(intervalBetweenDelaysMin + random.nextInt((int) (intervalBetweenDelaysMax - intervalBetweenDelaysMin)));
-                    if (disrupting && disruptedNode != null) {
-                        Thread.sleep(duration.millis());
-                    }
-                } catch (InterruptedException e) {
-                } catch (Exception e) {
-                    logger.error("error in background worker", e);
-                }
-            }
-        }
-    }
-
 }

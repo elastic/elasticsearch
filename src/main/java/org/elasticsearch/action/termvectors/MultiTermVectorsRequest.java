@@ -161,4 +161,8 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
             this.ids.add(id.replaceAll("\\s", ""));
         }
     }
+
+    public int size() {
+        return requests.size();
+    }
 }

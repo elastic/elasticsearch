@@ -21,35 +21,45 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.common.lucene.search.NoCacheQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.ResolvableFilter;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.cache.query.parser.QueryParserCache;
-import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperBuilders;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -101,6 +111,10 @@ public class QueryParseContext {
 
     private boolean allowUnmappedFields;
 
+    private boolean mapUnmappedFieldAsString;
+
+    private NestedScope nestedScope;
+
     public QueryParseContext(Index index, IndexQueryParserService indexQueryParser) {
         this(index, indexQueryParser, false);
     }
@@ -128,6 +142,7 @@ public class QueryParseContext {
         this.namedFilters.clear();
         this.requireCustomQueryWrappingFilter = false;
         this.propagateNoCache = false;
+        this.nestedScope = new NestedScope();
     }
 
     public Index index() {
@@ -158,10 +173,6 @@ public class QueryParseContext {
         return indexQueryParser.mapperService;
     }
 
-    public IndexEngine indexEngine() {
-        return indexQueryParser.indexEngine;
-    }
-
     @Nullable
     public SimilarityService similarityService() {
         return indexQueryParser.similarityService;
@@ -179,6 +190,24 @@ public class QueryParseContext {
         return indexQueryParser.defaultField();
     }
 
+    public QueryCachingPolicy autoFilterCachePolicy() {
+        return indexQueryParser.autoFilterCachePolicy();
+    }
+
+    public QueryCachingPolicy parseFilterCachePolicy() throws IOException {
+        final String text = parser.textOrNull();
+        if (text == null || text.equals("auto")) {
+            return autoFilterCachePolicy();
+        } else if (parser.booleanValue()) {
+            // cache without conditions on how many times the filter has been
+            // used or what the produced DocIdSet looks like, but ONLY on large
+            // segments to not pollute the cache
+            return QueryCachingPolicy.CacheOnLargeSegments.DEFAULT;
+        } else {
+            return null;
+        }
+    }
+
     public boolean queryStringLenient() {
         return indexQueryParser.queryStringLenient();
     }
@@ -192,7 +221,7 @@ public class QueryParseContext {
         return indexQueryParser.bitsetFilterCache.getBitDocIdSetFilter(filter);
     }
 
-    public Filter cacheFilter(Filter filter, @Nullable final CacheKeyFilter.Key cacheKey) {
+    public Filter cacheFilter(Filter filter, final @Nullable HashedBytesRef cacheKey, final QueryCachingPolicy cachePolicy) {
         if (filter == null) {
             return null;
         }
@@ -210,18 +239,17 @@ public class QueryParseContext {
                     if (filter == null) {
                         return null;
                     }
-                    if (cacheKey != null) {
-                        filter = new CacheKeyFilter.Wrapper(filter, cacheKey);
-                    }
-                    filter = indexQueryParser.indexCache.filter().cache(filter);
+                    filter = indexQueryParser.indexCache.filter().cache(filter, cacheKey, cachePolicy);
                     return filter.getDocIdSet(atomicReaderContext, bits);
+                }
+
+                @Override
+                public String toString(String field) {
+                    return "AnonymousResolvableFilter"; // TODO: not sure what is going on here
                 }
             };
         } else {
-            if (cacheKey != null) {
-                filter = new CacheKeyFilter.Wrapper(filter, cacheKey);
-            }
-            return indexQueryParser.indexCache.filter().cache(filter);
+            return indexQueryParser.indexCache.filter().cache(filter, cacheKey, cachePolicy);
         }
     }
 
@@ -238,10 +266,23 @@ public class QueryParseContext {
     }
 
     public ImmutableMap<String, Filter> copyNamedFilters() {
-        if (namedFilters.isEmpty()) {
-            return ImmutableMap.of();
-        }
         return ImmutableMap.copyOf(namedFilters);
+    }
+
+    public void combineNamedFilters(QueryParseContext context) {
+        namedFilters.putAll(context.namedFilters);
+    }
+
+    public void addInnerHits(String name, InnerHitsContext.BaseInnerHits context) {
+        SearchContext sc = SearchContext.current();
+        InnerHitsContext innerHitsContext;
+        if (sc.innerHits() == null) {
+            innerHitsContext = new InnerHitsContext(new HashMap<String, InnerHitsContext.BaseInnerHits>());
+            sc.innerHits(innerHitsContext);
+        } else {
+            innerHitsContext = sc.innerHits();
+        }
+        innerHitsContext.addInnerHitDefinition(name, context);
     }
 
     @Nullable
@@ -367,10 +408,6 @@ public class QueryParseContext {
         return failIfFieldMappingNotFound(name, indexQueryParser.mapperService.smartName(name, getTypes()));
     }
 
-    public FieldMapper smartNameFieldMapper(String name) {
-        return failIfFieldMappingNotFound(name, indexQueryParser.mapperService.smartNameFieldMapper(name, getTypes()));
-    }
-
     public MapperService.SmartNameObjectMapper smartObjectMapper(String name) {
         return indexQueryParser.mapperService.smartNameObjectMapper(name, getTypes());
     }
@@ -379,9 +416,19 @@ public class QueryParseContext {
         this.allowUnmappedFields = allowUnmappedFields;
     }
 
-    private <T> T failIfFieldMappingNotFound(String name, T fieldMapping) {
+    public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
+        this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
+    }
+
+    private MapperService.SmartNameFieldMappers failIfFieldMappingNotFound(String name, MapperService.SmartNameFieldMappers fieldMapping) {
         if (allowUnmappedFields) {
             return fieldMapping;
+        } else if (mapUnmappedFieldAsString){
+            StringFieldMapper.Builder builder = MapperBuilders.stringField(name);
+            // it would be better to pass the real index settings, but they are not easily accessible from here...
+            Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, indexQueryParser.getIndexCreatedVersion()).build();
+            StringFieldMapper stringFieldMapper = builder.build(new Mapper.BuilderContext(settings, new ContentPath(1)));
+            return new MapperService.SmartNameFieldMappers(mapperService(), new FieldMappers(stringFieldMapper), null, false);
         } else {
             Version indexCreatedVersion = indexQueryParser.getIndexCreatedVersion();
             if (fieldMapping == null && indexCreatedVersion.onOrAfter(Version.V_1_4_0_Beta1)) {
@@ -429,5 +476,9 @@ public class QueryParseContext {
 
     public boolean requireCustomQueryWrappingFilter() {
         return requireCustomQueryWrappingFilter;
+    }
+
+    public NestedScope nestedScope() {
+        return nestedScope;
     }
 }

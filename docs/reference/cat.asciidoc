@@ -120,3 +120,4 @@ include::cat/thread_pool.asciidoc[]
 
 include::cat/shards.asciidoc[]
 
+include::cat/segments.asciidoc[]

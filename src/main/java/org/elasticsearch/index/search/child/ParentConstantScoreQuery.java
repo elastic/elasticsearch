@@ -22,12 +22,20 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredDocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.NoopCollector;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
 import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
@@ -67,11 +75,6 @@ public class ParentConstantScoreQuery extends Query {
     }
 
     @Override
-    public void extractTerms(Set<Term> terms) {
-        rewrittenParentQuery.extractTerms(terms);
-    }
-
-    @Override
     public Query clone() {
         ParentConstantScoreQuery q = (ParentConstantScoreQuery) super.clone();
         q.originalParentQuery = originalParentQuery.clone();
@@ -82,7 +85,7 @@ public class ParentConstantScoreQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher) throws IOException {
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
         IndexParentChildFieldData globalIfd = parentChildIndexFieldData.loadGlobal(searcher.getIndexReader());
         assert rewrittenParentQuery != null;
         assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
@@ -90,7 +93,7 @@ public class ParentConstantScoreQuery extends Query {
         final long maxOrd;
         List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
         if (globalIfd == null || leaves.isEmpty()) {
-            return Queries.newMatchNoDocsQuery().createWeight(searcher);
+            return new BooleanQuery().createWeight(searcher, needsScores);
         } else {
             AtomicParentChildFieldData afd = globalIfd.load(leaves.get(0));
             SortedDocValues globalValues = afd.getOrdinalsValues(parentType);
@@ -98,7 +101,7 @@ public class ParentConstantScoreQuery extends Query {
         }
 
         if (maxOrd == 0) {
-            return Queries.newMatchNoDocsQuery().createWeight(searcher);
+            return new BooleanQuery().createWeight(searcher, needsScores);
         }
 
         final Query parentQuery = rewrittenParentQuery;
@@ -108,10 +111,10 @@ public class ParentConstantScoreQuery extends Query {
         indexSearcher.search(parentQuery, collector);
 
         if (collector.parentCount() == 0) {
-            return Queries.newMatchNoDocsQuery().createWeight(searcher);
+            return new BooleanQuery().createWeight(searcher, needsScores);
         }
 
-        return new ChildrenWeight(childrenFilter, collector, globalIfd);
+        return new ChildrenWeight(this, childrenFilter, collector, globalIfd);
     }
 
     @Override
@@ -158,20 +161,20 @@ public class ParentConstantScoreQuery extends Query {
         private float queryNorm;
         private float queryWeight;
 
-        private ChildrenWeight(Filter childrenFilter, ParentOrdsCollector collector, IndexParentChildFieldData globalIfd) {
+        private ChildrenWeight(Query query, Filter childrenFilter, ParentOrdsCollector collector, IndexParentChildFieldData globalIfd) {
+            super(query);
             this.globalIfd = globalIfd;
             this.childrenFilter = childrenFilter;
             this.parentOrds = collector.parentOrds;
         }
 
         @Override
-        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-            return new Explanation(getBoost(), "not implemented yet...");
+        public void extractTerms(Set<Term> terms) {
         }
 
         @Override
-        public Query getQuery() {
-            return ParentConstantScoreQuery.this;
+        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+            return Explanation.match(getBoost(), "not implemented yet...");
         }
 
         @Override
@@ -245,6 +248,7 @@ public class ParentConstantScoreQuery extends Query {
             this.parentType = parentType;
         }
 
+        @Override
         public void collect(int doc) throws IOException {
             // It can happen that for particular segment no document exist for an specific type. This prevents NPE
             if (globalOrdinals != null) {

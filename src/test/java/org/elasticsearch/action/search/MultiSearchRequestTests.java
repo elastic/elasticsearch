@@ -34,27 +34,33 @@ public class MultiSearchRequestTests extends ElasticsearchTestCase {
     @Test
     public void simpleAdd() throws Exception {
         byte[] data = Streams.copyToBytesFromClasspath("/org/elasticsearch/action/search/simple-msearch1.json");
-        MultiSearchRequest request = new MultiSearchRequest().add(data, 0, data.length, false, null, null, null);
-        assertThat(request.requests().size(), equalTo(5));
+        MultiSearchRequest request = new MultiSearchRequest().add(data, 0, data.length, null, null, null);
+        assertThat(request.requests().size(), equalTo(8));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(request.requests().get(0).indicesOptions(), equalTo(IndicesOptions.fromOptions(true, true, true, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
         assertThat(request.requests().get(0).types().length, equalTo(0));
         assertThat(request.requests().get(1).indices()[0], equalTo("test"));
         assertThat(request.requests().get(1).indicesOptions(), equalTo(IndicesOptions.fromOptions(false, true, true, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
         assertThat(request.requests().get(1).types()[0], equalTo("type1"));
-        assertThat(request.requests().get(2).indices(), nullValue());
-        assertThat(request.requests().get(2).types().length, equalTo(0));
-        assertThat(request.requests().get(3).indices(), nullValue());
-        assertThat(request.requests().get(3).types().length, equalTo(0));
-        assertThat(request.requests().get(3).searchType(), equalTo(SearchType.COUNT));
-        assertThat(request.requests().get(4).indices(), nullValue());
-        assertThat(request.requests().get(4).types().length, equalTo(0));
+        assertThat(request.requests().get(2).indices()[0], equalTo("test"));
+        assertThat(request.requests().get(2).indicesOptions(), equalTo(IndicesOptions.fromOptions(false, true, true, false, IndicesOptions.strictExpandOpenAndForbidClosed())));
+        assertThat(request.requests().get(3).indices()[0], equalTo("test"));
+        assertThat(request.requests().get(3).indicesOptions(), equalTo(IndicesOptions.fromOptions(true, true, true, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
+        assertThat(request.requests().get(4).indices()[0], equalTo("test"));
+        assertThat(request.requests().get(4).indicesOptions(), equalTo(IndicesOptions.fromOptions(true, false, false, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
+        assertThat(request.requests().get(5).indices(), nullValue());
+        assertThat(request.requests().get(5).types().length, equalTo(0));
+        assertThat(request.requests().get(6).indices(), nullValue());
+        assertThat(request.requests().get(6).types().length, equalTo(0));
+        assertThat(request.requests().get(6).searchType(), equalTo(SearchType.DFS_QUERY_THEN_FETCH));
+        assertThat(request.requests().get(7).indices(), nullValue());
+        assertThat(request.requests().get(7).types().length, equalTo(0));
     }
 
     @Test
     public void simpleAdd2() throws Exception {
         byte[] data = Streams.copyToBytesFromClasspath("/org/elasticsearch/action/search/simple-msearch2.json");
-        MultiSearchRequest request = new MultiSearchRequest().add(data, 0, data.length, false, null, null, null);
+        MultiSearchRequest request = new MultiSearchRequest().add(data, 0, data.length, null, null, null);
         assertThat(request.requests().size(), equalTo(5));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(request.requests().get(0).types().length, equalTo(0));
@@ -64,7 +70,7 @@ public class MultiSearchRequestTests extends ElasticsearchTestCase {
         assertThat(request.requests().get(2).types().length, equalTo(0));
         assertThat(request.requests().get(3).indices(), nullValue());
         assertThat(request.requests().get(3).types().length, equalTo(0));
-        assertThat(request.requests().get(3).searchType(), equalTo(SearchType.COUNT));
+        assertThat(request.requests().get(3).searchType(), equalTo(SearchType.DFS_QUERY_THEN_FETCH));
         assertThat(request.requests().get(4).indices(), nullValue());
         assertThat(request.requests().get(4).types().length, equalTo(0));
     }
@@ -72,7 +78,7 @@ public class MultiSearchRequestTests extends ElasticsearchTestCase {
     @Test
     public void simpleAdd3() throws Exception {
         byte[] data = Streams.copyToBytesFromClasspath("/org/elasticsearch/action/search/simple-msearch3.json");
-        MultiSearchRequest request = new MultiSearchRequest().add(data, 0, data.length, false, null, null, null);
+        MultiSearchRequest request = new MultiSearchRequest().add(data, 0, data.length, null, null, null);
         assertThat(request.requests().size(), equalTo(4));
         assertThat(request.requests().get(0).indices()[0], equalTo("test0"));
         assertThat(request.requests().get(0).indices()[1], equalTo("test1"));
@@ -85,6 +91,27 @@ public class MultiSearchRequestTests extends ElasticsearchTestCase {
         assertThat(request.requests().get(2).types()[1], equalTo("type1"));
         assertThat(request.requests().get(3).indices(), nullValue());
         assertThat(request.requests().get(3).types().length, equalTo(0));
-        assertThat(request.requests().get(3).searchType(), equalTo(SearchType.COUNT));
+        assertThat(request.requests().get(3).searchType(), equalTo(SearchType.DFS_QUERY_THEN_FETCH));
+    }
+
+    @Test
+    public void simpleAdd4() throws Exception {
+        byte[] data = Streams.copyToBytesFromClasspath("/org/elasticsearch/action/search/simple-msearch4.json");
+        MultiSearchRequest request = new MultiSearchRequest().add(data, 0, data.length, null, null, null);
+        assertThat(request.requests().size(), equalTo(3));
+        assertThat(request.requests().get(0).indices()[0], equalTo("test0"));
+        assertThat(request.requests().get(0).indices()[1], equalTo("test1"));
+        assertThat(request.requests().get(0).queryCache(), equalTo(true));
+        assertThat(request.requests().get(0).preference(), nullValue());
+        assertThat(request.requests().get(1).indices()[0], equalTo("test2"));
+        assertThat(request.requests().get(1).indices()[1], equalTo("test3"));
+        assertThat(request.requests().get(1).types()[0], equalTo("type1"));
+        assertThat(request.requests().get(1).queryCache(), nullValue());
+        assertThat(request.requests().get(1).preference(), equalTo("_local"));
+        assertThat(request.requests().get(2).indices()[0], equalTo("test4"));
+        assertThat(request.requests().get(2).indices()[1], equalTo("test1"));
+        assertThat(request.requests().get(2).types()[0], equalTo("type2"));
+        assertThat(request.requests().get(2).types()[1], equalTo("type1"));
+        assertThat(request.requests().get(2).routing(), equalTo("123"));
     }
 }

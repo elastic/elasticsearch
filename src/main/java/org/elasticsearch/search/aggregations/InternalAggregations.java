@@ -83,6 +83,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
     /**
      * The list of {@link Aggregation}s.
      */
+    @Override
     public List<Aggregation> asList() {
         return Lists.transform(aggregations, SUPERTYPE_CAST);
     }
@@ -90,6 +91,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
     /**
      * Returns the {@link Aggregation}s keyed by map.
      */
+    @Override
     public Map<String, Aggregation> asMap() {
         return getAsMap();
     }
@@ -97,6 +99,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
     /**
      * Returns the {@link Aggregation}s keyed by map.
      */
+    @Override
     public Map<String, Aggregation> getAsMap() {
         if (aggregationsAsMap == null) {
             Map<String, InternalAggregation> aggregationsAsMap = newHashMap();
@@ -117,6 +120,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
         return (A) asMap().get(name);
     }
 
+    @Override
     public Object getProperty(String path) {
         AggregationPath aggPath = AggregationPath.parse(path);
         return getProperty(aggPath.getPathElementsAsStringList());
@@ -165,7 +169,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
         for (Map.Entry<String, List<InternalAggregation>> entry : aggByName.entrySet()) {
             List<InternalAggregation> aggregations = entry.getValue();
             InternalAggregation first = aggregations.get(0); // the list can't be empty as it's created on demand
-            reducedAggregations.add(first.reduce(new InternalAggregation.ReduceContext(aggregations, context.bigArrays(), context.scriptService())));
+            reducedAggregations.add(first.reduce(aggregations, context));
         }
         return new InternalAggregations(reducedAggregations);
     }

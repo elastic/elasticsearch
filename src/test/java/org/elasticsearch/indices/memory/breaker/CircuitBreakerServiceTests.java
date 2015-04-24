@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.memory.breaker;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -26,21 +27,24 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -72,7 +76,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
                         HierarchyCircuitBreakerService.DEFAULT_REQUEST_BREAKER_LIMIT)
                 .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING, 1.0)
                 .build();
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings).execute().actionGet();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings));
     }
 
     @Before
@@ -93,10 +97,10 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
     private boolean noopBreakerUsed() {
         NodesStatsResponse stats = client().admin().cluster().prepareNodesStats().setBreaker(true).get();
         for (NodeStats nodeStats : stats) {
-            if (nodeStats.getBreaker().getStats(CircuitBreaker.Name.REQUEST).getLimit() == 0) {
+            if (nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST).getLimit() == 0) {
                 return true;
             }
-            if (nodeStats.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA).getLimit() == 0) {
+            if (nodeStats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getLimit() == 0) {
                 return true;
             }
         }
@@ -104,7 +108,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("indices.breaker:TRACE,index.fielddata:TRACE,common.breaker:TRACE")
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/8710")
     public void testMemoryBreaker() throws Exception {
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");
@@ -126,14 +130,14 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
         searchRequest.get();
 
         // clear field data cache (thus setting the loaded field data back to 0)
-        client.admin().indices().prepareClearCache("cb-test").setFieldDataCache(true).execute().actionGet();
+        clearFieldData();
 
         // Update circuit breaker settings
         Settings settings = settingsBuilder()
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, randomRidiculouslySmallLimit())
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING, 1.05)
                 .build();
-        client.admin().cluster().prepareUpdateSettings().setTransientSettings(settings).execute().actionGet();
+        assertAcked(client.admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
 
         // execute a search that loads field data (sorting on the "test" field)
         // again, this time it should trip the breaker
@@ -143,13 +147,14 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
         NodesStatsResponse stats = client.admin().cluster().prepareNodesStats().setBreaker(true).get();
         int breaks = 0;
         for (NodeStats stat : stats.getNodes()) {
-            CircuitBreakerStats breakerStats = stat.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA);
+            CircuitBreakerStats breakerStats = stat.getBreaker().getStats(CircuitBreaker.FIELDDATA);
             breaks += breakerStats.getTrippedCount();
         }
         assertThat(breaks, greaterThanOrEqualTo(1));
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9270")
     public void testRamAccountingTermsEnum() throws Exception {
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");
@@ -175,14 +180,14 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
         client.prepareSearch("ramtest").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC).get();
 
         // clear field data cache (thus setting the loaded field data back to 0)
-        client.admin().indices().prepareClearCache("ramtest").setFieldDataCache(true).execute().actionGet();
+        clearFieldData();
 
         // Update circuit breaker settings
         Settings settings = settingsBuilder()
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, randomRidiculouslySmallLimit())
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING, 1.05)
                 .build();
-        client.admin().cluster().prepareUpdateSettings().setTransientSettings(settings).execute().actionGet();
+        assertAcked(client.admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
 
         // execute a search that loads field data (sorting on the "test" field)
         // again, this time it should trip the breaker
@@ -193,7 +198,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
         NodesStatsResponse stats = client.admin().cluster().prepareNodesStats().setBreaker(true).get();
         int breaks = 0;
         for (NodeStats stat : stats.getNodes()) {
-            CircuitBreakerStats breakerStats = stat.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA);
+            CircuitBreakerStats breakerStats = stat.getBreaker().getStats(CircuitBreaker.FIELDDATA);
             breaks += breakerStats.getTrippedCount();
         }
         assertThat(breaks, greaterThanOrEqualTo(1));
@@ -222,22 +227,22 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
 
         // We need the request limit beforehand, just from a single node because the limit should always be the same
         long beforeReqLimit = client.admin().cluster().prepareNodesStats().setBreaker(true).get()
-                .getNodes()[0].getBreaker().getStats(CircuitBreaker.Name.REQUEST).getLimit();
+                .getNodes()[0].getBreaker().getStats(CircuitBreaker.REQUEST).getLimit();
 
         Settings resetSettings = settingsBuilder()
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, "10b")
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING, 1.0)
                 .build();
-        client.admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings).execute().actionGet();
+        assertAcked(client.admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings));
 
         // Perform a search to load field data for the "test" field
         try {
             client.prepareSearch("cb-test").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC).get();
             fail("should have thrown an exception");
         } catch (Exception e) {
-            String errMsg = "[FIELDDATA] Data too large, data for [test] would be larger than limit of [10/10b]";
-            assertThat("Exception: " + ExceptionsHelper.unwrapCause(e) + " should contain a CircuitBreakingException",
-                    ExceptionsHelper.unwrapCause(e).getMessage().contains(errMsg), equalTo(true));
+            String errMsg = "[fielddata] Data too large, data for [test] would be larger than limit of [10/10b]";
+            assertThat("Exception: " + e.toString() + " should contain a CircuitBreakingException",
+                    e.toString().contains(errMsg), equalTo(true));
         }
 
         assertFailures(client.prepareSearch("cb-test").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC),
@@ -257,9 +262,9 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
             client.prepareSearch("cb-test").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC).get();
             fail("should have thrown an exception");
         } catch (Exception e) {
-            String errMsg = "[PARENT] Data too large, data for [test] would be larger than limit of [15/15b]";
-            assertThat("Exception: " + ExceptionsHelper.unwrapCause(e) + " should contain a CircuitBreakingException",
-                    ExceptionsHelper.unwrapCause(e).getMessage().contains(errMsg), equalTo(true));
+            String errMsg = "[parent] Data too large, data for [test] would be larger than limit of [15/15b]";
+            assertThat("Exception: " +e.toString() + " should contain a CircuitBreakingException",
+                    e.toString().contains(errMsg), equalTo(true));
         }
     }
 
@@ -276,7 +281,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
         Settings resetSettings = settingsBuilder()
                 .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, "10b")
                 .build();
-        client.admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings).execute().actionGet();
+        assertAcked(client.admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings));
 
         // index some different terms so we have some field data for loading
         int docCount = scaledRandomIntBetween(300, 1000);
@@ -291,9 +296,56 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
             client.prepareSearch("cb-test").setQuery(matchAllQuery()).addAggregation(cardinality("card").field("test")).get();
             fail("aggregation should have tripped the breaker");
         } catch (Exception e) {
-            String errMsg = "CircuitBreakingException[[REQUEST] Data too large, data for [<reused_arrays>] would be larger than limit of [10/10b]]";
-            assertThat("Exception: " + ExceptionsHelper.unwrapCause(e) + " should contain a CircuitBreakingException",
-                    ExceptionsHelper.unwrapCause(e).getMessage().contains(errMsg), equalTo(true));
+            String errMsg = "CircuitBreakingException[[request] Data too large, data for [<reused_arrays>] would be larger than limit of [10/10b]]";
+            assertThat("Exception: " + e.toString() + " should contain a CircuitBreakingException",
+                    e.toString().contains(errMsg), equalTo(true));
         }
+    }
+
+    /** Issues a cache clear and waits 30 seconds for the field data breaker to be cleared */
+    public void clearFieldData() throws Exception {
+        client().admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                NodesStatsResponse resp = client().admin().cluster().prepareNodesStats()
+                        .clear().setBreaker(true).get(new TimeValue(15, TimeUnit.SECONDS));
+                for (NodeStats nStats : resp.getNodes()) {
+                    assertThat("fielddata breaker never reset back to 0",
+                            nStats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(),
+                            equalTo(0L));
+                }
+            }
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    @Test
+    public void testCustomCircuitBreakerRegistration() throws Exception {
+        Iterable<CircuitBreakerService> serviceIter = internalCluster().getInstances(CircuitBreakerService.class);
+
+        final String breakerName = "customBreaker";
+        BreakerSettings breakerSettings = new BreakerSettings(breakerName, 8, 1.03);
+        CircuitBreaker breaker = null;
+
+        for (CircuitBreakerService s : serviceIter) {
+            s.registerBreaker(breakerSettings);
+            breaker = s.getBreaker(breakerSettings.getName());
+        }
+
+        if (breaker != null) {
+            try {
+                breaker.addEstimateBytesAndMaybeBreak(16, "test");
+            } catch (CircuitBreakingException e) {
+                // ignore, we forced a circuit break
+            }
+        }
+
+        NodesStatsResponse stats = client().admin().cluster().prepareNodesStats().clear().setBreaker(true).get();
+        int breaks = 0;
+        for (NodeStats stat : stats.getNodes()) {
+            CircuitBreakerStats breakerStats = stat.getBreaker().getStats(breakerName);
+            breaks += breakerStats.getTrippedCount();
+        }
+        assertThat(breaks, greaterThanOrEqualTo(1));
     }
 }

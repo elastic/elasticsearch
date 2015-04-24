@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics.stats;
 
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -25,9 +26,11 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -66,12 +69,14 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
 
     protected InternalStats() {} // for serialization
 
-    public InternalStats(String name, long count, double sum, double min, double max, Map<String, Object> metaData) {
+    public InternalStats(String name, long count, double sum, double min, double max, @Nullable ValueFormatter formatter,
+            Map<String, Object> metaData) {
         super(name, metaData);
         this.count = count;
         this.sum = sum;
         this.min = min;
         this.max = max;
+        this.valueFormatter = formatter;
     }
 
     @Override
@@ -100,6 +105,31 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     @Override
+    public String getCountAsString() {
+        return valueAsString(Metrics.count.name());
+    }
+
+    @Override
+    public String getMinAsString() {
+        return valueAsString(Metrics.min.name());
+    }
+
+    @Override
+    public String getMaxAsString() {
+        return valueAsString(Metrics.max.name());
+    }
+
+    @Override
+    public String getAvgAsString() {
+        return valueAsString(Metrics.avg.name());
+    }
+
+    @Override
+    public String getSumAsString() {
+        return valueAsString(Metrics.sum.name());
+    }
+
+    @Override
     public Type type() {
         return TYPE;
     }
@@ -119,19 +149,19 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     @Override
-    public InternalStats reduce(ReduceContext reduceContext) {
+    public InternalStats reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long count = 0;
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;
         double sum = 0;
-        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+        for (InternalAggregation aggregation : aggregations) {
             InternalStats stats = (InternalStats) aggregation;
             count += stats.getCount();
             min = Math.min(min, stats.getMin());
             max = Math.max(max, stats.getMax());
             sum += stats.getSum();
         }
-        return new InternalStats(name, count, sum, min, max, getMetaData());
+        return new InternalStats(name, count, sum, min, max, valueFormatter, getMetaData());
     }
 
     @Override
@@ -179,7 +209,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         builder.field(Fields.MAX, count != 0 ? max : null);
         builder.field(Fields.AVG, count != 0 ? getAvg() : null);
         builder.field(Fields.SUM, count != 0 ? sum : null);
-        if (count != 0 && valueFormatter != null) {
+        if (count != 0 && valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
             builder.field(Fields.MIN_AS_STRING, valueFormatter.format(min));
             builder.field(Fields.MAX_AS_STRING, valueFormatter.format(max));
             builder.field(Fields.AVG_AS_STRING, valueFormatter.format(getAvg()));

@@ -115,10 +115,11 @@ public class InternalSearchHits implements SearchHits {
 
     public void shardTarget(SearchShardTarget shardTarget) {
         for (InternalSearchHit hit : hits) {
-            hit.shardTarget(shardTarget);
+            hit.shard(shardTarget);
         }
     }
 
+    @Override
     public long totalHits() {
         return totalHits;
     }
@@ -138,6 +139,7 @@ public class InternalSearchHits implements SearchHits {
         return maxScore();
     }
 
+    @Override
     public SearchHit[] hits() {
         return this.hits;
     }

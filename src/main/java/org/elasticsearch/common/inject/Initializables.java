@@ -29,6 +29,7 @@ class Initializables {
      */
     static <T> Initializable<T> of(final T instance) {
         return new Initializable<T>() {
+            @Override
             public T get(Errors errors) throws ErrorsException {
                 return instance;
             }

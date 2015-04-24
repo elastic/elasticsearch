@@ -207,8 +207,8 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
 
     protected SourceFieldMapper(String name, boolean enabled, String format, Boolean compress, long compressThreshold,
                                 String[] includes, String[] excludes, Settings indexSettings) {
-        super(new Names(name, name, name, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, null, null, null, null, indexSettings); // Only stored.
+        super(new Names(name, name, name, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), false,
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, null, null, indexSettings); // Only stored.
         this.enabled = enabled;
         this.compress = compress;
         this.compressThreshold = compressThreshold;
@@ -242,11 +242,6 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     }
 
     @Override
-    public boolean hasDocValues() {
-        return false;
-    }
-
-    @Override
     public void preParse(ParseContext context) throws IOException {
         super.parse(context);
     }
@@ -256,8 +251,9 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public Mapper parse(ParseContext context) throws IOException {
         // nothing to do here, we will call it in pre parse
+        return null;
     }
 
     @Override
@@ -421,9 +417,9 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         SourceFieldMapper sourceMergeWith = (SourceFieldMapper) mergeWith;
-        if (!mergeContext.mergeFlags().simulate()) {
+        if (!mergeResult.simulate()) {
             if (sourceMergeWith.compress != null) {
                 this.compress = sourceMergeWith.compress;
             }

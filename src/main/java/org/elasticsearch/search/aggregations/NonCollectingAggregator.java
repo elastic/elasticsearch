@@ -29,34 +29,24 @@ import java.util.Map;
  * An aggregator that is not collected, this can typically be used when running an aggregation over a field that doesn't have
  * a mapping.
  */
-public abstract class NonCollectingAggregator extends Aggregator {
+public abstract class NonCollectingAggregator extends AggregatorBase {
 
-    protected NonCollectingAggregator(String name, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
-        super(name, BucketAggregationMode.MULTI_BUCKETS, AggregatorFactories.EMPTY, 0, context, parent, metaData);
+    protected NonCollectingAggregator(String name, AggregationContext context, Aggregator parent, AggregatorFactories subFactories, Map<String, Object> metaData) throws IOException {
+        super(name, subFactories, context, parent, metaData);
     }
 
-    private void fail() {
-        throw new IllegalStateException("This aggregator should not be collected");
-    }
-
-    @Override
-    public final void setNextReader(LeafReaderContext reader) {
-        fail();
+    protected NonCollectingAggregator(String name, AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
+        this(name, context, parent, AggregatorFactories.EMPTY, metaData);
     }
 
     @Override
-    public final boolean shouldCollect() {
-        return false;
-    }
-
-    @Override
-    public final void collect(int doc, long owningBucketOrdinal) throws IOException {
-        fail();
+    public final LeafBucketCollector getLeafCollector(LeafReaderContext reader, LeafBucketCollector sub) {
+        // the framework will automatically eliminate it
+        return LeafBucketCollector.NO_OP_COLLECTOR;
     }
 
     @Override
     public final InternalAggregation buildAggregation(long owningBucketOrdinal) {
         return buildEmptyAggregation();
     }
-
 }

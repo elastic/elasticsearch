@@ -28,7 +28,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
@@ -81,7 +80,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
                     status = NOT_FOUND;
                 }
                 builder.startObject();
-                response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                response.toXContent(builder, request);
                 builder.endObject();
                 return new BytesRestResponse(status, builder);
             }

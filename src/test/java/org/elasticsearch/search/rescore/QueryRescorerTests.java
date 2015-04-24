@@ -38,7 +38,6 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.rescore.RescoreBuilder.QueryRescorer;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -63,6 +62,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < iters; i ++) {
             client().prepareIndex("test", "type", Integer.toString(i)).setSource("f", Integer.toString(i)).execute().actionGet();
         }
+        ensureYellow();
         refresh();
 
         int numShards = getNumShards("test").numPrimaries;
@@ -100,6 +100,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree ").get();
         client().prepareIndex("test", "type1", "3")
                 .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree").get();
+        ensureYellow();
         refresh();
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
@@ -141,7 +142,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         builder.putArray("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("field1").field("type", "string").field("index_analyzer", "whitespace").field("search_analyzer", "synonym")
+                .startObject("field1").field("type", "string").field("analyzer", "whitespace").field("search_analyzer", "synonym")
                 .endObject().endObject().endObject().endObject();
 
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping).setSettings(builder.put("index.number_of_shards", 1)));
@@ -161,6 +162,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh("test").execute().actionGet();
         client().prepareIndex("test", "type1", "11").setSource("field1", "2st street boston massachusetts").execute().actionGet();
         client().prepareIndex("test", "type1", "12").setSource("field1", "3st street boston massachusetts").execute().actionGet();
+        ensureYellow();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
         SearchResponse searchResponse = client()
                 .prepareSearch()
@@ -219,7 +221,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         builder.putArray("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("field1").field("type", "string").field("index_analyzer", "whitespace").field("search_analyzer", "synonym")
+                .startObject("field1").field("type", "string").field("analyzer", "whitespace").field("search_analyzer", "synonym")
                 .endObject().endObject().endObject().endObject();
 
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping).setSettings(builder.put("index.number_of_shards", 1)));
@@ -229,6 +231,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh("test").execute().actionGet();
         client().prepareIndex("test", "type1", "1").setSource("field1", "lexington massachusetts avenue").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field1", "lexington avenue boston massachusetts road").execute().actionGet();
+        ensureYellow();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
 
         SearchResponse searchResponse = client()
@@ -289,7 +292,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         builder.putArray("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("field1").field("type", "string").field("index_analyzer", "whitespace").field("search_analyzer", "synonym")
+                .startObject("field1").field("type", "string").field("analyzer", "whitespace").field("search_analyzer", "synonym")
                 .endObject().endObject().endObject().endObject();
 
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping).setSettings(builder.put("index.number_of_shards", 1)));
@@ -299,6 +302,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh("test").execute().actionGet();
         client().prepareIndex("test", "type1", "1").setSource("field1", "lexington massachusetts avenue").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field1", "lexington avenue boston massachusetts road").execute().actionGet();
+        ensureYellow();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
 
         SearchResponse searchResponse = client()
@@ -479,6 +483,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "3")
                 .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree").execute()
                 .actionGet();
+        ensureYellow();
         refresh();
 
         {
@@ -564,7 +569,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @Test
+    @Test @Slow
     public void testScoring() throws Exception {
         int numDocs = indexRandomNumbers("keyword");
 
@@ -572,7 +577,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         float primaryWeight = 1.1f;
         float secondaryWeight = 1.6f;
 
-        for (String scoreMode: scoreModes) {
+        for (String scoreMode : scoreModes) {
             for (int i = 0; i < numDocs - 4; i++) {
                 String[] intToEnglish = new String[] { English.intToEnglish(i), English.intToEnglish(i + 1), English.intToEnglish(i + 2), English.intToEnglish(i + 3) };
 
@@ -675,10 +680,10 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
 
         // Now use one rescore to drag the number we're looking for into the window of another
         QueryRescorer ninetyIsGood = RescoreBuilder.queryRescorer(
-                QueryBuilders.functionScoreQuery(QueryBuilders.queryString("*ninety*")).boostMode(CombineFunction.REPLACE)
+                QueryBuilders.functionScoreQuery(QueryBuilders.queryStringQuery("*ninety*")).boostMode(CombineFunction.REPLACE)
                 .add(ScoreFunctionBuilders.scriptFunction("1000.0f"))).setScoreMode("total");
         QueryRescorer oneToo = RescoreBuilder.queryRescorer(
-                QueryBuilders.functionScoreQuery(QueryBuilders.queryString("*one*")).boostMode(CombineFunction.REPLACE)
+                QueryBuilders.functionScoreQuery(QueryBuilders.queryStringQuery("*one*")).boostMode(CombineFunction.REPLACE)
                 .add(ScoreFunctionBuilders.scriptFunction("1000.0f"))).setScoreMode("total");
         request.clearRescorers().addRescorer(ninetyIsGood).addRescorer(oneToo, 10);
         response = request.setSize(2).get();

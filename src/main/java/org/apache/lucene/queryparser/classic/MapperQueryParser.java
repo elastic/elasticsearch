@@ -30,11 +30,11 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -48,7 +48,6 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
 
 /**
  * A query parser that uses the {@link MapperService} in order to build smarter
@@ -255,16 +254,7 @@ public class MapperQueryParser extends QueryParser {
                     Query query = null;
                     if (currentMapper.useTermQueryWithQueryString()) {
                         try {
-                            if (fieldMappers.explicitTypeInNameWithDocMapper()) {
-                                String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{fieldMappers.docMapper().type()});
-                                try {
-                                    query = currentMapper.termQuery(queryText, parseContext);
-                                } finally {
-                                    QueryParseContext.setTypes(previousTypes);
-                                }
-                            } else {
-                                query = currentMapper.termQuery(queryText, parseContext);
-                            }
+                            query = currentMapper.termQuery(queryText, parseContext);
                         } catch (RuntimeException e) {
                             if (settings.lenient()) {
                                 return null;
@@ -276,7 +266,7 @@ public class MapperQueryParser extends QueryParser {
                     if (query == null) {
                         query = super.getFieldQuery(currentMapper.names().indexName(), queryText, quoted);
                     }
-                    return wrapSmartNameQuery(query, fieldMappers, parseContext);
+                    return query;
                 }
             }
             return super.getFieldQuery(field, queryText, quoted);
@@ -387,8 +377,7 @@ public class MapperQueryParser extends QueryParser {
                 }
 
                 try {
-                    Query rangeQuery = currentMapper.rangeQuery(part1, part2, startInclusive, endInclusive, parseContext);
-                    return wrapSmartNameQuery(rangeQuery, fieldMappers, parseContext);
+                    return currentMapper.rangeQuery(part1, part2, startInclusive, endInclusive, parseContext);
                 } catch (RuntimeException e) {
                     if (settings.lenient()) {
                         return null;
@@ -446,8 +435,7 @@ public class MapperQueryParser extends QueryParser {
             if (currentMapper != null) {
                 try {
                     //LUCENE 4 UPGRADE I disabled transpositions here by default - maybe this needs to be changed
-                    Query fuzzyQuery = currentMapper.fuzzyQuery(termStr, Fuzziness.build(minSimilarity), fuzzyPrefixLength, settings.fuzzyMaxExpansions(), false);
-                    return wrapSmartNameQuery(fuzzyQuery, fieldMappers, parseContext);
+                    return currentMapper.fuzzyQuery(termStr, Fuzziness.build(minSimilarity), fuzzyPrefixLength, settings.fuzzyMaxExpansions(), false);
                 } catch (RuntimeException e) {
                     if (settings.lenient()) {
                         return null;
@@ -525,21 +513,12 @@ public class MapperQueryParser extends QueryParser {
                 if (currentMapper != null) {
                     Query query = null;
                     if (currentMapper.useTermQueryWithQueryString()) {
-                        if (fieldMappers.explicitTypeInNameWithDocMapper()) {
-                            String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{fieldMappers.docMapper().type()});
-                            try {
-                                query = currentMapper.prefixQuery(termStr, multiTermRewriteMethod, parseContext);
-                            } finally {
-                                QueryParseContext.setTypes(previousTypes);
-                            }
-                        } else {
-                            query = currentMapper.prefixQuery(termStr, multiTermRewriteMethod, parseContext);
-                        }
+                        query = currentMapper.prefixQuery(termStr, multiTermRewriteMethod, parseContext);
                     }
                     if (query == null) {
                         query = getPossiblyAnalyzedPrefixQuery(currentMapper.names().indexName(), termStr);
                     }
-                    return wrapSmartNameQuery(query, fieldMappers, parseContext);
+                    return query;
                 }
             }
             return getPossiblyAnalyzedPrefixQuery(field, termStr);
@@ -678,7 +657,7 @@ public class MapperQueryParser extends QueryParser {
                 if (currentMapper != null) {
                     indexedNameField = currentMapper.names().indexName();
                 }
-                return wrapSmartNameQuery(getPossiblyAnalyzedWildcardQuery(indexedNameField, termStr), fieldMappers, parseContext);
+                return getPossiblyAnalyzedWildcardQuery(indexedNameField, termStr);
             }
             return getPossiblyAnalyzedWildcardQuery(indexedNameField, termStr);
         } catch (RuntimeException e) {
@@ -813,21 +792,12 @@ public class MapperQueryParser extends QueryParser {
                 if (currentMapper != null) {
                     Query query = null;
                     if (currentMapper.useTermQueryWithQueryString()) {
-                        if (fieldMappers.explicitTypeInNameWithDocMapper()) {
-                            String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{fieldMappers.docMapper().type()});
-                            try {
-                                query = currentMapper.regexpQuery(termStr, RegExp.ALL, maxDeterminizedStates, multiTermRewriteMethod, parseContext);
-                            } finally {
-                                QueryParseContext.setTypes(previousTypes);
-                            }
-                        } else {
-                            query = currentMapper.regexpQuery(termStr, RegExp.ALL, maxDeterminizedStates, multiTermRewriteMethod, parseContext);
-                        }
+                        query = currentMapper.regexpQuery(termStr, RegExp.ALL, maxDeterminizedStates, multiTermRewriteMethod, parseContext);
                     }
                     if (query == null) {
                         query = super.getRegexpQuery(field, termStr);
                     }
-                    return wrapSmartNameQuery(query, fieldMappers, parseContext);
+                    return query;
                 }
             }
             return super.getRegexpQuery(field, termStr);
@@ -881,6 +851,7 @@ public class MapperQueryParser extends QueryParser {
         return fields;
     }
 
+    @Override
     public Query parse(String query) throws ParseException {
         if (query.trim().isEmpty()) {
             // if the query string is empty we return no docs / empty result

@@ -21,11 +21,13 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
@@ -285,6 +287,7 @@ public class AllocationService extends AbstractComponent {
                         shardsToFail.add(routing);
                     }
                 }
+
             }
         }
         for (ShardRouting shardToFail : shardsToFail) {
@@ -293,10 +296,12 @@ public class AllocationService extends AbstractComponent {
 
         // now, go over and elect a new primary if possible, not, from this code block on, if one is elected,
         // routingNodes.hasUnassignedPrimaries() will potentially be false
+
         for (MutableShardRouting shardEntry : routingNodes.unassigned()) {
             if (shardEntry.primary()) {
                 MutableShardRouting candidate = allocation.routingNodes().activeReplica(shardEntry);
                 if (candidate != null) {
+                    IndexMetaData index = allocation.metaData().index(candidate.index());
                     routingNodes.swapPrimaryFlag(shardEntry, candidate);
                     if (candidate.relocatingNodeId() != null) {
                         changed = true;
@@ -310,6 +315,10 @@ public class AllocationService extends AbstractComponent {
                                 }
                             }
                         }
+                    }
+                    if (IndexMetaData.isIndexUsingShadowReplicas(index.settings())) {
+                        routingNodes.reinitShadowPrimary(candidate);
+                        changed = true;
                     }
                 }
             }

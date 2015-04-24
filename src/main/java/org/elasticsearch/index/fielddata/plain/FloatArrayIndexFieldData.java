@@ -18,20 +18,36 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
-import org.apache.lucene.index.*;
-import org.apache.lucene.util.*;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
+import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
+import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
@@ -40,6 +56,11 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 /**
  */
@@ -73,7 +94,7 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumer
         Terms terms = reader.terms(getFieldNames().indexName());
         AtomicNumericFieldData data = null;
         // TODO: Use an actual estimator to estimate before loading.
-        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA));
+        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker(CircuitBreaker.FIELDDATA));
         if (terms == null) {
             data = AtomicDoubleFieldData.empty(reader.maxDoc());
             estimator.afterLoad(null, data.ramBytesUsed());
@@ -85,7 +106,7 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumer
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
         boolean success = false;
         try (OrdinalsBuilder builder = new OrdinalsBuilder(reader.maxDoc(), acceptableTransientOverheadRatio)) {
-            BytesRefIterator iter = builder.buildFromTerms(getNumericType().wrapTermsEnum(terms.iterator(null)));
+            BytesRefIterator iter = builder.buildFromTerms(getNumericType().wrapTermsEnum(terms.iterator()));
             BytesRef term;
             long numTerms = 0;
             while ((term = iter.next()) != null) {
@@ -106,7 +127,7 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumer
                     }
                     
                     @Override
-                    public Iterable<? extends Accountable> getChildResources() {
+                    public Collection<Accountable> getChildResources() {
                         List<Accountable> resources = new ArrayList<>();
                         resources.add(Accountables.namedAccountable("ordinals", build));
                         resources.add(Accountables.namedAccountable("values", finalValues));
@@ -132,7 +153,7 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumer
                         }
                         
                         @Override
-                        public Iterable<? extends Accountable> getChildResources() {
+                        public Collection<Accountable> getChildResources() {
                             List<Accountable> resources = new ArrayList<>();
                             resources.add(Accountables.namedAccountable("ordinals", build));
                             resources.add(Accountables.namedAccountable("values", finalValues));
@@ -161,7 +182,7 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumer
                     }
                     
                     @Override
-                    public Iterable<? extends Accountable> getChildResources() {
+                    public Collection<Accountable> getChildResources() {
                         List<Accountable> resources = new ArrayList<>();
                         resources.add(Accountables.namedAccountable("values", sValues));
                         resources.add(Accountables.namedAccountable("missing bitset", set));

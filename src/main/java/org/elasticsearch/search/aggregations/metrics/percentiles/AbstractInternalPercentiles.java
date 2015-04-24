@@ -21,12 +21,14 @@ package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
@@ -41,11 +43,13 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
 
     AbstractInternalPercentiles() {} // for serialization
 
-    public AbstractInternalPercentiles(String name, double[] keys, TDigestState state, boolean keyed, Map<String, Object> metaData) {
+    public AbstractInternalPercentiles(String name, double[] keys, TDigestState state, boolean keyed, @Nullable ValueFormatter formatter,
+            Map<String, Object> metaData) {
         super(name, metaData);
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
+        this.valueFormatter = formatter;
     }
 
     @Override
@@ -56,8 +60,7 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
     public abstract double value(double key);
 
     @Override
-    public AbstractInternalPercentiles reduce(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
+    public AbstractInternalPercentiles reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         TDigestState merged = null;
         for (InternalAggregation aggregation : aggregations) {
             final AbstractInternalPercentiles percentiles = (AbstractInternalPercentiles) aggregation;
@@ -110,7 +113,7 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
                 String key = String.valueOf(keys[i]);
                 double value = value(keys[i]);
                 builder.field(key, value);
-                if (valueFormatter != null) {
+                if (valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
                     builder.field(key + "_as_string", valueFormatter.format(value));
                 }
             }
@@ -122,7 +125,7 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
                 builder.startObject();
                 builder.field(CommonFields.KEY, keys[i]);
                 builder.field(CommonFields.VALUE, value);
-                if (valueFormatter != null) {
+                if (valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
                     builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(value));
                 }
                 builder.endObject();

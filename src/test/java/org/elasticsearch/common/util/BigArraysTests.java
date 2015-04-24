@@ -347,7 +347,7 @@ public class BigArraysTests extends ElasticsearchSingleNodeTest {
             } catch (InvocationTargetException e) {
                 assertTrue(e.getCause() instanceof CircuitBreakingException);
             }
-            assertEquals(0, hcbs.getBreaker(CircuitBreaker.Name.REQUEST).getUsed());
+            assertEquals(0, hcbs.getBreaker(CircuitBreaker.REQUEST).getUsed());
         }
     }
 
@@ -373,9 +373,9 @@ public class BigArraysTests extends ElasticsearchSingleNodeTest {
                     break;
                 }
             }
-            assertEquals(array.ramBytesUsed(), hcbs.getBreaker(CircuitBreaker.Name.REQUEST).getUsed());
+            assertEquals(array.ramBytesUsed(), hcbs.getBreaker(CircuitBreaker.REQUEST).getUsed());
             array.close();
-            assertEquals(0, hcbs.getBreaker(CircuitBreaker.Name.REQUEST).getUsed());
+            assertEquals(0, hcbs.getBreaker(CircuitBreaker.REQUEST).getUsed());
         }
     }
 

@@ -21,17 +21,17 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.lucene.search.RegexpFilter;
+import org.elasticsearch.common.lucene.HashedBytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
-
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
 
 /**
  *
@@ -53,8 +53,8 @@ public class RegexpFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        boolean cache = true;
-        CacheKeyFilter.Key cacheKey = null;
+        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
+        HashedBytesRef cacheKey = null;
         String fieldName = null;
         String secondaryFieldName = null;
         Object value = null;
@@ -92,9 +92,9 @@ public class RegexpFilterParser implements FilterParser {
                 if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
-                    cache = parser.booleanValue();
+                    cache = parseContext.parseFilterCachePolicy();
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new CacheKeyFilter.Key(parser.text());
+                    cacheKey = new HashedBytesRef(parser.text());
                 } else {
                     secondaryFieldName = currentFieldName;
                     secondaryValue = parser.objectBytes();
@@ -115,26 +115,16 @@ public class RegexpFilterParser implements FilterParser {
 
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
-            if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
-                String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
-                try {
-                    filter = smartNameFieldMappers.mapper().regexpFilter(value, flagsValue, maxDeterminizedStates, parseContext);
-                } finally {
-                    QueryParseContext.setTypes(previousTypes);
-                }
-            } else {
-                filter = smartNameFieldMappers.mapper().regexpFilter(value, flagsValue, maxDeterminizedStates, parseContext);
-            }
+            filter = smartNameFieldMappers.mapper().regexpFilter(value, flagsValue, maxDeterminizedStates, parseContext);
         }
         if (filter == null) {
-            filter = new RegexpFilter(new Term(fieldName, BytesRefs.toBytesRef(value)), flagsValue, maxDeterminizedStates);
+            filter = Queries.wrap(new RegexpQuery(new Term(fieldName, BytesRefs.toBytesRef(value)), flagsValue, maxDeterminizedStates));
         }
 
-        if (cache) {
-            filter = parseContext.cacheFilter(filter, cacheKey);
+        if (cache != null) {
+            filter = parseContext.cacheFilter(filter, cacheKey, cache);
         }
 
-        filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

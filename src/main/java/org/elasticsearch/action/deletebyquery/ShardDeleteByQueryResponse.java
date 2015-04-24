@@ -19,24 +19,11 @@
 
 package org.elasticsearch.action.deletebyquery;
 
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
+import org.elasticsearch.action.ActionWriteResponse;
 
 /**
  * Delete by query response executed on a specific shard.
  */
-public class ShardDeleteByQueryResponse extends ActionResponse {
+public class ShardDeleteByQueryResponse extends ActionWriteResponse {
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-    }
 }

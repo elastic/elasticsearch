@@ -2,7 +2,7 @@
 === Prefix Filter
 
 Filters documents that have fields containing terms with a specified
-prefix (*not analyzed*). Similar to phrase query, except that it acts as
+prefix (*not analyzed*). Similar to prefix query, except that it acts as
 a filter. Can be placed within queries that accept a filter.
 
 [source,js]
@@ -19,8 +19,8 @@ a filter. Can be placed within queries that accept a filter.
 [float]
 ==== Caching
 
-The result of the filter is cached by default. The `_cache` can be set
-to `false` in order not to cache it. Here is an example:
+The result of the filter is cached by default if there is evidence of reuse.
+The `_cache` can be set to `true` in order to cache it. Here is an example:
 
 [source,js]
 --------------------------------------------------
@@ -29,7 +29,7 @@ to `false` in order not to cache it. Here is an example:
         "filter" : {
             "prefix" : { 
                 "user" : "ki",
-                "_cache" : false
+                "_cache" : true
             }
         }
     }

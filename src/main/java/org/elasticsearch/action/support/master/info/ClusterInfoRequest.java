@@ -76,7 +76,6 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
         indices = in.readStringArray();
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        readLocal(in);
     }
 
     @Override
@@ -85,6 +84,5 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
         out.writeStringArray(indices);
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
-        writeLocal(out);
     }
 }

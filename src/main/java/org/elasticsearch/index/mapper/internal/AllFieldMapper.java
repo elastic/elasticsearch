@@ -25,21 +25,24 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.InternalMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
@@ -51,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.all;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
@@ -90,9 +94,6 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
 
         private EnabledAttributeMapper enabled = Defaults.ENABLED;
 
-        // an internal flag, automatically set if we encounter boosting
-        boolean autoBoost = false;
-
         public Builder() {
             super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
             builder = this;
@@ -113,7 +114,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
             }
             fieldType.setTokenized(true);
 
-            return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, autoBoost, postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings());
+            return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, similarity, normsLoading, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -121,6 +122,24 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             AllFieldMapper.Builder builder = all();
+            
+            // parseField below will happily parse the doc_values setting, but it is then never passed to
+            // the AllFieldMapper ctor in the builder since it is not valid. Here we validate
+            // the doc values settings (old and new) are rejected
+            Object docValues = node.get("doc_values");
+            if (docValues != null && nodeBooleanValue(docValues)) {
+                throw new MapperParsingException("Field [" + name + "] is always tokenized and cannot have doc values");
+            }
+            // convoluted way of specifying doc values
+            Object fielddata = node.get("fielddata");
+            if (fielddata != null) {
+                Map<String, Object> fielddataMap = nodeMapValue(fielddata, "fielddata");
+                Object format = fielddataMap.get("format");
+                if ("doc_values".equals(format)) {
+                    throw new MapperParsingException("Field [" + name + "] is always tokenized and cannot have doc values");
+                }
+            }
+            
             parseField(builder, builder.name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -129,8 +148,8 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
                 if (fieldName.equals("enabled")) {
                     builder.enabled(nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
                     iterator.remove();
-                } else if (fieldName.equals("auto_boost")) {
-                    builder.autoBoost = nodeBooleanValue(fieldNode);
+                } else if (fieldName.equals("auto_boost") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                    // Old 1.x setting which is now ignored
                     iterator.remove();
                 }
             }
@@ -140,28 +159,17 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
 
 
     private EnabledAttributeMapper enabledState;
-    // The autoBoost flag is automatically set based on indexed docs on the mappings
-    // if a doc is indexed with a specific boost value and part of _all, it is automatically
-    // set to true. This allows to optimize (automatically, which we like) for the common case
-    // where fields don't usually have boost associated with them, and we don't need to use the
-    // special SpanTermQuery to look at payloads
-    private volatile boolean autoBoost;
 
-    public AllFieldMapper() {
-        this(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED, false, null, null, null, null, null, ImmutableSettings.EMPTY);
+    public AllFieldMapper(Settings indexSettings) {
+        this(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED, null, null, null, indexSettings);
     }
 
     protected AllFieldMapper(String name, FieldType fieldType, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
-                             EnabledAttributeMapper enabled, boolean autoBoost, PostingsFormatProvider postingsProvider,
-                             DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity, Loading normsLoading,
+                             EnabledAttributeMapper enabled, SimilarityProvider similarity, Loading normsLoading,
                              @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, name, name, name), 1.0f, fieldType, null, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider,
+        super(new Names(name, name, name, name), 1.0f, fieldType, false, indexAnalyzer, searchAnalyzer,
                 similarity, normsLoading, fieldDataSettings, indexSettings);
-        if (hasDocValues()) {
-            throw new MapperParsingException("Field [" + names.fullName() + "] is always tokenized and cannot have doc values");
-        }
         this.enabledState = enabled;
-        this.autoBoost = autoBoost;
 
     }
 
@@ -181,13 +189,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
 
     @Override
     public Query queryStringTermQuery(Term term) {
-        if (!autoBoost) {
-            return new TermQuery(term);
-        }
-        if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0) {
-            return new AllTermQuery(term);
-        }
-        return new TermQuery(term);
+        return new AllTermQuery(term);
     }
 
     @Override
@@ -205,8 +207,9 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public Mapper parse(ParseContext context) throws IOException {
         // we parse in post parse
+        return null;
     }
 
     @Override
@@ -221,14 +224,6 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
         }
         // reset the entries
         context.allEntries().reset();
-
-        // if the autoBoost flag is not set, and we indexed a doc with custom boost, make
-        // sure to update the flag, and notify mappings on change
-        if (!autoBoost && context.allEntries().customBoost()) {
-            autoBoost = true;
-            context.setMappingsModified();
-        }
-
         Analyzer analyzer = findAnalyzer(context);
         fields.add(new AllField(names.indexName(), context.allEntries(), analyzer, fieldType));
     }
@@ -236,13 +231,10 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
     private Analyzer findAnalyzer(ParseContext context) {
         Analyzer analyzer = indexAnalyzer;
         if (analyzer == null) {
-            analyzer = context.analyzer();
+            analyzer = context.docMapper().mappers().indexAnalyzer();
             if (analyzer == null) {
-                analyzer = context.docMapper().indexAnalyzer();
-                if (analyzer == null) {
-                    // This should not happen, should we log warn it?
-                    analyzer = Lucene.STANDARD_ANALYZER;
-                }
+                // This should not happen, should we log warn it?
+                analyzer = Lucene.STANDARD_ANALYZER;
             }
         }
         return analyzer;
@@ -269,6 +261,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
             // if all are defaults, no need to write it at all - generating is twice is ok though
             BytesStreamOutput bytesStreamOutput = new BytesStreamOutput(0);
             XContentBuilder b =  new XContentBuilder(builder.contentType().xContent(), bytesStreamOutput);
+            b.startObject().flush();
             long pos = bytesStreamOutput.position();
             innerToXContent(b, false);
             b.flush();
@@ -285,9 +278,6 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
     private void innerToXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
         if (includeDefaults || enabledState != Defaults.ENABLED) {
             builder.field("enabled", enabledState.enabled);
-        }
-        if (includeDefaults || autoBoost != false) {
-            builder.field("auto_boost", autoBoost);
         }
         if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());
@@ -307,36 +297,8 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
         if (includeDefaults || fieldType.omitNorms() != Defaults.FIELD_TYPE.omitNorms()) {
             builder.field("omit_norms", fieldType.omitNorms());
         }
-
-
-        if (indexAnalyzer == null && searchAnalyzer == null) {
-            if (includeDefaults) {
-                builder.field("analyzer", "default");
-            }
-        } else if (indexAnalyzer == null) {
-            // searchAnalyzer != null
-            if (includeDefaults || !searchAnalyzer.name().startsWith("_")) {
-                builder.field("search_analyzer", searchAnalyzer.name());
-            }
-        } else if (searchAnalyzer == null) {
-            // indexAnalyzer != null
-            if (includeDefaults || !indexAnalyzer.name().startsWith("_")) {
-                builder.field("index_analyzer", indexAnalyzer.name());
-            }
-        } else if (indexAnalyzer.name().equals(searchAnalyzer.name())) {
-            // indexAnalyzer == searchAnalyzer
-            if (includeDefaults || !indexAnalyzer.name().startsWith("_")) {
-                builder.field("analyzer", indexAnalyzer.name());
-            }
-        } else {
-            // both are there but different
-            if (includeDefaults || !indexAnalyzer.name().startsWith("_")) {
-                builder.field("index_analyzer", indexAnalyzer.name());
-            }
-            if (includeDefaults || !searchAnalyzer.name().startsWith("_")) {
-                builder.field("search_analyzer", searchAnalyzer.name());
-            }
-        }
+        
+        doXContentAnalyzers(builder, includeDefaults);
 
         if (similarity() != null) {
             builder.field("similarity", similarity().name());
@@ -352,11 +314,11 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         if (((AllFieldMapper)mergeWith).enabled() != this.enabled() && ((AllFieldMapper)mergeWith).enabledState != Defaults.ENABLED) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] enabled is " + this.enabled() + " now encountering "+ ((AllFieldMapper)mergeWith).enabled());
+            mergeResult.addConflict("mapper [" + names.fullName() + "] enabled is " + this.enabled() + " now encountering "+ ((AllFieldMapper)mergeWith).enabled());
         }
-        super.merge(mergeWith, mergeContext);
+        super.merge(mergeWith, mergeResult);
     }
 
     @Override

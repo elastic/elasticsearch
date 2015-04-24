@@ -32,10 +32,11 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -48,10 +49,11 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -66,7 +68,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.*;
 import org.junit.Test;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -88,7 +89,7 @@ import static org.hamcrest.Matchers.*;
 /**
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-@TestLogging("indices.recovery:TRACE")
+@TestLogging("indices.recovery:TRACE,index.shard.service:TRACE")
 public class RelocationTests extends ElasticsearchIntegrationTest {
     private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(5, TimeUnit.MINUTES);
 
@@ -346,7 +347,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
             logger.debug("--> verifying all searches return the same number of docs");
             long expectedCount = -1;
             for (Client client : clients()) {
-                SearchResponse response = client.prepareSearch("test").setPreference("_local").setSearchType(SearchType.COUNT).get();
+                SearchResponse response = client.prepareSearch("test").setPreference("_local").setSize(0).get();
                 assertNoFailures(response);
                 if (expectedCount < 0) {
                     expectedCount = response.getHits().totalHits();
@@ -445,7 +446,99 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow
-    @TestLogging("indices.recovery:TRACE")
+    @TestLogging("cluster.service:TRACE,indices.recovery:TRACE")
+    public void testRelocationWithBusyClusterUpdateThread() throws Exception {
+        final String indexName = "test";
+        final Settings settings = ImmutableSettings.builder()
+                .put("gateway.type", "local")
+                .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s")
+                .put("indices.recovery.internal_action_timeout", "1s").build();
+        String master = internalCluster().startNode(settings);
+        ensureGreen();
+        List<String> nodes = internalCluster().startNodesAsync(2, settings).get();
+        final String node1 = nodes.get(0);
+        final String node2 = nodes.get(1);
+        ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
+        assertThat(response.isTimedOut(), is(false));
+
+
+        client().admin().indices().prepareCreate(indexName)
+                .setSettings(
+                        ImmutableSettings.builder()
+                                .put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "_name", node1)
+                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                ).get();
+
+
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        int numDocs = scaledRandomIntBetween(25, 250);
+        for (int i = 0; i < numDocs; i++) {
+            requests.add(client().prepareIndex(indexName, "type").setCreate(true).setSource("{}"));
+        }
+        indexRandom(true, requests);
+        ensureSearchable(indexName);
+
+        // capture the incoming state indicate that the replicas have upgraded and assigned
+
+        final CountDownLatch allReplicasAssigned = new CountDownLatch(1);
+        final CountDownLatch releaseClusterState = new CountDownLatch(1);
+        final CountDownLatch unassignedShardsAfterReplicasAssigned = new CountDownLatch(1);
+        try {
+            internalCluster().getInstance(ClusterService.class, node1).addLast(new ClusterStateListener() {
+                @Override
+                public void clusterChanged(ClusterChangedEvent event) {
+                    ClusterState state = event.state();
+                    if (state.routingTable().allShards().size() == 1 || state.routingNodes().hasUnassignedShards()) {
+                        // we have no replicas or they are not assigned yet
+                        return;
+                    }
+
+                    allReplicasAssigned.countDown();
+                    try {
+                        releaseClusterState.await();
+                    } catch (InterruptedException e) {
+                        //
+                    }
+                }
+
+            });
+
+            internalCluster().getInstance(ClusterService.class, master).addLast(new ClusterStateListener() {
+                @Override
+                public void clusterChanged(ClusterChangedEvent event) {
+                    if (event.state().routingNodes().hasUnassigned() && allReplicasAssigned.getCount() == 0) {
+                        unassignedShardsAfterReplicasAssigned.countDown();
+                    }
+                }
+            });
+
+            logger.info("--> starting replica recovery");
+            // we don't expect this to be acknowledge by node1 where we block the cluster state thread
+            assertFalse(client().admin().indices().prepareUpdateSettings(indexName)
+                    .setSettings(ImmutableSettings.builder()
+                                    .put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "_name", node1 + "," + node2)
+                                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+
+                    ).setTimeout("200ms")
+                    .get().isAcknowledged());
+
+            logger.info("--> waiting for node1 to process replica existence");
+            allReplicasAssigned.await();
+            logger.info("--> waiting for recovery to fail");
+            unassignedShardsAfterReplicasAssigned.await();
+        } finally {
+            logger.info("--> releasing cluster state update thread");
+            releaseClusterState.countDown();
+        }
+        logger.info("--> waiting for recovery to succeed");
+        // force a move.
+        client().admin().cluster().prepareReroute().get();
+        ensureGreen();
+    }
+
+    @Test
+    @Slow
     public void testCancellationCleansTempFiles() throws Exception {
         final String indexName = "test";
 
@@ -502,23 +595,25 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
         logger.info("--> verifying no temporary recoveries are left");
         for (String node : internalCluster().getNodeNames()) {
             NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, node);
-            for (final File shardLoc : nodeEnvironment.shardLocations(new ShardId(indexName, 0))) {
-                assertBusy(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            Files.walkFileTree(shardLoc.toPath(), new SimpleFileVisitor<Path>() {
-                                @Override
-                                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                                    assertThat("found a temporary recovery file: " + file, file.getFileName().toString(), not(startsWith("recovery.")));
-                                    return FileVisitResult.CONTINUE;
-                                }
-                            });
-                        } catch (IOException e) {
-                            throw new AssertionError("failed to walk file tree starting at [" + shardLoc.toPath() + "]", e);
+            for (final Path shardLoc : nodeEnvironment.availableShardPaths(new ShardId(indexName, 0))) {
+                if (Files.exists(shardLoc)) {
+                    assertBusy(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                Files.walkFileTree(shardLoc, new SimpleFileVisitor<Path>() {
+                                    @Override
+                                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                                        assertThat("found a temporary recovery file: " + file, file.getFileName().toString(), not(startsWith("recovery.")));
+                                        return FileVisitResult.CONTINUE;
+                                    }
+                                });
+                            } catch (IOException e) {
+                                throw new AssertionError("failed to walk file tree starting at [" + shardLoc + "]", e);
+                            }
                         }
-                    }
-                });
+                    });
+                }
             }
         }
     }
@@ -534,9 +629,6 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
 
         @Override
         public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
-//            if (action.equals(RecoveryTarget.Actions.PREPARE_TRANSLOG)) {
-//                logger.debug("dropped [{}] to {}", action, node);
-            //} else
             if (action.equals(RecoveryTarget.Actions.FILE_CHUNK)) {
                 RecoveryFileChunkRequest chunkRequest = (RecoveryFileChunkRequest) request;
                 if (chunkRequest.name().startsWith(IndexFileNames.SEGMENTS)) {
@@ -552,5 +644,4 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
             }
         }
     }
-
 }

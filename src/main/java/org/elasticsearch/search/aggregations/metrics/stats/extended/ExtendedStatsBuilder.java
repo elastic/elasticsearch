@@ -19,17 +19,37 @@
 
 package org.elasticsearch.search.aggregations.metrics.stats.extended;
 
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregationBuilder;
+
+import java.io.IOException;
 
 /**
  * Builder for the {@link ExtendedStats} aggregation.
  */
 public class ExtendedStatsBuilder extends ValuesSourceMetricsAggregationBuilder<ExtendedStatsBuilder> {
 
+    private Double sigma;
+
     /**
      * Sole constructor.
      */
     public ExtendedStatsBuilder(String name) {
         super(name, InternalExtendedStats.TYPE.name());
+    }
+
+    public ExtendedStatsBuilder sigma(double sigma) {
+        this.sigma = sigma;
+        return this;
+    }
+
+    @Override
+    protected void internalXContent(XContentBuilder builder, Params params) throws IOException {
+        super.internalXContent(builder, params);
+
+        if (sigma != null) {
+            builder.field("sigma", sigma);
+        }
+
     }
 }

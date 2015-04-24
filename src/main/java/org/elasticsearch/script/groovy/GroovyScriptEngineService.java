@@ -22,6 +22,9 @@ package org.elasticsearch.script.groovy;
 import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.Script;
+
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.codehaus.groovy.ast.ClassCodeExpressionTransformer;
@@ -37,17 +40,28 @@ import org.codehaus.groovy.control.customizers.CompilationCustomizer;
 import org.codehaus.groovy.control.customizers.ImportCustomizer;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.ScoreAccessor;
+import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -55,23 +69,47 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class GroovyScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
+    public static final String NAME = "groovy";
     public static String GROOVY_SCRIPT_SANDBOX_ENABLED = "script.groovy.sandbox.enabled";
+    public static String GROOVY_SCRIPT_BLACKLIST_PATCH = "script.groovy.sandbox.method_blacklist_patch";
 
     private final AtomicLong counter = new AtomicLong();
-    private final GroovyClassLoader loader;
     private final boolean sandboxed;
+    private volatile GroovyClassLoader loader;
+    private volatile Set<String> blacklistAdditions;
 
     @Inject
     public GroovyScriptEngineService(Settings settings) {
         super(settings);
+        this.sandboxed = settings.getAsBoolean(GROOVY_SCRIPT_SANDBOX_ENABLED, false);
+        this.blacklistAdditions = ImmutableSet.copyOf(settings.getAsArray(GROOVY_SCRIPT_BLACKLIST_PATCH, Strings.EMPTY_ARRAY));
+        reloadConfig();
+    }
+
+    public Set<String> blacklistAdditions() {
+        return this.blacklistAdditions;
+    }
+
+    /**
+     * Appends the additional blacklisted methods to the current blacklist,
+     * returns true if the black list has changed
+     */
+    public boolean addToBlacklist(String... additions) {
+        Set<String> newBlackList = new HashSet<>(blacklistAdditions);
+        Collections.addAll(newBlackList, additions);
+        boolean changed = this.blacklistAdditions.equals(newBlackList) == false;
+        this.blacklistAdditions = ImmutableSet.copyOf(newBlackList);
+        return changed;
+    }
+
+    public void reloadConfig() {
         ImportCustomizer imports = new ImportCustomizer();
         imports.addStarImports("org.joda.time");
         imports.addStaticStars("java.lang.Math");
         CompilerConfiguration config = new CompilerConfiguration();
         config.addCompilationCustomizers(imports);
-        this.sandboxed = settings.getAsBoolean(GROOVY_SCRIPT_SANDBOX_ENABLED, true);
         if (this.sandboxed) {
-            config.addCompilationCustomizers(GroovySandboxExpressionChecker.getSecureASTCustomizer(settings));
+            config.addCompilationCustomizers(GroovySandboxExpressionChecker.getSecureASTCustomizer(settings, this.blacklistAdditions));
         }
         // Add BigDecimal -> Double transformer
         config.addCompilationCustomizers(new GroovyBigDecimalTransformer(CompilePhase.CONVERSION));
@@ -91,7 +129,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     @Override
     public void scriptRemoved(@Nullable CompiledScript script) {
         // script could be null, meaning the script has already been garbage collected
-        if (script == null || "groovy".equals(script.lang())) {
+        if (script == null || NAME.equals(script.lang())) {
             // Clear the cache, this removes old script versions from the
             // cache to prevent running out of PermGen space
             loader.clearCache();
@@ -100,12 +138,12 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
     @Override
     public String[] types() {
-        return new String[]{"groovy"};
+        return new String[]{NAME};
     }
 
     @Override
     public String[] extensions() {
-        return new String[]{"groovy"};
+        return new String[]{NAME};
     }
 
     @Override
@@ -128,6 +166,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     /**
      * Return a script object with the given vars from the compiled script object
      */
+    @SuppressWarnings("unchecked")
     private Script createScript(Object compiledScript, Map<String, Object> vars) throws InstantiationException, IllegalAccessException {
         Class scriptClass = (Class) compiledScript;
         Script scriptObject = (Script) scriptClass.newInstance();
@@ -153,18 +192,26 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-        try {
-            Map<String, Object> allVars = new HashMap<>();
-            allVars.putAll(lookup.asMap());
-            if (vars != null) {
-                allVars.putAll(vars);
+    public SearchScript search(final Object compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
+        return new SearchScript() {
+
+            @Override
+            public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
+                final LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
+                Map<String, Object> allVars = new HashMap<>();
+                allVars.putAll(leafLookup.asMap());
+                if (vars != null) {
+                    allVars.putAll(vars);
+                }
+                Script scriptObject;
+                try {
+                    scriptObject = createScript(compiledScript, allVars);
+                } catch (InstantiationException | IllegalAccessException e) {
+                    throw new ScriptException("failed to build search script", e);
+                }
+                return new GroovyScript(scriptObject, leafLookup, logger);
             }
-            Script scriptObject = createScript(compiledScript, allVars);
-            return new GroovyScript(scriptObject, lookup, this.logger);
-        } catch (Exception e) {
-            throw new ScriptException("failed to build search script", e);
-        }
+        };
     }
 
     @Override
@@ -190,19 +237,19 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         return "Script" + counter.incrementAndGet() + ".groovy";
     }
 
-    public static final class GroovyScript implements ExecutableScript, SearchScript {
+    public static final class GroovyScript implements ExecutableScript, LeafSearchScript {
 
         private final Script script;
-        private final SearchLookup lookup;
+        private final LeafSearchLookup lookup;
         private final Map<String, Object> variables;
         private final ESLogger logger;
-        private Scorer scorer;
 
         public GroovyScript(Script script, ESLogger logger) {
             this(script, null, logger);
         }
 
-        public GroovyScript(Script script, @Nullable SearchLookup lookup, ESLogger logger) {
+        @SuppressWarnings("unchecked")
+        public GroovyScript(Script script, @Nullable LeafSearchLookup lookup, ESLogger logger) {
             this.script = script;
             this.lookup = lookup;
             this.logger = logger;
@@ -211,21 +258,13 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
         @Override
         public void setScorer(Scorer scorer) {
-            this.scorer = scorer;
             this.variables.put("_score", new ScoreAccessor(scorer));
         }
 
         @Override
-        public void setNextReader(LeafReaderContext context) {
+        public void setDocument(int doc) {
             if (lookup != null) {
-                lookup.setNextReader(context);
-            }
-        }
-
-        @Override
-        public void setNextDocId(int doc) {
-            if (lookup != null) {
-                lookup.setNextDocId(doc);
+                lookup.setDocument(doc);
             }
         }
 
@@ -236,9 +275,9 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         }
 
         @Override
-        public void setNextSource(Map<String, Object> source) {
+        public void setSource(Map<String, Object> source) {
             if (lookup != null) {
-                lookup.source().setNextSource(source);
+                lookup.source().setSource(source);
             }
         }
 

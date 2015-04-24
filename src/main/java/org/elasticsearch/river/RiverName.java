@@ -22,8 +22,9 @@ package org.elasticsearch.river;
 import java.io.Serializable;
 
 /**
- *
+ * @deprecated See blog post https://www.elastic.co/blog/deprecating_rivers
  */
+@Deprecated
 public class RiverName implements Serializable {
 
     private final String type;

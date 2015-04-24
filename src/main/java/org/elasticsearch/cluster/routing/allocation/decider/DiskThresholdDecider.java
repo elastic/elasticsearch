@@ -36,7 +36,6 @@ import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.InternalClusterInfoService.shardIdentifierFromRouting;
@@ -220,6 +219,46 @@ public class DiskThresholdDecider extends AllocationDecider {
         infoService.addListener(new DiskListener(client));
     }
 
+    // For Testing
+    ApplySettings newApplySettings() {
+        return new ApplySettings();
+    }
+
+    // For Testing
+    public Double getFreeDiskThresholdLow() {
+        return freeDiskThresholdLow;
+    }
+
+    // For Testing
+    public Double getFreeDiskThresholdHigh() {
+        return freeDiskThresholdHigh;
+    }
+
+    // For Testing
+    public ByteSizeValue getFreeBytesThresholdLow() {
+        return freeBytesThresholdLow;
+    }
+
+    // For Testing
+    public ByteSizeValue getFreeBytesThresholdHigh() {
+        return freeBytesThresholdHigh;
+    }
+
+    // For Testing
+    public boolean isIncludeRelocations() {
+        return includeRelocations;
+    }
+
+    // For Testing
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    // For Testing
+    public TimeValue getRerouteInterval() {
+        return rerouteInterval;
+    }
+
     /**
      * Returns the size of all shards that are currently being relocated to
      * the node, but may not be finished transfering yet.
@@ -227,13 +266,12 @@ public class DiskThresholdDecider extends AllocationDecider {
      * If subtractShardsMovingAway is set then the size of shards moving away is subtracted from the total size
      * of all shards
      */
-    public long sizeOfRelocatingShards(RoutingNode node, RoutingAllocation allocation, Map<String, Long> shardSizes, boolean subtractShardsMovingAway) {
-        List<ShardRouting> relocatingShards = allocation.routingTable().shardsWithState(ShardRoutingState.RELOCATING);
+    public long sizeOfRelocatingShards(RoutingNode node, Map<String, Long> shardSizes, boolean subtractShardsMovingAway) {
         long totalSize = 0;
-        for (ShardRouting routing : relocatingShards) {
-            if (routing.relocatingNodeId().equals(node.nodeId())) {
+        for (ShardRouting routing : node.shardsWithState(ShardRoutingState.RELOCATING, ShardRoutingState.INITIALIZING)) {
+            if (routing.initializing() && routing.relocatingNodeId() != null) {
                 totalSize += getShardSize(routing, shardSizes);
-            } else if (subtractShardsMovingAway && routing.currentNodeId().equals(node.nodeId())) {
+            } else if (subtractShardsMovingAway && routing.relocating()) {
                 totalSize -= getShardSize(routing, shardSizes);
             }
         }
@@ -245,6 +283,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         return shardSize == null ? 0 : shardSize;
     }
 
+    @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
 
         // Always allow allocation if the decider is disabled
@@ -291,7 +330,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         if (includeRelocations) {
-            long relocatingShardsSize = sizeOfRelocatingShards(node, allocation, shardSizes, false);
+            long relocatingShardsSize = sizeOfRelocatingShards(node, shardSizes, false);
             DiskUsage usageIncludingRelocations = new DiskUsage(node.nodeId(), node.node().name(),
                     usage.getTotalBytes(), usage.getFreeBytes() - relocatingShardsSize);
             if (logger.isTraceEnabled()) {
@@ -399,6 +438,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         return allocation.decision(Decision.YES, NAME, "enough disk for shard on node, free: [%s]", new ByteSizeValue(freeBytes));
     }
 
+    @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (!enabled) {
             return allocation.decision(Decision.YES, NAME, "disk threshold decider disabled");
@@ -437,7 +477,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         if (includeRelocations) {
             Map<String, Long> shardSizes = clusterInfo.getShardSizes();
-            long relocatingShardsSize = sizeOfRelocatingShards(node, allocation, shardSizes, true);
+            long relocatingShardsSize = sizeOfRelocatingShards(node, shardSizes, true);
             DiskUsage usageIncludingRelocations = new DiskUsage(node.nodeId(), node.node().name(),
                     usage.getTotalBytes(), usage.getFreeBytes() - relocatingShardsSize);
             if (logger.isTraceEnabled()) {
@@ -481,6 +521,9 @@ public class DiskThresholdDecider extends AllocationDecider {
      * @return DiskUsage representing given node using the average disk usage
      */
     public DiskUsage averageUsage(RoutingNode node, Map<String, DiskUsage> usages) {
+        if (usages.size() == 0) {
+            return new DiskUsage(node.nodeId(), node.node().name(), 0, 0);
+        }
         long totalBytes = 0;
         long freeBytes = 0;
         for (DiskUsage du : usages.values()) {
@@ -499,7 +542,9 @@ public class DiskThresholdDecider extends AllocationDecider {
      */
     public double freeDiskPercentageAfterShardAssigned(DiskUsage usage, Long shardSize) {
         shardSize = (shardSize == null) ? 0 : shardSize;
-        return 100.0 - (((double)(usage.getUsedBytes() + shardSize) / usage.getTotalBytes()) * 100.0);
+        DiskUsage newUsage = new DiskUsage(usage.getNodeId(), usage.getNodeName(),
+                usage.getTotalBytes(), usage.getFreeBytes() - shardSize);
+        return newUsage.getFreeDiskAsPercentage();
     }
 
     /**

@@ -24,6 +24,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BitsFilteredDocIdSet;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -39,7 +40,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.NoopCollector;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
 import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.search.internal.SearchContext;
@@ -51,6 +51,7 @@ import java.util.Set;
 /**
  *
  */
+// TODO: Remove me and move the logic to ChildrenQuery when needsScore=false
 public class ChildrenConstantScoreQuery extends Query {
 
     private final IndexParentChildFieldData parentChildIndexFieldData;
@@ -85,11 +86,6 @@ public class ChildrenConstantScoreQuery extends Query {
     }
 
     @Override
-    public void extractTerms(Set<Term> terms) {
-        rewrittenChildQuery.extractTerms(terms);
-    }
-
-    @Override
     public Query clone() {
         ChildrenConstantScoreQuery q = (ChildrenConstantScoreQuery) super.clone();
         q.originalChildQuery = originalChildQuery.clone();
@@ -100,7 +96,7 @@ public class ChildrenConstantScoreQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher) throws IOException {
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
         SearchContext sc = SearchContext.current();
         IndexParentChildFieldData globalIfd = parentChildIndexFieldData.loadGlobal(searcher.getIndexReader());
         assert rewrittenChildQuery != null;
@@ -109,7 +105,7 @@ public class ChildrenConstantScoreQuery extends Query {
         final long valueCount;
         List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
         if (globalIfd == null || leaves.isEmpty()) {
-            return Queries.newMatchNoDocsQuery().createWeight(searcher);
+            return new BooleanQuery().createWeight(searcher, needsScores);
         } else {
             AtomicParentChildFieldData afd = globalIfd.load(leaves.get(0));
             SortedDocValues globalValues = afd.getOrdinalsValues(parentType);
@@ -117,7 +113,7 @@ public class ChildrenConstantScoreQuery extends Query {
         }
 
         if (valueCount == 0) {
-            return Queries.newMatchNoDocsQuery().createWeight(searcher);
+            return new BooleanQuery().createWeight(searcher, needsScores);
         }
 
         Query childQuery = rewrittenChildQuery;
@@ -128,7 +124,7 @@ public class ChildrenConstantScoreQuery extends Query {
 
         final long remaining = collector.foundParents();
         if (remaining == 0) {
-            return Queries.newMatchNoDocsQuery().createWeight(searcher);
+            return new BooleanQuery().createWeight(searcher, needsScores);
         }
 
         Filter shortCircuitFilter = null;
@@ -137,7 +133,7 @@ public class ChildrenConstantScoreQuery extends Query {
                     nonNestedDocsFilter, sc, parentType, collector.values, collector.parentOrds, remaining
             );
         }
-        return new ParentWeight(parentFilter, globalIfd, shortCircuitFilter, collector, remaining);
+        return new ParentWeight(this, parentFilter, globalIfd, shortCircuitFilter, collector, remaining);
     }
 
     @Override
@@ -190,7 +186,8 @@ public class ChildrenConstantScoreQuery extends Query {
         private float queryNorm;
         private float queryWeight;
 
-        public ParentWeight(Filter parentFilter, IndexParentChildFieldData globalIfd, Filter shortCircuitFilter, ParentOrdCollector collector, long remaining) {
+        public ParentWeight(Query query, Filter parentFilter, IndexParentChildFieldData globalIfd, Filter shortCircuitFilter, ParentOrdCollector collector, long remaining) {
+            super(query);
             this.parentFilter = parentFilter;
             this.globalIfd = globalIfd;
             this.shortCircuitFilter = shortCircuitFilter;
@@ -199,13 +196,12 @@ public class ChildrenConstantScoreQuery extends Query {
         }
 
         @Override
-        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-            return new Explanation(getBoost(), "not implemented yet...");
+        public void extractTerms(Set<Term> terms) {
         }
 
         @Override
-        public Query getQuery() {
-            return ChildrenConstantScoreQuery.this;
+        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+            return Explanation.match(getBoost(), "not implemented yet...");
         }
 
         @Override

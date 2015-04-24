@@ -23,6 +23,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.cache.filter.FilterCacheModule;
+import org.elasticsearch.index.cache.filter.FilterCacheModule.FilterCacheSettings;
+import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -32,7 +35,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.scriptFilter;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -44,7 +49,12 @@ public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put(GroovyScriptEngineService.GROOVY_SCRIPT_SANDBOX_ENABLED, false).build();
+        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+                .put(GroovyScriptEngineService.GROOVY_SCRIPT_SANDBOX_ENABLED, false)
+                // aggressive filter caching so that we can assert on the number of iterations of the script filters
+                .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, WeightedFilterCache.class)
+                .put(FilterCacheSettings.FILTER_CACHE_EVERYTHING, true)
+                .build();
     }
 
     @Test
@@ -132,7 +142,7 @@ public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
-        assertThat(scriptCounter.get(), equalTo(internalCluster().hasFilterCache() ? 3 : 1));
+        assertThat(scriptCounter.get(), equalTo(3));
 
         scriptCounter.set(0);
         logger.info("running script filter the second time");
@@ -141,7 +151,7 @@ public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
-        assertThat(scriptCounter.get(), equalTo(cluster().hasFilterCache() ? 0 : 1));
+        assertThat(scriptCounter.get(), equalTo(0));
 
         scriptCounter.set(0);
         logger.info("running script filter with new parameters");
@@ -150,7 +160,7 @@ public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
-        assertThat(scriptCounter.get(), equalTo(cluster().hasFilterCache() ? 3 : 1));
+        assertThat(scriptCounter.get(), equalTo(3));
 
         scriptCounter.set(0);
         logger.info("running script filter with same parameters");
@@ -159,6 +169,6 @@ public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
-        assertThat(scriptCounter.get(), equalTo(cluster().hasFilterCache() ? 0 : 3));
+        assertThat(scriptCounter.get(), equalTo(0));
     }
 }

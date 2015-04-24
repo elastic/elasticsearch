@@ -20,9 +20,14 @@
 package org.elasticsearch.search.suggest.completion;
 
 import com.carrotsearch.hppc.ObjectLongOpenHashMap;
+
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.codecs.*;
-import org.apache.lucene.index.*;
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.codecs.FieldsConsumer;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
@@ -35,8 +40,11 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.fst.*;
+import org.apache.lucene.util.fst.ByteSequenceOutputs;
+import org.apache.lucene.util.fst.FST;
+import org.apache.lucene.util.fst.PairOutputs;
 import org.apache.lucene.util.fst.PairOutputs.Pair;
+import org.apache.lucene.util.fst.PositiveIntOutputs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.CompletionLookupProvider;
@@ -44,7 +52,12 @@ import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.L
 import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 
 public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider {
 
@@ -119,8 +132,8 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                     if (terms == null) {
                         continue;
                     }
-                    TermsEnum termsEnum = terms.iterator(null);
-                    DocsAndPositionsEnum docsEnum = null;
+                    TermsEnum termsEnum = terms.iterator();
+                    PostingsEnum docsEnum = null;
                     final SuggestPayload spare = new SuggestPayload();
                     int maxAnalyzedPathsForOneInput = 0;
                     final XAnalyzingSuggester.XBuilder builder = new XAnalyzingSuggester.XBuilder(maxSurfaceFormsPerAnalyzedForm, hasPayloads, XAnalyzingSuggester.PAYLOAD_SEP);
@@ -130,7 +143,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                         if (term == null) {
                             break;
                         }
-                        docsEnum = termsEnum.docsAndPositions(null, docsEnum, DocsAndPositionsEnum.FLAG_PAYLOADS);
+                        docsEnum = termsEnum.postings(null, docsEnum, PostingsEnum.PAYLOADS);
                         builder.startTerm(term);
                         int docFreq = 0;
                         while (docsEnum.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
@@ -300,7 +313,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
             }
 
             @Override
-            public Iterable<? extends Accountable> getChildResources() {
+            public Collection<Accountable> getChildResources() {
                 return Accountables.namedAccountables("field", lookupMap);
             }
         };
@@ -360,7 +373,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         }
 
         @Override
-        public Iterable<? extends Accountable> getChildResources() {
+        public Collection<Accountable> getChildResources() {
             if (fst != null) {
                 return Collections.singleton(Accountables.namedAccountable("fst", fst));
             } else {

@@ -18,93 +18,54 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.AggregationStreams;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
-import org.elasticsearch.search.aggregations.bucket.BucketStreams;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.EmptyBucketInfo;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 /**
  *
  */
-public class InternalDateHistogram extends InternalHistogram<InternalDateHistogram.Bucket> implements DateHistogram {
+public class InternalDateHistogram {
 
     final static Type TYPE = new Type("date_histogram", "dhisto");
-    final static Factory FACTORY = new Factory();
 
-    private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalDateHistogram readResult(StreamInput in) throws IOException {
-            InternalDateHistogram histogram = new InternalDateHistogram();
-            histogram.readFrom(in);
-            return histogram;
+    static class Bucket extends InternalHistogram.Bucket {
+
+        Bucket(boolean keyed, @Nullable ValueFormatter formatter, InternalHistogram.Factory<Bucket> factory) {
+            super(keyed, formatter, factory);
         }
-    };
 
-    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
-        @Override
-        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
-            Bucket buckets = new Bucket(context.keyed(), context.formatter());
-            buckets.readFrom(in);
-            return buckets;
+        Bucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter,
+                InternalHistogram.Factory<Bucket> factory) {
+            super(key, docCount, keyed, formatter, factory, aggregations);
         }
 
         @Override
-        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
-            BucketStreamContext context = new BucketStreamContext();
-            context.formatter(bucket.formatter);
-            return context;
-        }
-    };
-
-    public static void registerStream() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
-    }
-
-    static class Bucket extends InternalHistogram.Bucket implements DateHistogram.Bucket {
-
-        Bucket(boolean keyed, @Nullable ValueFormatter formatter) {
-            super(keyed, formatter);
-        }
-
-        Bucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
-            super(key, docCount, keyed, formatter, aggregations);
-        }
-
-        @Override
-        protected InternalHistogram.Factory<Bucket> getFactory() {
-            return FACTORY;
-        }
-
-        @Override
-        public String getKey() {
+        public String getKeyAsString() {
             return formatter != null ? formatter.format(key) : ValueFormatter.DateTime.DEFAULT.format(key);
         }
 
         @Override
-        public DateTime getKeyAsDate() {
+        public DateTime getKey() {
             return new DateTime(key, DateTimeZone.UTC);
         }
 
         @Override
         public String toString() {
-            return getKey();
+            return getKeyAsString();
         }
     }
 
     static class Factory extends InternalHistogram.Factory<InternalDateHistogram.Bucket> {
 
-        private Factory() {
+        Factory() {
         }
 
         @Override
@@ -113,72 +74,21 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
         }
 
         @Override
-        public InternalDateHistogram create(String name, List<InternalDateHistogram.Bucket> buckets, InternalOrder order,
+        public InternalHistogram create(String name, List<InternalDateHistogram.Bucket> buckets, InternalOrder order,
                                             long minDocCount, EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
-            return new InternalDateHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metaData);
+            return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, this, metaData);
         }
 
         @Override
         public InternalDateHistogram.Bucket createBucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
-            return new Bucket(key, docCount, aggregations, keyed, formatter);
+            return new Bucket(key, docCount, aggregations, keyed, formatter, this);
+        }
+
+        @Override
+        protected InternalDateHistogram.Bucket createEmptyBucket(boolean keyed, @Nullable ValueFormatter formatter) {
+            return new Bucket(keyed, formatter, this);
         }
     }
 
-    private ObjectObjectOpenHashMap<String, InternalDateHistogram.Bucket> bucketsMap;
-
-    InternalDateHistogram() {} // for serialization
-
-    InternalDateHistogram(String name, List<InternalDateHistogram.Bucket> buckets, InternalOrder order, long minDocCount,
-                          EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
-        super(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metaData);
-    }
-
-    @Override
-    public Type type() {
-        return TYPE;
-    }
-
-    @Override
-    protected InternalHistogram.Factory<Bucket> getFactory() {
-        return FACTORY;
-    }
-
-    @Override
-    public Bucket getBucketByKey(String key) {
-        try {
-            long time = Long.parseLong(key);
-            return super.getBucketByKey(time);
-        } catch (NumberFormatException nfe) {
-            // it's not a number, so lets try to parse it as a date using the formatter.
-        }
-        if (bucketsMap == null) {
-            bucketsMap = new ObjectObjectOpenHashMap<>();
-            for (InternalDateHistogram.Bucket bucket : buckets) {
-                bucketsMap.put(bucket.getKey(), bucket);
-            }
-        }
-        return bucketsMap.get(key);
-    }
-
-    @Override
-    public DateHistogram.Bucket getBucketByKey(DateTime key) {
-        return getBucketByKey(key.getMillis());
-    }
-
-    @Override
-    protected InternalDateHistogram.Bucket createBucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, ValueFormatter formatter) {
-        return new Bucket(key, docCount, aggregations, keyed, formatter);
-    }
-    
-    @Override
-    protected Bucket createEmptyBucket(boolean keyed, ValueFormatter formatter) {
-        return new Bucket(keyed, formatter);
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        super.doReadFrom(in);
-        bucketsMap = null; // we need to reset this on read (as it's lazily created on demand)
-    }
-
+    private InternalDateHistogram() {}
 }

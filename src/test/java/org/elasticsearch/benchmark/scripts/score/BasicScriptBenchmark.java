@@ -19,14 +19,13 @@
 
 package org.elasticsearch.benchmark.scripts.score;
 
-import com.google.common.base.Charsets;
-import com.google.common.io.Files;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,9 +36,11 @@ import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBui
 import org.joda.time.DateTime;
 
 import java.io.BufferedWriter;
-import java.io.File;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.SecureRandom;
 import java.util.*;
 import java.util.Map.Entry;
@@ -150,24 +151,18 @@ public class BasicScriptBenchmark {
     }
 
     public static void writeHelperFunction() throws IOException {
-        File file = new File("addToPlot.m");
-        BufferedWriter out = Files.newWriter(file, Charsets.UTF_8);
-
-        out.write("function handle = addToPlot(numTerms, perDoc, color, linestyle, linewidth)\n" + "handle = line(numTerms, perDoc);\n"
+        try (BufferedWriter out = Files.newBufferedWriter(PathUtils.get("addToPlot.m"), StandardCharsets.UTF_8)) {
+            out.write("function handle = addToPlot(numTerms, perDoc, color, linestyle, linewidth)\n" + "handle = line(numTerms, perDoc);\n"
                 + "set(handle, 'color', color);\n" + "set(handle, 'linestyle',linestyle);\n" + "set(handle, 'LineWidth',linewidth);\n"
                 + "end\n");
-        out.close();
+        }
     }
 
     public static void printOctaveScript(List<Results> allResults, String[] args) throws IOException {
         if (args.length == 0) {
             return;
         }
-        BufferedWriter out = null;
-        try {
-            File file = new File(args[0]);
-            out = Files.newWriter(file, Charsets.UTF_8);
-
+        try (BufferedWriter out = Files.newBufferedWriter(PathUtils.get(args[0]), StandardCharsets.UTF_8)) {
             out.write("#! /usr/local/bin/octave -qf");
             out.write("\n\n\n\n");
             out.write("######################################\n");
@@ -195,10 +190,6 @@ public class BasicScriptBenchmark {
             out.write("hold off;\n\n");
         } catch (IOException e) {
             System.err.println("Error: " + e.getMessage());
-        } finally {
-            if (out != null) {
-                out.close();
-            }
         }
         writeHelperFunction();
     }
@@ -244,7 +235,7 @@ public class BasicScriptBenchmark {
         }
         bulkRequest.execute().actionGet();
         client.admin().indices().prepareRefresh("test").execute().actionGet();
-        client.admin().indices().prepareFlush("test").setFull(true).execute().actionGet();
+        client.admin().indices().prepareFlush("test").execute().actionGet();
         System.out.println("Done indexing " + numDocs + " documents");
 
     }

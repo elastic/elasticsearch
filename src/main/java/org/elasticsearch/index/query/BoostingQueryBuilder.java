@@ -65,6 +65,7 @@ public class BoostingQueryBuilder extends BaseQueryBuilder implements BoostableQ
         return this;
     }
 
+    @Override
     public BoostingQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;

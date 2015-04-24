@@ -21,13 +21,14 @@ package org.elasticsearch.plugins;
 import com.google.common.base.Predicate;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -40,14 +41,15 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.URI;
-import java.nio.file.Paths;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFileAttributes;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.io.FileSystemUtilsTests.assertFileContent;
@@ -56,25 +58,15 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDire
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
+@LuceneTestCase.SuppressFileSystems("*") // TODO: clean up this test to allow extra files
+// TODO: jimfs is really broken here (throws wrong exception from detection method).
+// if its in your classpath, then do not use plugins!!!!!!
 public class PluginManagerTests extends ElasticsearchIntegrationTest {
-    private static final Settings SETTINGS = ImmutableSettings.settingsBuilder()
-            .put("discovery.zen.ping.multicast.enabled", false)
-            .put("force.http.enabled", true)
-            .build();
-    private static final String PLUGIN_DIR = "plugins";
-
-    @After
-    public void afterTest() throws IOException {
-        deletePluginsFolder();
-    }
-
-    @Before
-    public void beforeTest() throws IOException {
-        deletePluginsFolder();
-    }
 
     @Test(expected = ElasticsearchIllegalArgumentException.class)
     public void testDownloadAndExtract_NullName_ThrowsException() throws IOException {
@@ -85,9 +77,10 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     public void testLocalPluginInstallSingleFolder() throws Exception {
         //When we have only a folder in top-level (no files either) we remove that folder while extracting
         String pluginName = "plugin-test";
-        downloadAndExtract(pluginName, getPluginUrlForResource("plugin_single_folder.zip"));
+        Tuple<Settings, Environment> initialSettings = buildInitialSettings();
+        downloadAndExtract(pluginName, initialSettings, getPluginUrlForResource("plugin_single_folder.zip"));
 
-        internalCluster().startNode(SETTINGS);
+        internalCluster().startNode(initialSettings.v1());
 
         assertPluginLoaded(pluginName);
         assertPluginAvailable(pluginName);
@@ -96,36 +89,43 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Test
     public void testLocalPluginInstallWithBinAndConfig() throws Exception {
         String pluginName = "plugin-test";
-        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
-                ImmutableSettings.settingsBuilder().build(), false);
+        Tuple<Settings, Environment> initialSettings = buildInitialSettings();
         Environment env = initialSettings.v2();
-        File binDir = new File(env.homeFile(), "bin");
-        if (!binDir.exists() && !FileSystemUtils.mkdirs(binDir)) {
-            throw new IOException("Could not create bin directory [" + binDir.getAbsolutePath() + "]");
+        Path binDir = env.homeFile().resolve("bin");
+        if (!Files.exists(binDir)) {
+            Files.createDirectories(binDir);
         }
-        File pluginBinDir = new File(binDir, pluginName);
-        File configDir = env.configFile();
-        if (!configDir.exists() && !FileSystemUtils.mkdirs(configDir)) {
-            throw new IOException("Could not create config directory [" + configDir.getAbsolutePath() + "]");
+        Path pluginBinDir = binDir.resolve(pluginName);
+        Path configDir = env.configFile();
+        if (!Files.exists(configDir)) {
+            Files.createDirectories(configDir);
         }
-        File pluginConfigDir = new File(configDir, pluginName);
+        Path pluginConfigDir =configDir.resolve(pluginName);
         try {
 
             PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_with_bin_and_config.zip"), initialSettings);
 
             pluginManager.downloadAndExtract(pluginName);
 
-            File[] plugins = pluginManager.getListInstalledPlugins();
+            Path[] plugins = pluginManager.getListInstalledPlugins();
 
             assertThat(plugins, arrayWithSize(1));
             assertDirectoryExists(pluginBinDir);
             assertDirectoryExists(pluginConfigDir);
-            File toolFile = new File(pluginBinDir, "tool");
+            Path toolFile = pluginBinDir.resolve("tool");
             assertFileExists(toolFile);
-            assertThat(toolFile.canExecute(), is(true));
+
+            // check that the file is marked executable, without actually checking that we can execute it.
+            PosixFileAttributeView view = Files.getFileAttributeView(toolFile, PosixFileAttributeView.class);
+            // the view might be null, on e.g. windows, there is nothing to check there!
+            if (view != null) {
+                PosixFileAttributes attributes = view.readAttributes();
+                assertTrue("unexpected permissions: " + attributes.permissions(),
+                           attributes.permissions().contains(PosixFilePermission.OWNER_EXECUTE));
+            }
         } finally {
             // we need to clean up the copied dirs
-            IOUtils.rm(pluginBinDir.toPath(), pluginConfigDir.toPath());
+            IOUtils.rm(pluginBinDir, pluginConfigDir);
         }
     }
 
@@ -135,21 +135,20 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Test
     public void testLocalPluginInstallWithBinAndConfigInAlreadyExistingConfigDir_7890() throws Exception {
         String pluginName = "plugin-test";
-        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
-                ImmutableSettings.settingsBuilder().build(), false);
+        Tuple<Settings, Environment> initialSettings = buildInitialSettings();
         Environment env = initialSettings.v2();
 
-        File configDir = env.configFile();
-        if (!configDir.exists() && !FileSystemUtils.mkdirs(configDir)) {
-            throw new IOException("Could not create config directory [" + configDir.getAbsolutePath() + "]");
+        Path configDir = env.configFile();
+        if (!Files.exists(configDir)) {
+            Files.createDirectories(configDir);
         }
-        File pluginConfigDir = new File(configDir, pluginName);
+        Path pluginConfigDir = configDir.resolve(pluginName);
 
         try {
             PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_with_config_v1.zip"), initialSettings);
             pluginManager.downloadAndExtract(pluginName);
 
-            File[] plugins = pluginManager.getListInstalledPlugins();
+            Path[] plugins = pluginManager.getListInstalledPlugins();
             assertThat(plugins, arrayWithSize(1));
 
             /*
@@ -207,7 +206,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             assertFileContent(pluginConfigDir, "dir/subdir/testsubdir.txt.new", "version2\n");
         } finally {
             // we need to clean up the copied dirs
-            IOUtils.rm(pluginConfigDir.toPath());
+            IOUtils.rm(pluginConfigDir);
         }
     }
 
@@ -215,23 +214,22 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Test
     public void testLocalPluginInstallWithBinOnly_7152() throws Exception {
         String pluginName = "plugin-test";
-        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
-                ImmutableSettings.settingsBuilder().build(), false);
+        Tuple<Settings, Environment> initialSettings = buildInitialSettings();
         Environment env = initialSettings.v2();
-        File binDir = new File(env.homeFile(), "bin");
-        if (!binDir.exists() && !FileSystemUtils.mkdirs(binDir)) {
-            throw new IOException("Could not create bin directory [" + binDir.getAbsolutePath() + "]");
+        Path binDir = env.homeFile().resolve("bin");
+        if (!Files.exists(binDir)) {
+            Files.createDirectories(binDir);
         }
-        File pluginBinDir = new File(binDir, pluginName);
+        Path pluginBinDir = binDir.resolve(pluginName);
         try {
             PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_with_bin_only.zip"), initialSettings);
             pluginManager.downloadAndExtract(pluginName);
-            File[] plugins = pluginManager.getListInstalledPlugins();
+            Path[] plugins = pluginManager.getListInstalledPlugins();
             assertThat(plugins.length, is(1));
             assertDirectoryExists(pluginBinDir);
         } finally {
             // we need to clean up the copied dirs
-            IOUtils.rm(pluginBinDir.toPath());
+            IOUtils.rm(pluginBinDir);
         }
     }
 
@@ -240,9 +238,10 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         //When we have only a folder in top-level (no files either) but it's called _site, we make it work
         //we can either remove the folder while extracting and then re-add it manually or just leave it as it is
         String pluginName = "plugin-test";
-        downloadAndExtract(pluginName, getPluginUrlForResource("plugin_folder_site.zip"));
+        Tuple<Settings, Environment> initialSettings = buildInitialSettings();
+        downloadAndExtract(pluginName, initialSettings, getPluginUrlForResource("plugin_folder_site.zip"));
 
-        internalCluster().startNode(SETTINGS);
+        internalCluster().startNode(initialSettings.v1());
 
         assertPluginLoaded(pluginName);
         assertPluginAvailable(pluginName);
@@ -252,9 +251,10 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     public void testLocalPluginWithoutFolders() throws Exception {
         //When we don't have folders at all in the top-level, but only files, we don't modify anything
         String pluginName = "plugin-test";
-        downloadAndExtract(pluginName, getPluginUrlForResource("plugin_without_folders.zip"));
+        Tuple<Settings, Environment> initialSettings = buildInitialSettings();
+        downloadAndExtract(pluginName, initialSettings, getPluginUrlForResource("plugin_without_folders.zip"));
 
-        internalCluster().startNode(SETTINGS);
+        internalCluster().startNode(initialSettings.v1());
 
         assertPluginLoaded(pluginName);
         assertPluginAvailable(pluginName);
@@ -264,9 +264,10 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     public void testLocalPluginFolderAndFile() throws Exception {
         //When we have a single top-level folder but also files in the top-level, we don't modify anything
         String pluginName = "plugin-test";
-        downloadAndExtract(pluginName, getPluginUrlForResource("plugin_folder_file.zip"));
+        Tuple<Settings, Environment> initialSettings = buildInitialSettings();
+        downloadAndExtract(pluginName, initialSettings, getPluginUrlForResource("plugin_folder_file.zip"));
 
-        internalCluster().startNode(SETTINGS);
+        internalCluster().startNode(initialSettings.v1());
 
         assertPluginLoaded(pluginName);
         assertPluginAvailable(pluginName);
@@ -275,28 +276,34 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Test(expected = IllegalArgumentException.class)
     public void testSitePluginWithSourceThrows() throws Exception {
         String pluginName = "plugin-with-source";
-        downloadAndExtract(pluginName, getPluginUrlForResource("plugin_with_sourcefiles.zip"));
+        downloadAndExtract(pluginName, buildInitialSettings(), getPluginUrlForResource("plugin_with_sourcefiles.zip"));
     }
 
-    private static PluginManager pluginManager(String pluginUrl) {
-        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
-                ImmutableSettings.settingsBuilder().build(), false);
-        return pluginManager(pluginUrl, initialSettings);
+    private PluginManager pluginManager(String pluginUrl) throws IOException {
+        return pluginManager(pluginUrl, buildInitialSettings());
+    }
+
+    private Tuple<Settings, Environment> buildInitialSettings() throws IOException {
+        Settings settings = ImmutableSettings.settingsBuilder()
+            .put("discovery.zen.ping.multicast.enabled", false)
+            .put("http.enabled", true)
+            .put("path.home", createTempDir()).build();
+        return InternalSettingsPreparer.prepareSettings(settings, false);
     }
 
     /**
      * We build a plugin manager instance which wait only for 30 seconds before
      * raising an ElasticsearchTimeoutException
      */
-    private static PluginManager pluginManager(String pluginUrl, Tuple<Settings, Environment> initialSettings) {
-        if (!initialSettings.v2().pluginsFile().exists()) {
-            FileSystemUtils.mkdirs(initialSettings.v2().pluginsFile());
+    private PluginManager pluginManager(String pluginUrl, Tuple<Settings, Environment> initialSettings) throws IOException {
+        if (!Files.exists(initialSettings.v2().pluginsFile())) {
+            Files.createDirectories(initialSettings.v2().pluginsFile());
         }
-        return new PluginManager(initialSettings.v2(), pluginUrl, PluginManager.OutputMode.SILENT, TimeValue.timeValueSeconds(30));
+        return new PluginManager(initialSettings.v2(), pluginUrl, PluginManager.OutputMode.VERBOSE, TimeValue.timeValueSeconds(30));
     }
 
-    private static void downloadAndExtract(String pluginName, String pluginUrl) throws IOException {
-        pluginManager(pluginUrl).downloadAndExtract(pluginName);
+    private void downloadAndExtract(String pluginName, Tuple<Settings, Environment> initialSettings, String pluginUrl) throws IOException {
+        pluginManager(pluginUrl, initialSettings).downloadAndExtract(pluginName);
     }
 
     private void assertPluginLoaded(String pluginName) {
@@ -318,11 +325,12 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     }
 
     private void assertPluginAvailable(String pluginName) throws InterruptedException, IOException {
-        final HttpRequestBuilder httpRequestBuilder = getHttpRequestBuilder();
+        final HttpRequestBuilder httpRequestBuilder = httpClient();
 
         //checking that the http connector is working properly
         // We will try it for some seconds as it could happen that the REST interface is not yet fully started
         assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object obj) {
                 try {
                     HttpResponse response = httpRequestBuilder.method("GET").path("/").execute();
@@ -341,18 +349,14 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
 
         //checking now that the plugin is available
-        HttpResponse response = getHttpRequestBuilder().method("GET").path("/_plugin/" + pluginName + "/").execute();
+        HttpResponse response = httpClient().method("GET").path("/_plugin/" + pluginName + "/").execute();
         assertThat(response, notNullValue());
-        assertThat(response.getStatusCode(), equalTo(RestStatus.OK.getStatus()));
-    }
-
-    private HttpRequestBuilder getHttpRequestBuilder() {
-        return new HttpRequestBuilder(HttpClients.createDefault()).httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class));
+        assertThat(response.getReasonPhrase(), response.getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
     @Test
     public void testListInstalledEmpty() throws IOException {
-        File[] plugins = pluginManager(null).getListInstalledPlugins();
+        Path[] plugins = pluginManager(null).getListInstalledPlugins();
         assertThat(plugins, notNullValue());
         assertThat(plugins.length, is(0));
     }
@@ -368,23 +372,23 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_with_classfile.zip"));
 
         pluginManager.downloadAndExtract("plugin-classfile");
-        File[] plugins = pluginManager.getListInstalledPlugins();
+        Path[] plugins = pluginManager.getListInstalledPlugins();
         assertThat(plugins, notNullValue());
         assertThat(plugins.length, is(1));
     }
 
     @Test
     public void testInstallSitePlugin() throws IOException {
-        PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_without_folders.zip"));
+        Tuple<Settings, Environment> initialSettings = buildInitialSettings();
+        PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_without_folders.zip"), initialSettings);
 
         pluginManager.downloadAndExtract("plugin-site");
-        File[] plugins = pluginManager.getListInstalledPlugins();
+        Path[] plugins = pluginManager.getListInstalledPlugins();
         assertThat(plugins, notNullValue());
         assertThat(plugins.length, is(1));
 
         // We want to check that Plugin Manager moves content to _site
-        String pluginDir = PLUGIN_DIR.concat("/plugin-site/_site");
-        assertFileExists(new File(pluginDir));
+        assertFileExists(initialSettings.v2().pluginsFile().resolve("plugin-site/_site"));
     }
 
 
@@ -393,7 +397,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         PluginManager pluginManager = pluginManager(pluginCoordinates);
         try {
             pluginManager.downloadAndExtract(pluginShortName);
-            File[] plugins = pluginManager.getListInstalledPlugins();
+            Path[] plugins = pluginManager.getListInstalledPlugins();
             assertThat(plugins, notNullValue());
             assertThat(plugins.length, is(1));
 
@@ -418,7 +422,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Test
     @Network
     public void testInstallPluginWithElasticsearchDownloadService() throws IOException {
-        assumeTrue(isDownloadServiceWorking("download.elasticsearch.org", 80, "/elasticsearch/ci-test.txt"));
+        assumeTrue("download.elasticsearch.org is accessible", isDownloadServiceWorking("download.elasticsearch.org", 80, "/elasticsearch/ci-test.txt"));
         singlePluginInstallAndRemove("elasticsearch/elasticsearch-transport-thrift/2.4.0", null);
     }
 
@@ -431,8 +435,8 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Test
     @Network
     public void testInstallPluginWithMavenCentral() throws IOException {
-        assumeTrue(isDownloadServiceWorking("search.maven.org", 80, "/"));
-        assumeTrue(isDownloadServiceWorking("repo1.maven.org", 443, "/maven2/org/elasticsearch/elasticsearch-transport-thrift/2.4.0/elasticsearch-transport-thrift-2.4.0.pom"));
+        assumeTrue("search.maven.org is accessible", isDownloadServiceWorking("search.maven.org", 80, "/"));
+        assumeTrue("repo1.maven.org is accessible", isDownloadServiceWorking("repo1.maven.org", 443, "/maven2/org/elasticsearch/elasticsearch-transport-thrift/2.4.0/elasticsearch-transport-thrift-2.4.0.pom"));
         singlePluginInstallAndRemove("org.elasticsearch/elasticsearch-transport-thrift/2.4.0", null);
     }
 
@@ -445,7 +449,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Test
     @Network
     public void testInstallPluginWithGithub() throws IOException {
-        assumeTrue(isDownloadServiceWorking("github.com", 443, "/"));
+        assumeTrue("github.com is accessible", isDownloadServiceWorking("github.com", 443, "/"));
         singlePluginInstallAndRemove("elasticsearch/kibana", null);
     }
 
@@ -462,10 +466,6 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             logger.warn("[{}{}] download service is not working. Disabling current test.", host, resource);
         }
         return false;
-    }
-
-    private void deletePluginsFolder() throws IOException {
-        IOUtils.rm(Paths.get(PLUGIN_DIR));
     }
 
     @Test

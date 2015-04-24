@@ -21,7 +21,9 @@ package org.elasticsearch.search.fetch.script;
 import com.google.common.collect.ImmutableMap;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -29,6 +31,7 @@ import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -70,13 +73,18 @@ public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticsearchException {
         for (ScriptFieldsContext.ScriptField scriptField : context.scriptFields().fields()) {
-            scriptField.script().setNextReader(hitContext.readerContext());
-            scriptField.script().setNextDocId(hitContext.docId());
+            LeafSearchScript leafScript;
+            try {
+                leafScript = scriptField.script().getLeafSearchScript(hitContext.readerContext());
+            } catch (IOException e1) {
+                throw new ElasticsearchIllegalStateException("Failed to load script", e1);
+            }
+            leafScript.setDocument(hitContext.docId());
 
             Object value;
             try {
-                value = scriptField.script().run();
-                value = scriptField.script().unwrap(value);
+                value = leafScript.run();
+                value = leafScript.unwrap(value);
             } catch (RuntimeException e) {
                 if (scriptField.ignoreException()) {
                     continue;
@@ -94,7 +102,8 @@ public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
                 if (value == null) {
                     values = Collections.emptyList();
                 } else if (value instanceof Collection) {
-                    values = new ArrayList<>((Collection<?>) value);
+                    // TODO: use diamond operator once JI-9019884 is fixed
+                    values = new ArrayList<Object>((Collection<?>) value);
                 } else {
                     values = Collections.singletonList(value);
                 }

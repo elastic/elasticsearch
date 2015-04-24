@@ -37,6 +37,11 @@ public class IndicesExistsRequest extends MasterNodeReadOperationRequest<Indices
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
 
+    // for serialization
+    IndicesExistsRequest() {
+
+    }
+
     public IndicesExistsRequest(String... indices) {
         this.indices = indices;
     }
@@ -76,7 +81,6 @@ public class IndicesExistsRequest extends MasterNodeReadOperationRequest<Indices
         super.readFrom(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        readLocal(in, Version.V_1_0_0_RC2);
     }
 
     @Override
@@ -84,6 +88,5 @@ public class IndicesExistsRequest extends MasterNodeReadOperationRequest<Indices
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        writeLocal(out, Version.V_1_0_0_RC2);
     }
 }

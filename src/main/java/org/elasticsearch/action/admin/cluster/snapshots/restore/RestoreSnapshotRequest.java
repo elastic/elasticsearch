@@ -74,6 +74,10 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
 
     private Settings settings = EMPTY_SETTINGS;
 
+    private Settings indexSettings = EMPTY_SETTINGS;
+
+    private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
+
     RestoreSnapshotRequest() {
     }
 
@@ -106,7 +110,12 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
         if (settings == null) {
             validationException = addValidationError("settings are missing", validationException);
         }
-
+        if (indexSettings == null) {
+            validationException = addValidationError("indexSettings are missing", validationException);
+        }
+        if (ignoreIndexSettings == null) {
+            validationException = addValidationError("ignoreIndexSettings are missing", validationException);
+        }
         return validationException;
     }
 
@@ -365,6 +374,29 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
     }
 
     /**
+     * Sets the list of index settings and index settings groups that shouldn't be restored from snapshot
+     */
+    public RestoreSnapshotRequest ignoreIndexSettings(String... ignoreIndexSettings) {
+        this.ignoreIndexSettings = ignoreIndexSettings;
+        return this;
+    }
+
+    /**
+     * Sets the list of index settings and index settings groups that shouldn't be restored from snapshot
+     */
+    public RestoreSnapshotRequest ignoreIndexSettings(List<String> ignoreIndexSettings) {
+        this.ignoreIndexSettings = ignoreIndexSettings.toArray(new String[ignoreIndexSettings.size()]);
+        return this;
+    }
+
+    /**
+     * Returns the list of index settings and index settings groups that shouldn't be restored from snapshot
+     */
+    public String[] ignoreIndexSettings() {
+        return ignoreIndexSettings;
+    }
+
+    /**
      * If set to true the restore procedure will restore global cluster state.
      * <p/>
      * The global cluster state includes persistent settings and index template definitions.
@@ -407,6 +439,51 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
     }
 
     /**
+     * Sets settings that should be added/changed in all restored indices
+     */
+    public RestoreSnapshotRequest indexSettings(Settings settings) {
+        this.indexSettings = settings;
+        return this;
+    }
+
+    /**
+     * Sets settings that should be added/changed in all restored indices
+     */
+    public RestoreSnapshotRequest indexSettings(Settings.Builder settings) {
+        this.indexSettings = settings.build();
+        return this;
+    }
+
+    /**
+     * Sets settings that should be added/changed in all restored indices
+     */
+    public RestoreSnapshotRequest indexSettings(String source) {
+        this.indexSettings = ImmutableSettings.settingsBuilder().loadFromSource(source).build();
+        return this;
+    }
+
+    /**
+     * Sets settings that should be added/changed in all restored indices
+     */
+    public RestoreSnapshotRequest indexSettings(Map<String, Object> source) {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            builder.map(source);
+            indexSettings(builder.string());
+        } catch (IOException e) {
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+        }
+        return this;
+    }
+
+    /**
+     * Returns settings that should be added/changed in all restored indices
+     */
+    public Settings indexSettings() {
+        return this.indexSettings;
+    }
+
+    /**
      * Parses restore definition
      *
      * @param source restore definition
@@ -427,11 +504,6 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
      * @return this request
      */
     public RestoreSnapshotRequest source(Map source) {
-        boolean ignoreUnavailable = IndicesOptions.lenientExpandOpen().ignoreUnavailable();
-        boolean allowNoIndices = IndicesOptions.lenientExpandOpen().allowNoIndices();
-        boolean expandWildcardsOpen = IndicesOptions.lenientExpandOpen().expandWildcardsOpen();
-        boolean expandWildcardsClosed = IndicesOptions.lenientExpandOpen().expandWildcardsClosed();
-
         for (Map.Entry<String, Object> entry : ((Map<String, Object>) source).entrySet()) {
             String name = entry.getKey();
             if (name.equals("indices")) {
@@ -442,19 +514,11 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
                 } else {
                     throw new ElasticsearchIllegalArgumentException("malformed indices section, should be an array of strings");
                 }
-            } else if (name.equals("ignore_unavailable") || name.equals("ignoreUnavailable")) {
-                ignoreUnavailable = nodeBooleanValue(entry.getValue());
-            } else if (name.equals("allow_no_indices") || name.equals("allowNoIndices")) {
-                allowNoIndices = nodeBooleanValue(entry.getValue());
-            } else if (name.equals("expand_wildcards_open") || name.equals("expandWildcardsOpen")) {
-                expandWildcardsOpen = nodeBooleanValue(entry.getValue());
-            } else if (name.equals("expand_wildcards_closed") || name.equals("expandWildcardsClosed")) {
-                expandWildcardsClosed = nodeBooleanValue(entry.getValue());
             } else if (name.equals("partial")) {
                 partial(nodeBooleanValue(entry.getValue()));
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
-                    throw new ElasticsearchIllegalArgumentException("malformed settings section, should indices an inner object");
+                    throw new ElasticsearchIllegalArgumentException("malformed settings section");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
@@ -473,11 +537,24 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
                 } else {
                     throw new ElasticsearchIllegalArgumentException("malformed rename_replacement");
                 }
+            } else if (name.equals("index_settings")) {
+                if (!(entry.getValue() instanceof Map)) {
+                    throw new ElasticsearchIllegalArgumentException("malformed index_settings section");
+                }
+                indexSettings((Map<String, Object>) entry.getValue());
+            } else if (name.equals("ignore_index_settings")) {
+                    if (entry.getValue() instanceof String) {
+                        ignoreIndexSettings(Strings.splitStringByCommaToArray((String) entry.getValue()));
+                    } else if (entry.getValue() instanceof List) {
+                        ignoreIndexSettings((List<String>) entry.getValue());
+                    } else {
+                        throw new ElasticsearchIllegalArgumentException("malformed ignore_index_settings section, should be an array of strings");
+                    }
             } else {
                 throw new ElasticsearchIllegalArgumentException("Unknown parameter " + name);
             }
         }
-        indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
+        indicesOptions(IndicesOptions.fromMap((Map<String, Object>) source, IndicesOptions.lenientExpandOpen()));
         return this;
     }
 
@@ -560,11 +637,13 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
         renameReplacement = in.readOptionalString();
         waitForCompletion = in.readBoolean();
         includeGlobalState = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
-            partial = in.readBoolean();
-            includeAliases = in.readBoolean();
-        }
+        partial = in.readBoolean();
+        includeAliases = in.readBoolean();
         settings = readSettingsFromStream(in);
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+            indexSettings = readSettingsFromStream(in);
+            ignoreIndexSettings = in.readStringArray();
+        }
     }
 
     @Override
@@ -578,10 +657,12 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
         out.writeOptionalString(renameReplacement);
         out.writeBoolean(waitForCompletion);
         out.writeBoolean(includeGlobalState);
-        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
-            out.writeBoolean(partial);
-            out.writeBoolean(includeAliases);
-        }
+        out.writeBoolean(partial);
+        out.writeBoolean(includeAliases);
         writeSettingsToStream(settings, out);
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+            writeSettingsToStream(indexSettings, out);
+            out.writeStringArray(ignoreIndexSettings);
+        }
     }
 }

@@ -18,17 +18,26 @@
  */
 package org.elasticsearch.rest;
 
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Test;
 
-import static org.elasticsearch.rest.CorsRegexTests.httpClient;
 import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
 public class CorsRegexDefaultTests extends ElasticsearchIntegrationTest {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.builder()
+            .put(Node.HTTP_ENABLED, true)
+            .put(super.nodeSettings(nodeOrdinal)).build();
+    }
 
     @Test
     public void testCorsSettingDefaultBehaviourDoesNotReturnAnything() throws Exception {

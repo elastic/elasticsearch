@@ -44,7 +44,7 @@ public class TransportPutRepositoryAction extends TransportMasterNodeOperationAc
     @Inject
     public TransportPutRepositoryAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                         RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, PutRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, PutRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters, PutRepositoryRequest.class);
         this.repositoriesService = repositoriesService;
     }
 
@@ -54,18 +54,13 @@ public class TransportPutRepositoryAction extends TransportMasterNodeOperationAc
     }
 
     @Override
-    protected PutRepositoryRequest newRequest() {
-        return new PutRepositoryRequest();
-    }
-
-    @Override
     protected PutRepositoryResponse newResponse() {
         return new PutRepositoryResponse();
     }
 
     @Override
     protected ClusterBlockException checkBlock(PutRepositoryRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, "");
     }
 
     @Override

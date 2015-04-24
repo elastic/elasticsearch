@@ -38,6 +38,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -71,6 +72,7 @@ public class DoubleTermsTests extends AbstractTermsTests {
     private static final String MULTI_VALUED_FIELD_NAME = "d_values";
     private static HashMap<Double, Map<String, Object>> expectedMultiSortBuckets;
 
+    @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -217,7 +219,7 @@ public class DoubleTermsTests extends AbstractTermsTests {
     }
 
     private String key(Terms.Bucket bucket) {
-        return randomBoolean() ? bucket.getKey() : bucket.getKeyAsText().string();
+        return bucket.getKeyAsString();
     }
 
     @Test
@@ -406,7 +408,7 @@ public class DoubleTermsTests extends AbstractTermsTests {
             Sum sum = bucket.getAggregations().get("sum");
             assertThat(sum, notNullValue());
             assertThat((long) sum.getValue(), equalTo(i+i+1l));
-            assertThat((String) propertiesKeys[i], equalTo(String.valueOf((double) i)));
+            assertThat((double) propertiesKeys[i], equalTo((double) i));
             assertThat((long) propertiesDocCounts[i], equalTo(1l));
             assertThat((double) propertiesCounts[i], equalTo((double) i + i + 1l));
         }
@@ -462,7 +464,7 @@ public class DoubleTermsTests extends AbstractTermsTests {
             Terms.Bucket bucket = terms.getBucketByKey("" + (i + 1d));
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (i+1d)));
-            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i+1));
+            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i + 1));
             assertThat(bucket.getDocCount(), equalTo(1l));
         }
     }
@@ -517,7 +519,7 @@ public class DoubleTermsTests extends AbstractTermsTests {
             Terms.Bucket bucket = terms.getBucketByKey("" + (i + 1d));
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (i+1d)));
-            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i+1));
+            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i + 1));
             if (i == 0 || i == 5) {
                 assertThat(bucket.getDocCount(), equalTo(1l));
             } else {
@@ -589,7 +591,7 @@ public class DoubleTermsTests extends AbstractTermsTests {
             Terms.Bucket bucket = terms.getBucketByKey("" + (i + 1d));
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (i+1d)));
-            assertThat(bucket.getKeyAsNumber().doubleValue(), equalTo(i+1d));
+            assertThat(bucket.getKeyAsNumber().doubleValue(), equalTo(i + 1d));
             final long count = i == 0 || i == 5 ? 1 : 2;
             double s = 0;
             for (int j = 0; j < NUM_DOCS; ++j) {
@@ -804,7 +806,7 @@ public class DoubleTermsTests extends AbstractTermsTests {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
-        Histogram.Bucket bucket = histo.getBucketByKey(1l);
+        Histogram.Bucket bucket = histo.getBuckets().get(1);
         assertThat(bucket, Matchers.notNullValue());
 
         Terms terms = bucket.getAggregations().get("terms");
@@ -868,11 +870,11 @@ public class DoubleTermsTests extends AbstractTermsTests {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (double)i));
             assertThat(bucket.getDocCount(), equalTo(1l));
-            
+
             Avg avg = bucket.getAggregations().get("avg_i");
             assertThat(avg, notNullValue());
             assertThat(avg.getValue(), equalTo((double) i));
-            
+
             Terms subTermsAgg = bucket.getAggregations().get("subTerms");
             assertThat(subTermsAgg, notNullValue());
             assertThat(subTermsAgg.getBuckets().size(), equalTo(2));
@@ -981,79 +983,83 @@ public class DoubleTermsTests extends AbstractTermsTests {
 
     @Test
     public void singleValuedField_OrderedByMissingSubAggregation() throws Exception {
-        try {
+        for (String index : Arrays.asList("idx", "idx_unmapped")) {
+            try {
+                client().prepareSearch(index).setTypes("type")
+                        .addAggregation(terms("terms")
+                                .field(SINGLE_VALUED_FIELD_NAME)
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .order(Terms.Order.aggregation("avg_i", true))
+                        ).execute().actionGet();
 
-            client().prepareSearch("idx").setTypes("type")
-                    .addAggregation(terms("terms")
-                            .field(SINGLE_VALUED_FIELD_NAME)
-                            .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            .order(Terms.Order.aggregation("avg_i", true))
-                    ).execute().actionGet();
+                fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation that doesn't exist");
 
-            fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation that doesn't exist");
-
-        } catch (ElasticsearchException e) {
-            // expected
+            } catch (ElasticsearchException e) {
+                // expected
+            }
         }
     }
 
     @Test
     public void singleValuedField_OrderedByNonMetricsOrMultiBucketSubAggregation() throws Exception {
-        try {
+        for (String index : Arrays.asList("idx", "idx_unmapped")) {
+            try {
+                client().prepareSearch(index).setTypes("type")
+                        .addAggregation(terms("terms")
+                                .field(SINGLE_VALUED_FIELD_NAME)
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .order(Terms.Order.aggregation("num_tags", true))
+                                .subAggregation(terms("num_tags").field("num_tags")
+                                        .collectMode(randomFrom(SubAggCollectionMode.values())))
+                        ).execute().actionGet();
 
-            client().prepareSearch("idx").setTypes("type")
-                    .addAggregation(terms("terms")
-                            .field(SINGLE_VALUED_FIELD_NAME)
-                            .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            .order(Terms.Order.aggregation("num_tags", true))
-                            .subAggregation(terms("num_tags").field("num_tags")
-                                    .collectMode(randomFrom(SubAggCollectionMode.values())))
-                    ).execute().actionGet();
+                fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation which is not of a metrics type");
 
-            fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation which is not of a metrics type");
-
-        } catch (ElasticsearchException e) {
-            // expected
+            } catch (ElasticsearchException e) {
+                // expected
+            }
         }
     }
 
     @Test
     public void singleValuedField_OrderedByMultiValuedSubAggregation_WithUknownMetric() throws Exception {
-        try {
+        for (String index : Arrays.asList("idx", "idx_unmapped")) {
+            try {
+                client().prepareSearch(index).setTypes("type")
+                        .addAggregation(terms("terms")
+                                .field(SINGLE_VALUED_FIELD_NAME + "2")
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .order(Terms.Order.aggregation("stats.foo", true))
+                                .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
+                        ).execute().actionGet();
 
-            client().prepareSearch("idx").setTypes("type")
-                    .addAggregation(terms("terms")
-                            .field(SINGLE_VALUED_FIELD_NAME)
-                            .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            .order(Terms.Order.aggregation("stats.foo", true))
-                            .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
-                    ).execute().actionGet();
+                fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
+                        "with an unknown specified metric to order by");
 
-            fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
-                    "with an unknown specified metric to order by");
-
-        } catch (ElasticsearchException e) {
-            // expected
+            } catch (ElasticsearchException e) {
+                // expected
+            }
         }
     }
 
     @Test
     public void singleValuedField_OrderedByMultiValuedSubAggregation_WithoutMetric() throws Exception {
-        try {
+        for (String index : Arrays.asList("idx", "idx_unmapped")) {
+            try {
+                client().prepareSearch(index).setTypes("type")
+                        .addAggregation(terms("terms")
+                                .field(SINGLE_VALUED_FIELD_NAME)
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .order(Terms.Order.aggregation("stats", true))
+                                .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
+                        ).execute().actionGet();
 
-            client().prepareSearch("idx").setTypes("type")
-                    .addAggregation(terms("terms")
-                            .field(SINGLE_VALUED_FIELD_NAME)
-                            .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            .order(Terms.Order.aggregation("stats", true))
-                            .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
-                    ).execute().actionGet();
+                fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
+                        "where the metric name is not specified");
 
-            fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
-                    "where the metric name is not specified");
-
-        } catch (ElasticsearchException e) {
-            // expected
+            } catch (ElasticsearchException e) {
+                // expected
+            }
         }
     }
 

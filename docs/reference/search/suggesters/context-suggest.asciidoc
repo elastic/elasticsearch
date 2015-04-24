@@ -106,7 +106,7 @@ or as reference to another field within the documents indexed:
 "context": {
     "color": {
         "type": "category",
-        "default": "red"
+        "default": "red",
         "path": "color_field"
     }
 }

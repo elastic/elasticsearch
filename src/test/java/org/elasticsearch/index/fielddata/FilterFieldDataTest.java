@@ -114,7 +114,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("format", format)
                         .put("filter.regex.pattern", "\\d{2,3}") // allows 10 & 100
                         .put("filter.frequency.min_segment_size", 0)
-                        .put("filter.frequency.min", random.nextBoolean() ? 1 : 1d/200.0d) // 100, 10, 5
+                        .put("filter.frequency.min", random.nextBoolean() ? 2 : 1d/200.0d) // 100, 10, 5
                         .put("filter.frequency.max", random.nextBoolean() ? 99 : 99d/200.0d)); // 100
                 IndexOrdinalsFieldData fieldData = getForField(fieldDataType, "high_freq");
                 AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);

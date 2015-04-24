@@ -31,8 +31,10 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.util.Map;
 
@@ -89,8 +91,13 @@ public class HttpRequestBuilder {
     }
 
     public HttpRequestBuilder addParam(String name, String value) {
-        this.params.put(name, value);
-        return this;
+        try {
+            //manually url encode params, since URI does it only partially (e.g. '+' stays as is)
+            this.params.put(name, URLEncoder.encode(value, "utf-8"));
+            return this;
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public HttpRequestBuilder addHeaders(Headers headers) {
@@ -173,16 +180,18 @@ public class HttpRequestBuilder {
     }
 
     private URI buildUri() {
-        String query;
-        if (params.size() == 0) {
-            query = null;
-        } else {
-            query = Joiner.on('&').withKeyValueSeparator("=").join(params);
-        }
         try {
-            return new URI(protocol, null, host, port, path, query, null);
-        } catch (URISyntaxException e) {
-            throw new IllegalArgumentException(e);
+            //url encode rules for path and query params are different. We use URI to encode the path, but we manually encode each query param through URLEncoder.
+            URI uri = new URI(protocol, null, host, port, path, null, null);
+            //String concatenation FTW. If we use the nicer multi argument URI constructor query parameters will get only partially encoded
+            //(e.g. '+' will stay as is) hence when trying to properly encode params manually they will end up double encoded (+ becomes %252B instead of %2B).
+            StringBuilder uriBuilder = new StringBuilder(protocol).append("://").append(host).append(":").append(port).append(uri.getRawPath());
+            if (params.size() > 0) {
+                uriBuilder.append("?").append(Joiner.on('&').withKeyValueSeparator("=").join(params));
+            }
+            return URI.create(uriBuilder.toString());
+        } catch(URISyntaxException e) {
+            throw new IllegalArgumentException("unable to build uri", e);
         }
     }
 

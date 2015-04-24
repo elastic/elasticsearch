@@ -177,7 +177,7 @@ public class PercentilesAggregationSearchBenchmark {
             }
             System.out.println("Expected percentiles: " + percentiles);
             System.out.println();
-            SearchResponse resp = client.prepareSearch(d.indexName()).setSearchType(SearchType.COUNT).addAggregation(percentiles("pcts").field("v").percentiles(PERCENTILES)).execute().actionGet();
+            SearchResponse resp = client.prepareSearch(d.indexName()).setSize(0).addAggregation(percentiles("pcts").field("v").percentiles(PERCENTILES)).execute().actionGet();
             Percentiles pcts = resp.getAggregations().get("pcts");
             Map<Double, Double> asMap = Maps.newLinkedHashMap();
             double sumOfErrorSquares = 0;
@@ -196,11 +196,11 @@ public class PercentilesAggregationSearchBenchmark {
             for (Distribution d : Distribution.values()) {
                 System.out.println("#### " + d);
                 for (int j = 0; j < QUERY_WARMUP; ++j) {
-                    client.prepareSearch(d.indexName()).setSearchType(SearchType.COUNT).addAggregation(percentiles("pcts").field("v").percentiles(PERCENTILES)).execute().actionGet();
+                    client.prepareSearch(d.indexName()).setSize(0).addAggregation(percentiles("pcts").field("v").percentiles(PERCENTILES)).execute().actionGet();
                 }
                 long start = System.nanoTime();
                 for (int j = 0; j < QUERY_COUNT; ++j) {
-                    client.prepareSearch(d.indexName()).setSearchType(SearchType.COUNT).addAggregation(percentiles("pcts").field("v").percentiles(PERCENTILES)).execute().actionGet();
+                    client.prepareSearch(d.indexName()).setSize(0).addAggregation(percentiles("pcts").field("v").percentiles(PERCENTILES)).execute().actionGet();
                 }
                 System.out.println(new TimeValue((System.nanoTime() - start) / QUERY_COUNT, TimeUnit.NANOSECONDS));
             }

@@ -136,7 +136,7 @@ public class InternalSettingsPreparer {
         // put back the env settings
         settingsBuilder = settingsBuilder().put(v1);
         // we put back the path.logs so we can use it in the logging configuration file
-        settingsBuilder.put("path.logs", cleanPath(environment.logsFile().getAbsolutePath()));
+        settingsBuilder.put("path.logs", cleanPath(environment.logsFile().toAbsolutePath().toString()));
 
         v1 = settingsBuilder.build();
 

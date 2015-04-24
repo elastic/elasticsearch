@@ -20,8 +20,25 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import com.google.common.base.Preconditions;
-import org.apache.lucene.index.*;
-import org.apache.lucene.util.*;
+
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
+import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
+import org.apache.lucene.util.LongValues;
+import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.ElasticsearchException;
@@ -29,8 +46,14 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
@@ -42,6 +65,7 @@ import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -75,7 +99,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                                      CircuitBreakerService breakerService) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
         Preconditions.checkNotNull(numericType);
-        Preconditions.checkArgument(EnumSet.of(NumericType.BYTE, NumericType.SHORT, NumericType.INT, NumericType.LONG).contains(numericType), getClass().getSimpleName() + " only supports integer types, not " + numericType);
+        Preconditions.checkArgument(EnumSet.of(NumericType.BOOLEAN, NumericType.BYTE, NumericType.SHORT, NumericType.INT, NumericType.LONG).contains(numericType), getClass().getSimpleName() + " only supports integer types, not " + numericType);
         this.numericType = numericType;
         this.breakerService = breakerService;
     }
@@ -90,7 +114,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         final LeafReader reader = context.reader();
         Terms terms = reader.terms(getFieldNames().indexName());
         AtomicNumericFieldData data = null;
-        PackedArrayEstimator estimator = new PackedArrayEstimator(breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA), getNumericType(), getFieldNames().fullName());
+        PackedArrayEstimator estimator = new PackedArrayEstimator(breakerService.getBreaker(CircuitBreaker.FIELDDATA), getNumericType(), getFieldNames().fullName());
         if (terms == null) {
             data = AtomicLongFieldData.empty(reader.maxDoc());
             estimator.adjustForNoTerms(data.ramBytesUsed());
@@ -103,16 +127,13 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
 
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
         TermsEnum termsEnum = estimator.beforeLoad(terms);
+        assert !getNumericType().isFloatingPoint();
         boolean success = false;
         try (OrdinalsBuilder builder = new OrdinalsBuilder(-1, reader.maxDoc(), acceptableTransientOverheadRatio)) {
             BytesRefIterator iter = builder.buildFromTerms(termsEnum);
             BytesRef term;
-            assert !getNumericType().isFloatingPoint();
-            final boolean indexedAsLong = getNumericType().requiredBits() > 32;
             while ((term = iter.next()) != null) {
-                final long value = indexedAsLong
-                        ? NumericUtils.prefixCodedToLong(term)
-                        : NumericUtils.prefixCodedToInt(term);
+                final long value = numericType.toLong(term);
                 valuesBuilder.add(value);
             }
             final PackedLongValues values = valuesBuilder.build();
@@ -130,7 +151,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                     }
 
                     @Override
-                    public Iterable<? extends Accountable> getChildResources() {
+                    public Collection<Accountable> getChildResources() {
                         List<Accountable> resources = new ArrayList<>();
                         resources.add(Accountables.namedAccountable("ordinals", build));
                         resources.add(Accountables.namedAccountable("values", values));
@@ -213,7 +234,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                             }
                             
                             @Override
-                            public Iterable<? extends Accountable> getChildResources() {
+                            public Collection<Accountable> getChildResources() {
                                 List<Accountable> resources = new ArrayList<>();
                                 resources.add(Accountables.namedAccountable("values", sValues));
                                 if (docsWithValues != null) {
@@ -249,7 +270,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                             }
 
                             @Override
-                            public Iterable<? extends Accountable> getChildResources() {
+                            public Collection<Accountable> getChildResources() {
                                 List<Accountable> resources = new ArrayList<>();
                                 resources.add(Accountables.namedAccountable("values", pagedValues));
                                 if (docsWithValues != null) {
@@ -270,7 +291,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                             }
                             
                             @Override
-                            public Iterable<? extends Accountable> getChildResources() {
+                            public Collection<Accountable> getChildResources() {
                                 List<Accountable> resources = new ArrayList<>();
                                 resources.add(Accountables.namedAccountable("ordinals", build));
                                 resources.add(Accountables.namedAccountable("values", values));
@@ -421,7 +442,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
          */
         @Override
         public TermsEnum beforeLoad(Terms terms) throws IOException {
-            return new RamAccountingTermsEnum(type.wrapTermsEnum(terms.iterator(null)), breaker, this, this.fieldName);
+            return new RamAccountingTermsEnum(type.wrapTermsEnum(terms.iterator()), breaker, this, this.fieldName);
         }
 
         /**

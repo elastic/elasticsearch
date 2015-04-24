@@ -21,6 +21,7 @@
 package org.elasticsearch.action.bulk;
 
 import com.google.common.base.Charsets;
+
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -33,7 +34,7 @@ public class BulkIntegrationTests extends ElasticsearchIntegrationTest {
     public void testBulkIndexCreatesMapping() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/bulk-log.json");
         BulkRequestBuilder bulkBuilder = new BulkRequestBuilder(client());
-        bulkBuilder.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), true, null, null);
+        bulkBuilder.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), null, null);
         bulkBuilder.get();
         assertBusy(new Runnable() {
             @Override

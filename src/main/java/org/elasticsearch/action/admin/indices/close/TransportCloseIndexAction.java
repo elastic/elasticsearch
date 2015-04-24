@@ -47,7 +47,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
     @Inject
     public TransportCloseIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                      ThreadPool threadPool, MetaDataIndexStateService indexStateService, NodeSettingsService nodeSettingsService, ActionFilters actionFilters) {
-        super(settings, CloseIndexAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, CloseIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, CloseIndexRequest.class);
         this.indexStateService = indexStateService;
         this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
     }
@@ -56,11 +56,6 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
     protected String executor() {
         // no need to use a thread pool, we go async right away
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected CloseIndexRequest newRequest() {
-        return new CloseIndexRequest();
     }
 
     @Override
@@ -76,7 +71,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
 
     @Override
     protected ClusterBlockException checkBlock(CloseIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override

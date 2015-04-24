@@ -90,15 +90,13 @@ public class ShardFetchRequest extends TransportRequest {
         for (int i = 0; i < size; i++) {
             docIds[i] = in.readVInt();
         }
-        if (in.getVersion().onOrAfter(ParsedScrollId.SCROLL_SEARCH_AFTER_MINIMUM_VERSION)) {
-            byte flag = in.readByte();
-            if (flag == 1) {
-                lastEmittedDoc = Lucene.readFieldDoc(in);
-            } else if (flag == 2) {
-                lastEmittedDoc = Lucene.readScoreDoc(in);
-            } else if (flag != 0) {
-                throw new IOException("Unknown flag: " + flag);
-            }
+        byte flag = in.readByte();
+        if (flag == 1) {
+            lastEmittedDoc = Lucene.readFieldDoc(in);
+        } else if (flag == 2) {
+            lastEmittedDoc = Lucene.readScoreDoc(in);
+        } else if (flag != 0) {
+            throw new IOException("Unknown flag: " + flag);
         }
     }
 
@@ -110,16 +108,14 @@ public class ShardFetchRequest extends TransportRequest {
         for (int i = 0; i < size; i++) {
             out.writeVInt(docIds[i]);
         }
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            if (lastEmittedDoc == null) {
-                out.writeByte((byte) 0);
-            } else if (lastEmittedDoc instanceof FieldDoc) {
-                out.writeByte((byte) 1);
-                Lucene.writeFieldDoc(out, (FieldDoc) lastEmittedDoc);
-            } else {
-                out.writeByte((byte) 2);
-                Lucene.writeScoreDoc(out, lastEmittedDoc);
-            }
+        if (lastEmittedDoc == null) {
+            out.writeByte((byte) 0);
+        } else if (lastEmittedDoc instanceof FieldDoc) {
+            out.writeByte((byte) 1);
+            Lucene.writeFieldDoc(out, (FieldDoc) lastEmittedDoc);
+        } else {
+            out.writeByte((byte) 2);
+            Lucene.writeScoreDoc(out, lastEmittedDoc);
         }
     }
 }

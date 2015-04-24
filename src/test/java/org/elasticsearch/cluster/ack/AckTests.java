@@ -27,10 +27,8 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
-import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
@@ -175,37 +173,6 @@ public class AckTests extends ElasticsearchIntegrationTest {
                 return true;
             }
         }));
-    }
-
-    @Test
-    public void testDeleteMappingAcknowledgement() {
-        client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field1", "type=string").get();
-        ensureGreen();
-
-        client().prepareIndex("test", "type1").setSource("field1", "value1");
-
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").addTypes("type1").get();
-        assertThat(getMappingsResponse.mappings().get("test").get("type1"), notNullValue());
-
-        assertAcked(client().admin().indices().prepareDeleteMapping("test").setType("type1"));
-
-        for (Client client : clients()) {
-            getMappingsResponse = client.admin().indices().prepareGetMappings("test").addTypes("type1").setLocal(true).get();
-            assertThat(getMappingsResponse.mappings().size(), equalTo(0));
-        }
-    }
-
-    @Test
-    public void testDeleteMappingNoAcknowledgement() {
-        client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field1", "type=string").get();
-        ensureGreen();
-
-        client().prepareIndex("test", "type1").setSource("field1", "value1");
-
-        DeleteMappingResponse deleteMappingResponse = client().admin().indices().prepareDeleteMapping("test").setTimeout("0s").setType("type1").get();
-        assertThat(deleteMappingResponse.isAcknowledged(), equalTo(false));
     }
 
     @Test
@@ -392,19 +359,6 @@ public class AckTests extends ElasticsearchIntegrationTest {
             IndexMetaData indexMetaData = getLocalClusterState(client).metaData().indices().get("test");
             assertThat(indexMetaData.getState(), equalTo(State.OPEN));
         }
-    }
-
-    @Test
-    public void testOpenIndexNoAcknowledgement() {
-        createIndex("test");
-        ensureGreen();
-
-        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test").execute().actionGet();
-        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
-
-        OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen("test").setTimeout("0s").get();
-        assertThat(openIndexResponse.isAcknowledged(), equalTo(false));
-        ensureGreen("test"); // make sure that recovery from disk has completed, so that check index doesn't fail.
     }
 
     @Test

@@ -36,6 +36,8 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.xml.sax.InputSource;
 
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Uses the {@link org.apache.lucene.analysis.compound.HyphenationCompoundWordTokenFilter} to decompound tokens based on hyphenation rules.

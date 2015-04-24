@@ -18,14 +18,17 @@
  */
 package org.elasticsearch.search.aggregations.metrics.valuecount;
 
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -52,9 +55,10 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
 
     InternalValueCount() {} // for serialization
 
-    public InternalValueCount(String name, long value, Map<String, Object> metaData) {
+    public InternalValueCount(String name, long value, @Nullable ValueFormatter formatter, Map<String, Object> metaData) {
         super(name, metaData);
         this.value = value;
+        this.valueFormatter = formatter;
     }
 
     @Override
@@ -73,12 +77,12 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
     }
 
     @Override
-    public InternalAggregation reduce(ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long valueCount = 0;
-        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+        for (InternalAggregation aggregation : aggregations) {
             valueCount += ((InternalValueCount) aggregation).value;
         }
-        return new InternalValueCount(name, valueCount, getMetaData());
+        return new InternalValueCount(name, valueCount, valueFormatter, getMetaData());
     }
 
     @Override
@@ -93,7 +97,11 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return builder.field(CommonFields.VALUE, value);
+        builder.field(CommonFields.VALUE, value);
+        if (valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
+            builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(value));
+        }
+        return builder;
     }
 
     @Override

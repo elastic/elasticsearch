@@ -20,22 +20,25 @@
 package org.elasticsearch.nodesinfo;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.nodesinfo.plugin.dummy1.TestPlugin;
 import org.elasticsearch.nodesinfo.plugin.dummy2.TestNoVersionPlugin;
+import org.elasticsearch.plugins.PluginTestCase;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
-import java.io.File;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 
@@ -49,7 +52,7 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @ClusterScope(scope= Scope.TEST, numDataNodes =0)
-public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
+public class SimpleNodesInfoTests extends PluginTestCase {
 
     static final class Fields {
         static final String SITE_PLUGIN = "dummy";
@@ -121,7 +124,7 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
         // The fourth has one java plugin and one site plugin
         String server4NodeId = startNodeWithPlugins(4,TestNoVersionPlugin.class.getName());
 
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForNodes("4")).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().clear().setPlugins(true).execute().actionGet();
@@ -152,29 +155,11 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
                 Lists.newArrayList(PluginInfo.VERSION_NOT_AVAILABLE));
     }
 
-    public static String startNodeWithPlugins(int nodeId, String ... pluginClassNames) throws URISyntaxException {
+    public String startNodeWithPlugins(int nodeId, String ... pluginClassNames) throws URISyntaxException {
         return startNodeWithPlugins(ImmutableSettings.EMPTY, "/org/elasticsearch/nodesinfo/node" + Integer.toString(nodeId) + "/", pluginClassNames);
     }
 
-    public static String startNodeWithPlugins(Settings nodeSettings, String pluginDir, String ... pluginClassNames) throws URISyntaxException {
-        URL resource = SimpleNodesInfoTests.class.getResource(pluginDir);
-        ImmutableSettings.Builder settings = settingsBuilder();
-        settings.put(nodeSettings);
-        if (resource != null) {
-            settings.put("path.plugins", new File(resource.toURI()).getAbsolutePath());
-        }
 
-        if (pluginClassNames.length > 0) {
-            settings.putArray("plugin.types", pluginClassNames);
-        }
-
-        String nodeName = internalCluster().startNode(settings);
-
-        // We wait for a Green status
-        client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-
-        return internalCluster().getInstance(ClusterService.class, nodeName).state().nodes().localNodeId();
-    }
 
 
 }

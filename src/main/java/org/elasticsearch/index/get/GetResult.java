@@ -261,8 +261,8 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        index = in.readSharedString();
-        type = in.readOptionalSharedString();
+        index = in.readString();
+        type = in.readOptionalString();
         id = in.readString();
         version = in.readLong();
         exists = in.readBoolean();
@@ -286,8 +286,8 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeSharedString(index);
-        out.writeOptionalSharedString(type);
+        out.writeString(index);
+        out.writeOptionalString(type);
         out.writeString(id);
         out.writeLong(version);
         out.writeBoolean(exists);

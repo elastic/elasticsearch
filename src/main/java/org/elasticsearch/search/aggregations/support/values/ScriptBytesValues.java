@@ -18,10 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.support.values;
 
+import org.apache.lucene.search.Scorer;
+import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
-import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.aggregations.support.ScriptValues;
+import org.elasticsearch.script.LeafSearchScript;
 
 import java.lang.reflect.Array;
 import java.util.Collection;
@@ -29,18 +30,13 @@ import java.util.Collection;
 /**
  * {@link SortedBinaryDocValues} implementation that reads values from a script.
  */
-public class ScriptBytesValues extends SortingBinaryDocValues implements ScriptValues {
+public class ScriptBytesValues extends SortingBinaryDocValues implements ScorerAware {
 
-    private final SearchScript script;
+    private final LeafSearchScript script;
 
-    public ScriptBytesValues(SearchScript script) {
+    public ScriptBytesValues(LeafSearchScript script) {
         super();
         this.script = script;
-    }
-
-    @Override
-    public SearchScript script() {
-        return script;
     }
 
     private void set(int i, Object o) {
@@ -53,7 +49,7 @@ public class ScriptBytesValues extends SortingBinaryDocValues implements ScriptV
 
     @Override
     public void setDocument(int docId) {
-        script.setNextDocId(docId);
+        script.setDocument(docId);
         final Object value = script.run();
 
         if (value == null) {
@@ -77,5 +73,10 @@ public class ScriptBytesValues extends SortingBinaryDocValues implements ScriptV
             set(0, value);
         }
         sort();
+    }
+
+    @Override
+    public void setScorer(Scorer scorer) {
+        script.setScorer(scorer);
     }
 }

@@ -34,6 +34,7 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -69,7 +70,7 @@ public class FSTBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
     }
 
     @Override
-    public Iterable<? extends Accountable> getChildResources() {
+    public Collection<Accountable> getChildResources() {
         List<Accountable> resources = new ArrayList<>();
         resources.add(Accountables.namedAccountable("ordinals", ordinals));
         if (fst != null) {

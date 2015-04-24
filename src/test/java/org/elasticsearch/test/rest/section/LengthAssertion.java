@@ -30,9 +30,8 @@ import static org.junit.Assert.assertThat;
 
 /**
  * Represents a length assert section:
- *
- *   - length:   { hits.hits: 1  }
- *
+ * <p/>
+ * - length:   { hits.hits: 1  }
  */
 public class LengthAssertion extends Assertion {
 
@@ -44,8 +43,8 @@ public class LengthAssertion extends Assertion {
 
     @Override
     protected void doAssert(Object actualValue, Object expectedValue) {
-        logger.trace("assert that [{}] has length [{}]", actualValue, expectedValue);
-        assertThat(expectedValue, instanceOf(Number.class));
+        logger.trace("assert that [{}] has length [{}] (field: [{}])", actualValue, expectedValue, getField());
+        assertThat("expected value of [" + getField() + "] is not numeric (got [" + expectedValue.getClass() + "]", expectedValue, instanceOf(Number.class));
         int length = ((Number) expectedValue).intValue();
         if (actualValue instanceof String) {
             assertThat(errorMessage(), ((String) actualValue).length(), equalTo(length));
@@ -54,7 +53,7 @@ public class LengthAssertion extends Assertion {
         } else if (actualValue instanceof Map) {
             assertThat(errorMessage(), ((Map) actualValue).keySet().size(), equalTo(length));
         } else {
-            throw new UnsupportedOperationException("value is of unsupported type [" + actualValue.getClass().getSimpleName() + "]");
+            throw new UnsupportedOperationException("value is of unsupported type [" + safeClass(actualValue) + "]");
         }
     }
 

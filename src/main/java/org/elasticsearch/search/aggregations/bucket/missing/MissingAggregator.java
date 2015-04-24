@@ -23,6 +23,8 @@ import org.apache.lucene.util.Bits;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -38,53 +40,56 @@ import java.util.Map;
 public class MissingAggregator extends SingleBucketAggregator {
 
     private final ValuesSource valuesSource;
-    private Bits docsWithValue;
 
     public MissingAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
-                             AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+                             AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, metaData);
         this.valuesSource = valuesSource;
     }
 
     @Override
-    public void setNextReader(LeafReaderContext reader) {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+
+        final Bits docsWithValue;
         if (valuesSource != null) {
-            docsWithValue = valuesSource.docsWithValue(reader.reader().maxDoc());
+            docsWithValue = valuesSource.docsWithValue(ctx);
         } else {
-            docsWithValue = new Bits.MatchNoBits(reader.reader().maxDoc());
+            docsWithValue = new Bits.MatchNoBits(ctx.reader().maxDoc());
         }
+        return new LeafBucketCollectorBase(sub, docsWithValue) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (docsWithValue != null && !docsWithValue.get(doc)) {
+                    collectBucket(sub, doc, bucket);
+                }
+            }
+        };
     }
 
     @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        if (docsWithValue != null && !docsWithValue.get(doc)) {
-            collectBucket(doc, owningBucketOrdinal);
-        }
-    }
-
-    @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        return new InternalMissing(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), getMetaData());
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
+        return new InternalMissing(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMissing(name, 0, buildEmptySubAggregations(), getMetaData());
+        return new InternalMissing(name, 0, buildEmptySubAggregations(), metaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource, Map<String, Object>>  {
+    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource>  {
 
         public Factory(String name, ValuesSourceConfig valueSourceConfig) {
             super(name, InternalMissing.TYPE.name(), valueSourceConfig);
         }
 
         @Override
-        protected MissingAggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+        protected MissingAggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
             return new MissingAggregator(name, factories, null, aggregationContext, parent, metaData);
         }
 
         @Override
-        protected MissingAggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+        protected MissingAggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
             return new MissingAggregator(name, factories, valuesSource, aggregationContext, parent, metaData);
         }
     }

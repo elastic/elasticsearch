@@ -37,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImplTests {
 
+    @Override
     protected abstract FieldDataType getFieldDataType();
 
     protected ImmutableSettings.Builder getFieldDataSettings() {
@@ -268,6 +269,7 @@ public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImp
 
     }
 
+    @Override
     @Test
     public void testMissingValueForAll() throws Exception {
         fillAllMissing();
@@ -302,6 +304,7 @@ public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImp
     }
 
 
+    @Override
     protected void fillAllMissing() throws Exception {
         Document d = new Document();
         d.add(new StringField("_id", "1", Field.Store.NO));
@@ -316,6 +319,7 @@ public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImp
         writer.addDocument(d);
     }
 
+    @Override
     @Test
     public void testSortMultiValuesFields() throws Exception {
         fillExtendedMvSet();

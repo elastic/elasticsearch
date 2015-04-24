@@ -45,6 +45,7 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
         this.breakerService = breakerService;
     }
 
+    @Override
     public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
         return new BytesRefFieldComparatorSource((IndexFieldData<?>) this, missingValue, sortMode, nested);
     }

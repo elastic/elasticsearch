@@ -36,6 +36,7 @@ public final class TermSuggestParser implements SuggestContextParser {
         this.suggester = suggester;
     }
 
+    @Override
     public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService) throws IOException {
         XContentParser.Token token;
         String fieldName = null;

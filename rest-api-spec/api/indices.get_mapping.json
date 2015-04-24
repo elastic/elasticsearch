@@ -1,6 +1,6 @@
 {
   "indices.get_mapping": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-get-mapping.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-mapping.html",
     "methods": ["GET"],
     "url": {
       "path": "/_mapping",
@@ -25,8 +25,8 @@
             "description" : "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
         },
         "expand_wildcards": {
-            "type" : "list",
-            "options" : ["open","closed"],
+            "type" : "enum",
+            "options" : ["open","closed","none","all"],
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
         },

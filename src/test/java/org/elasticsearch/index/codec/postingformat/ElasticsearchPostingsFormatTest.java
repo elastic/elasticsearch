@@ -20,27 +20,18 @@
 package org.elasticsearch.index.codec.postingformat;
 
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.BasePostingsFormatTestCase;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
-import org.elasticsearch.common.util.BloomFilter;
-import org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat;
-import org.elasticsearch.index.codec.postingsformat.Elasticsearch090PostingsFormat;
-import org.elasticsearch.test.ElasticsearchThreadFilter;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 
 /** Runs elasticsearch postings format against lucene's standard postings format tests */
 @Listeners({
         ReproduceInfoPrinter.class
 })
-@ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchThreadFilter.class})
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 public class ElasticsearchPostingsFormatTest extends BasePostingsFormatTestCase {

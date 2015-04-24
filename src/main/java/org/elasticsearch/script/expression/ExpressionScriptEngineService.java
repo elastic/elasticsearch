@@ -48,6 +48,8 @@ import java.util.Map;
  */
 public class ExpressionScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
+    public static final String NAME = "expression";
+
     @Inject
     public ExpressionScriptEngineService(Settings settings) {
         super(settings);
@@ -55,12 +57,12 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
 
     @Override
     public String[] types() {
-        return new String[]{"expression"};
+        return new String[]{NAME};
     }
 
     @Override
     public String[] extensions() {
-        return new String[]{"expression"};
+        return new String[]{NAME};
     }
 
     @Override

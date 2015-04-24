@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.cache.filter;
 
+import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.settings.Settings;
@@ -31,6 +33,8 @@ public class FilterCacheModule extends AbstractModule {
 
     public static final class FilterCacheSettings {
         public static final String FILTER_CACHE_TYPE = "index.cache.filter.type";
+        // for test purposes only
+        public static final String FILTER_CACHE_EVERYTHING = "index.cache.filter.everything";
     }
 
     private final Settings settings;
@@ -44,5 +48,13 @@ public class FilterCacheModule extends AbstractModule {
         bind(FilterCache.class)
                 .to(settings.getAsClass(FilterCacheSettings.FILTER_CACHE_TYPE, WeightedFilterCache.class, "org.elasticsearch.index.cache.filter.", "FilterCache"))
                 .in(Scopes.SINGLETON);
+        // the filter cache is a node-level thing, however we want the most popular filters
+        // to be computed on a per-index basis, that is why we don't use the SINGLETON
+        // scope below
+        if (settings.getAsBoolean(FilterCacheSettings.FILTER_CACHE_EVERYTHING, false)) {
+            bind(QueryCachingPolicy.class).toInstance(QueryCachingPolicy.ALWAYS_CACHE);
+        } else {
+            bind(QueryCachingPolicy.class).toInstance(new UsageTrackingQueryCachingPolicy());
+        }
     }
 }

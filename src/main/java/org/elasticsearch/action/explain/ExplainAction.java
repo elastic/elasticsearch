@@ -34,10 +34,12 @@ public class ExplainAction extends ClientAction<ExplainRequest, ExplainResponse,
         super(NAME);
     }
 
+    @Override
     public ExplainRequestBuilder newRequestBuilder(Client client) {
         return new ExplainRequestBuilder(client);
     }
 
+    @Override
     public ExplainResponse newResponse() {
         return new ExplainResponse();
     }

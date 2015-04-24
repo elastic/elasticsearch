@@ -57,14 +57,6 @@ public class StreamsTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testCopyToByteArray() throws IOException {
-        byte[] content = "content".getBytes(Charsets.UTF_8);
-        ByteArrayInputStream in = new ByteArrayInputStream(content);
-        byte[] result = copyToByteArray(in);
-        assertThat(Arrays.equals(content, result), equalTo(true));
-    }
-
-    @Test
     public void testCopyFromReader() throws IOException {
         String content = "content";
         StringReader in = new StringReader(content);

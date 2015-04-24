@@ -43,7 +43,7 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeOperationA
     @Inject
     public TransportDeleteSnapshotAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters) {
-        super(settings, DeleteSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, DeleteSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters, DeleteSnapshotRequest.class);
         this.snapshotsService = snapshotsService;
     }
 
@@ -53,18 +53,13 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeOperationA
     }
 
     @Override
-    protected DeleteSnapshotRequest newRequest() {
-        return new DeleteSnapshotRequest();
-    }
-
-    @Override
     protected DeleteSnapshotResponse newResponse() {
         return new DeleteSnapshotResponse();
     }
 
     @Override
     protected ClusterBlockException checkBlock(DeleteSnapshotRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, "");
     }
 
     @Override

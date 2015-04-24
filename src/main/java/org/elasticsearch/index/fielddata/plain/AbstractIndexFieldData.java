@@ -54,6 +54,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
         return this.fieldNames;
     }
 
+    @Override
     public FieldDataType getFieldDataType() {
         return fieldDataType;
     }

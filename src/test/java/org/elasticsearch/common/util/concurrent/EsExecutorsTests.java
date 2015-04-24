@@ -169,6 +169,7 @@ public class EsExecutorsTests extends ElasticsearchTestCase {
         for (int i = 0; i < max; ++i) {
             final CountDownLatch latch = new CountDownLatch(1);
             pool.execute(new Runnable() {
+                @Override
                 public void run() {
                     latch.countDown();
                     try {
@@ -205,6 +206,7 @@ public class EsExecutorsTests extends ElasticsearchTestCase {
         for (int i = 0; i < max; ++i) {
             final CountDownLatch latch = new CountDownLatch(1);
             pool.execute(new Runnable() {
+                @Override
                 public void run() {
                     latch.countDown();
                     try {

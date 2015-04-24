@@ -31,7 +31,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -39,6 +38,7 @@ import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.ScrollQuerySearchResult;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -85,8 +85,6 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
 
         private final AtomicInteger successfulOps;
 
-        private volatile boolean useSlowScroll;
-
         private AsyncAction(SearchScrollRequest request, ParsedScrollId scrollId, ActionListener<SearchResponse> listener) {
             this.request = request;
             this.listener = listener;
@@ -131,9 +129,6 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
                 Tuple<String, Long> target = context[i];
                 DiscoveryNode node = nodes.get(target.v1());
                 if (node != null) {
-                    if (node.getVersion().before(ParsedScrollId.SCROLL_SEARCH_AFTER_MINIMUM_VERSION)) {
-                        useSlowScroll = true;
-                    }
                     executeQueryPhase(i, counter, node, target.v2());
                 } else {
                     if (logger.isDebugEnabled()) {
@@ -154,10 +149,10 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
 
         private void executeQueryPhase(final int shardIndex, final AtomicInteger counter, DiscoveryNode node, final long searchId) {
             InternalScrollSearchRequest internalRequest = internalScrollSearchRequest(searchId, request);
-            searchService.sendExecuteQuery(node, internalRequest, new SearchServiceListener<QuerySearchResult>() {
+            searchService.sendExecuteQuery(node, internalRequest, new ActionListener<ScrollQuerySearchResult>() {
                 @Override
-                public void onResult(QuerySearchResult result) {
-                    queryResults.set(shardIndex, result);
+                public void onResponse(ScrollQuerySearchResult result) {
+                    queryResults.set(shardIndex, result.queryResult());
                     if (counter.decrementAndGet() == 0) {
                         try {
                             executeFetchPhase();
@@ -194,7 +189,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
         }
 
         private void executeFetchPhase() throws Exception {
-            sortedShardList = searchPhaseController.sortDocs(!useSlowScroll, queryResults);
+            sortedShardList = searchPhaseController.sortDocs(true, queryResults);
             AtomicArray<IntArrayList> docIdsToLoad = new AtomicArray<>(queryResults.length());
             searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardList);
 
@@ -204,12 +199,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
             }
 
 
-            final ScoreDoc[] lastEmittedDocPerShard;
-            if (useSlowScroll) {
-                lastEmittedDocPerShard = new ScoreDoc[queryResults.length()];
-            } else {
-                lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(sortedShardList, queryResults.length());
-            }
+            final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(sortedShardList, queryResults.length());
             final AtomicInteger counter = new AtomicInteger(docIdsToLoad.asList().size());
             for (final AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
                 IntArrayList docIds = entry.value;
@@ -217,9 +207,9 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
                 ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[entry.index];
                 ShardFetchRequest shardFetchRequest = new ShardFetchRequest(request, querySearchResult.id(), docIds, lastEmittedDoc);
                 DiscoveryNode node = nodes.get(querySearchResult.shardTarget().nodeId());
-                searchService.sendExecuteFetchScroll(node, shardFetchRequest, new SearchServiceListener<FetchSearchResult>() {
+                searchService.sendExecuteFetchScroll(node, shardFetchRequest, new ActionListener<FetchSearchResult>() {
                     @Override
-                    public void onResult(FetchSearchResult result) {
+                    public void onResponse(FetchSearchResult result) {
                         result.shardTarget(querySearchResult.shardTarget());
                         fetchResults.set(entry.index, result);
                         if (counter.decrementAndGet() == 0) {

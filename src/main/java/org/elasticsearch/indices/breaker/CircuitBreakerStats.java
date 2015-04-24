@@ -19,8 +19,6 @@
 
 package org.elasticsearch.indices.breaker;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -37,7 +35,7 @@ import java.util.Locale;
  */
 public class CircuitBreakerStats implements Streamable, ToXContent {
 
-    private CircuitBreaker.Name name;
+    private String name;
     private long limit;
     private long estimated;
     private long trippedCount;
@@ -47,7 +45,7 @@ public class CircuitBreakerStats implements Streamable, ToXContent {
 
     }
 
-    public CircuitBreakerStats(CircuitBreaker.Name name, long limit, long estimated, double overhead, long trippedCount) {
+    public CircuitBreakerStats(String name, long limit, long estimated, double overhead, long trippedCount) {
         this.name = name;
         this.limit = limit;
         this.estimated = estimated;
@@ -55,7 +53,7 @@ public class CircuitBreakerStats implements Streamable, ToXContent {
         this.overhead = overhead;
     }
 
-    public CircuitBreaker.Name getName() {
+    public String getName() {
         return this.name;
     }
 
@@ -86,16 +84,8 @@ public class CircuitBreakerStats implements Streamable, ToXContent {
         limit = in.readLong();
         estimated = in.readLong();
         overhead = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-            this.trippedCount = in.readLong();
-        } else {
-            this.trippedCount = -1;
-        }
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            this.name = CircuitBreaker.Name.readFrom(in);
-        } else {
-            this.name = CircuitBreaker.Name.FIELDDATA;
-        }
+        this.trippedCount = in.readLong();
+        this.name = in.readString();
     }
 
     @Override
@@ -103,17 +93,13 @@ public class CircuitBreakerStats implements Streamable, ToXContent {
         out.writeLong(limit);
         out.writeLong(estimated);
         out.writeDouble(overhead);
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeLong(trippedCount);
-        }
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            CircuitBreaker.Name.writeTo(name, out);
-        }
+        out.writeLong(trippedCount);
+        out.writeString(name);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name.toString().toLowerCase(Locale.ROOT));
+        builder.startObject(name.toLowerCase(Locale.ROOT));
         builder.field(Fields.LIMIT, limit);
         builder.field(Fields.LIMIT_HUMAN, new ByteSizeValue(limit));
         builder.field(Fields.ESTIMATED, estimated);
@@ -126,7 +112,7 @@ public class CircuitBreakerStats implements Streamable, ToXContent {
 
     @Override
     public String toString() {
-        return "[" + this.name.toString() +
+        return "[" + this.name +
                 ",limit=" + this.limit + "/" + new ByteSizeValue(this.limit) +
                 ",estimated=" + this.estimated + "/" + new ByteSizeValue(this.estimated) +
                 ",overhead=" + this.overhead + ",tripped=" + this.trippedCount + "]";

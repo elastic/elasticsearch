@@ -40,8 +40,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 
 /**
  * A multi search API request.
@@ -70,16 +74,16 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implem
         return this;
     }
 
-    public MultiSearchRequest add(byte[] data, int from, int length, boolean contentUnsafe,
+    public MultiSearchRequest add(byte[] data, int from, int length,
                                   @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType) throws Exception {
-        return add(new BytesArray(data, from, length), contentUnsafe, indices, types, searchType, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true);
+        return add(new BytesArray(data, from, length), indices, types, searchType, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true);
     }
 
-    public MultiSearchRequest add(BytesReference data, boolean contentUnsafe, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, IndicesOptions indicesOptions) throws Exception {
-        return add(data, contentUnsafe, indices, types, searchType, null, indicesOptions, true);
+    public MultiSearchRequest add(BytesReference data, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, IndicesOptions indicesOptions) throws Exception {
+        return add(data, indices, types, searchType, null, indicesOptions, true);
     }
 
-    public MultiSearchRequest add(BytesReference data, boolean contentUnsafe, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, @Nullable String routing, IndicesOptions indicesOptions, boolean allowExplicitIndex) throws Exception {
+    public MultiSearchRequest add(BytesReference data, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, @Nullable String routing, IndicesOptions indicesOptions, boolean allowExplicitIndex) throws Exception {
         XContent xContent = XContentFactory.xContent(data);
         int from = 0;
         int length = data.length();
@@ -111,82 +115,35 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implem
             searchRequest.searchType(searchType);
 
             IndicesOptions defaultOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
-            boolean ignoreUnavailable = defaultOptions.ignoreUnavailable();
-            boolean allowNoIndices = defaultOptions.allowNoIndices();
-            boolean expandWildcardsOpen = defaultOptions.expandWildcardsOpen();
-            boolean expandWildcardsClosed = defaultOptions.expandWildcardsClosed();
+
 
             // now parse the action
             if (nextMarker - from > 0) {
                 try (XContentParser parser = xContent.createParser(data.slice(from, nextMarker - from))) {
-                    // Move to START_OBJECT, if token is null, its an empty data
-                    XContentParser.Token token = parser.nextToken();
-                    if (token != null) {
-                        assert token == XContentParser.Token.START_OBJECT;
-                        String currentFieldName = null;
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            if (token == XContentParser.Token.FIELD_NAME) {
-                                currentFieldName = parser.currentName();
-                            } else if (token.isValue()) {
-                                if ("index".equals(currentFieldName) || "indices".equals(currentFieldName)) {
-                                    if (!allowExplicitIndex) {
-                                        throw new ElasticsearchIllegalArgumentException("explicit index in multi search is not allowed");
-                                    }
-                                    searchRequest.indices(Strings.splitStringByCommaToArray(parser.text()));
-                                } else if ("type".equals(currentFieldName) || "types".equals(currentFieldName)) {
-                                    searchRequest.types(Strings.splitStringByCommaToArray(parser.text()));
-                                } else if ("search_type".equals(currentFieldName) || "searchType".equals(currentFieldName)) {
-                                    searchRequest.searchType(parser.text());
-                                } else if ("query_cache".equals(currentFieldName) || "queryCache".equals(currentFieldName)) {
-                                    searchRequest.queryCache(parser.booleanValue());
-                                } else if ("preference".equals(currentFieldName)) {
-                                    searchRequest.preference(parser.text());
-                                } else if ("routing".equals(currentFieldName)) {
-                                    searchRequest.routing(parser.text());
-                                } else if ("ignore_unavailable".equals(currentFieldName) || "ignoreUnavailable".equals(currentFieldName)) {
-                                    ignoreUnavailable = parser.booleanValue();
-                                } else if ("allow_no_indices".equals(currentFieldName) || "allowNoIndices".equals(currentFieldName)) {
-                                    allowNoIndices = parser.booleanValue();
-                                } else if ("expand_wildcards".equals(currentFieldName) || "expandWildcards".equals(currentFieldName)) {
-                                    String[] wildcards = Strings.splitStringByCommaToArray(parser.text());
-                                    for (String wildcard : wildcards) {
-                                        if ("open".equals(wildcard)) {
-                                            expandWildcardsOpen = true;
-                                        } else if ("closed".equals(wildcard)) {
-                                            expandWildcardsClosed = true;
-                                        } else {
-                                            throw new ElasticsearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
-                                        }
-                                    }
-                                }
-                            } else if (token == XContentParser.Token.START_ARRAY) {
-                                if ("index".equals(currentFieldName) || "indices".equals(currentFieldName)) {
-                                    if (!allowExplicitIndex) {
-                                        throw new ElasticsearchIllegalArgumentException("explicit index in multi search is not allowed");
-                                    }
-                                    searchRequest.indices(parseArray(parser));
-                                } else if ("type".equals(currentFieldName) || "types".equals(currentFieldName)) {
-                                    searchRequest.types(parseArray(parser));
-                                } else if ("expand_wildcards".equals(currentFieldName) || "expandWildcards".equals(currentFieldName)) {
-                                    String[] wildcards = parseArray(parser);
-                                    for (String wildcard : wildcards) {
-                                        if ("open".equals(wildcard)) {
-                                            expandWildcardsOpen = true;
-                                        } else if ("closed".equals(wildcard)) {
-                                            expandWildcardsClosed = true;
-                                        } else {
-                                            throw new ElasticsearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
-                                        }
-                                    }
-                                } else {
-                                    throw new ElasticsearchParseException(currentFieldName + " doesn't support arrays");
-                                }
+                    Map<String, Object> source = parser.map();
+                    for (Map.Entry<String, Object> entry : source.entrySet()) {
+                        Object value = entry.getValue();
+                        if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
+                            if (!allowExplicitIndex) {
+                                throw new ElasticsearchIllegalArgumentException("explicit index in multi percolate is not allowed");
                             }
+                            searchRequest.indices(nodeStringArrayValue(value));
+                        } else if ("type".equals(entry.getKey()) || "types".equals(entry.getKey())) {
+                            searchRequest.types(nodeStringArrayValue(value));
+                        } else if ("search_type".equals(entry.getKey()) || "searchType".equals(entry.getKey())) {
+                            searchRequest.searchType(nodeStringValue(value, null));
+                        } else if ("query_cache".equals(entry.getKey()) || "queryCache".equals(entry.getKey())) {
+                            searchRequest.queryCache(nodeBooleanValue(value));
+                        } else if ("preference".equals(entry.getKey())) {
+                            searchRequest.preference(nodeStringValue(value, null));
+                        } else if ("routing".equals(entry.getKey())) {
+                            searchRequest.routing(nodeStringValue(value, null));
                         }
                     }
+                    defaultOptions = IndicesOptions.fromMap(source, defaultOptions);
                 }
             }
-            searchRequest.indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed, defaultOptions));
+            searchRequest.indicesOptions(defaultOptions);
 
             // move pointers
             from = nextMarker + 1;
@@ -196,7 +153,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implem
                 break;
             }
 
-            searchRequest.source(data.slice(from, nextMarker - from), contentUnsafe);
+            searchRequest.source(data.slice(from, nextMarker - from));
             // move pointers
             from = nextMarker + 1;
 

@@ -129,9 +129,11 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
          * parent + 1, or 0 if there is no previous parent, and R (excluded).
          */
         public static class Nested {
-            private final BitDocIdSetFilter rootFilter, innerFilter;
 
-            public Nested(BitDocIdSetFilter rootFilter, BitDocIdSetFilter innerFilter) {
+            private final BitDocIdSetFilter rootFilter;
+            private final Filter innerFilter;
+
+            public Nested(BitDocIdSetFilter rootFilter, Filter innerFilter) {
                 this.rootFilter = rootFilter;
                 this.innerFilter = innerFilter;
             }
@@ -144,10 +146,10 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
             }
 
             /**
-             * Get a {@link BitDocIdSet} that matches the inner documents.
+             * Get a {@link DocIdSet} that matches the inner documents.
              */
-            public BitDocIdSet innerDocs(LeafReaderContext ctx) throws IOException {
-                return innerFilter.getDocIdSet(ctx);
+            public DocIdSet innerDocs(LeafReaderContext ctx) throws IOException {
+                return innerFilter.getDocIdSet(ctx, null);
             }
         }
 

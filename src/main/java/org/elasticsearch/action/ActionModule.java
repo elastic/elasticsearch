@@ -27,8 +27,7 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAct
 import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
-import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartAction;
-import org.elasticsearch.action.admin.cluster.node.restart.TransportNodesRestartAction;
+import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownAction;
 import org.elasticsearch.action.admin.cluster.node.shutdown.TransportNodesShutdownAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
@@ -87,8 +86,6 @@ import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.TransportGetIndexAction;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.delete.TransportDeleteMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.get.*;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
@@ -122,7 +119,6 @@ import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersAction;
 import org.elasticsearch.action.admin.indices.warmer.get.TransportGetWarmersAction;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerAction;
 import org.elasticsearch.action.admin.indices.warmer.put.TransportPutWarmerAction;
-import org.elasticsearch.action.bench.*;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
@@ -130,8 +126,6 @@ import org.elasticsearch.action.count.CountAction;
 import org.elasticsearch.action.count.TransportCountAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
-import org.elasticsearch.action.delete.TransportIndexDeleteAction;
-import org.elasticsearch.action.delete.TransportShardDeleteAction;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryAction;
 import org.elasticsearch.action.deletebyquery.TransportDeleteByQueryAction;
 import org.elasticsearch.action.deletebyquery.TransportIndexDeleteByQueryAction;
@@ -140,6 +134,8 @@ import org.elasticsearch.action.exists.ExistsAction;
 import org.elasticsearch.action.exists.TransportExistsAction;
 import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.TransportExplainAction;
+import org.elasticsearch.action.fieldstats.FieldStatsAction;
+import org.elasticsearch.action.fieldstats.TransportFieldStatsTransportAction;
 import org.elasticsearch.action.get.*;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.TransportIndexAction;
@@ -224,11 +220,9 @@ public class ActionModule extends AbstractModule {
             actionFilterMultibinder.addBinding().to(actionFilter);
         }
         bind(ActionFilters.class).asEagerSingleton();
-
         registerAction(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class);
         registerAction(NodesStatsAction.INSTANCE, TransportNodesStatsAction.class);
         registerAction(NodesShutdownAction.INSTANCE, TransportNodesShutdownAction.class);
-        registerAction(NodesRestartAction.INSTANCE, TransportNodesRestartAction.class);
         registerAction(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
 
         registerAction(ClusterStatsAction.INSTANCE, TransportClusterStatsAction.class);
@@ -260,7 +254,6 @@ public class ActionModule extends AbstractModule {
         registerAction(GetMappingsAction.INSTANCE, TransportGetMappingsAction.class);
         registerAction(GetFieldMappingsAction.INSTANCE, TransportGetFieldMappingsAction.class, TransportGetFieldMappingsIndexAction.class);
         registerAction(PutMappingAction.INSTANCE, TransportPutMappingAction.class);
-        registerAction(DeleteMappingAction.INSTANCE, TransportDeleteMappingAction.class);
         registerAction(IndicesAliasesAction.INSTANCE, TransportIndicesAliasesAction.class);
         registerAction(UpdateSettingsAction.INSTANCE, TransportUpdateSettingsAction.class);
         registerAction(AnalyzeAction.INSTANCE, TransportAnalyzeAction.class);
@@ -285,8 +278,7 @@ public class ActionModule extends AbstractModule {
                 TransportDfsOnlyAction.class);
         registerAction(MultiTermVectorsAction.INSTANCE, TransportMultiTermVectorsAction.class,
                 TransportShardMultiTermsVectorAction.class);
-        registerAction(DeleteAction.INSTANCE, TransportDeleteAction.class,
-                TransportIndexDeleteAction.class, TransportShardDeleteAction.class);
+        registerAction(DeleteAction.INSTANCE, TransportDeleteAction.class);
         registerAction(CountAction.INSTANCE, TransportCountAction.class);
         registerAction(ExistsAction.INSTANCE, TransportExistsAction.class);
         registerAction(SuggestAction.INSTANCE, TransportSuggestAction.class);
@@ -316,14 +308,13 @@ public class ActionModule extends AbstractModule {
         registerAction(ExplainAction.INSTANCE, TransportExplainAction.class);
         registerAction(ClearScrollAction.INSTANCE, TransportClearScrollAction.class);
         registerAction(RecoveryAction.INSTANCE, TransportRecoveryAction.class);
-        registerAction(BenchmarkAction.INSTANCE, TransportBenchmarkAction.class);
-        registerAction(AbortBenchmarkAction.INSTANCE, TransportAbortBenchmarkAction.class);
-        registerAction(BenchmarkStatusAction.INSTANCE, TransportBenchmarkStatusAction.class);
 
         //Indexed scripts
         registerAction(PutIndexedScriptAction.INSTANCE, TransportPutIndexedScriptAction.class);
         registerAction(GetIndexedScriptAction.INSTANCE, TransportGetIndexedScriptAction.class);
         registerAction(DeleteIndexedScriptAction.INSTANCE, TransportDeleteIndexedScriptAction.class);
+
+        registerAction(FieldStatsAction.INSTANCE, TransportFieldStatsTransportAction.class);
 
         // register Name -> GenericAction Map that can be injected to instances.
         MapBinder<String, GenericAction> actionsBinder
@@ -332,10 +323,10 @@ public class ActionModule extends AbstractModule {
         for (Map.Entry<String, ActionEntry> entry : actions.entrySet()) {
             actionsBinder.addBinding(entry.getKey()).toInstance(entry.getValue().action);
         }
-
         // register GenericAction -> transportAction Map that can be injected to instances.
         // also register any supporting classes
         if (!proxy) {
+            bind(TransportLivenessAction.class).asEagerSingleton();
             MapBinder<GenericAction, TransportAction> transportActionsBinder
                     = MapBinder.newMapBinder(binder(), GenericAction.class, TransportAction.class);
             for (Map.Entry<String, ActionEntry> entry : actions.entrySet()) {

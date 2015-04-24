@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilder;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
@@ -66,8 +66,8 @@ public class IndexAliasesServiceTests extends ElasticsearchSingleNodeTest {
         assertThat(indexAliasesService.hasAlias("dogs"), equalTo(true));
         assertThat(indexAliasesService.hasAlias("turtles"), equalTo(false));
 
-        assertThat(indexAliasesService.aliasFilter("cats").toString(), equalTo("cache(animal:cat)"));
-        assertThat(indexAliasesService.aliasFilter("cats", "dogs").toString(), equalTo("BooleanFilter(cache(animal:cat) cache(animal:dog))"));
+        assertThat(indexAliasesService.aliasFilter("cats").toString(), equalTo("cache(QueryWrapperFilter(animal:cat))"));
+        assertThat(indexAliasesService.aliasFilter("cats", "dogs").toString(), equalTo("QueryWrapperFilter(cache(QueryWrapperFilter(animal:cat)) cache(QueryWrapperFilter(animal:dog)))"));
 
         // Non-filtering alias should turn off all filters because filters are ORed
         assertThat(indexAliasesService.aliasFilter("all"), nullValue());
@@ -76,7 +76,7 @@ public class IndexAliasesServiceTests extends ElasticsearchSingleNodeTest {
 
         indexAliasesService.add("cats", filter(termFilter("animal", "feline")));
         indexAliasesService.add("dogs", filter(termFilter("animal", "canine")));
-        assertThat(indexAliasesService.aliasFilter("dogs", "cats").toString(), equalTo("BooleanFilter(cache(animal:canine) cache(animal:feline))"));
+        assertThat(indexAliasesService.aliasFilter("dogs", "cats").toString(), equalTo("QueryWrapperFilter(cache(QueryWrapperFilter(animal:canine)) cache(QueryWrapperFilter(animal:feline)))"));
     }
 
     @Test
@@ -86,13 +86,13 @@ public class IndexAliasesServiceTests extends ElasticsearchSingleNodeTest {
         indexAliasesService.add("dogs", filter(termFilter("animal", "dog")));
 
         assertThat(indexAliasesService.aliasFilter(), nullValue());
-        assertThat(indexAliasesService.aliasFilter("dogs").toString(), equalTo("cache(animal:dog)"));
-        assertThat(indexAliasesService.aliasFilter("dogs", "cats").toString(), equalTo("BooleanFilter(cache(animal:dog) cache(animal:cat))"));
+        assertThat(indexAliasesService.aliasFilter("dogs").toString(), equalTo("cache(QueryWrapperFilter(animal:dog))"));
+        assertThat(indexAliasesService.aliasFilter("dogs", "cats").toString(), equalTo("QueryWrapperFilter(cache(QueryWrapperFilter(animal:dog)) cache(QueryWrapperFilter(animal:cat)))"));
 
         indexAliasesService.add("cats", filter(termFilter("animal", "feline")));
         indexAliasesService.add("dogs", filter(termFilter("animal", "canine")));
 
-        assertThat(indexAliasesService.aliasFilter("dogs", "cats").toString(), equalTo("BooleanFilter(cache(animal:canine) cache(animal:feline))"));
+        assertThat(indexAliasesService.aliasFilter("dogs", "cats").toString(), equalTo("QueryWrapperFilter(cache(QueryWrapperFilter(animal:canine)) cache(QueryWrapperFilter(animal:feline)))"));
     }
 
     @Test(expected = InvalidAliasNameException.class)

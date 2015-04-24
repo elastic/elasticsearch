@@ -54,6 +54,8 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -64,22 +66,26 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.test.engine.MockInternalEngine;
+import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.engine.AssertingSearcher;
+import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 
-import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import static com.google.common.base.Predicates.isNull;
 import static org.elasticsearch.test.ElasticsearchTestCase.*;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -115,6 +121,42 @@ public class ElasticsearchAssertions {
         assertVersionSerializable(response);
     }
 
+    /**
+     * Executes the request and fails if the request has not been blocked.
+     *
+     * @param builder the request builder
+     */
+    public static void assertBlocked(ActionRequestBuilder builder) {
+        assertBlocked(builder, null);
+    }
+
+    /**
+     * Executes the request and fails if the request has not been blocked by a specific {@link ClusterBlock}.
+     *
+     * @param builder the request builder
+     * @param expectedBlock the expected block
+     */
+    public static void assertBlocked(ActionRequestBuilder builder, ClusterBlock expectedBlock) {
+        try {
+            builder.get();
+            fail("Request executed with success but a ClusterBlockException was expected");
+        } catch (ClusterBlockException e) {
+            assertThat(e.blocks().size(), greaterThan(0));
+            assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
+
+            if (expectedBlock != null) {
+                boolean found = false;
+                for (ClusterBlock clusterBlock : e.blocks()) {
+                    if (clusterBlock.id() == expectedBlock.id()) {
+                        found = true;
+                        break;
+                    }
+                }
+                assertThat("Request should have been blocked by [" + expectedBlock + "] instead of " + e.blocks(), found, equalTo(true));
+            }
+        }
+    }
+
     public static String formatShardStatus(BroadcastOperationResponse response) {
         String msg = " Total shards: " + response.getTotalShards() + " Successful shards: " + response.getSuccessfulShards() + " & "
                 + response.getFailedShards() + " shard failures:";
@@ -142,6 +184,10 @@ public class ElasticsearchAssertions {
                     + formatShardStatus(searchResponse));
         }
         assertVersionSerializable(searchResponse);
+    }
+
+    public static void assertNoSearchHits(SearchResponse searchResponse) {
+        assertEquals(0, searchResponse.getHits().getHits().length);
     }
 
     public static void assertSearchHits(SearchResponse searchResponse, String... ids) {
@@ -185,6 +231,7 @@ public class ElasticsearchAssertions {
         }
         assertVersionSerializable(countResponse);
     }
+
     public static void assertExists(ExistsResponse existsResponse, boolean expected) {
         if (existsResponse.exists() != expected) {
             fail("Exist is " + existsResponse.exists() + " but " + expected + " was expected " + formatShardStatus(existsResponse));
@@ -261,16 +308,22 @@ public class ElasticsearchAssertions {
                 assertThat(shardSearchFailure.reason(), reasonMatcher);
             }
             assertVersionSerializable(searchResponse);
-        } catch(SearchPhaseExecutionException e) {
+        } catch (SearchPhaseExecutionException e) {
             assertThat(e.status(), equalTo(restStatus));
-            assertThat(e.getMessage(), reasonMatcher);
+            assertThat(e.toString(), reasonMatcher);
             for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
                 assertThat(shardSearchFailure.status(), equalTo(restStatus));
                 assertThat(shardSearchFailure.reason(), reasonMatcher);
             }
-        } catch(Exception e) {
+        } catch (Exception e) {
             fail("SearchPhaseExecutionException expected but got " + e.getClass());
         }
+    }
+
+    public static void assertFailures(PercolateResponse percolateResponse) {
+        assertThat("Expected at least one shard failure, got none",
+            percolateResponse.getShardFailures().length, greaterThan(0));
+        assertVersionSerializable(percolateResponse);
     }
 
     public static void assertNoFailures(BroadcastOperationResponse response) {
@@ -572,8 +625,8 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertVersionSerializable(Streamable streamable) {
-        assertTrue(Version.CURRENT.after(getPreviousVersion()));
-        assertVersionSerializable(randomVersion(), streamable);
+        assertTrue(Version.CURRENT.after(VersionUtils.getPreviousVersion()));
+        assertVersionSerializable(randomVersion(random()), streamable);
     }
 
     public static void assertVersionSerializable(Version version, Streamable streamable) {
@@ -581,10 +634,10 @@ public class ElasticsearchAssertions {
             Streamable newInstance = tryCreateNewInstance(streamable);
             if (newInstance == null) {
                 return; // can't create a new instance - we never modify a
-                        // streamable that comes in.
+                // streamable that comes in.
             }
             if (streamable instanceof ActionRequest) {
-                ((ActionRequest<?>)streamable).validate();
+                ((ActionRequest<?>) streamable).validate();
             }
             BytesReference orig = serialize(version, streamable);
             StreamInput input = new BytesStreamInput(orig);
@@ -636,28 +689,29 @@ public class ElasticsearchAssertions {
          * pending we will fail anyway.*/
         try {
             if (awaitBusy(new Predicate<Object>() {
+                @Override
                 public boolean apply(Object o) {
-                    return MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty();
+                    return MockEngineSupport.INFLIGHT_ENGINE_SEARCHERS.isEmpty();
                 }
             }, 5, TimeUnit.SECONDS)) {
                 return;
             }
         } catch (InterruptedException ex) {
-            if (MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty()) {
+            if (MockEngineSupport.INFLIGHT_ENGINE_SEARCHERS.isEmpty()) {
                 return;
             }
         }
         try {
             RuntimeException ex = null;
             StringBuilder builder = new StringBuilder("Unclosed Searchers instance for shards: [");
-            for (Map.Entry<MockInternalEngine.AssertingSearcher, RuntimeException> entry : MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
+            for (Map.Entry<AssertingSearcher, RuntimeException> entry : MockEngineSupport.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
                 ex = entry.getValue();
                 builder.append(entry.getKey().shardId()).append(",");
             }
             builder.append("]");
             throw new RuntimeException(builder.toString(), ex);
         } finally {
-            MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.clear();
+            MockEngineSupport.INFLIGHT_ENGINE_SEARCHERS.clear();
         }
     }
 
@@ -691,12 +745,12 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertNodeContainsPlugins(NodesInfoResponse response, String nodeId,
-                                           List<String> expectedJvmPluginNames,
-                                           List<String> expectedJvmPluginDescriptions,
-                                           List<String> expectedJvmVersions,
-                                           List<String> expectedSitePluginNames,
-                                           List<String> expectedSitePluginDescriptions,
-                                           List<String> expectedSiteVersions) {
+                                                 List<String> expectedJvmPluginNames,
+                                                 List<String> expectedJvmPluginDescriptions,
+                                                 List<String> expectedJvmVersions,
+                                                 List<String> expectedSitePluginNames,
+                                                 List<String> expectedSitePluginDescriptions,
+                                                 List<String> expectedSiteVersions) {
 
         Assert.assertThat(response.getNodesMap().get(nodeId), notNullValue());
 
@@ -748,36 +802,42 @@ public class ElasticsearchAssertions {
     }
 
     private static Predicate<PluginInfo> jvmPluginPredicate = new Predicate<PluginInfo>() {
+        @Override
         public boolean apply(PluginInfo pluginInfo) {
             return pluginInfo.isJvm();
         }
     };
 
     private static Predicate<PluginInfo> sitePluginPredicate = new Predicate<PluginInfo>() {
+        @Override
         public boolean apply(PluginInfo pluginInfo) {
             return pluginInfo.isSite();
         }
     };
 
     private static Function<PluginInfo, String> nameFunction = new Function<PluginInfo, String>() {
+        @Override
         public String apply(PluginInfo pluginInfo) {
             return pluginInfo.getName();
         }
     };
 
     private static Function<PluginInfo, String> descriptionFunction = new Function<PluginInfo, String>() {
+        @Override
         public String apply(PluginInfo pluginInfo) {
             return pluginInfo.getDescription();
         }
     };
 
     private static Function<PluginInfo, String> urlFunction = new Function<PluginInfo, String>() {
+        @Override
         public String apply(PluginInfo pluginInfo) {
             return pluginInfo.getUrl();
         }
     };
 
     private static Function<PluginInfo, String> versionFunction = new Function<PluginInfo, String>() {
+        @Override
         public String apply(PluginInfo pluginInfo) {
             return pluginInfo.getVersion();
         }
@@ -786,22 +846,15 @@ public class ElasticsearchAssertions {
     /**
      * Check if a file exists
      */
-    public static void assertFileExists(File file) {
-        assertThat("file/dir [" + file + "] should exist.", file.exists(), is(true));
-    }
-
-    /**
-     * Check if a file exists
-     */
     public static void assertFileExists(Path file) {
-        assertFileExists(file.toFile());
+        assertThat("file/dir [" + file + "] should exist.", Files.exists(file), is(true));
     }
 
     /**
-     * Check if a directory exists
+     * Check if a file does not exist
      */
-    public static void assertDirectoryExists(File dir) {
-        assertFileExists(dir);
+    public static void assertFileNotExists(Path file) {
+        assertThat("file/dir [" + file + "] should not exist.", Files.exists(file), is(false));
     }
 
     /**
@@ -809,5 +862,6 @@ public class ElasticsearchAssertions {
      */
     public static void assertDirectoryExists(Path dir) {
         assertFileExists(dir);
+        assertThat("file [" + dir + "] should be a directory.", Files.isDirectory(dir), is(true));
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.VersionType;
 
 import java.util.Map;
 
@@ -174,11 +175,36 @@ public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsR
         return this;
     }
 
+    /*
+     * Sets the version, which will cause the get operation to only be performed if a matching
+     * version exists and no changes happened on the doc since then.
+     */
+    public TermVectorsRequestBuilder setVersion(long version) {
+        request.version(version);
+        return this;
+    }
+
+    /*
+     * Sets the versioning type. Defaults to {@link org.elasticsearch.index.VersionType#INTERNAL}.
+     */
+    public TermVectorsRequestBuilder setVersionType(VersionType versionType) {
+        request.versionType(versionType);
+        return this;
+    }
+
     /**
      * Sets the analyzer used at each field when generating term vectors.
      */
     public TermVectorsRequestBuilder setPerFieldAnalyzer(Map<String, String> perFieldAnalyzer) {
         request.perFieldAnalyzer(perFieldAnalyzer);
+        return this;
+    }
+
+    /**
+     * Sets the settings for filtering out terms.
+     */
+    public TermVectorsRequestBuilder setFilterSettings(TermVectorsRequest.FilterSettings filterSettings) {
+        request.filterSettings(filterSettings);
         return this;
     }
 

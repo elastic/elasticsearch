@@ -54,6 +54,7 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         NodesHotThreadsRequest nodesHotThreadsRequest = new NodesHotThreadsRequest(nodesIds);
         nodesHotThreadsRequest.threads(request.paramAsInt("threads", nodesHotThreadsRequest.threads()));
+        nodesHotThreadsRequest.ignoreIdleThreads(request.paramAsBoolean("ignore_idle_threads", nodesHotThreadsRequest.ignoreIdleThreads()));
         nodesHotThreadsRequest.type(request.param("type", nodesHotThreadsRequest.type()));
         nodesHotThreadsRequest.interval(TimeValue.parseTimeValue(request.param("interval"), nodesHotThreadsRequest.interval()));
         nodesHotThreadsRequest.snapshots(request.paramAsInt("snapshots", nodesHotThreadsRequest.snapshots()));

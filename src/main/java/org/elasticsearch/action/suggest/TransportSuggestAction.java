@@ -38,8 +38,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.suggest.stats.ShardSuggestService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.suggest.Suggest;
@@ -62,30 +62,15 @@ import static com.google.common.collect.Lists.newArrayList;
 public class TransportSuggestAction extends TransportBroadcastOperationAction<SuggestRequest, SuggestResponse, ShardSuggestRequest, ShardSuggestResponse> {
 
     private final IndicesService indicesService;
-
     private final SuggestPhase suggestPhase;
 
     @Inject
     public TransportSuggestAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                   IndicesService indicesService, SuggestPhase suggestPhase, ActionFilters actionFilters) {
-        super(settings, SuggestAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, SuggestAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                SuggestRequest.class, ShardSuggestRequest.class, ThreadPool.Names.SUGGEST);
         this.indicesService = indicesService;
         this.suggestPhase = suggestPhase;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SUGGEST;
-    }
-
-    @Override
-    protected SuggestRequest newRequest() {
-        return new SuggestRequest();
-    }
-
-    @Override
-    protected ShardSuggestRequest newShardRequest() {
-        return new ShardSuggestRequest();
     }
 
     @Override

@@ -42,6 +42,7 @@ import org.elasticsearch.index.shard.IndexShardComponent;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.Collections;
 
 
@@ -120,8 +121,10 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
 
     /**
      * Clears unreferenced transaction logs.
+     *
+     * @return the number of clean up files
      */
-    void clearUnreferenced();
+    int clearUnreferenced();
 
     /**
      * Sync's the translog.
@@ -137,13 +140,12 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
      * These paths don't contain actual translog files they are
      * directories holding the transaction logs.
      */
-    public Path[] locations();
+    public Path location();
 
     /**
-     * Returns the translog file with the given id as a Path. This
-     * will return a relative path.
+     * Returns the translog filename for the given id.
      */
-    Path getPath(long translogId);
+    String getFilename(long translogId);
 
     /**
      * return stats
@@ -154,6 +156,22 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
      * Returns the largest translog id present in all locations or <tt>-1</tt> if no translog is present.
      */
     long findLargestPresentTranslogId() throws IOException;
+
+    /**
+     * Returns an OperationIterator to iterate over all translog entries in the given translog ID.
+     * @throws java.io.FileNotFoundException if the file for the translog ID can not be found
+     */
+    OperationIterator openIterator(long translogId) throws IOException;
+
+    /**
+     * Iterator for translog operations.
+     */
+    public static interface OperationIterator extends Releasable {
+        /**
+         * Returns the next operation in the translog or <code>null</code> if we reached the end of the stream.
+         */
+        public Translog.Operation next() throws IOException;
+    }
 
     static class Location implements Accountable {
 
@@ -173,7 +191,7 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
         }
 
         @Override
-        public Iterable<? extends Accountable> getChildResources() {
+        public Collection<Accountable> getChildResources() {
             return Collections.emptyList();
         }
 
@@ -186,7 +204,7 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
     /**
      * A snapshot of the transaction log, allows to iterate over all the transaction log operations.
      */
-    static interface Snapshot extends Releasable {
+    static interface Snapshot extends OperationIterator {
 
         /**
          * The id of the translog the snapshot was taken with.
@@ -207,11 +225,6 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
          * The total number of operations in the translog.
          */
         int estimatedTotalOperations();
-
-        /**
-         * Returns the next operation, or null when no more operations are found
-         */
-        Operation next();
 
         /**
          * Seek to the specified position in the translog stream

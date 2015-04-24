@@ -65,14 +65,14 @@ public class FunctionScoreFieldValueTests extends ElasticsearchIntegrationTest {
         // document 2 scores higher because 17 > 5
         SearchResponse response = client().prepareSearch("test")
                 .setExplain(randomBoolean())
-                .setQuery(functionScoreQuery(simpleQueryString("foo"), fieldValueFactorFunction("test")))
+                .setQuery(functionScoreQuery(simpleQueryStringQuery("foo"), fieldValueFactorFunction("test")))
                 .get();
         assertOrderedSearchHits(response, "2", "1");
 
         // document 1 scores higher because 1/5 > 1/17
         response = client().prepareSearch("test")
                 .setExplain(randomBoolean())
-                .setQuery(functionScoreQuery(simpleQueryString("foo"),
+                .setQuery(functionScoreQuery(simpleQueryStringQuery("foo"),
                         fieldValueFactorFunction("test").modifier(FieldValueFactorFunction.Modifier.RECIPROCAL)))
                 .get();
         assertOrderedSearchHits(response, "1", "2");
@@ -92,7 +92,7 @@ public class FunctionScoreFieldValueTests extends ElasticsearchIntegrationTest {
         try {
             response = client().prepareSearch("test")
                     .setExplain(randomBoolean())
-                    .setQuery(functionScoreQuery(simpleQueryString("foo"),
+                    .setQuery(functionScoreQuery(simpleQueryStringQuery("foo"),
                             fieldValueFactorFunction("test").modifier(FieldValueFactorFunction.Modifier.RECIPROCAL).factor(0)))
                     .get();
             assertFailures(response);
@@ -100,5 +100,34 @@ public class FunctionScoreFieldValueTests extends ElasticsearchIntegrationTest {
             // This is fine, the query will throw an exception if executed
             // locally, instead of just having failures
         }
+
+        // don't permit an array of factors
+        try {
+          String querySource = "{" +
+            "\"query\": {" +
+            "  \"function_score\": {" +
+            "    \"query\": {" +
+            "      \"match\": {\"name\": \"foo\"}" +
+            "      }," +
+            "      \"functions\": [" +
+            "        {" +
+            "          \"field_value_factor\": {" +
+            "            \"field\": \"test\"," +
+            "            \"factor\": [1.2,2]" +
+            "          }" +
+            "        }" +
+            "      ]" +
+            "    }" +
+            "  }" +
+            "}";
+          response = client().prepareSearch("test")
+          .setSource(querySource)
+          .get();
+          assertFailures(response);
+        } catch (SearchPhaseExecutionException e) {
+          // This is fine, the query will throw an exception if executed
+          // locally, instead of just having failures
+        }
+
     }
 }

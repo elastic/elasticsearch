@@ -45,7 +45,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
     @Inject
     public TransportCreateIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, MetaDataCreateIndexService createIndexService, ActionFilters actionFilters) {
-        super(settings, CreateIndexAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, CreateIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, CreateIndexRequest.class);
         this.createIndexService = createIndexService;
     }
 
@@ -56,18 +56,13 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
     }
 
     @Override
-    protected CreateIndexRequest newRequest() {
-        return new CreateIndexRequest();
-    }
-
-    @Override
     protected CreateIndexResponse newResponse() {
         return new CreateIndexResponse();
     }
 
     @Override
     protected ClusterBlockException checkBlock(CreateIndexRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, request.index());
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.index());
     }
 
     @Override

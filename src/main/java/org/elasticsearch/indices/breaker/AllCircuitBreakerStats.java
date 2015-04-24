@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.breaker;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -48,9 +47,9 @@ public class AllCircuitBreakerStats implements Streamable, ToXContent {
         return this.allStats;
     }
 
-    public CircuitBreakerStats getStats(CircuitBreaker.Name name) {
+    public CircuitBreakerStats getStats(String name) {
         for (CircuitBreakerStats stats : allStats) {
-            if (stats.getName() == name) {
+            if (stats.getName().equals(name)) {
                 return stats;
             }
         }

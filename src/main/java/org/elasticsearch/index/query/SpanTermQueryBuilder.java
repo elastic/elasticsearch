@@ -61,6 +61,7 @@ public class SpanTermQueryBuilder extends BaseQueryBuilder implements SpanQueryB
         this.value = value;
     }
 
+    @Override
     public SpanTermQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;

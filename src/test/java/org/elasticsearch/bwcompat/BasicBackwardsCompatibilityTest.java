@@ -22,6 +22,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.util.English;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -63,7 +64,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -151,7 +151,6 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
     }
 
     @Test
-    @TestLogging("action.search.type:TRACE,action.support.replication:TRACE,cluster.service:TRACE,indices.recovery:TRACE,index.shard.service:TRACE")
     public void testRecoverFromPreviousVersion() throws ExecutionException, InterruptedException {
         if (backwardsCluster().numNewDataNodes() == 0) {
             backwardsCluster().startNewNode();
@@ -258,6 +257,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         }
     }
 
+    @Override
     public void assertAllShardsOnNodes(String index, String pattern) {
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
@@ -351,6 +351,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             indexRandom(true, docs);
         } while (upgraded);
         client().admin().indices().prepareUpdateSettings(indices).setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
+        ensureYellow();
         CountResponse countResponse = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);
         assertSimpleSort("num_double", "num_int");
@@ -378,31 +379,24 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     @Test
     public void testUnsupportedFeatures() throws IOException {
-        if (compatibilityVersion().before(Version.V_1_3_0)) {
-            XContentBuilder mapping = XContentBuilder.builder(JsonXContent.jsonXContent)
-                    .startObject()
-                        .startObject("type")
-                            .startObject(FieldNamesFieldMapper.NAME)
-                               // by setting randomly index to no we also test the pre-1.3 behavior
-                                .field("index", randomFrom("no", "not_analyzed"))
-                                .field("store", randomFrom("no", "yes"))
-                            .endObject()
+        XContentBuilder mapping = XContentBuilder.builder(JsonXContent.jsonXContent)
+                .startObject()
+                    .startObject("type")
+                        .startObject(FieldNamesFieldMapper.NAME)
+                           // by setting randomly index to no we also test the pre-1.3 behavior
+                            .field("index", randomFrom("no", "not_analyzed"))
+                            .field("store", randomFrom("no", "yes"))
                         .endObject()
-                    .endObject();
+                    .endObject()
+                .endObject();
 
-            try {
-                assertAcked(prepareCreate("test").
-                        setSettings(ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings()))
-                        .addMapping("type", mapping));
-            } catch (MapperParsingException ex) {
-                if (getMasterVersion().onOrAfter(Version.V_1_3_0)) {
-                    assertThat(ex.getCause(), instanceOf(ElasticsearchIllegalArgumentException.class));
-                    assertThat(ex.getCause().getMessage(), equalTo("type=_field_names is not supported on indices created before version 1.3.0 is your cluster running multiple datanode versions?"));
-                } else {
-                    assertThat(ex.getCause(), instanceOf(MapperParsingException.class));
-                    assertThat(ex.getCause().getMessage(), startsWith("Root type mapping not empty after parsing!"));
-                }
-            }
+        try {
+            assertAcked(prepareCreate("test").
+                    setSettings(ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings()))
+                    .addMapping("type", mapping));
+        } catch (MapperParsingException ex) {
+            assertThat(ex.getCause(), instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(ExceptionsHelper.detailedMessage(ex).contains("type=_field_names is not supported on indices created before version 1.3.0"), equalTo(true));
         }
 
     }
@@ -413,15 +407,18 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
      */
     @Test
     public void testExistsFilter() throws IOException, ExecutionException, InterruptedException {
-        assumeTrue("this test fails often with 1.0.3 skipping for now....", compatibilityVersion().onOrAfter(Version.V_1_1_0));
+        int indexId = 0;
+        String indexName;
+
         for (; ; ) {
-            createIndex("test");
+            indexName = "test_"+indexId++;
+            createIndex(indexName);
             ensureYellow();
             indexRandom(true,
-                    client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x1", "x_1").field("field1", "value1_1").field("field2", "value2_1").endObject()),
-                    client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x2", "x_2").field("field1", "value1_2").endObject()),
-                    client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y1", "y_1").field("field2", "value2_3").endObject()),
-                    client().prepareIndex("test", "type1", "4").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y2", "y_2").field("field3", "value3_4").endObject()));
+                    client().prepareIndex(indexName, "type1", "1").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x1", "x_1").field("field1", "value1_1").field("field2", "value2_1").endObject()),
+                    client().prepareIndex(indexName, "type1", "2").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x2", "x_2").field("field1", "value1_2").endObject()),
+                    client().prepareIndex(indexName, "type1", "3").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y1", "y_1").field("field2", "value2_3").endObject()),
+                    client().prepareIndex(indexName, "type1", "4").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y2", "y_2").field("field3", "value3_4").endObject()));
 
             CountResponse countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("field1"))).get();
             assertHitCount(countResponse, 2l);
@@ -429,7 +426,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             countResponse = client().prepareCount().setQuery(constantScoreQuery(existsFilter("field1"))).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(queryString("_exists_:field1")).get();
+            countResponse = client().prepareCount().setQuery(queryStringQuery("_exists_:field1")).get();
             assertHitCount(countResponse, 2l);
 
             countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("field2"))).get();
@@ -455,7 +452,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             countResponse = client().prepareCount().setQuery(constantScoreQuery(missingFilter("field1"))).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(queryString("_missing_:field1")).get();
+            countResponse = client().prepareCount().setQuery(queryStringQuery("_missing_:field1")).get();
             assertHitCount(countResponse, 2l);
 
             // wildcard check
@@ -469,11 +466,11 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
                 break;
             }
             ensureYellow();
-            assertVersionCreated(compatibilityVersion(), "test"); // we had an old node in the cluster so we have to be on the compat version
-            assertAcked(client().admin().indices().prepareDelete("test"));
+            assertVersionCreated(compatibilityVersion(), indexName); // we had an old node in the cluster so we have to be on the compat version
+            assertAcked(client().admin().indices().prepareDelete(indexName));
         }
 
-        assertVersionCreated(Version.CURRENT, "test"); // after upgrade we have current version
+        assertVersionCreated(Version.CURRENT, indexName); // after upgrade we have current version
     }
 
 
@@ -502,7 +499,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         assertThat(deleteByQueryResponse.getIndices().size(), equalTo(1));
         for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : deleteByQueryResponse) {
             assertThat(indexDeleteByQueryResponse.getIndex(), equalTo("test"));
-            assertThat(indexDeleteByQueryResponse.getFailures().length, equalTo(0));
+            assertThat(indexDeleteByQueryResponse.getShardInfo().getFailures().length, equalTo(0));
         }
 
         refresh();
@@ -538,7 +535,6 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs));
 
-        //use routing
         DeleteResponse deleteResponse = client().prepareDelete("test", "test", firstDocId).setRouting("routing").get();
         assertThat(deleteResponse.isFound(), equalTo(true));
         GetResponse getResponse = client().prepareGet("test", "test", firstDocId).setRouting("routing").get();
@@ -547,17 +543,6 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         searchResponse = client().prepareSearch("test").get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs - 1));
-
-        //don't use routing and trigger a broadcast delete
-        deleteResponse = client().prepareDelete("test", "test", secondDocId).get();
-        assertThat(deleteResponse.isFound(), equalTo(true));
-
-        getResponse = client().prepareGet("test", "test", secondDocId).setRouting(secondRouting).get();
-        assertThat(getResponse.isExists(), equalTo(false));
-        refresh();
-        searchResponse = client().prepareSearch("test").setSize(numDocs).get();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs - 2));
     }
 
     @Test
@@ -764,11 +749,6 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
     }
 
     private void createIndexWithAlias() {
-        if (compatibilityVersion().onOrAfter(Version.V_1_1_0)) {
-            assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
-        } else {
-            assertAcked(prepareCreate("test"));
-            assertAcked(client().admin().indices().prepareAliases().addAlias("test", "alias"));
-        }
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
     }
 }

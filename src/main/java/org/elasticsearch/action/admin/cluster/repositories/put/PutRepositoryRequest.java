@@ -285,12 +285,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         type = in.readString();
         settings = readSettingsFromStream(in);
         readTimeout(in);
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
-            verify = in.readBoolean();
-        } else {
-            // we received this request from an older client that doesn't expect us to validate the request
-            verify = false;
-        }
+        verify = in.readBoolean();
     }
 
     @Override
@@ -300,8 +295,6 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         out.writeString(type);
         writeSettingsToStream(settings, out);
         writeTimeout(out);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
-            out.writeBoolean(verify);
-        }
+        out.writeBoolean(verify);
     }
 }

@@ -46,6 +46,7 @@ public class RiverTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @AwaitsFix(bugUrl="occasionally fails apparently due to synchronous mappings updates")
     public void testMultipleRiversStart() throws Exception {
         int nbRivers = between(2,10);
         logger.info("-->  testing with {} rivers...", nbRivers);
@@ -74,6 +75,7 @@ public class RiverTests extends ElasticsearchIntegrationTest {
 
         logger.info("-->  checking that all rivers were created");
         assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object obj) {
                 MultiGetResponse multiGetItemResponse = multiGetRequestBuilder.get();
                 for (MultiGetItemResponse getItemResponse : multiGetItemResponse) {
@@ -149,6 +151,7 @@ public class RiverTests extends ElasticsearchIntegrationTest {
     private void checkRiverIsStarted(final String riverName) throws InterruptedException {
         logger.info("-->  checking that river [{}] was created", riverName);
         assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object obj) {
                 GetResponse response = client().prepareGet(RiverIndexName.Conf.DEFAULT_INDEX_NAME, riverName, "_status").get();
                 return response.isExists();

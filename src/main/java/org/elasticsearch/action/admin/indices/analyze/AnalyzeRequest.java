@@ -53,27 +53,21 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
     }
 
     /**
-     * Constructs a new analyzer request for the provided text.
+     * Constructs a new analyzer request for the provided index.
      *
-     * @param text The text to analyze
+     * @param index The text to analyze
      */
-    public AnalyzeRequest(String text) {
-        this.text = text;
-    }
-
-    /**
-     * Constructs a new analyzer request for the provided index and text.
-     *
-     * @param index The index name
-     * @param text  The text to analyze
-     */
-    public AnalyzeRequest(@Nullable String index, String text) {
+    public AnalyzeRequest(String index) {
         this.index(index);
-        this.text = text;
     }
 
     public String text() {
         return this.text;
+    }
+
+    public AnalyzeRequest text(String text) {
+        this.text = text;
+        return this;
     }
 
     public AnalyzeRequest analyzer(String analyzer) {
@@ -143,9 +137,7 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
         analyzer = in.readOptionalString();
         tokenizer = in.readOptionalString();
         tokenFilters = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-            charFilters = in.readStringArray();
-        }
+        charFilters = in.readStringArray();
         field = in.readOptionalString();
     }
 
@@ -156,9 +148,7 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
         out.writeOptionalString(analyzer);
         out.writeOptionalString(tokenizer);
         out.writeStringArray(tokenFilters);
-        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            out.writeStringArray(charFilters);
-        }
+        out.writeStringArray(charFilters);
         out.writeOptionalString(field);
     }
 }

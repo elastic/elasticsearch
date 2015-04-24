@@ -168,6 +168,11 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         return this;
     }
 
+    public IndicesStatsRequestBuilder setRecovery(boolean recovery) {
+        request.recovery(recovery);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<IndicesStatsResponse> listener) {
         client.stats(request, listener);

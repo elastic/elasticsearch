@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
+import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 public class Murmur3HashFunctionTests extends ElasticsearchTestCase {

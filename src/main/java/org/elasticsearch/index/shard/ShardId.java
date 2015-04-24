@@ -39,7 +39,6 @@ public class ShardId implements Serializable, Streamable, Comparable<ShardId> {
     private int hashCode;
 
     private ShardId() {
-
     }
 
     public ShardId(String index, int shardId) {

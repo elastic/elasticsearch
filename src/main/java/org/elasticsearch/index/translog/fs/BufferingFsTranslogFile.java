@@ -70,14 +70,17 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
         this.lastSyncPosition += headerSize;
     }
 
+    @Override
     public long id() {
         return this.id;
     }
 
+    @Override
     public int estimatedNumberOfOperations() {
         return operationCounter;
     }
 
+    @Override
     public long translogSizeInBytes() {
         return lastWrittenPosition;
     }

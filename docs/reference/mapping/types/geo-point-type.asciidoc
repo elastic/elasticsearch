@@ -138,15 +138,18 @@ but also all its parent cells (true prefixes) will be indexed as well. The
 number of terms that will be indexed depends on the `geohash_precision`.
 Defaults to `false`. *Note*: This option implicitly enables `geohash`.
 
-|`validate` |Set to `true` to reject geo points with invalid latitude or
-longitude (default is `false`). *Note*: Validation only works when
-normalization has been disabled.
+|`validate` |Set to `false` to accept geo points with invalid latitude or
+longitude (default is `true`). *Note*: Validation only works when
+normalization has been disabled. This option will be deprecated and removed
+in upcoming releases.
 
-|`validate_lat` |Set to `true` to reject geo points with an invalid
-latitude.
+|`validate_lat` |Set to `false` to accept geo points with an invalid
+latitude (default is `true`). This option will be deprecated and removed
+in upcoming releases.
 
-|`validate_lon` |Set to `true` to reject geo points with an invalid
-longitude.
+|`validate_lon` |Set to `false` to accept geo points with an invalid
+longitude (default is `true`). This option will be deprecated and removed
+in upcoming releases.
 
 |`normalize` |Set to `true` to normalize latitude and longitude (default
 is `true`).

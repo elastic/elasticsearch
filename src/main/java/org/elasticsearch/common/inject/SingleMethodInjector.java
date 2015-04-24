@@ -54,6 +54,7 @@ class SingleMethodInjector implements SingleMemberInjector {
         }
 
         return new MethodInvoker() {
+            @Override
             public Object invoke(Object target, Object... parameters)
                     throws IllegalAccessException, InvocationTargetException {
                 return method.invoke(target, parameters);
@@ -61,10 +62,12 @@ class SingleMethodInjector implements SingleMemberInjector {
         };
     }
 
+    @Override
     public InjectionPoint getInjectionPoint() {
         return injectionPoint;
     }
 
+    @Override
     public void inject(Errors errors, InternalContext context, Object o) {
         Object[] parameters;
         try {

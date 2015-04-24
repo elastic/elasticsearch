@@ -79,7 +79,7 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
         PutIndexedScriptRequest putRequest = new PutIndexedScriptRequest(getScriptLang(request), request.param("id")).listenerThreaded(false);
         putRequest.version(request.paramAsLong("version", putRequest.version()));
         putRequest.versionType(VersionType.fromString(request.param("version_type"), putRequest.versionType()));
-        putRequest.source(request.content(), request.contentUnsafe());
+        putRequest.source(request.content());
         String sOpType = request.param("op_type");
         if (sOpType != null) {
             try {

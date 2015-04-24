@@ -92,6 +92,7 @@ public final class Elements {
      */
     public static Module getModule(final Iterable<? extends Element> elements) {
         return new Module() {
+            @Override
             public void configure(Binder binder) {
                 for (Element element : elements) {
                     element.applyTo(binder);
@@ -159,19 +160,23 @@ public final class Elements {
             this.privateElements = privateElements;
         }
 
+        @Override
         public void bindScope(Class<? extends Annotation> annotationType, Scope scope) {
             elements.add(new ScopeBinding(getSource(), annotationType, scope));
         }
 
+        @Override
         @SuppressWarnings("unchecked") // it is safe to use the type literal for the raw type
         public void requestInjection(Object instance) {
             requestInjection((TypeLiteral) TypeLiteral.get(instance.getClass()), instance);
         }
 
+        @Override
         public <T> void requestInjection(TypeLiteral<T> type, T instance) {
             elements.add(new InjectionRequest<>(getSource(), type, instance));
         }
 
+        @Override
         public <T> MembersInjector<T> getMembersInjector(final TypeLiteral<T> typeLiteral) {
             final MembersInjectorLookup<T> element
                     = new MembersInjectorLookup<>(getSource(), typeLiteral);
@@ -179,20 +184,24 @@ public final class Elements {
             return element.getMembersInjector();
         }
 
+        @Override
         public <T> MembersInjector<T> getMembersInjector(Class<T> type) {
             return getMembersInjector(TypeLiteral.get(type));
         }
 
+        @Override
         public void bindListener(Matcher<? super TypeLiteral<?>> typeMatcher, TypeListener listener) {
             elements.add(new TypeListenerBinding(getSource(), listener, typeMatcher));
         }
 
+        @Override
         public void requestStaticInjection(Class<?>... types) {
             for (Class<?> type : types) {
                 elements.add(new StaticInjectionRequest(getSource(), type));
             }
         }
 
+        @Override
         public void install(Module module) {
             if (modules.add(module)) {
                 Binder binder = this;
@@ -214,58 +223,71 @@ public final class Elements {
             }
         }
 
+        @Override
         public Stage currentStage() {
             return stage;
         }
 
+        @Override
         public void addError(String message, Object... arguments) {
             elements.add(new Message(getSource(), Errors.format(message, arguments)));
         }
 
+        @Override
         public void addError(Throwable t) {
             String message = "An exception was caught and reported. Message: " + t.getMessage();
             elements.add(new Message(ImmutableList.of(getSource()), message, t));
         }
 
+        @Override
         public void addError(Message message) {
             elements.add(message);
         }
 
+        @Override
         public <T> AnnotatedBindingBuilder<T> bind(Key<T> key) {
             return new BindingBuilder<>(this, elements, getSource(), key);
         }
 
+        @Override
         public <T> AnnotatedBindingBuilder<T> bind(TypeLiteral<T> typeLiteral) {
             return bind(Key.get(typeLiteral));
         }
 
+        @Override
         public <T> AnnotatedBindingBuilder<T> bind(Class<T> type) {
             return bind(Key.get(type));
         }
 
+        @Override
         public AnnotatedConstantBindingBuilder bindConstant() {
             return new ConstantBindingBuilderImpl<Void>(this, elements, getSource());
         }
 
+        @Override
         public <T> Provider<T> getProvider(final Key<T> key) {
             final ProviderLookup<T> element = new ProviderLookup<>(getSource(), key);
             elements.add(element);
             return element.getProvider();
         }
 
+        @Override
         public <T> Provider<T> getProvider(Class<T> type) {
             return getProvider(Key.get(type));
         }
 
+        @Override
         public void convertToTypes(Matcher<? super TypeLiteral<?>> typeMatcher,
                                    TypeConverter converter) {
             elements.add(new TypeConverterBinding(getSource(), typeMatcher, converter));
         }
 
+        @Override
         public RecordingBinder withSource(final Object source) {
             return new RecordingBinder(this, source, null);
         }
 
+        @Override
         public RecordingBinder skipSources(Class... classesToSkip) {
             // if a source is specified explicitly, we don't need to skip sources
             if (source != null) {
@@ -276,20 +298,24 @@ public final class Elements {
             return new RecordingBinder(this, null, newSourceProvider);
         }
 
+        @Override
         public PrivateBinder newPrivateBinder() {
             PrivateElementsImpl privateElements = new PrivateElementsImpl(getSource());
             elements.add(privateElements);
             return new RecordingBinder(this, privateElements);
         }
 
+        @Override
         public void expose(Key<?> key) {
             exposeInternal(key);
         }
 
+        @Override
         public AnnotatedElementBuilder expose(Class<?> type) {
             return exposeInternal(Key.get(type));
         }
 
+        @Override
         public AnnotatedElementBuilder expose(TypeLiteral<?> type) {
             return exposeInternal(Key.get(type));
         }
@@ -299,9 +325,11 @@ public final class Elements {
                 addError("Cannot expose %s on a standard binder. "
                         + "Exposed bindings are only applicable to private binders.", key);
                 return new AnnotatedElementBuilder() {
+                    @Override
                     public void annotatedWith(Class<? extends Annotation> annotationType) {
                     }
 
+                    @Override
                     public void annotatedWith(Annotation annotation) {
                     }
                 };

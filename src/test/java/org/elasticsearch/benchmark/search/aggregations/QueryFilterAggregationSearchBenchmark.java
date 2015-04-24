@@ -57,7 +57,6 @@ public class QueryFilterAggregationSearchBenchmark {
     public static void main(String[] args) throws Exception {
         Settings settings = settingsBuilder()
                 .put("index.refresh_interval", "-1")
-                .put("gateway.type", "local")
                 .put(SETTING_NUMBER_OF_SHARDS, 2)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
@@ -127,7 +126,7 @@ public class QueryFilterAggregationSearchBenchmark {
         totalQueryTime = 0;
         for (int j = 0; j < QUERY_COUNT; j++) {
             SearchResponse searchResponse = client.prepareSearch()
-                    .setSearchType(SearchType.COUNT)
+                    .setSize(0)
                     .setQuery(termQuery("l_value", anyValue))
                     .execute().actionGet();
             totalQueryTime += searchResponse.getTookInMillis();
@@ -137,7 +136,7 @@ public class QueryFilterAggregationSearchBenchmark {
         totalQueryTime = 0;
         for (int j = 0; j < QUERY_COUNT; j++) {
             SearchResponse searchResponse = client.prepareSearch()
-                    .setSearchType(SearchType.COUNT)
+                    .setSize(0)
                     .setQuery(termQuery("l_value", anyValue))
                     .addAggregation(AggregationBuilders.filter("filter").filter(FilterBuilders.termFilter("l_value", anyValue)))
                     .execute().actionGet();

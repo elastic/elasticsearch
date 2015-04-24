@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.functionscore.lin;
 
-import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.index.query.functionscore.DecayFunction;
 import org.elasticsearch.index.query.functionscore.DecayFunctionParser;
@@ -49,10 +48,9 @@ public class LinearDecayFunctionParser extends DecayFunctionParser {
 
         @Override
         public Explanation explainFunction(String valueExpl, double value, double scale) {
-            ComplexExplanation ce = new ComplexExplanation();
-            ce.setValue((float) evaluate(value, scale));
-            ce.setDescription("max(0.0, ((" + scale + " - " + valueExpl + ")/" + scale + ")");
-            return ce;
+            return Explanation.match(
+                    (float) evaluate(value, scale),
+                    "max(0.0, ((" + scale + " - " + valueExpl + ")/" + scale + ")");
         }
 
         @Override

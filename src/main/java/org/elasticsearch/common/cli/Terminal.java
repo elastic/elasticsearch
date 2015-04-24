@@ -20,6 +20,7 @@
 package org.elasticsearch.common.cli;
 
 import org.apache.commons.cli.CommandLine;
+import org.elasticsearch.common.SuppressForbidden;
 
 import java.io.*;
 import java.util.Locale;
@@ -27,6 +28,7 @@ import java.util.Locale;
 /**
 *
 */
+@SuppressForbidden(reason = "System#out")
 public abstract class Terminal {
 
     public static final String DEBUG_SYSTEM_PROPERTY = "es.cli.debug";
@@ -120,6 +122,10 @@ public abstract class Terminal {
         }
     }
 
+    public void printWarn(String msg, Object... args) {
+        println(Verbosity.SILENT, "WARN: " + msg, args);
+    }
+
     protected abstract void doPrint(String msg, Object... args);
 
     public abstract PrintWriter writer();
@@ -159,6 +165,7 @@ public abstract class Terminal {
         }
     }
 
+    @SuppressForbidden(reason = "System#out")
     private static class SystemTerminal extends Terminal {
 
         private final PrintWriter printWriter = new PrintWriter(System.out);

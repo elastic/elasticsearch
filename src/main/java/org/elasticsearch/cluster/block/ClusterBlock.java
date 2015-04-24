@@ -131,7 +131,7 @@ public class ClusterBlock implements Serializable, Streamable, ToXContent {
         final int len = in.readVInt();
         ArrayList<ClusterBlockLevel> levels = new ArrayList<>();
         for (int i = 0; i < len; i++) {
-            levels.add(ClusterBlockLevel.fromId(in.readVInt()));
+            levels.addAll(ClusterBlockLevel.fromId(in.readVInt()));
         }
         this.levels = EnumSet.copyOf(levels);
         retryable = in.readBoolean();
@@ -145,13 +145,14 @@ public class ClusterBlock implements Serializable, Streamable, ToXContent {
         out.writeString(description);
         out.writeVInt(levels.size());
         for (ClusterBlockLevel level : levels) {
-            out.writeVInt(level.id());
+            out.writeVInt(level.toId(out.getVersion()));
         }
         out.writeBoolean(retryable);
         out.writeBoolean(disableStatePersistence);
         RestStatus.writeTo(out, status);
     }
 
+    @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(id).append(",").append(description).append(", blocks ");

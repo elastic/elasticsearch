@@ -31,6 +31,7 @@ public abstract class AbstractParserTests extends ElasticsearchTestCase {
 
     protected XContentParser parser;
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();

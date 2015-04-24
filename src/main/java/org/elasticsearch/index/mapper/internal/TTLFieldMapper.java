@@ -30,9 +30,14 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AlreadyExpiredException;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.InternalMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
@@ -46,7 +51,6 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeTimeValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.ttl;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, RootMapper {
 
@@ -90,7 +94,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
 
         @Override
         public TTLFieldMapper build(BuilderContext context) {
-            return new TTLFieldMapper(fieldType, enabledState, defaultTTL, ignoreMalformed(context),coerce(context), postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
+            return new TTLFieldMapper(fieldType, enabledState, defaultTTL, ignoreMalformed(context),coerce(context), fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -98,7 +102,6 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             TTLFieldMapper.Builder builder = ttl();
-            parseField(builder, builder.name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
@@ -123,15 +126,14 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     private long defaultTTL;
 
     public TTLFieldMapper(Settings indexSettings) {
-        this(new FieldType(Defaults.TTL_FIELD_TYPE), Defaults.ENABLED_STATE, Defaults.DEFAULT, Defaults.IGNORE_MALFORMED, Defaults.COERCE, null, null, null, indexSettings);
+        this(new FieldType(Defaults.TTL_FIELD_TYPE), Defaults.ENABLED_STATE, Defaults.DEFAULT, Defaults.IGNORE_MALFORMED, Defaults.COERCE, null, indexSettings);
     }
 
     protected TTLFieldMapper(FieldType fieldType, EnabledAttributeMapper enabled, long defaultTTL, Explicit<Boolean> ignoreMalformed,
-                Explicit<Boolean> coerce, PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
-                @Nullable Settings fieldDataSettings, Settings indexSettings) {
+                Explicit<Boolean> coerce, @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.PRECISION_STEP_64_BIT,
-                Defaults.BOOST, fieldType, null, Defaults.NULL_VALUE, ignoreMalformed, coerce,
-                postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings, MultiFields.empty(), null);
+                Defaults.BOOST, fieldType, false, Defaults.NULL_VALUE, ignoreMalformed, coerce,
+                null, null, fieldDataSettings, indexSettings, MultiFields.empty(), null);
         this.enabledState = enabled;
         this.defaultTTL = defaultTTL;
     }
@@ -142,11 +144,6 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
 
     public long defaultTTL() {
         return this.defaultTTL;
-    }
-
-    @Override
-    public boolean hasDocValues() {
-        return false;
     }
 
     // Overrides valueForSearch to display live value of remaining ttl
@@ -178,7 +175,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException, MapperParsingException {
+    public Mapper parse(ParseContext context) throws IOException, MapperParsingException {
         if (context.sourceToParse().ttl() < 0) { // no ttl has been provided externally
             long ttl;
             if (context.parser().currentToken() == XContentParser.Token.VALUE_STRING) {
@@ -191,6 +188,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
             }
             context.sourceToParse().ttl(ttl);
         }
+        return null;
     }
 
     @Override
@@ -240,13 +238,13 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         TTLFieldMapper ttlMergeWith = (TTLFieldMapper) mergeWith;
         if (((TTLFieldMapper) mergeWith).enabledState != Defaults.ENABLED_STATE) {//only do something if actually something was set for the document mapper that we merge with
             if (this.enabledState == EnabledAttributeMapper.ENABLED && ((TTLFieldMapper) mergeWith).enabledState == EnabledAttributeMapper.DISABLED) {
-                mergeContext.addConflict("_ttl cannot be disabled once it was enabled.");
+                mergeResult.addConflict("_ttl cannot be disabled once it was enabled.");
             } else {
-                if (!mergeContext.mergeFlags().simulate()) {
+                if (!mergeResult.simulate()) {
                     this.enabledState = ttlMergeWith.enabledState;
                 }
             }
@@ -254,7 +252,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
         if (ttlMergeWith.defaultTTL != -1) {
             // we never build the default when the field is disabled so we should also not set it
             // (it does not make a difference though as everything that is not build in toXContent will also not be set in the cluster)
-            if (!mergeContext.mergeFlags().simulate() && (enabledState == EnabledAttributeMapper.ENABLED)) {
+            if (!mergeResult.simulate() && (enabledState == EnabledAttributeMapper.ENABLED)) {
                 this.defaultTTL = ttlMergeWith.defaultTTL;
             }
         }

@@ -31,6 +31,11 @@ public class IndicesSegmentsRequestBuilder extends BroadcastOperationRequestBuil
     public IndicesSegmentsRequestBuilder(IndicesAdminClient indicesClient) {
         super(indicesClient, new IndicesSegmentsRequest());
     }
+    
+    public IndicesSegmentsRequestBuilder setVerbose(boolean verbose) {
+        request.verbose = verbose;
+        return this;
+    }
 
     @Override
     protected void doExecute(ActionListener<IndicesSegmentResponse> listener) {

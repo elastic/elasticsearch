@@ -88,6 +88,7 @@ public class RestSegmentsAction extends AbstractCatAction {
         table.addCell("shard", "default:true;alias:s,sh;desc:shard name");
         table.addCell("prirep", "alias:p,pr,primaryOrReplica;default:true;desc:primary or replica");
         table.addCell("ip", "default:true;desc:ip of node where it lives");
+        table.addCell("id", "default:false;desc:unique id of node where it lives");
         table.addCell("segment", "default:true;alias:seg;desc:segment name");
         table.addCell("generation", "default:true;alias:g,gen;text-align:right;desc:segment generation");
         table.addCell("docs.count", "default:true;alias:dc,docsCount;text-align:right;desc:number of docs in segment");
@@ -123,6 +124,7 @@ public class RestSegmentsAction extends AbstractCatAction {
                         table.addCell(shardSegment.getShardId());
                         table.addCell(shardSegment.getShardRouting().primary() ? "p" : "r");
                         table.addCell(nodes.get(shardSegment.getShardRouting().currentNodeId()).getHostAddress());
+                        table.addCell(shardSegment.getShardRouting().currentNodeId());
                         table.addCell(segment.getName());
                         table.addCell(segment.getGeneration());
                         table.addCell(segment.getNumDocs());

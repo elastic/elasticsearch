@@ -60,16 +60,11 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
     public TransportMultiPercolateAction(Settings settings, ThreadPool threadPool, TransportShardMultiPercolateAction shardMultiPercolateAction,
                                          ClusterService clusterService, TransportService transportService, PercolatorService percolatorService,
                                          TransportMultiGetAction multiGetAction, ActionFilters actionFilters) {
-        super(settings, MultiPercolateAction.NAME, threadPool, transportService, actionFilters);
+        super(settings, MultiPercolateAction.NAME, threadPool, transportService, actionFilters, MultiPercolateRequest.class);
         this.shardMultiPercolateAction = shardMultiPercolateAction;
         this.clusterService = clusterService;
         this.percolatorService = percolatorService;
         this.multiGetAction = multiGetAction;
-    }
-
-    @Override
-    public MultiPercolateRequest newRequestInstance() {
-        return new MultiPercolateRequest();
     }
 
     @Override
@@ -136,7 +131,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
 
     }
 
-    private class ASyncAction {
+    private final class ASyncAction {
 
         final ActionListener<MultiPercolateResponse> finalListener;
         final Map<ShardId, TransportShardMultiPercolateAction.Request> requestsByShard;
@@ -188,7 +183,9 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
                         continue;
                     }
 
-                    responsesByItemAndShard.set(slot, new AtomicReferenceArray(shards.size()));
+                    // The shard id is used as index in the atomic ref array, so we need to find out how many shards there are regardless of routing:
+                    int numShards = clusterService.operationRouting().searchShardsCount(clusterState, percolateRequest.indices(), concreteIndices, null, null);
+                    responsesByItemAndShard.set(slot, new AtomicReferenceArray(numShards));
                     expectedOperationsPerItem.set(slot, new AtomicInteger(shards.size()));
                     for (ShardIterator shard : shards) {
                         ShardId shardId = shard.shardId();

@@ -52,16 +52,19 @@ public abstract class BindingImpl<T> implements Binding<T> {
         this.scoping = scoping;
     }
 
+    @Override
     public Key<T> getKey() {
         return key;
     }
 
+    @Override
     public Object getSource() {
         return source;
     }
 
     private volatile Provider<T> provider;
 
+    @Override
     public Provider<T> getProvider() {
         if (provider == null) {
             if (injector == null) {
@@ -89,10 +92,12 @@ public abstract class BindingImpl<T> implements Binding<T> {
         return this instanceof InstanceBinding;
     }
 
+    @Override
     public <V> V acceptVisitor(ElementVisitor<V> visitor) {
         return visitor.visit(this);
     }
 
+    @Override
     public <V> V acceptScopingVisitor(BindingScopingVisitor<V> visitor) {
         return scoping.acceptVisitor(visitor);
     }

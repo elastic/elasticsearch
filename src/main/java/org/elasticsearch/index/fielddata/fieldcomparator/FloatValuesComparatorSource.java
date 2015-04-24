@@ -20,6 +20,7 @@ package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
@@ -70,7 +71,7 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
                     selectedValues = sortMode.select(values, dMissingValue);
                 } else {
                     final BitSet rootDocs = nested.rootDocs(context).bits();
-                    final BitSet innerDocs = nested.innerDocs(context).bits();
+                    final DocIdSet  innerDocs = nested.innerDocs(context);
                     selectedValues = sortMode.select(values, dMissingValue, rootDocs, innerDocs, context.reader().maxDoc());
                 }
                 return selectedValues.getRawFloatValues();

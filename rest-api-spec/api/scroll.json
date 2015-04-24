@@ -1,6 +1,6 @@
 {
   "scroll": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-request-scroll.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-scroll.html",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_search/scroll",
@@ -12,6 +12,10 @@
         }
       },
       "params": {
+        "source": {
+          "type" : "string",
+          "description" : "The URL-encoded request definition"
+        },
         "scroll": {
           "type" : "duration",
           "description" : "Specify how long a consistent view of the index should be maintained for scrolled search"

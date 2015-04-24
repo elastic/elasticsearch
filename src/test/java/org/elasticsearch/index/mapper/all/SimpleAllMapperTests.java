@@ -22,6 +22,8 @@ package org.elasticsearch.index.mapper.all;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -29,27 +31,44 @@ import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.all.AllTokenStream;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine.Searcher;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
 import org.elasticsearch.index.mapper.internal.SizeFieldMapper;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
-import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
@@ -78,7 +97,8 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testAllMappersNoBoost() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/noboost-mapping.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        IndexService index = createIndex("test");
+        DocumentMapper docMapper = index.mapperService().documentMapperParser().parse(mapping);
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
@@ -89,7 +109,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(allEntries.fields().contains("simple1"), equalTo(true));
         FieldMapper mapper = docMapper.mappers().smartNameFieldMapper("_all");
         assertThat(field.fieldType().omitNorms(), equalTo(false));
-        assertThat(mapper.queryStringTermQuery(new Term("_all", "foobar")), Matchers.instanceOf(TermQuery.class));
     }
 
     @Test
@@ -106,7 +125,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(allEntries.fields().contains("simple1"), equalTo(true));
         FieldMapper mapper = docMapper.mappers().smartNameFieldMapper("_all");
         assertThat(field.fieldType().omitNorms(), equalTo(false));
-        assertThat(mapper.queryStringTermQuery(new Term("_all", "foobar")), Matchers.instanceOf(TermQuery.class));
+        assertThat(mapper.queryStringTermQuery(new Term("_all", "foobar")), Matchers.instanceOf(AllTermQuery.class));
 
     }
 
@@ -219,7 +238,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         boolean omitNorms = false;
         boolean stored = false;
         boolean enabled = true;
-        boolean autoBoost = false;
         boolean tv_stored = false;
         boolean tv_payloads = false;
         boolean tv_offsets = false;
@@ -244,9 +262,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
             }
             if (randomBoolean()) {
                 booleanOptionList.add(new Tuple<>("enabled", enabled = randomBoolean()));
-            }
-            if (randomBoolean()) {
-                booleanOptionList.add(new Tuple<>("auto_boost", autoBoost = randomBoolean()));
             }
             if (randomBoolean()) {
                 booleanOptionList.add(new Tuple<>("store_term_vector_offsets", tv_offsets = randomBoolean()));
@@ -307,14 +322,6 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
             assertThat(text.trim(), equalTo(allEntries.buildText().trim()));
         } else {
             assertThat(field, nullValue());
-        }
-
-        Term term = new Term("foo", "bar");
-        Query query = builtDocMapper.allFieldMapper().queryStringTermQuery(term);
-        if (autoBoost) {
-            assertThat(query, equalTo((Query)new AllTermQuery(term)));
-        } else {
-            assertThat(query, equalTo((Query)new TermQuery(term)));
         }
         if (similarity == null || similarity.equals("TF/IDF")) {
             assertThat(builtDocMapper.allFieldMapper().similarity(), nullValue());
@@ -417,11 +424,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         rootTypes.put(SizeFieldMapper.NAME, "{\"enabled\" : true}");
         rootTypes.put(IndexFieldMapper.NAME, "{\"enabled\" : true}");
         rootTypes.put(SourceFieldMapper.NAME, "{\"enabled\" : true}");
-        rootTypes.put(TypeFieldMapper.NAME, "{\"store\" : true}");
         rootTypes.put("include_in_all", "true");
-        rootTypes.put("index_analyzer", "\"standard\"");
-        rootTypes.put("search_analyzer", "\"standard\"");
-        rootTypes.put("analyzer", "\"standard\"");
         rootTypes.put("dynamic_date_formats", "[\"yyyy-MM-dd\", \"dd-MM-yyyy\"]");
         rootTypes.put("numeric_detection", "true");
         rootTypes.put("dynamic_templates", "[]");
@@ -430,5 +433,47 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         }
         mapping += "\"properties\":{}}" ;
         createIndex("test").mapperService().documentMapperParser().parse("test", mapping);
+    }
+    
+    public void testDocValuesNotAllowed() throws IOException {
+        String mapping = jsonBuilder().startObject().startObject("type")
+            .startObject("_all")
+                .field("doc_values", true)
+            .endObject().endObject().endObject().string();
+        try {
+            createIndex("test").mapperService().documentMapperParser().parse(mapping);
+            fail();
+        } catch (MapperParsingException e) {
+            assertThat(e.getDetailedMessage(), containsString("[_all] is always tokenized and cannot have doc values"));
+        }
+        
+
+        mapping = jsonBuilder().startObject().startObject("type")
+            .startObject("_all")
+                .startObject("fielddata")
+                    .field("format", "doc_values")
+            .endObject().endObject().endObject().endObject().string();
+        Settings legacySettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        try {
+            createIndex("test_old", legacySettings).mapperService().documentMapperParser().parse(mapping);
+            fail();
+        } catch (MapperParsingException e) {
+            assertThat(e.getDetailedMessage(), containsString("[_all] is always tokenized and cannot have doc values"));
+        }
+    }
+
+    public void testAutoBoost() throws Exception {
+        for (boolean boost : new boolean[] {false, true}) {
+            String index = "test_" + boost;
+            IndexService indexService = createIndex(index, client().admin().indices().prepareCreate(index).addMapping("type", "foo", "type=string" + (boost ? ",boost=2" : "")));
+            client().prepareIndex(index, "type").setSource("foo", "bar").get();
+            client().admin().indices().prepareRefresh(index).get();
+            Query query = indexService.mapperService().documentMapper("type").allFieldMapper().termQuery("bar", null);
+            try (Searcher searcher = indexService.shard(0).acquireSearcher("tests")) {
+                query = searcher.searcher().rewrite(query);
+                final Class<?> expected = boost ? AllTermQuery.class : TermQuery.class;
+                assertThat(query, Matchers.instanceOf(expected));
+            }
+        }
     }
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
@@ -48,6 +49,7 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
     }
 
     @Test
+    @TestLogging("watcher.support.http:TRACE")
     public void testHttpInput() throws Exception {
         createIndex("index");
         client().prepareIndex("index", "type", "id").setSource("{}").setRefresh(true).get();
@@ -72,6 +74,7 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
     }
 
     @Test
+    @TestLogging("watcher.support.http:TRACE")
     public void testHttpInput_clusterStats() throws Exception {
         InetSocketAddress address = internalTestCluster().httpAddresses()[0];
         watcherClient().preparePutWatch("_name")
@@ -92,6 +95,7 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
     }
 
     @Test
+    @TestLogging("watcher.support.http:TRACE")
     public void testInputFiltering() throws Exception {
         WatcherClient watcherClient = watcherClient();
         createIndex("idx");

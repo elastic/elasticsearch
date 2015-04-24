@@ -20,8 +20,8 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -49,8 +49,6 @@ public class NotFilterParser implements FilterParser {
 
         Filter filter = null;
         boolean filterFound = false;
-        boolean cache = false;
-        HashedBytesRef cacheKey = null;
 
         String filterName = null;
         String currentFieldName = null;
@@ -58,6 +56,8 @@ public class NotFilterParser implements FilterParser {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("filter".equals(currentFieldName)) {
                     filter = parseContext.parseInnerFilter();
@@ -72,12 +72,8 @@ public class NotFilterParser implements FilterParser {
                 // its the filter, and the name is the field
                 filter = parseContext.parseInnerFilter(currentFieldName);
             } else if (token.isValue()) {
-                if ("_cache".equals(currentFieldName)) {
-                    cache = parser.booleanValue();
-                } else if ("_name".equals(currentFieldName)) {
+                if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
-                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new HashedBytesRef(parser.text());
                 } else {
                     throw new QueryParsingException(parseContext, "[not] filter does not support [" + currentFieldName + "]");
                 }
@@ -92,10 +88,7 @@ public class NotFilterParser implements FilterParser {
             return null;
         }
 
-        Filter notFilter = Queries.wrap(Queries.not(filter));
-        if (cache) {
-            notFilter = parseContext.cacheFilter(notFilter, cacheKey, parseContext.autoFilterCachePolicy());
-        }
+        Filter notFilter = new QueryWrapperFilter(Queries.not(filter));
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, notFilter);
         }

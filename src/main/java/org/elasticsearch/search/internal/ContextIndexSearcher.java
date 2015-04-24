@@ -20,9 +20,10 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
@@ -151,7 +152,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 // this will only get applied to the actual search collector and not
                 // to any scoped collectors, also, it will only be applied to the main collector
                 // since that is where the filter should only work
-                collector = new FilteredCollector(collector, searchContext.parsedPostFilter().filter());
+                final Weight filterWeight = createNormalizedWeight(searchContext.parsedPostFilter().filter(), false);
+                collector = new FilteredCollector(collector, filterWeight);
             }
             if (queryCollectors != null && !queryCollectors.isEmpty()) {
                 ArrayList<Collector> allCollectors = new ArrayList<>(queryCollectors.values());
@@ -194,7 +196,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             if (searchContext.aliasFilter() == null) {
                 return super.explain(query, doc);
             }
-            FilteredQuery filteredQuery = new FilteredQuery(query, searchContext.aliasFilter());
+            BooleanQuery filteredQuery = new BooleanQuery();
+            filteredQuery.add(query, Occur.MUST);
+            filteredQuery.add(searchContext.aliasFilter(), Occur.FILTER);
             return super.explain(filteredQuery, doc);
         } finally {
             searchContext.clearReleasables(Lifetime.COLLECTION);

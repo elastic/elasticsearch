@@ -21,12 +21,10 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -52,8 +50,6 @@ public class TermFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
-        HashedBytesRef cacheKey = null;
         String fieldName = null;
         Object value = null;
 
@@ -63,6 +59,8 @@ public class TermFilterParser implements FilterParser {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // also support a format of "term" : {"field_name" : { ... }}
                 fieldName = currentFieldName;
@@ -76,10 +74,6 @@ public class TermFilterParser implements FilterParser {
                             value = parser.objectBytes();
                         } else if ("_name".equals(currentFieldName)) {
                             filterName = parser.text();
-                        } else if ("_cache".equals(currentFieldName)) {
-                            cache = parseContext.parseFilterCachePolicy();
-                        } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                            cacheKey = new HashedBytesRef(parser.text());
                         } else {
                             throw new QueryParsingException(parseContext, "[term] filter does not support [" + currentFieldName + "]");
                         }
@@ -88,10 +82,6 @@ public class TermFilterParser implements FilterParser {
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
-                } else if ("_cache".equals(currentFieldName)) {
-                    cache = parseContext.parseFilterCachePolicy();
-                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new HashedBytesRef(parser.text());
                 } else {
                     fieldName = currentFieldName;
                     value = parser.objectBytes();
@@ -113,11 +103,7 @@ public class TermFilterParser implements FilterParser {
             filter = smartNameFieldMappers.mapper().termFilter(value, parseContext);
         }
         if (filter == null) {
-            filter = Queries.wrap(new TermQuery(new Term(fieldName, BytesRefs.toBytesRef(value))));
-        }
-
-        if (cache != null) {
-            filter = parseContext.cacheFilter(filter, cacheKey, cache);
+            filter = new QueryWrapperFilter(new TermQuery(new Term(fieldName, BytesRefs.toBytesRef(value))));
         }
 
         if (filterName != null) {

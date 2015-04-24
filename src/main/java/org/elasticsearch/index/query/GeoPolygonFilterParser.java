@@ -22,11 +22,9 @@ package org.elasticsearch.index.query;
 import com.google.common.collect.Lists;
 
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.QueryCachingPolicy;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
@@ -68,8 +66,6 @@ public class GeoPolygonFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
-        HashedBytesRef cacheKey = null;
         String fieldName = null;
 
         List<GeoPoint> shell = Lists.newArrayList();
@@ -84,6 +80,8 @@ public class GeoPolygonFilterParser implements FilterParser {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 fieldName = currentFieldName;
 
@@ -107,10 +105,6 @@ public class GeoPolygonFilterParser implements FilterParser {
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
-                } else if ("_cache".equals(currentFieldName)) {
-                    cache = parseContext.parseFilterCachePolicy();
-                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new HashedBytesRef(parser.text());
                 } else if ("normalize".equals(currentFieldName)) {
                     normalizeLat = parser.booleanValue();
                     normalizeLon = parser.booleanValue();
@@ -154,9 +148,6 @@ public class GeoPolygonFilterParser implements FilterParser {
 
         IndexGeoPointFieldData indexFieldData = parseContext.getForField(mapper);
         Filter filter = new GeoPolygonFilter(indexFieldData, shell.toArray(new GeoPoint[shell.size()]));
-        if (cache != null) {
-            filter = parseContext.cacheFilter(filter, cacheKey, cache);
-        }
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

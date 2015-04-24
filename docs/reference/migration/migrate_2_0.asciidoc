@@ -418,6 +418,12 @@ favour or `bool`.
 The `execution` option of the `terms` filter is now deprecated and ignored if
 provided.
 
+The `_cache` and `_cache_key` parameters of filters are deprecated in the REST
+layer and removed in the Java API. In case they are specified they will be
+ignored. Instead filters are always used as their own cache key and elasticsearch
+makes decisions by itself about whether it should cache filters based on how
+often they are used.
+
 === Snapshot and Restore
 
 The obsolete parameters `expand_wildcards_open` and `expand_wildcards_close` are no longer

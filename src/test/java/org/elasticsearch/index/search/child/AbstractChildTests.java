@@ -135,10 +135,6 @@ public abstract class AbstractChildTests extends ElasticsearchSingleNodeTest {
         }
     }
 
-    static Filter wrap(Filter filter) {
-        return SearchContext.current().filterCache().cache(filter, null, SearchContext.current().indexShard().indexService().queryParserService().autoFilterCachePolicy());
-    }
-
     static BitDocIdSetFilter wrapWithBitSetFilter(Filter filter) {
         return SearchContext.current().bitsetFilterCache().getBitDocIdSetFilter(filter);
     }

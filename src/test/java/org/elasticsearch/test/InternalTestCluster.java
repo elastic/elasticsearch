@@ -78,8 +78,8 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.cache.filter.FilterCacheModule.FilterCacheSettings;
+import org.elasticsearch.index.cache.filter.index.IndexFilterCache;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
-import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.shard.IndexShardModule;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStoreModule;
@@ -449,7 +449,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         if (random.nextBoolean()) {
-            builder.put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, random.nextBoolean() ? WeightedFilterCache.class : NoneFilterCache.class);
+            builder.put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, random.nextBoolean() ? IndexFilterCache.class : NoneFilterCache.class);
         }
 
         if (random.nextBoolean()) {

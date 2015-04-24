@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.cache;
 
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -37,17 +38,23 @@ import java.io.IOException;
 public class IndexCache extends AbstractIndexComponent implements Closeable {
 
     private final FilterCache filterCache;
+    private final QueryCachingPolicy filterCachingPolicy;
     private final BitsetFilterCache bitsetFilterCache;
 
     @Inject
-    public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, BitsetFilterCache bitsetFilterCache) {
+    public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, QueryCachingPolicy filterCachingPolicy, BitsetFilterCache bitsetFilterCache) {
         super(index, indexSettings);
         this.filterCache = filterCache;
+        this.filterCachingPolicy = filterCachingPolicy;
         this.bitsetFilterCache = bitsetFilterCache;
     }
 
     public FilterCache filter() {
         return filterCache;
+    }
+
+    public QueryCachingPolicy filterPolicy() {
+        return filterCachingPolicy;
     }
 
     /**

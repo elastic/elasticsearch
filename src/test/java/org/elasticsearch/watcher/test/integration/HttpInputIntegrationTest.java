@@ -76,7 +76,7 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
         InetSocketAddress address = internalTestCluster().httpAddresses()[0];
         watcherClient().preparePutWatch("_name")
                 .setSource(watchBuilder()
-                        .trigger(schedule(interval("5s")))
+                        .trigger(schedule(interval("1s")))
                         .input(httpInput(HttpRequestTemplate.builder(address.getHostName(), address.getPort())
                                 .path("/_cluster/stats")
                                 .auth(shieldEnabled() ? new BasicAuth("test", "changeme") : null)))

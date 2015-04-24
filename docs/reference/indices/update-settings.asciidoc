@@ -61,9 +61,6 @@ settings API:
 `index.refresh_interval`::
     The async refresh interval of a shard.
 
-`index.index_concurrency`::
-    experimental[] Defaults to `8`.
-
 `index.translog.flush_threshold_ops`::
     When to flush based on operations.
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.env.Environment;
@@ -53,11 +54,7 @@ class Security {
         Path newConfig = processTemplate(environment.configFile().resolve("security.policy"), environment);
         System.setProperty("java.security.policy", newConfig.toString());
         System.setSecurityManager(new SecurityManager());
-        try {
-            Files.delete(newConfig);
-        } catch (Exception e) {
-            Loggers.getLogger(Security.class).warn("unable to remove temporary file: " + newConfig, e);
-        }
+        IOUtils.deleteFilesIgnoringExceptions(newConfig); // TODO: maybe log something if it fails?
     }
    
     // package-private for testing

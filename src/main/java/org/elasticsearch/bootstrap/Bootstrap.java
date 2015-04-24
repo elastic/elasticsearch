@@ -93,12 +93,8 @@ public class Bootstrap {
     }
     
     private void setupSecurity(Settings settings, Environment environment) throws Exception {
-        ESLogger logger = Loggers.getLogger(Bootstrap.class);
         if (settings.getAsBoolean("security.enabled", true)) {
             Security.configure(environment);
-            logger.info("security enabled");
-        } else {
-            logger.warn("security disabled");
         }
     }
 

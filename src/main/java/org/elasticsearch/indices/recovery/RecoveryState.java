@@ -26,6 +26,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -809,15 +810,7 @@ public class RecoveryState implements ToXContent, Streamable {
             return total;
         }
 
-        public synchronized long totalReuseBytes() {
-            long total = 0;
-            for (File file : fileDetails.values()) {
-                if (file.reused()) {
-                    total += file.length();
-                }
-            }
-            return total;
-        }
+
 
         /** percent of bytes recovered out of total files bytes *to be* recovered */
         public synchronized float recoveredBytesPercent() {

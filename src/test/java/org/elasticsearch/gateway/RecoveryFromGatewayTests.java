@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -31,10 +32,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.SyncedFlushService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.Test;
 
@@ -407,9 +411,9 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
             RecoveryState recoveryState = response.recoveryState();
             long recovered = 0;
             for (RecoveryState.File file : recoveryState.getIndex().fileDetails()) {
-               if (file.name().startsWith("segments")) {
-                   recovered += file.length();
-               }
+                if (file.name().startsWith("segments")) {
+                    recovered += file.length();
+                }
             }
             if (!recoveryState.getPrimary()) {
                 logger.info("--> replica shard {} recovered from {} to {}, recovered {}, reuse {}",
@@ -418,9 +422,9 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
                 assertThat("no bytes should be recovered", recoveryState.getIndex().recoveredBytes(), equalTo(recovered));
                 assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), greaterThan(0l));
                 // we have to recover the segments file since we commit the translog ID on engine startup
-                assertThat("all bytes should be reused except of the segments file", recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes()-recovered));
+                assertThat("all bytes should be reused except of the segments file", recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes() - recovered));
                 assertThat("no files should be recovered except of the segments file", recoveryState.getIndex().recoveredFileCount(), equalTo(1));
-                assertThat("all files should be reused except of the segments file", recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()-1));
+                assertThat("all files should be reused except of the segments file", recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount() - 1));
                 assertThat("> 0 files should be reused", recoveryState.getIndex().reusedFileCount(), greaterThan(0));
             } else {
                 assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(0l));
@@ -430,6 +434,64 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
             }
         }
 
+    }
+
+    @Test
+    @Slow
+    @TestLogging("indices.recovery:TRACE,index.store:TRACE")
+    public void testSyncFlushedRecovery() throws Exception {
+        final Settings settings = settingsBuilder()
+                .put("action.admin.cluster.node.shutdown.delay", "10ms")
+                .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
+                .put("gateway.recover_after_nodes", 4)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CONCURRENT_RECOVERIES, 4).build();
+
+        internalCluster().startNodesAsync(4, settings).get();
+        // prevent any rebalance actions during the recovery
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+                .put(indexSettings())
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)));
+        ensureGreen();
+        logger.info("--> indexing docs");
+        for (int i = 0; i < 1000; i++) {
+            client().prepareIndex("test", "type").setSource("field", "value").execute().actionGet();
+        }
+
+        logger.info("--> disabling allocation while the cluster is shut down");
+
+        // Disable allocations while we are closing nodes
+        client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(settingsBuilder()
+                        .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
+                .get();
+
+        SyncedFlushService syncedFlushService = internalCluster().getInstance(SyncedFlushService.class);
+        assertTrue(syncedFlushService.attemptSyncedFlush(new ShardId("test", 0)).success());
+        logger.info("--> full cluster restart");
+        internalCluster().fullRestart();
+
+        logger.info("--> waiting for cluster to return to green after first shutdown");
+        ensureGreen();
+        logClusterState();
+        RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
+        for (ShardRecoveryResponse response : recoveryResponse.shardResponses().get("test")) {
+            RecoveryState recoveryState = response.recoveryState();
+            if (!recoveryState.getPrimary()) {
+                logger.info("--> replica shard {} recovered from {} to {}, recovered {}, reuse {}",
+                        response.getShardId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
+                        recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
+            } else {
+                logger.info("--> replica shard {} recovered from {} to {}, recovered {}, reuse {}",
+                        response.getShardId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
+                        recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
+            }
+            assertThat("no bytes should be recovered", recoveryState.getIndex().recoveredBytes(), equalTo(0l));
+            assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes()));
+            assertThat("no files should be recovered", recoveryState.getIndex().recoveredFileCount(), equalTo(0));
+            assertThat("all files should be reused", recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()));
+        }
     }
 
     @Test

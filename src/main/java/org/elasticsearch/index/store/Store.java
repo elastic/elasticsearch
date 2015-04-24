@@ -28,6 +28,7 @@ import org.apache.lucene.store.*;
 import org.apache.lucene.util.*;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -166,10 +167,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Returns a new MetadataSnapshot for the latest commit in this store or
      * an empty snapshot if no index exists or can not be opened.
      *
-     * @throws CorruptIndexException if the lucene index is corrupted. This can be caused by a checksum mismatch or an
-     *                               unexpected exception when opening the index reading the segments file.
-     * @throws IndexFormatTooOldException  if the lucene index is too old to be opened.
-     * @throws IndexFormatTooNewException  if the lucene index is too new to be opened.
+     * @throws CorruptIndexException      if the lucene index is corrupted. This can be caused by a checksum mismatch or an
+     *                                    unexpected exception when opening the index reading the segments file.
+     * @throws IndexFormatTooOldException if the lucene index is too old to be opened.
+     * @throws IndexFormatTooNewException if the lucene index is too new to be opened.
      */
     public MetadataSnapshot getMetadataOrEmpty() throws IOException {
         try {
@@ -185,13 +186,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * Returns a new MetadataSnapshot for the latest commit in this store.
      *
-     * @throws CorruptIndexException  if the lucene index is corrupted. This can be caused by a checksum mismatch or an
-     *                                unexpected exception when opening the index reading the segments file.
-     * @throws IndexFormatTooOldException  if the lucene index is too old to be opened.
-     * @throws IndexFormatTooNewException  if the lucene index is too new to be opened.
-     * @throws FileNotFoundException  if one or more files referenced by a commit are not present.
-     * @throws NoSuchFileException    if one or more files referenced by a commit are not present.
-     * @throws IndexNotFoundException if no index / valid commit-point can be found in this store
+     * @throws CorruptIndexException      if the lucene index is corrupted. This can be caused by a checksum mismatch or an
+     *                                    unexpected exception when opening the index reading the segments file.
+     * @throws IndexFormatTooOldException if the lucene index is too old to be opened.
+     * @throws IndexFormatTooNewException if the lucene index is too new to be opened.
+     * @throws FileNotFoundException      if one or more files referenced by a commit are not present.
+     * @throws NoSuchFileException        if one or more files referenced by a commit are not present.
+     * @throws IndexNotFoundException     if no index / valid commit-point can be found in this store
      */
     public MetadataSnapshot getMetadata() throws IOException {
         return getMetadata(null);
@@ -201,13 +202,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Returns a new MetadataSnapshot for the given commit. If the given commit is <code>null</code>
      * the latest commit point is used.
      *
-     * @throws CorruptIndexException  if the lucene index is corrupted. This can be caused by a checksum mismatch or an
-     *                                unexpected exception when opening the index reading the segments file.
-     * @throws IndexFormatTooOldException  if the lucene index is too old to be opened.
-     * @throws IndexFormatTooNewException  if the lucene index is too new to be opened.
-     * @throws FileNotFoundException  if one or more files referenced by a commit are not present.
-     * @throws NoSuchFileException    if one or more files referenced by a commit are not present.
-     * @throws IndexNotFoundException if the commit point can't be found in this store
+     * @throws CorruptIndexException      if the lucene index is corrupted. This can be caused by a checksum mismatch or an
+     *                                    unexpected exception when opening the index reading the segments file.
+     * @throws IndexFormatTooOldException if the lucene index is too old to be opened.
+     * @throws IndexFormatTooNewException if the lucene index is too new to be opened.
+     * @throws FileNotFoundException      if one or more files referenced by a commit are not present.
+     * @throws NoSuchFileException        if one or more files referenced by a commit are not present.
+     * @throws IndexNotFoundException     if the commit point can't be found in this store
      */
     public MetadataSnapshot getMetadata(IndexCommit commit) throws IOException {
         ensureOpen();
@@ -363,7 +364,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @throws IOException if the index we try to read is corrupted
      */
     public static MetadataSnapshot readMetadataSnapshot(Path indexLocation, ESLogger logger) throws IOException {
-        try (Directory dir = new SimpleFSDirectory(indexLocation)){
+        try (Directory dir = new SimpleFSDirectory(indexLocation)) {
             failIfCorrupted(dir, new ShardId("", 1));
             return new MetadataSnapshot(null, dir, logger);
         } catch (IndexNotFoundException ex) {
@@ -433,7 +434,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public boolean checkIntegrityNoException(StoreFileMetaData md) {
         return checkIntegrityNoException(md, directory());
     }
-    
+
     public static boolean checkIntegrityNoException(StoreFileMetaData md, Directory directory) {
         try {
             checkIntegrity(md, directory);
@@ -454,7 +455,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 // throw exception if metadata is inconsistent
                 if (!checksum.equals(md.checksum())) {
                     throw new CorruptIndexException("inconsistent metadata: lucene checksum=" + checksum +
-                                                                       ", metadata checksum=" + md.checksum(), input);
+                            ", metadata checksum=" + md.checksum(), input);
                 }
             } else if (md.hasLegacyChecksum()) {
                 // legacy checksum verification - no footer that we need to omit in the checksum!
@@ -472,7 +473,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 String adler32 = Store.digestToString(checksum.getValue());
                 if (!adler32.equals(md.checksum())) {
                     throw new CorruptIndexException("checksum failed (hardware problem?) : expected=" + md.checksum() +
-                                                                                           " actual=" + adler32, input);
+                            " actual=" + adler32, input);
                 }
             }
         }
@@ -549,7 +550,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // FNF should not happen since we hold a write lock?
                 } catch (IOException ex) {
                     if (existingFile.startsWith(IndexFileNames.SEGMENTS)
-                        || existingFile.equals(IndexFileNames.OLD_SEGMENTS_GEN)) {
+                            || existingFile.equals(IndexFileNames.OLD_SEGMENTS_GEN)) {
                         // TODO do we need to also fail this if we can't delete the pending commit file?
                         // if one of those files can't be deleted we better fail the cleanup otherwise we might leave an old commit point around?
                         throw new IllegalStateException("Can't delete " + existingFile + " - cleanup failed", ex);
@@ -664,24 +665,30 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         public static final MetadataSnapshot EMPTY = new MetadataSnapshot();
 
-        public MetadataSnapshot(Map<String, StoreFileMetaData> metadata) {
+        private Map<String, String> commitUserData;
+
+        public MetadataSnapshot(Map<String, StoreFileMetaData> metadata, Map<String, String> commitUserData) {
             this.metadata = metadata;
+            this.commitUserData = commitUserData;
         }
 
         MetadataSnapshot() {
-            this.metadata = Collections.emptyMap();
+            this.metadata = Collections.EMPTY_MAP;
+            this.commitUserData = Collections.EMPTY_MAP;
         }
 
         MetadataSnapshot(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
-            metadata = buildMetadata(commit, directory, logger);
+            final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
+            commitUserData = segmentCommitInfos.getUserData();
+            metadata = buildMetadata(commit, directory, logger, segmentCommitInfos);
             assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
         }
 
-        ImmutableMap<String, StoreFileMetaData> buildMetadata(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
+        ImmutableMap<String, StoreFileMetaData> buildMetadata(IndexCommit commit, Directory directory, ESLogger logger, SegmentInfos segmentCommitInfos) throws IOException {
             ImmutableMap.Builder<String, StoreFileMetaData> builder = ImmutableMap.builder();
             Map<String, String> checksumMap = readLegacyChecksums(directory).v1();
             try {
-                final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
+
                 Version maxVersion = Version.LUCENE_4_0; // we don't know which version was used to write so we take the max version.
                 for (SegmentCommitInfo info : segmentCommitInfos) {
                     final Version version = info.info.getVersion();
@@ -958,6 +965,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         public static MetadataSnapshot read(StreamInput in) throws IOException {
             MetadataSnapshot storeFileMetaDatas = new MetadataSnapshot();
             storeFileMetaDatas.readFrom(in);
+
             return storeFileMetaDatas;
         }
 
@@ -968,9 +976,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             for (int i = 0; i < size; i++) {
                 StoreFileMetaData meta = StoreFileMetaData.readStoreFileMetaData(in);
                 builder.put(meta.name(), meta);
+                logger.info("read {} {}", meta.name(), meta);
             }
             this.metadata = builder.build();
             assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
+            commitUserData = new HashMap<>();
+            int num = in.readVInt();
+            for (int i = num; i > 0; i--) {
+                commitUserData.put(in.readString(), in.readOptionalString());
+            }
         }
 
         @Override
@@ -979,6 +993,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             for (StoreFileMetaData meta : this) {
                 meta.writeTo(out);
             }
+            out.writeVInt(commitUserData.size());
+            for (Map.Entry<String, String> entry : commitUserData.entrySet()) {
+                out.writeString(entry.getKey());
+                out.writeOptionalString(entry.getValue());
+            }
+        }
+
+        public Map<String, String> getCommitUserData() {
+            return commitUserData;
         }
 
         /**
@@ -1360,7 +1383,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         @Override
-        protected StoreStats refresh()  {
+        protected StoreStats refresh() {
             try {
                 return new StoreStats(estimateSize(directory), directoryService.throttleTimeInNanos());
             } catch (IOException ex) {

@@ -713,9 +713,9 @@ public class StoreTest extends ElasticsearchTestCase {
         Map<String, StoreFileMetaData> metaDataMap = new HashMap<>();
         metaDataMap.put("segments_1", new StoreFileMetaData("segments_1", 50, null, null, new BytesRef(new byte[] {1})));
         metaDataMap.put("_0_1.del", new StoreFileMetaData("_0_1.del", 42, "foobarbaz", null, new BytesRef()));
-        Store.MetadataSnapshot first = new Store.MetadataSnapshot(metaDataMap);
+        Store.MetadataSnapshot first = new Store.MetadataSnapshot(metaDataMap, Collections.EMPTY_MAP);
 
-        Store.MetadataSnapshot second = new Store.MetadataSnapshot(metaDataMap);
+        Store.MetadataSnapshot second = new Store.MetadataSnapshot(metaDataMap, Collections.EMPTY_MAP);
         Store.RecoveryDiff recoveryDiff = first.recoveryDiff(second);
         assertEquals(recoveryDiff.toString(), recoveryDiff.different.size(), 2);
     }
@@ -985,7 +985,7 @@ public class StoreTest extends ElasticsearchTestCase {
         Map<String, StoreFileMetaData> metaDataMap = new HashMap<>();
         metaDataMap.put("segments_1", new StoreFileMetaData("segments_1", 50, null, null, new BytesRef(new byte[]{1})));
         metaDataMap.put("_0_1.del", new StoreFileMetaData("_0_1.del", 42, "foobarbaz", null, new BytesRef()));
-        Store.MetadataSnapshot snapshot = new Store.MetadataSnapshot(metaDataMap);
+        Store.MetadataSnapshot snapshot = new Store.MetadataSnapshot(metaDataMap, Collections.EMPTY_MAP);
 
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());

@@ -25,6 +25,7 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.env.Environment;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -72,7 +73,7 @@ class Security {
         Path processed = Files.createTempFile(null, null);
         try (OutputStream output = new BufferedOutputStream(Files.newOutputStream(processed))) {
             // copy the template as-is.
-            try (InputStream in = template) {
+            try (InputStream in = new BufferedInputStream(template)) {
                 ByteStreams.copy(in, output);
             }
             

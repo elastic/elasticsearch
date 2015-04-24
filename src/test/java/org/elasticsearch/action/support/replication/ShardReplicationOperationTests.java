@@ -47,6 +47,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -70,6 +71,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.hamcrest.Matchers.*;
@@ -427,7 +429,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         TransportShardReplicationOperationAction<Request, Request, Response>.ReplicationPhase replicationPhase =
                 action.new ReplicationPhase(shardIt, request,
                         new Response(), new ClusterStateObserver(clusterService, logger),
-                        primaryShard, internalRequest, listener);
+                        primaryShard, internalRequest, listener, null);
 
         assertThat(replicationPhase.totalShards(), equalTo(totalShards));
         assertThat(replicationPhase.pending(), equalTo(assignedReplicas));
@@ -548,6 +550,18 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         @Override
         protected boolean resolveIndex() {
             return false;
+        }
+
+        @Override
+        void decrementCounter(AtomicReference<IndexShard> indexShard) {
+            // do nothing or decrement some other counter,
+            // nocommit: what do we want to test here?
+        }
+
+        @Override
+        void incrementCounterAndSet(AtomicReference<IndexShard> indexShardReference, ShardId shardId) {
+            // do nothing or decrement some other counter,
+            // nocommit: what do we want to test here?
         }
     }
 

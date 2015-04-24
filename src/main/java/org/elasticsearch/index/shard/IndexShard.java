@@ -54,6 +54,7 @@ import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaDataStateFormat;
@@ -137,6 +138,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class IndexShard extends AbstractIndexShardComponent {
 
+    public static final String IN_FLIGHT_OPERATIONS_COUNTER = "in_flight_operations_counter";
     private final ThreadPool threadPool;
     private final IndexSettingsService indexSettingsService;
     private final MapperService mapperService;
@@ -746,6 +748,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                     mergeScheduleFuture = null;
                 }
                 changeState(IndexShardState.CLOSED, reason);
+                decrementOperationCounter();
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
                 try {
@@ -838,7 +841,9 @@ public class IndexShard extends AbstractIndexShardComponent {
        assert recoveryState.getTranslog().recoveredOperations() == 0;
     }
 
-    /** called if recovery has to be restarted after network error / delay ** */
+    /**
+     * called if recovery has to be restarted after network error / delay **
+     */
     public void performRecoveryRestart() throws IOException {
         synchronized (mutex) {
             if (state != IndexShardState.RECOVERING) {
@@ -850,7 +855,9 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    /** returns stats about ongoing recoveries, both source and target */
+    /**
+     * returns stats about ongoing recoveries, both source and target
+     */
     public RecoveryStats recoveryStats() {
         return recoveryStats;
     }
@@ -1098,7 +1105,9 @@ public class IndexShard extends AbstractIndexShardComponent {
             });
         }
 
-        /** Schedules another (future) refresh, if refresh_interval is still enabled. */
+        /**
+         * Schedules another (future) refresh, if refresh_interval is still enabled.
+         */
         private void reschedule() {
             synchronized (mutex) {
                 if (state != IndexShardState.CLOSED && refreshInterval.millis() > 0) {
@@ -1292,5 +1301,25 @@ public class IndexShard extends AbstractIndexShardComponent {
         return new EngineConfig(shardId,
                 threadPool, indexingService, indexSettingsService, warmer, store, deletionPolicy, translog, mergePolicyProvider, mergeScheduler,
                 mapperAnalyzer, similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer);
+    }
+
+    private final AbstractRefCounted counter = new AbstractRefCounted("in-flight-operations-counter") {
+        @Override
+        protected void closeInternal() {
+        }
+    };
+
+    public void decrementOperationCounter() {
+        counter.decRef();
+    }
+
+    public void incrementOperationCounter() {
+        if (counter.tryIncRef() == false ) {
+            throw new IndexShardClosedException(shardId, "could not increment operation counter. shard is closed.");
+        }
+    }
+
+    public int getOperationCounter() {
+        return counter.refCount();
     }
 }

@@ -29,11 +29,6 @@ import org.elasticsearch.index.shard.ShardPath;
  */
 public class StoreModule extends AbstractModule {
 
-    public static final String DISTIBUTOR_KEY = "index.store.distributor";
-    public static final String LEAST_USED_DISTRIBUTOR = "least_used";
-    public static final String RANDOM_WEIGHT_DISTRIBUTOR = "random";
-
-    private final Settings settings;
 
     private final ShardLock lock;
     private final Store.OnClose closeCallback;
@@ -41,9 +36,8 @@ public class StoreModule extends AbstractModule {
     private final Class<? extends DirectoryService> shardDirectory;
 
 
-    public StoreModule(Settings settings,  Class<? extends DirectoryService> shardDirectory, ShardLock lock, Store.OnClose closeCallback, ShardPath path) {
+    public StoreModule(Class<? extends DirectoryService> shardDirectory, ShardLock lock, Store.OnClose closeCallback, ShardPath path) {
         this.shardDirectory = shardDirectory;
-        this.settings = settings;
         this.lock = lock;
         this.closeCallback = closeCallback;
         this.path = path;

@@ -311,7 +311,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             modules.add(new ShardIndexingModule());
             modules.add(new ShardSearchModule());
             modules.add(new ShardGetModule());
-            modules.add(new StoreModule(indexSettings, injector.getInstance(IndexStore.class).shardDirectory(), lock,
+            modules.add(new StoreModule(injector.getInstance(IndexStore.class).shardDirectory(), lock,
                     new StoreCloseListener(shardId, canDeleteShardContent), path));
             modules.add(new DeletionPolicyModule(indexSettings));
             modules.add(new MergePolicyModule(indexSettings));

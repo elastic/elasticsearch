@@ -70,7 +70,7 @@ public final class CommitStats implements Streamable, ToXContent {
     public void readFrom(StreamInput in) throws IOException {
         MapBuilder<String, String> builder = MapBuilder.newMapBuilder();
         for (int i = in.readVInt(); i > 0; i--) {
-            builder.put(in.readString(), in.readOptionalString());
+            builder.put(in.readString(), in.readString());
         }
         userData = builder.immutableMap();
         generation = in.readLong();
@@ -81,7 +81,7 @@ public final class CommitStats implements Streamable, ToXContent {
         out.writeVInt(userData.size());
         for (Map.Entry<String, String> entry : userData.entrySet()) {
             out.writeString(entry.getKey());
-            out.writeOptionalString(entry.getValue());
+            out.writeString(entry.getValue());
         }
         out.writeLong(generation);
     }

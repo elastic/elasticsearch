@@ -488,9 +488,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         if (random.nextBoolean()) {
-            builder.put(StoreModule.DISTIBUTOR_KEY, random.nextBoolean() ? StoreModule.LEAST_USED_DISTRIBUTOR : StoreModule.RANDOM_WEIGHT_DISTRIBUTOR);
-        }
-        if (random.nextBoolean()) {
             builder.put(ConcurrentMergeSchedulerProvider.AUTO_THROTTLE, false);
         }
 

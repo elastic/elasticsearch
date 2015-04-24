@@ -231,7 +231,6 @@
 #
 #http.enabled: false
 
-
 ################################### Gateway ###################################
 
 # The gateway allows for persisting the cluster state between full cluster

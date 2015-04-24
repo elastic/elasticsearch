@@ -26,7 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
-public final class TransportLivenessAction extends BaseTransportRequestHandler<LivenessRequest> {
+public final class TransportLivenessAction implements TransportRequestHandler<LivenessRequest> {
 
     private final ClusterService clusterService;
     private final ClusterName clusterName;
@@ -37,21 +37,11 @@ public final class TransportLivenessAction extends BaseTransportRequestHandler<L
                                    ClusterService clusterService, TransportService transportService) {
         this.clusterService = clusterService;
         this.clusterName = clusterName;
-        transportService.registerHandler(NAME, this);
-    }
-
-    @Override
-    public LivenessRequest newInstance() {
-        return new LivenessRequest();
+        transportService.registerRequestHandler(NAME, LivenessRequest.class, ThreadPool.Names.SAME, this);
     }
 
     @Override
     public void messageReceived(LivenessRequest request, TransportChannel channel) throws Exception {
         channel.sendResponse(new LivenessResponse(clusterName, clusterService.localNode()));
-    }
-
-    @Override
-    public String executor() {
-        return ThreadPool.Names.SAME;
     }
 }

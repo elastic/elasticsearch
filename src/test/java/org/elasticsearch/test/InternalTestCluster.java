@@ -83,6 +83,7 @@ import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.shard.IndexShardModule;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -383,7 +384,7 @@ public final class InternalTestCluster extends TestCluster {
                 .put("cluster.routing.schedule", (30 + random.nextInt(50)) + "ms")
                 .put(SETTING_CLUSTER_NODE_SEED, seed);
         if (ENABLE_MOCK_MODULES && usually(random)) {
-            builder.put("index.store.type", MockFSIndexStoreModule.class.getName()); // no RAM dir for now!
+            builder.put(IndexStoreModule.STORE_TYPE, MockFSIndexStoreModule.class.getName()); // no RAM dir for now!
             builder.put(IndexShardModule.ENGINE_FACTORY, MockEngineFactory.class);
             builder.put(PageCacheRecyclerModule.CACHE_IMPL, MockPageCacheRecyclerModule.class.getName());
             builder.put(BigArraysModule.IMPL, MockBigArraysModule.class.getName());

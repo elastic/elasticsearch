@@ -15,7 +15,7 @@ setup:
 "Parent":
 
  - do:
-      catch:      /RoutingMissingException/
+      catch:      /routing_missing_exception/
       update:
           index:   test_1
           type:    test

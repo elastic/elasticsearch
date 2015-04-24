@@ -45,7 +45,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
     @Inject
     public TransportClusterHealthAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                         ClusterName clusterName, ActionFilters actionFilters) {
-        super(settings, ClusterHealthAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, ClusterHealthAction.NAME, transportService, clusterService, threadPool, actionFilters, ClusterHealthRequest.class);
         this.clusterName = clusterName;
     }
 
@@ -58,11 +58,6 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
     @Override
     protected ClusterBlockException checkBlock(ClusterHealthRequest request, ClusterState state) {
         return null; // we want users to be able to call this even when there are global blocks, just to check the health (are there blocks?)
-    }
-
-    @Override
-    protected ClusterHealthRequest newRequest() {
-        return new ClusterHealthRequest();
     }
 
     @Override

@@ -20,11 +20,18 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.junit.Test;
 
 import java.io.FileNotFoundException;
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -70,8 +77,8 @@ public class BytesRestResponseTests extends ElasticsearchTestCase {
         Throwable t = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
         BytesRestResponse response = new BytesRestResponse(channel, t);
         String text = response.content().toUtf8();
-        assertThat(text, containsString("ElasticsearchException[an error occurred reading data]"));
-        assertThat(text, containsString("FileNotFoundException[/foo/bar]"));
+        assertThat(text, containsString("{\"type\":\"exception\",\"reason\":\"an error occurred reading data\"}"));
+        assertThat(text, containsString("{\"type\":\"file_not_found_exception\",\"reason\":\"/foo/bar\"}"));
     }
 
     @Test
@@ -97,9 +104,19 @@ public class BytesRestResponseTests extends ElasticsearchTestCase {
         Throwable t = new Throwable("an error occurred reading data", new FileNotFoundException("/foo/bar"));
         BytesRestResponse response = new BytesRestResponse(channel, t);
         String text = response.content().toUtf8();
-        assertThat(text, containsString("\"error\":\"Throwable[an error occurred reading data]"));
-        assertThat(text, containsString("FileNotFoundException[/foo/bar]"));
+        assertThat(text, containsString("\"type\":\"throwable\",\"reason\":\"an error occurred reading data\""));
+        assertThat(text, containsString("{\"type\":\"file_not_found_exception\",\"reason\":\"/foo/bar\"}"));
         assertThat(text, containsString("\"error_trace\":{\"message\":\"an error occurred reading data\""));
+    }
+
+    public void testGuessRootCause() throws IOException {
+        RestRequest request = new FakeRestRequest();
+        RestChannel channel = new DetailedExceptionRestChannel(request);
+
+        Throwable t = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
+        BytesRestResponse response = new BytesRestResponse(channel, t);
+        String text = response.content().toUtf8();
+        assertThat(text, containsString("{\"root_cause\":[{\"type\":\"exception\",\"reason\":\"an error occurred reading data\"}]"));
     }
 
     @Test
@@ -109,8 +126,21 @@ public class BytesRestResponseTests extends ElasticsearchTestCase {
 
         BytesRestResponse response = new BytesRestResponse(channel, null);
         String text = response.content().toUtf8();
-        assertThat(text, containsString("\"error\":\"Unknown\""));
+        assertThat(text, containsString("\"error\":\"unknown\""));
         assertThat(text, not(containsString("error_trace")));
+    }
+
+    @Test
+    public void testConvert() throws IOException {
+        RestRequest request = new FakeRestRequest();
+        RestChannel channel = new DetailedExceptionRestChannel(request);
+        ShardSearchFailure failure = new ShardSearchFailure(new QueryParsingException(new Index("foo"), "foobar"), new SearchShardTarget("node_1", "foo", 1));
+        ShardSearchFailure failure1 = new ShardSearchFailure(new QueryParsingException(new Index("foo"), "foobar"), new SearchShardTarget("node_1", "foo", 2));
+        SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed",  new ShardSearchFailure[] {failure, failure1});
+        BytesRestResponse response = new BytesRestResponse(channel, new RemoteTransportException("foo", ex));
+        String text = response.content().toUtf8();
+        String expected = "{\"error\":{\"root_cause\":[{\"type\":\"query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\"}],\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\"}}]},\"status\":400}";
+        assertEquals(expected.trim(), text.trim());
     }
 
     private static class ExceptionWithHeaders extends ElasticsearchException.WithRestHeaders {

@@ -54,8 +54,12 @@ public final class ExceptionsHelper {
     }
 
     public static RestStatus status(Throwable t) {
-        if (t instanceof ElasticsearchException) {
-            return ((ElasticsearchException) t).status();
+        if (t != null) {
+            if (t instanceof ElasticsearchException) {
+                return ((ElasticsearchException) t).status();
+            } else if (t instanceof IllegalArgumentException) {
+                return RestStatus.BAD_REQUEST;
+            }
         }
         return RestStatus.INTERNAL_SERVER_ERROR;
     }

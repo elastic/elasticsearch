@@ -76,7 +76,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     public TransportUpdateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                  TransportIndexAction indexAction, TransportDeleteAction deleteAction, TransportCreateIndexAction createIndexAction,
                                  UpdateHelper updateHelper, ActionFilters actionFilters, IndicesService indicesService) {
-        super(settings, UpdateAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, UpdateAction.NAME, threadPool, clusterService, transportService, actionFilters, UpdateRequest.class);
         this.indexAction = indexAction;
         this.deleteAction = deleteAction;
         this.createIndexAction = createIndexAction;
@@ -88,11 +88,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     @Override
     protected String executor() {
         return ThreadPool.Names.INDEX;
-    }
-
-    @Override
-    protected UpdateRequest newRequest() {
-        return new UpdateRequest();
     }
 
     @Override

@@ -39,7 +39,7 @@
               match: {foo: bar}
 
   - match:  { responses.0.hits.total:     3  }
-  - match:  { responses.1.error: "IndexMissingException[[test_2] missing]"  }
+  - match:  { responses.1.error: "/IndexMissingException.no.such.index./"  }
   - match:  { responses.2.hits.total:     1  }
 
 

@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.hash.MurmurHash3;
@@ -35,6 +36,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.murmur3Field;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
@@ -69,6 +71,17 @@ public class Murmur3FieldMapper extends LongFieldMapper {
         @SuppressWarnings("unchecked")
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = murmur3Field(name);
+
+            // tweaking these settings is no longer allowed, the entire purpose of murmur3 fields is to store a hash
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
+                if (node.get("doc_values") != null) {
+                    throw new MapperParsingException("Setting [doc_values] cannot be modified for field [" + name + "]");
+                }
+                if (node.get("index") != null) {
+                    throw new MapperParsingException("Setting [index] cannot be modified for field [" + name + "]");
+                }
+            }
+
             parseNumberField(builder, name, node, parserContext);
             // Because this mapper extends LongFieldMapper the null_value field will be added to the JSON when transferring cluster state
             // between nodes so we have to remove the entry here so that the validation doesn't fail

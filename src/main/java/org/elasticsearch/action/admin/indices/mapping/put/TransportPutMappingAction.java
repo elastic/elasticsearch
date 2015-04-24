@@ -44,7 +44,7 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
     @Inject
     public TransportPutMappingAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                      ThreadPool threadPool, MetaDataMappingService metaDataMappingService, ActionFilters actionFilters) {
-        super(settings, PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, PutMappingRequest.class);
         this.metaDataMappingService = metaDataMappingService;
     }
 
@@ -52,11 +52,6 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
     protected String executor() {
         // we go async right away
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected PutMappingRequest newRequest() {
-        return new PutMappingRequest();
     }
 
     @Override

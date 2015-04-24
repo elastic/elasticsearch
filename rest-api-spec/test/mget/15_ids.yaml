@@ -59,14 +59,14 @@
 
 
   - do:
-      catch:  /ActionRequestValidationException.+ no documents to get/
+      catch:  /action_request_validation_exception.+ no documents to get/
       mget:
         index:  test_1
         body:
           ids: []
 
   - do:
-      catch:  /ActionRequestValidationException.+ no documents to get/
+      catch:  /action_request_validation_exception.+ no documents to get/
       mget:
         index:  test_1
         body:   {}

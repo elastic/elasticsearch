@@ -57,23 +57,14 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
 
     @Inject
     public TransportShardMultiPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, PercolatorService percolatorService, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
+                Request.class, ThreadPool.Names.PERCOLATE);
         this.percolatorService = percolatorService;
     }
 
     @Override
     protected boolean isSubAction() {
         return true;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.PERCOLATE;
-    }
-
-    @Override
-    protected Request newRequest() {
-        return new Request();
     }
 
     @Override

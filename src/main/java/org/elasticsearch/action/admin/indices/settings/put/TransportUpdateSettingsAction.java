@@ -45,7 +45,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
     @Inject
     public TransportUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                          MetaDataUpdateSettingsService updateSettingsService, ActionFilters actionFilters) {
-        super(settings, UpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, UpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, UpdateSettingsRequest.class);
         this.updateSettingsService = updateSettingsService;
     }
 
@@ -66,11 +66,6 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
             return null;
         }
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
-    }
-
-    @Override
-    protected UpdateSettingsRequest newRequest() {
-        return new UpdateSettingsRequest();
     }
 
     @Override

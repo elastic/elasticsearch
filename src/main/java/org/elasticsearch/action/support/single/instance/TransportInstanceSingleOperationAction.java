@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -47,22 +48,18 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  *
  */
-public abstract class TransportInstanceSingleOperationAction<Request extends InstanceShardOperationRequest, Response extends ActionResponse> extends TransportAction<Request, Response> {
+public abstract class TransportInstanceSingleOperationAction<Request extends InstanceShardOperationRequest, Response extends ActionResponse> extends HandledTransportAction<Request, Response> {
 
     protected final ClusterService clusterService;
-
     protected final TransportService transportService;
 
     final String executor;
 
-    protected TransportInstanceSingleOperationAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
-        super(settings, actionName, threadPool, actionFilters);
+    protected TransportInstanceSingleOperationAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters, Class<Request> request) {
+        super(settings, actionName, threadPool, transportService, actionFilters, request);
         this.clusterService = clusterService;
         this.transportService = transportService;
-
         this.executor = executor();
-
-        transportService.registerHandler(actionName, new TransportHandler());
     }
 
     @Override
@@ -73,8 +70,6 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
     protected abstract String executor();
 
     protected abstract void shardOperation(InternalRequest request, ActionListener<Response> listener) throws ElasticsearchException;
-
-    protected abstract Request newRequest();
 
     protected abstract Response newResponse();
 
@@ -276,44 +271,6 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                     }
                 }
             }, internalRequest.request().timeout());
-        }
-    }
-
-    class TransportHandler extends BaseTransportRequestHandler<Request> {
-
-        @Override
-        public Request newInstance() {
-            return newRequest();
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
-        @Override
-        public void messageReceived(Request request, final TransportChannel channel) throws Exception {
-            // no need to have a threaded listener since we just send back a response
-            request.listenerThreaded(false);
-            execute(request, new ActionListener<Response>() {
-                @Override
-                public void onResponse(Response result) {
-                    try {
-                        channel.sendResponse(result);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send response for get", e1);
-                    }
-                }
-            });
         }
     }
 

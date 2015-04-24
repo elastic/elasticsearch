@@ -28,6 +28,7 @@ import org.elasticsearch.common.text.Text;
 import org.joda.time.ReadableInstant;
 
 import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.util.Date;
 import java.util.LinkedHashMap;
@@ -48,10 +49,6 @@ public abstract class StreamOutput extends OutputStream {
     public StreamOutput setVersion(Version version) {
         this.version = version;
         return this;
-    }
-
-    public boolean seekPositionSupported() {
-        return false;
     }
 
     public long position() throws IOException {
@@ -431,5 +428,11 @@ public abstract class StreamOutput extends OutputStream {
         } else {
             writeBoolean(false);
         }
+    }
+
+    public void writeThrowable(Throwable throwable) throws IOException {
+        ObjectOutputStream out = new ObjectOutputStream(this);
+        out.writeObject(throwable);
+        out.flush();
     }
 }

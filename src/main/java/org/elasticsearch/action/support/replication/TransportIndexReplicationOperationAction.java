@@ -103,14 +103,8 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
                     failureCounter.getAndIncrement();
                     int index = indexCounter.getAndIncrement();
                     // this is a failure for an entire shard group, constructs shard info accordingly
-                    final RestStatus status;
-                    if (e != null && e instanceof ElasticsearchException) {
-                        status = ((ElasticsearchException) e).status();
-                    } else {
-                        status = RestStatus.INTERNAL_SERVER_ERROR;
-                    }
-                    Failure failure = new Failure(request.index(), shardIt.shardId().id(), null,
-                            "Failed to execute on all shard copies [" + ExceptionsHelper.detailedMessage(e) + "]", status, true);
+                    final RestStatus status = ExceptionsHelper.status(e);
+                    Failure failure = new Failure(request.index(), shardIt.shardId().id(), null, e, status, true);
                     shardsResponses.set(index, new ShardActionResult(new ActionWriteResponse.ShardInfo(shardIt.size(), 0, failure)));
                     returnIfNeeded();
                 }

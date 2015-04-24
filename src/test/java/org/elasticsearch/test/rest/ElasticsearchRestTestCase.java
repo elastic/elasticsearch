@@ -33,6 +33,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -121,6 +122,12 @@ public abstract class ElasticsearchRestTestCase extends ElasticsearchIntegration
         } else {
             blacklistPathMatchers = new PathMatcher[0];
         }
+    }
+
+    @Override
+    protected void afterIfFailed(List<Throwable> errors) {
+        logger.info("Stash dump on failure [{}]", XContentHelper.toString(restTestExecutionContext.stash()));
+        super.afterIfFailed(errors);
     }
 
     @Override

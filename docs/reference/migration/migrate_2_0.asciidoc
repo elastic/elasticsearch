@@ -302,6 +302,10 @@ the user-friendly representation of boolean fields: `false`/`true`:
 ]
 ---------------
 
+=== Murmur3 Fields
+Fields of type `murmur3` can no longer change `doc_values` or `index` setting.
+They are always stored with doc values, and not indexed.
+
 === Codecs
 
 It is no longer possible to specify per-field postings and doc values formats
@@ -389,3 +393,10 @@ favour or `bool`.
 
 The `execution` option of the `terms` filter is now deprecated and ignored if
 provided.
+
+=== Snapshot and Restore
+
+The obsolete parameters `expand_wildcards_open` and `expand_wildcards_close` are no longer
+supported by the snapshot and restore operations. These parameters have been replaced by
+a single `expand_wildcards` parameter. See <<multi-index,the multi-index docs>> for more.
+

@@ -65,7 +65,7 @@ public class NodesFaultDetection extends FaultDetection {
 
         logger.debug("[node  ] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
 
-        transportService.registerHandler(PING_ACTION_NAME, new PingRequestHandler());
+        transportService.registerRequestHandler(PING_ACTION_NAME, PingRequest.class, ThreadPool.Names.SAME, new PingRequestHandler());
     }
 
     public void setLocalNode(DiscoveryNode localNode) {
@@ -239,13 +239,7 @@ public class NodesFaultDetection extends FaultDetection {
         }
     }
 
-    class PingRequestHandler extends BaseTransportRequestHandler<PingRequest> {
-
-        @Override
-        public PingRequest newInstance() {
-            return new PingRequest();
-        }
-
+    class PingRequestHandler implements TransportRequestHandler<PingRequest> {
         @Override
         public void messageReceived(PingRequest request, TransportChannel channel) throws Exception {
             // if we are not the node we are supposed to be pinged, send an exception
@@ -263,11 +257,6 @@ public class NodesFaultDetection extends FaultDetection {
             notifyPingReceived(request);
 
             channel.sendResponse(new PingResponse());
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 

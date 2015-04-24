@@ -23,8 +23,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
 /**
@@ -32,30 +32,12 @@ import org.elasticsearch.transport.TransportService;
  */
 public abstract class HandledTransportAction<Request extends ActionRequest, Response extends ActionResponse> extends TransportAction<Request,Response>{
 
-    /**
-     * Sub classes implement this call to get new instance of a Request object
-     * @return Request
-     */
-    protected abstract Request newRequestInstance();
-
-    protected HandledTransportAction(Settings settings, String actionName, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters){
+    protected HandledTransportAction(Settings settings, String actionName, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, Class<Request> request) {
         super(settings, actionName, threadPool, actionFilters);
-        transportService.registerHandler(actionName, new TransportHandler() {
-            @Override
-            public Request newInstance(){
-                return newRequestInstance();
-            }
-        });
+        transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, new TransportHandler());
     }
 
-    abstract class TransportHandler extends BaseTransportRequestHandler<Request>{
-
-        /**
-         * Call to get an instance of type Request
-         * @return Request
-         */
-        @Override
-        public abstract Request newInstance();
+    class TransportHandler implements TransportRequestHandler<Request> {
 
         @Override
         public final void messageReceived(final Request request, final TransportChannel channel) throws Exception {
@@ -82,12 +64,6 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
                 }
             });
         }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
     }
 
 }

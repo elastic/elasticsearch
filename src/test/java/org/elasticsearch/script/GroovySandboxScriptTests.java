@@ -153,8 +153,7 @@ public class GroovySandboxScriptTests extends ElasticsearchIntegrationTest {
                             "; doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}").get();
             fail("script: " + script + " failed to be caught be the sandbox!");
         } catch (SearchPhaseExecutionException e) {
-            String msg = ExceptionsHelper.detailedMessage(ExceptionsHelper.unwrapCause(e));
-            assertThat("script failed, but with incorrect message: " + msg, msg.contains(failMessage), equalTo(true));
+            assertThat("script failed, but with incorrect message: " + e.toString(), e.toString().contains(failMessage), equalTo(true));
         }
     }
 }

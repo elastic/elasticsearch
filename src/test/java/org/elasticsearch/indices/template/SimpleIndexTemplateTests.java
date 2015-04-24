@@ -29,6 +29,8 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.Priority;
@@ -495,7 +497,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
         } catch(ElasticsearchIllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [invalid_alias]"));
             assertThat(e.getCause(), instanceOf(QueryParsingException.class));
-            assertThat(e.getCause().getMessage(), equalTo("[test] No filter registered for [invalid]"));
+            assertThat(e.getCause().getMessage(), equalTo("No filter registered for [invalid]"));
         }
     }
 
@@ -530,7 +532,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
             createIndex("test");
             fail("index creation should have failed due to alias with existing index name in mathching index template");
         } catch(InvalidAliasNameException e) {
-            assertThat(e.getMessage(), equalTo("[test] Invalid alias name [index], an index exists with the same name as the alias"));
+            assertThat(e.getMessage(), equalTo("Invalid alias name [index], an index exists with the same name as the alias"));
         }
     }
 
@@ -604,38 +606,66 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
     public void testStrictAliasParsingInIndicesCreatedViaTemplates() throws Exception {
         // Indexing into a should succeed, because the field mapping for field 'field' is defined in the test mapping.
         client().admin().indices().preparePutTemplate("template1")
-                .setTemplate("a")
+                .setTemplate("a*")
                 .setOrder(0)
                 .addMapping("test", "field", "type=string")
                 .addAlias(new Alias("alias1").filter(termFilter("field", "value"))).get();
         // Indexing into b should succeed, because the field mapping for field 'field' is defined in the _default_ mapping and the test type exists.
         client().admin().indices().preparePutTemplate("template2")
-                .setTemplate("b")
+                .setTemplate("b*")
                 .setOrder(0)
                 .addMapping("_default_", "field", "type=string")
                 .addMapping("test")
                 .addAlias(new Alias("alias2").filter(termFilter("field", "value"))).get();
         // Indexing into c should succeed, because the field mapping for field 'field' is defined in the _default_ mapping.
         client().admin().indices().preparePutTemplate("template3")
-                .setTemplate("c")
+                .setTemplate("c*")
                 .setOrder(0)
                 .addMapping("_default_", "field", "type=string")
                 .addAlias(new Alias("alias3").filter(termFilter("field", "value"))).get();
         // Indexing into d index should fail, since there is field with name 'field' in the mapping
         client().admin().indices().preparePutTemplate("template4")
-                .setTemplate("d")
+                .setTemplate("d*")
                 .setOrder(0)
                 .addAlias(new Alias("alias4").filter(termFilter("field", "value"))).get();
 
-        client().prepareIndex("a", "test", "test").setSource("{}").get();
-        client().prepareIndex("b", "test", "test").setSource("{}").get();
-        client().prepareIndex("c", "test", "test").setSource("{}").get();
+        client().prepareIndex("a1", "test", "test").setSource("{}").get();
+        BulkResponse response = client().prepareBulk().add(new IndexRequest("a2", "test", "test").source("{}")).get();
+        assertThat(response.hasFailures(), is(false));
+        assertThat(response.getItems()[0].isFailed(), equalTo(false));
+        assertThat(response.getItems()[0].getIndex(), equalTo("a2"));
+        assertThat(response.getItems()[0].getType(), equalTo("test"));
+        assertThat(response.getItems()[0].getId(), equalTo("test"));
+        assertThat(response.getItems()[0].getVersion(), equalTo(1l));
+
+        client().prepareIndex("b1", "test", "test").setSource("{}").get();
+        response = client().prepareBulk().add(new IndexRequest("b2", "test", "test").source("{}")).get();
+        assertThat(response.hasFailures(), is(false));
+        assertThat(response.getItems()[0].isFailed(), equalTo(false));
+        assertThat(response.getItems()[0].getIndex(), equalTo("b2"));
+        assertThat(response.getItems()[0].getType(), equalTo("test"));
+        assertThat(response.getItems()[0].getId(), equalTo("test"));
+        assertThat(response.getItems()[0].getVersion(), equalTo(1l));
+
+        client().prepareIndex("c1", "test", "test").setSource("{}").get();
+        response = client().prepareBulk().add(new IndexRequest("c2", "test", "test").source("{}")).get();
+        assertThat(response.hasFailures(), is(false));
+        assertThat(response.getItems()[0].isFailed(), equalTo(false));
+        assertThat(response.getItems()[0].getIndex(), equalTo("c2"));
+        assertThat(response.getItems()[0].getType(), equalTo("test"));
+        assertThat(response.getItems()[0].getId(), equalTo("test"));
+        assertThat(response.getItems()[0].getVersion(), equalTo(1l));
+
         try {
-            client().prepareIndex("d", "test", "test").setSource("{}").get();
+            client().prepareIndex("d1", "test", "test").setSource("{}").get();
             fail();
         } catch (Exception e) {
             assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(ElasticsearchIllegalArgumentException.class));
             assertThat(e.getMessage(), containsString("failed to parse filter for alias [alias4]"));
         }
+        response = client().prepareBulk().add(new IndexRequest("d2", "test", "test").source("{}")).get();
+        assertThat(response.hasFailures(), is(true));
+        assertThat(response.getItems()[0].isFailed(), equalTo(true));
+        assertThat(response.getItems()[0].getFailureMessage(), containsString("failed to parse filter for alias [alias4]"));
     }
 }

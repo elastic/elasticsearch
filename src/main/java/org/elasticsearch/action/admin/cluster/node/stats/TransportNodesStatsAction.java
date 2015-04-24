@@ -49,13 +49,9 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
     public TransportNodesStatsAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                      ClusterService clusterService, TransportService transportService,
                                      NodeService nodeService, ActionFilters actionFilters) {
-        super(settings, NodesStatsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
+        super(settings, NodesStatsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+                NodesStatsRequest.class, NodeStatsRequest.class, ThreadPool.Names.MANAGEMENT);
         this.nodeService = nodeService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
     }
 
     @Override
@@ -68,16 +64,6 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
             }
         }
         return new NodesStatsResponse(clusterName, nodeStats.toArray(new NodeStats[nodeStats.size()]));
-    }
-
-    @Override
-    protected NodesStatsRequest newRequestInstance() {
-        return new NodesStatsRequest();
-    }
-
-    @Override
-    protected NodeStatsRequest newNodeRequest() {
-        return new NodeStatsRequest();
     }
 
     @Override

@@ -120,7 +120,7 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
         assertThat(response.getIndices().size(), equalTo(1));
         assertThat(response.getIndices().get("test").getShardInfo().getFailures().length, equalTo(twitter.numPrimaries));
         for (ActionWriteResponse.ShardInfo.Failure failure : response.getIndices().get("test").getShardInfo().getFailures()) {
-            assertThat(failure.reason(), containsString("[test] [has_child] query and filter unsupported in delete_by_query api"));
+            assertThat(failure.reason(), containsString("[has_child] query and filter unsupported in delete_by_query api"));
             assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
             assertThat(failure.shardId(), greaterThan(-1));
         }

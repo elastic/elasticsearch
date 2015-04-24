@@ -41,7 +41,7 @@ public class TransportPendingClusterTasksAction extends TransportMasterNodeReadO
 
     @Inject
     public TransportPendingClusterTasksAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, PendingClusterTasksAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, PendingClusterTasksAction.NAME, transportService, clusterService, threadPool, actionFilters, PendingClusterTasksRequest.class);
         this.clusterService = clusterService;
     }
 
@@ -54,11 +54,6 @@ public class TransportPendingClusterTasksAction extends TransportMasterNodeReadO
     @Override
     protected ClusterBlockException checkBlock(PendingClusterTasksRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
-    }
-
-    @Override
-    protected PendingClusterTasksRequest newRequest() {
-        return new PendingClusterTasksRequest();
     }
 
     @Override

@@ -89,8 +89,6 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         }
     }
 
-    private final NodeEnvironment nodeEnv;
-
     private final NodeSettingsService nodeSettingsService;
 
     private final IndicesService indicesService;
@@ -107,15 +105,14 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
     private TimeValue deleteShardTimeout;
 
     @Inject
-    public IndicesStore(Settings settings, NodeEnvironment nodeEnv, NodeSettingsService nodeSettingsService, IndicesService indicesService,
+    public IndicesStore(Settings settings, NodeSettingsService nodeSettingsService, IndicesService indicesService,
                         ClusterService clusterService, TransportService transportService) {
         super(settings);
-        this.nodeEnv = nodeEnv;
         this.nodeSettingsService = nodeSettingsService;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.transportService = transportService;
-        transportService.registerHandler(ACTION_SHARD_EXISTS, new ShardActiveRequestHandler());
+        transportService.registerRequestHandler(ACTION_SHARD_EXISTS, ShardActiveRequest.class, ThreadPool.Names.SAME, new ShardActiveRequestHandler());
 
         // we don't limit by default (we default to CMS's auto throttle instead):
         this.rateLimitingType = settings.get("indices.store.throttle.type", StoreRateLimiting.Type.NONE.name());
@@ -133,7 +130,6 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
     IndicesStore() {
         super(ImmutableSettings.EMPTY);
-        nodeEnv = null;
         nodeSettingsService = null;
         indicesService = null;
         this.clusterService = null;
@@ -328,17 +324,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
     }
 
-    private class ShardActiveRequestHandler extends BaseTransportRequestHandler<ShardActiveRequest> {
-
-        @Override
-        public ShardActiveRequest newInstance() {
-            return new ShardActiveRequest();
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
+    private class ShardActiveRequestHandler implements TransportRequestHandler<ShardActiveRequest> {
 
         @Override
         public void messageReceived(final ShardActiveRequest request, final TransportChannel channel) throws Exception {

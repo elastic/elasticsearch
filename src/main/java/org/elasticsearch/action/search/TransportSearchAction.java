@@ -62,7 +62,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                  TransportSearchScanAction scanAction,
                                  TransportSearchCountAction countAction,
                                  ActionFilters actionFilters) {
-        super(settings, SearchAction.NAME, threadPool, transportService, actionFilters);
+        super(settings, SearchAction.NAME, threadPool, transportService, actionFilters, SearchRequest.class);
         this.clusterService = clusterService;
         this.dfsQueryThenFetchAction = dfsQueryThenFetchAction;
         this.queryThenFetchAction = queryThenFetchAction;
@@ -108,10 +108,5 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else {
             throw new ElasticsearchIllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");
         }
-    }
-
-    @Override
-    public SearchRequest newRequestInstance() {
-        return new SearchRequest();
     }
 }

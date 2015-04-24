@@ -13,7 +13,7 @@
           wait_for_status: yellow
 
  - do:
-      catch:  /RoutingMissingException/
+      catch:  /routing_missing_exception/
       index:
           index:   test_1
           type:    test

@@ -381,6 +381,11 @@ be used separately to control whether `routing_nodes` should be returned.
 
 === Query DSL
 
+Change to ranking behaviour: single-term queries on numeric fields now score in the same way as string fields (use of IDF, norms if enabled). 
+Previously, term queries on numeric fields were deliberately prevented from using the usual Lucene scoring logic and this behaviour was undocumented and, to some, unexpected.
+If the introduction of scoring to numeric fields is undesirable for your query clauses the fix is simple: wrap them in a `constant_score` or use a `filter` expression instead.  
+
+
 The `fuzzy_like_this` and `fuzzy_like_this_field` queries have been removed.
 
 The `limit` filter is deprecated and becomes a no-op. You can achieve similar

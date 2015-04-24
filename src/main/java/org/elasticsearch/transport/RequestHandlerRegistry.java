@@ -43,6 +43,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
             throw new ElasticsearchIllegalStateException("failed to create constructor (does it have a default constructor?) for request " + request, e);
         }
         this.requestConstructor.setAccessible(true);
+        assert newRequest() != null;
         this.handler = handler;
         this.forceExecution = forceExecution;
         this.executor = executor;

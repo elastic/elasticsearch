@@ -21,26 +21,25 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-/**
- *
- */
-public abstract class MergeContext {
+/** A container for tracking results of a mapping merge. */
+public abstract class MergeResult {
 
-    private final DocumentMapper.MergeFlags mergeFlags;
+    private final boolean simulate;
 
-    public MergeContext(DocumentMapper.MergeFlags mergeFlags) {
-        this.mergeFlags = mergeFlags;
+    public MergeResult(boolean simulate) {
+        this.simulate = simulate;
     }
 
-    public abstract void addFieldMappers(List<FieldMapper<?>> fieldMappers);
+    public abstract void addFieldMappers(Collection<FieldMapper<?>> fieldMappers);
 
     public abstract void addObjectMappers(Collection<ObjectMapper> objectMappers);
 
-    public DocumentMapper.MergeFlags mergeFlags() {
-        return mergeFlags;
+    public boolean simulate() {
+        return simulate;
     }
 
     public abstract void addConflict(String mergeFailure);

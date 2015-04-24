@@ -57,7 +57,7 @@ public class FieldMappersLookupTests extends ElasticsearchTestCase {
     public void testNewField() {
         FieldMappersLookup lookup = new FieldMappersLookup();
         FakeFieldMapper f = new FakeFieldMapper("foo", "bar");
-        FieldMappersLookup lookup2 = lookup.copyAndAddAll(Lists.newArrayList(f));
+        FieldMappersLookup lookup2 = lookup.copyAndAddAll(newList(f));
         assertNull(lookup.fullName("foo"));
         assertNull(lookup.indexName("bar"));
 
@@ -76,9 +76,9 @@ public class FieldMappersLookupTests extends ElasticsearchTestCase {
         FieldMappersLookup lookup = new FieldMappersLookup();
         FakeFieldMapper f = new FakeFieldMapper("foo", "bar");
         FakeFieldMapper other = new FakeFieldMapper("blah", "blah");
-        lookup = lookup.copyAndAddAll(Lists.newArrayList(f, other));
+        lookup = lookup.copyAndAddAll(newList(f, other));
         FakeFieldMapper f2 = new FakeFieldMapper("foo", "bar");
-        FieldMappersLookup lookup2 = lookup.copyAndAddAll(Lists.newArrayList(f2));
+        FieldMappersLookup lookup2 = lookup.copyAndAddAll(newList(f2));
 
         FieldMappers mappers = lookup2.fullName("foo");
         assertNotNull(mappers);
@@ -93,7 +93,7 @@ public class FieldMappersLookupTests extends ElasticsearchTestCase {
     public void testIndexName() {
         FakeFieldMapper f1 = new FakeFieldMapper("foo", "foo");
         FieldMappersLookup lookup = new FieldMappersLookup();
-        lookup = lookup.copyAndAddAll(Lists.newArrayList(f1));
+        lookup = lookup.copyAndAddAll(newList(f1));
 
         FieldMappers mappers = lookup.indexName("foo");
         assertNotNull(mappers);
@@ -105,7 +105,7 @@ public class FieldMappersLookupTests extends ElasticsearchTestCase {
         FakeFieldMapper f1 = new FakeFieldMapper("foo", "baz");
         FakeFieldMapper f2 = new FakeFieldMapper("bar", "boo");
         FieldMappersLookup lookup = new FieldMappersLookup();
-        lookup = lookup.copyAndAddAll(Lists.newArrayList(f1, f2));
+        lookup = lookup.copyAndAddAll(newList(f1, f2));
         List<String> names = lookup.simpleMatchToIndexNames("b*");
         assertTrue(names.contains("baz"));
         assertTrue(names.contains("boo"));
@@ -115,7 +115,7 @@ public class FieldMappersLookupTests extends ElasticsearchTestCase {
         FakeFieldMapper f1 = new FakeFieldMapper("foo", "baz");
         FakeFieldMapper f2 = new FakeFieldMapper("bar", "boo");
         FieldMappersLookup lookup = new FieldMappersLookup();
-        lookup = lookup.copyAndAddAll(Lists.newArrayList(f1, f2));
+        lookup = lookup.copyAndAddAll(newList(f1, f2));
         List<String> names = lookup.simpleMatchToFullName("b*");
         assertTrue(names.contains("foo"));
         assertTrue(names.contains("bar"));
@@ -126,7 +126,7 @@ public class FieldMappersLookupTests extends ElasticsearchTestCase {
         FakeFieldMapper f2 = new FakeFieldMapper("foo", "realbar");
         FakeFieldMapper f3 = new FakeFieldMapper("baz", "realfoo");
         FieldMappersLookup lookup = new FieldMappersLookup();
-        lookup = lookup.copyAndAddAll(Lists.newArrayList(f1, f2, f3));
+        lookup = lookup.copyAndAddAll(newList(f1, f2, f3));
 
         assertNotNull(lookup.smartName("foo"));
         assertEquals(2, lookup.smartName("foo").mappers().size());
@@ -138,7 +138,7 @@ public class FieldMappersLookupTests extends ElasticsearchTestCase {
     public void testIteratorImmutable() {
         FakeFieldMapper f1 = new FakeFieldMapper("foo", "bar");
         FieldMappersLookup lookup = new FieldMappersLookup();
-        lookup = lookup.copyAndAddAll(Lists.newArrayList(f1));
+        lookup = lookup.copyAndAddAll(newList(f1));
 
         try {
             Iterator<FieldMapper<?>> itr = lookup.iterator();
@@ -154,18 +154,22 @@ public class FieldMappersLookupTests extends ElasticsearchTestCase {
     public void testGetMapper() {
         FakeFieldMapper f1 = new FakeFieldMapper("foo", "bar");
         FieldMappersLookup lookup = new FieldMappersLookup();
-        lookup = lookup.copyAndAddAll(Lists.newArrayList(f1));
+        lookup = lookup.copyAndAddAll(newList(f1));
 
         assertEquals(f1, lookup.get("foo"));
         assertNull(lookup.get("bar")); // get is only by full name
         FakeFieldMapper f2 = new FakeFieldMapper("foo", "foo");
-        lookup = lookup.copyAndAddAll(Lists.newArrayList(f2));
+        lookup = lookup.copyAndAddAll(newList(f2));
         try {
             lookup.get("foo");
             fail("get should have enforced foo is unique");
         } catch (IllegalStateException e) {
             // expected
         }
+    }
+
+    static List<FieldMapper<?>> newList(FieldMapper<?>... mapper) {
+        return Lists.newArrayList(mapper);
     }
 
     // this sucks how much must be overriden just do get a dummy field mapper...

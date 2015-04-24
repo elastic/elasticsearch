@@ -49,7 +49,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperUtils;
-import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ObjectMapperListener;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -919,32 +919,32 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
     }
 
     @Override
-    public void merge(final Mapper mergeWith, final MergeContext mergeContext) throws MergeMappingException {
+    public void merge(final Mapper mergeWith, final MergeResult mergeResult) throws MergeMappingException {
         if (!(mergeWith instanceof ObjectMapper)) {
-            mergeContext.addConflict("Can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping [" + name() + "]");
+            mergeResult.addConflict("Can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping [" + name() + "]");
             return;
         }
         ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
 
         if (nested().isNested()) {
             if (!mergeWithObject.nested().isNested()) {
-                mergeContext.addConflict("object mapping [" + name() + "] can't be changed from nested to non-nested");
+                mergeResult.addConflict("object mapping [" + name() + "] can't be changed from nested to non-nested");
                 return;
             }
         } else {
             if (mergeWithObject.nested().isNested()) {
-                mergeContext.addConflict("object mapping [" + name() + "] can't be changed from non-nested to nested");
+                mergeResult.addConflict("object mapping [" + name() + "] can't be changed from non-nested to nested");
                 return;
             }
         }
 
-        if (!mergeContext.mergeFlags().simulate()) {
+        if (!mergeResult.simulate()) {
             if (mergeWithObject.dynamic != null) {
                 this.dynamic = mergeWithObject.dynamic;
             }
         }
 
-        doMerge(mergeWithObject, mergeContext);
+        doMerge(mergeWithObject, mergeResult);
 
         List<Mapper> mappersToPut = new ArrayList<>();
         FieldMapperListener.Aggregator newFieldMappers = new FieldMapperListener.Aggregator();
@@ -954,20 +954,20 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
             Mapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
             if (mergeIntoMapper == null) {
                 // no mapping, simply add it if not simulating
-                if (!mergeContext.mergeFlags().simulate()) {
+                if (!mergeResult.simulate()) {
                     mappersToPut.add(mergeWithMapper);
                     mergeWithMapper.traverse(newFieldMappers);
                     mergeWithMapper.traverse(newObjectMappers);
                 }
             } else {
-                mergeIntoMapper.merge(mergeWithMapper, mergeContext);
+                mergeIntoMapper.merge(mergeWithMapper, mergeResult);
             }
         }
         if (!newFieldMappers.mappers.isEmpty()) {
-            mergeContext.addFieldMappers(newFieldMappers.mappers);
+            mergeResult.addFieldMappers(newFieldMappers.mappers);
         }
         if (!newObjectMappers.mappers.isEmpty()) {
-            mergeContext.addObjectMappers(newObjectMappers.mappers);
+            mergeResult.addObjectMappers(newObjectMappers.mappers);
         }
         // add the mappers only after the administration have been done, so it will not be visible to parser (which first try to read with no lock)
         for (Mapper mapper : mappersToPut) {
@@ -975,7 +975,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
         }
     }
 
-    protected void doMerge(ObjectMapper mergeWith, MergeContext mergeContext) {
+    protected void doMerge(ObjectMapper mergeWith, MergeResult mergeResult) {
 
     }
 

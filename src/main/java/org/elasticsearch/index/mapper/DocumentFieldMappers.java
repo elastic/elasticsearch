@@ -55,7 +55,7 @@ public final class DocumentFieldMappers implements Iterable<FieldMapper<?>> {
         this.searchQuoteAnalyzer = searchQuoteAnalyzer;
     }
 
-    public DocumentFieldMappers copyAndAllAll(Collection<? extends FieldMapper<?>> newMappers) {
+    public DocumentFieldMappers copyAndAllAll(Collection<FieldMapper<?>> newMappers) {
         FieldMappersLookup fieldMappers = this.fieldMappers.copyAndAddAll(newMappers);
         FieldNameAnalyzer indexAnalyzer = this.indexAnalyzer.copyAndAddAll(Collections2.transform(newMappers, new Function<FieldMapper<?>, Map.Entry<String, Analyzer>>() {
             @Override

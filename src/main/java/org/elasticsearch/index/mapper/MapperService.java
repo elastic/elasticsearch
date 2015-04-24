@@ -79,7 +79,6 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
-import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
 
 /**
  *
@@ -336,11 +335,11 @@ public class MapperService extends AbstractIndexComponent  {
             DocumentMapper oldMapper = mappers.get(mapper.type());
 
             if (oldMapper != null) {
-                DocumentMapper.MergeResult result = oldMapper.merge(mapper.mapping(), mergeFlags().simulate(false));
+                MergeResult result = oldMapper.merge(mapper.mapping(), false);
                 if (result.hasConflicts()) {
                     // TODO: What should we do???
                     if (logger.isDebugEnabled()) {
-                        logger.debug("merging mapping for type [{}] resulted in conflicts: [{}]", mapper.type(), Arrays.toString(result.conflicts()));
+                        logger.debug("merging mapping for type [{}] resulted in conflicts: [{}]", mapper.type(), Arrays.toString(result.buildConflicts()));
                     }
                 }
                 fieldDataService.onMappingUpdate();
@@ -385,7 +384,7 @@ public class MapperService extends AbstractIndexComponent  {
         }
     }
 
-    private void addFieldMappers(List<FieldMapper<?>> fieldMappers) {
+    private void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
         synchronized (mappersMutex) {
             this.fieldMappers = this.fieldMappers.copyAndAddAll(fieldMappers);
         }
@@ -933,7 +932,7 @@ public class MapperService extends AbstractIndexComponent  {
         }
 
         @Override
-        public void fieldMappers(List<FieldMapper<?>> fieldMappers) {
+        public void fieldMappers(Collection<FieldMapper<?>> fieldMappers) {
             addFieldMappers(fieldMappers);
         }
     }

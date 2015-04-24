@@ -37,7 +37,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
@@ -278,9 +278,9 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         FieldNamesFieldMapper fieldNamesMapperMergeWith = (FieldNamesFieldMapper)mergeWith;
-        if (!mergeContext.mergeFlags().simulate()) {
+        if (!mergeResult.simulate()) {
             if (fieldNamesMapperMergeWith.enabledState != enabledState && !fieldNamesMapperMergeWith.enabledState.unset()) {
                 this.enabledState = fieldNamesMapperMergeWith.enabledState;
             }

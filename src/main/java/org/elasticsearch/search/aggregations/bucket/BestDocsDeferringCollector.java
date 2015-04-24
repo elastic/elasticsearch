@@ -27,6 +27,10 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
@@ -46,23 +50,27 @@ import java.util.List;
  * 
  */
 
-public class BestDocsDeferringCollector extends DeferringBucketCollector {
+public class BestDocsDeferringCollector extends DeferringBucketCollector implements Releasable {
     final List<PerSegmentCollects> entries = new ArrayList<>();
     BucketCollector deferred;
-    TopDocsCollector<? extends ScoreDoc> tdc;
-    boolean finished = false;
+    ObjectArray<PerParentBucketSamples> perBucketSamples;
     private int shardSize;
     private PerSegmentCollects perSegCollector;
-    private int matchedDocs;
+    private final BigArrays bigArrays;
 
     /**
      * Sole constructor.
      * 
      * @param shardSize
+     *            The number of top-scoring docs to collect for each bucket
+     * @param bigArrays
      */
-    public BestDocsDeferringCollector(int shardSize) {
+    public BestDocsDeferringCollector(int shardSize, BigArrays bigArrays) {
         this.shardSize = shardSize;
+        this.bigArrays = bigArrays;
+        perBucketSamples = bigArrays.newObjectArray(1);
     }
+
 
 
     @Override
@@ -73,16 +81,10 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector {
     /** Set the deferred collectors. */
     public void setDeferredCollector(Iterable<BucketCollector> deferredCollectors) {
         this.deferred = BucketCollector.wrap(deferredCollectors);
-        try {
-            tdc = createTopDocsCollector(shardSize);
-        } catch (IOException e) {
-            throw new ElasticsearchException("IO error creating collector", e);
-        }
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-        // finishLeaf();
         perSegCollector = new PerSegmentCollects(ctx);
         entries.add(perSegCollector);
 
@@ -95,7 +97,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector {
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                perSegCollector.collect(doc);
+                perSegCollector.collect(doc, bucket);
             }
         };
     }
@@ -112,42 +114,94 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector {
 
     @Override
     public void postCollection() throws IOException {
-        finished = true;
+        runDeferredAggs();
     }
 
-    /**
-     * Replay the wrapped collector, but only on a selection of buckets.
-     */
+
     @Override
     public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {
-        if (!finished) {
-            throw new IllegalStateException("Cannot replay yet, collection is not finished: postCollect() has not been called");
-        }
-        if (selectedBuckets.length > 1) {
-            throw new IllegalStateException("Collection only supported on a single bucket");
-        }
+        // no-op - deferred aggs processed in postCollection call
+    }
 
+    private void runDeferredAggs() throws IOException {
         deferred.preCollection();
 
-        TopDocs topDocs = tdc.topDocs();
-        ScoreDoc[] sd = topDocs.scoreDocs;
-        matchedDocs = sd.length;
-        // Sort the top matches by docID for the benefit of deferred collector
-        Arrays.sort(sd, new Comparator<ScoreDoc>() {
-            @Override
-            public int compare(ScoreDoc o1, ScoreDoc o2) {
-                return o1.doc - o2.doc;
+        List<ScoreDoc> allDocs = new ArrayList<>(shardSize);
+        for (int i = 0; i < perBucketSamples.size(); i++) {
+            PerParentBucketSamples perBucketSample = perBucketSamples.get(i);
+            if (perBucketSample == null) {
+                continue;
             }
-        });
+            perBucketSample.getMatches(allDocs);
+        }
+        
+        // Sort the top matches by docID for the benefit of deferred collector
+        ScoreDoc[] docsArr = allDocs.toArray(new ScoreDoc[allDocs.size()]);
+        Arrays.sort(docsArr, new Comparator<ScoreDoc>() {
+             @Override
+             public int compare(ScoreDoc o1, ScoreDoc o2) {
+                 if(o1.doc == o2.doc){
+                     return o1.shardIndex - o2.shardIndex;                    
+                 }
+                 return o1.doc - o2.doc;
+             }
+         });
         try {
             for (PerSegmentCollects perSegDocs : entries) {
-                perSegDocs.replayRelatedMatches(sd);
+                perSegDocs.replayRelatedMatches(docsArr);
             }
-            // deferred.postCollection();
         } catch (IOException e) {
             throw new ElasticsearchException("IOException collecting best scoring results", e);
         }
         deferred.postCollection();
+    }
+
+    class PerParentBucketSamples {
+        private LeafCollector currentLeafCollector;
+        private TopDocsCollector<? extends ScoreDoc> tdc;
+        private long parentBucket;
+        private int matchedDocs;
+
+        public PerParentBucketSamples(long parentBucket, Scorer scorer, LeafReaderContext readerContext) {
+            try {
+                this.parentBucket = parentBucket;
+                tdc = createTopDocsCollector(shardSize);
+                currentLeafCollector = tdc.getLeafCollector(readerContext);
+                setScorer(scorer);
+            } catch (IOException e) {
+                throw new ElasticsearchException("IO error creating collector", e);
+            }
+        }
+
+        public void getMatches(List<ScoreDoc> allDocs) {
+            TopDocs topDocs = tdc.topDocs();
+            ScoreDoc[] sd = topDocs.scoreDocs;
+            matchedDocs = sd.length;
+            for (ScoreDoc scoreDoc : sd) {
+                // A bit of a hack to (ab)use shardIndex property here to
+                // hold a bucket ID but avoids allocating extra data structures
+                // and users should have bigger concerns if bucket IDs
+                // exceed int capacity..
+                scoreDoc.shardIndex = (int) parentBucket;
+            }
+            allDocs.addAll(Arrays.asList(sd));
+        }
+
+        public void collect(int doc) throws IOException {
+            currentLeafCollector.collect(doc);
+        }
+
+        public void setScorer(Scorer scorer) throws IOException {
+            currentLeafCollector.setScorer(scorer);
+        }
+
+        public void changeSegment(LeafReaderContext readerContext) throws IOException {
+            currentLeafCollector = tdc.getLeafCollector(readerContext);
+        }
+
+        public int getDocCount() {
+            return matchedDocs;
+        }
     }
 
     class PerSegmentCollects extends Scorer {
@@ -155,7 +209,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector {
         int maxDocId = Integer.MIN_VALUE;
         private float currentScore;
         private int currentDocId = -1;
-        private LeafCollector currentLeafCollector;
+        private Scorer currentScorer;
 
         PerSegmentCollects(LeafReaderContext readerContext) throws IOException {
             // The publisher behaviour for Reader/Scorer listeners triggers a
@@ -164,12 +218,24 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector {
             // However, passing null seems to have no adverse effects here...
             super(null);
             this.readerContext = readerContext;
-            currentLeafCollector = tdc.getLeafCollector(readerContext);
-
+            for (int i = 0; i < perBucketSamples.size(); i++) {
+                PerParentBucketSamples perBucketSample = perBucketSamples.get(i);
+                if (perBucketSample == null) {
+                    continue;
+                }
+                perBucketSample.changeSegment(readerContext);
+            }
         }
 
         public void setScorer(Scorer scorer) throws IOException {
-            currentLeafCollector.setScorer(scorer);
+            this.currentScorer = scorer;
+            for (int i = 0; i < perBucketSamples.size(); i++) {
+                PerParentBucketSamples perBucketSample = perBucketSamples.get(i);
+                if (perBucketSample == null) {
+                    continue;
+                }
+                perBucketSample.setScorer(scorer);
+            }
         }
 
         public void replayRelatedMatches(ScoreDoc[] sd) throws IOException {
@@ -188,7 +254,9 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector {
                 if ((rebased >= 0) && (rebased <= maxDocId)) {
                     currentScore = scoreDoc.score;
                     currentDocId = rebased;
-                    leafCollector.collect(rebased, 0);
+                    // We stored the bucket ID in Lucene's shardIndex property
+                    // for convenience. 
+                    leafCollector.collect(rebased, scoreDoc.shardIndex);
                 }
             }
 
@@ -224,15 +292,32 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector {
             throw new ElasticsearchException("This caching scorer implementation only implements score() and docID()");
         }
 
-        public void collect(int docId) throws IOException {
-            currentLeafCollector.collect(docId);
+        public void collect(int docId, long parentBucket) throws IOException {
+            perBucketSamples = bigArrays.grow(perBucketSamples, parentBucket + 1);
+            PerParentBucketSamples sampler = perBucketSamples.get((int) parentBucket);
+            if (sampler == null) {
+                sampler = new PerParentBucketSamples(parentBucket, currentScorer, readerContext);
+                perBucketSamples.set((int) parentBucket, sampler);
+            }
+            sampler.collect(docId);
             maxDocId = Math.max(maxDocId, docId);
         }
     }
 
 
-    public int getDocCount() {
-        return matchedDocs;
+    public int getDocCount(long parentBucket) {
+        PerParentBucketSamples sampler = perBucketSamples.get((int) parentBucket);
+        if (sampler == null) {
+            // There are conditions where no docs are collected and the aggs
+            // framework still asks for doc count.
+            return 0;
+        }
+        return sampler.getDocCount();
+    }
+
+    @Override
+    public void close() throws ElasticsearchException {
+        Releasables.close(perBucketSamples);
     }
 
 }

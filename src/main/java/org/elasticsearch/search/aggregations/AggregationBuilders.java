@@ -43,6 +43,8 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.Sampler;
+import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -143,6 +145,13 @@ public class AggregationBuilders {
      */
     public static FiltersAggregationBuilder filters(String name) {
         return new FiltersAggregationBuilder(name);
+    }
+
+    /**
+     * Create a new {@link Sampler} aggregation with the given name.
+     */
+    public static SamplerAggregationBuilder sampler(String name) {
+        return new SamplerAggregationBuilder(name);
     }
 
     /**

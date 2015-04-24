@@ -66,7 +66,7 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
     class DiverseDocsDeferringCollector extends BestDocsDeferringCollector {
 
         public DiverseDocsDeferringCollector() {
-            super(shardSize);
+            super(shardSize, context.bigArrays());
         }
 
         @Override

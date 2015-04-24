@@ -247,8 +247,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     }
 
     protected class PrimaryOperationRequest {
-        public ShardId shardId;
-        public Request request;
+        public final ShardId shardId;
+        public final Request request;
 
         public PrimaryOperationRequest(int shardId, String index, Request request) {
             this.shardId = new ShardId(index, shardId);
@@ -283,15 +283,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            int shard = -1;
             shardId = ShardId.readShardId(in);
             request = newReplicaRequestInstance();
             request.readFrom(in);
-            if (in.getVersion().before(Version.V_1_4_0_Beta1)) {
-                assert shard >= 0;
-                //older nodes will send the concrete index as part of the request
-                shardId = new ShardId(request.index(), shard);
-            }
         }
 
         @Override

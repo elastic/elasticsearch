@@ -8,11 +8,6 @@ package org.elasticsearch.watcher.test.integration;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.watcher.WatcherService;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
-import org.elasticsearch.watcher.test.WatcherTestUtils;
-import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
-import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.base.Predicate;
@@ -26,6 +21,13 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.watcher.WatcherService;
+import org.elasticsearch.watcher.client.WatchSourceBuilder;
+import org.elasticsearch.watcher.client.WatchSourceBuilders;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.WatcherTestUtils;
+import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
+import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
@@ -33,6 +35,11 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
+import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
+import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondition;
+import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
+import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
@@ -114,6 +121,51 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
                 .setSource(watchSource)
                 .get();
         assertWatchWithMinimumPerformedActionsCount("my-second-watch", 1);
+    }
+
+    @Test
+    public void testDedicatedMasterNodeLayout() throws Exception {
+        // Only the master nodes are in the unicast nodes list:
+        config = new ClusterDiscoveryConfiguration.UnicastZen(3);
+        Settings settings = ImmutableSettings.builder().put("node.type", "master").build();
+        internalTestCluster().startNodesAsync(3, settings).get();
+        settings = ImmutableSettings.builder().put("node.type", "data").build();
+        internalTestCluster().startNodesAsync(7, settings).get();
+        ensureWatcherStarted(false);
+        ensureLicenseEnabled();
+
+        WatchSourceBuilder watchSource = WatchSourceBuilders.watchBuilder()
+                .trigger(schedule(interval("5s")))
+                .input(simpleInput("key", "value"))
+                .condition(alwaysCondition())
+                .addAction("_id", loggingAction("[{{ctx.watch_id}}] executed!"));
+
+        watcherClient().preparePutWatch("_watch_id")
+                .setSource(watchSource)
+                .get();
+        assertWatchWithMinimumPerformedActionsCount("_watch_id", 1, false);
+
+        // We still have 2 master node, we should recover from this failure:
+        internalTestCluster().stopCurrentMasterNode();
+        assertWatchWithMinimumPerformedActionsCount("_watch_id", 2, false);
+
+        // Stop the elected master, no new master will be elected b/c of m_m_n is set to 2
+        stopElectedMasterNodeAndWait();
+        try {
+            // any watch action should fail, because there is no elected master node
+            watcherClient().prepareDeleteWatch("_watch_id").setMasterNodeTimeout(TimeValue.timeValueSeconds(1)).get();
+            fail();
+        } catch (Exception e) {
+            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(MasterNotDiscoveredException.class));
+        }
+        // Bring back the 2nd node and wait for elected master node to come back and watcher to work as expected.
+        startElectedMasterNodeAndWait();
+
+        // we first need to make sure the license is enabled, otherwise all APIs will be blocked
+        ensureLicenseEnabled();
+
+        // Our first watch's condition should at least have been met twice
+        assertWatchWithMinimumPerformedActionsCount("_watch_id", 3, false);
     }
 
     @Test

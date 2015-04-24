@@ -26,7 +26,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.jna.Natives;
 import org.elasticsearch.common.logging.ESLogger;
@@ -40,7 +39,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
-import java.nio.file.Paths;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -61,6 +59,7 @@ public class Bootstrap {
     private static Bootstrap bootstrap;
 
     private void setup(boolean addShutdownHook, Tuple<Settings, Environment> tuple) throws Exception {
+        setupSecurity(tuple.v1(), tuple.v2());
         if (tuple.v1().getAsBoolean("bootstrap.mlockall", false)) {
             Natives.tryMlockall();
         }
@@ -90,6 +89,18 @@ public class Bootstrap {
                     return false;
                 }
             });
+        }
+    }
+    
+    /** 
+     * option for elasticsearch.yml etc to turn off our security manager completely,
+     * for example if you want to have your own configuration or just disable.
+     */
+    static final String SECURITY_SETTING = "security.manager.enabled";
+
+    private void setupSecurity(Settings settings, Environment environment) throws Exception {
+        if (settings.getAsBoolean(SECURITY_SETTING, true)) {
+            Security.configure(environment);
         }
     }
 

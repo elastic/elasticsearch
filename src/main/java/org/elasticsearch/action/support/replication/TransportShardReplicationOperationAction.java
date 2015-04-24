@@ -21,10 +21,11 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.*;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterService;
@@ -35,11 +36,13 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -48,12 +51,21 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
@@ -112,7 +124,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
      */
     protected abstract Tuple<Response, ReplicaRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) throws Throwable;
 
-    protected abstract void shardOperationOnReplica(ShardId shardId, ReplicaRequest shardRequest) throws Exception;
+    protected abstract void shardOperationOnReplica(ShardId shardId, ReplicaRequest shardRequest);
 
     protected abstract ShardIterator shards(ClusterState clusterState, InternalRequest request) throws ElasticsearchException;
 
@@ -203,12 +215,77 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     class ReplicaOperationTransportHandler implements TransportRequestHandler<ReplicaRequest> {
         @Override
         public void messageReceived(final ReplicaRequest request, final TransportChannel channel) throws Exception {
-            try {
-                shardOperationOnReplica(request.internalShardId, request);
-            } catch (Throwable t) {
-                failReplicaIfNeeded(request.internalShardId.getIndex(), request.internalShardId.id(), t);
-                throw t;
+            new AsyncReplicaAction(request, channel).run();
+        }
+    }
+
+    protected static class RetryOnReplicaException extends IndexShardException {
+
+        public RetryOnReplicaException(ShardId shardId, String msg) {
+            super(shardId, msg);
+        }
+
+        public RetryOnReplicaException(ShardId shardId, String msg, Throwable cause) {
+            super(shardId, msg, cause);
+        }
+    }
+
+    private final class AsyncReplicaAction extends AbstractRunnable {
+        private final ReplicaRequest request;
+        private final TransportChannel channel;
+        // important: we pass null as a timeout as failing a replica is
+        // something we want to avoid at all costs
+        private final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger);
+
+
+        AsyncReplicaAction(ReplicaRequest request, TransportChannel channel) {
+            this.request = request;
+            this.channel = channel;
+        }
+
+        @Override
+        public void onFailure(Throwable t) {
+            if (t instanceof RetryOnReplicaException) {
+                logger.trace("Retrying operation on replica", t);
+                observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        threadPool.executor(executor).execute(AsyncReplicaAction.this);
+                    }
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        responseWithFailure(new NodeClosedException(clusterService.localNode()));
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        throw new AssertionError("Cannot happen: there is not timeout");
+                    }
+                });
+            } else {
+                try {
+                    failReplicaIfNeeded(request.internalShardId.getIndex(), request.internalShardId.id(), t);
+                } catch (Throwable unexpected) {
+                    logger.error("{} unexpected error while failing replica", request.internalShardId.id(), unexpected);
+                } finally {
+                    responseWithFailure(t);
+                }
             }
+        }
+
+        protected void responseWithFailure(Throwable t) {
+            try {
+                channel.sendResponse(t);
+            } catch (IOException responseException) {
+                logger.warn("failed to send error message back to client for action [" + transportReplicaAction + "]", responseException);
+                logger.warn("actual Exception", t);
+            }
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            shardOperationOnReplica(request.internalShardId, request);
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }

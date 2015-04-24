@@ -83,8 +83,6 @@ class Security {
             paths.add(environment.configFile());
             paths.add(environment.logsFile());
             paths.add(environment.pluginsFile());
-            paths.add(environment.workFile());
-            paths.add(environment.workWithClusterFile());
             for (Path path : environment.dataFiles()) {
                 paths.add(path);
             }

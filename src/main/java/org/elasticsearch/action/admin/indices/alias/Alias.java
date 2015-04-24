@@ -157,15 +157,29 @@ public class Alias implements Streamable {
         return this;
     }
 
+    /**
+     * Returns the fields that are visible via this index alias. Other fields existing in the concrete indices this
+     * alias is pointing are not visible, so no feature can access these fields.
+     *
+     * If <code>null</code> is returned then all fields are accessible.
+     */
     public AliasFieldsFiltering fields() {
         return fieldsFiltering;
     }
 
+    /**
+     * Sets the fields that are visible via this alias, any other field not defined in the specified fields will not
+     * be accessible.
+     */
     public Alias fields(AliasFieldsFiltering fields) {
         this.fieldsFiltering = fields;
         return this;
     }
 
+    /**
+     * Sets the fields that are visible via this alias, any other field not defined in the specified fields will not
+     * be accessible.
+     */
     public Alias includeFields(String... fields) {
         this.fieldsFiltering = new AliasFieldsFiltering(fields);
         return this;
@@ -186,7 +200,7 @@ public class Alias implements Streamable {
         filter = in.readOptionalString();
         indexRouting = in.readOptionalString();
         searchRouting = in.readOptionalString();
-        fieldsFiltering = in.readOptionalStreamable(new AliasFieldsFiltering());
+        fieldsFiltering = new AliasFieldsFiltering(in);
     }
 
     @Override

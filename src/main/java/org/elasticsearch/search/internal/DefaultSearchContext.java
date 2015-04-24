@@ -196,7 +196,7 @@ public class DefaultSearchContext extends SearchContext {
         this.indexService = indexService;
 
         aliasFields = indexService.aliasesService().aliasFields(request.filteringAliases());
-        if (aliasFields != null) {
+        if (aliasFields.isEmpty() == false) {
             // We need to include the meta fields, otherwise features will stop working.
             Set<String> indexedFieldNames = Sets.newHashSet(MapperService.getMetaFields());
             // We need to exclude the _all field here, because that includes all a copy of all values from all fields.
@@ -211,7 +211,7 @@ public class DefaultSearchContext extends SearchContext {
                 DirectoryReader filter = FieldSubsetReader.wrap((DirectoryReader) engineSearcher.searcher().getIndexReader(), indexedFieldNames, fullFieldNames);
                 this.searcher = new ContextIndexSearcher(this, engineSearcher, filter);
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                throw new ElasticsearchException("Couldn't a view on a subset of fields", e);
             }
         } else {
             this.searcher = new ContextIndexSearcher(this, engineSearcher);

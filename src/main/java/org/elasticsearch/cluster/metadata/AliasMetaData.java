@@ -349,7 +349,7 @@ public class AliasMetaData {
             if (in.readBoolean()) {
                 searchRouting = in.readString();
             }
-            AliasFieldsFiltering fieldsFiltering = in.readOptionalStreamable(new AliasFieldsFiltering());
+            AliasFieldsFiltering fieldsFiltering = new AliasFieldsFiltering(in);
             return new AliasMetaData(alias, filter, indexRouting, searchRouting, fieldsFiltering);
         }
     }

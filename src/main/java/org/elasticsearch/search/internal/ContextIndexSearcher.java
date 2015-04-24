@@ -59,19 +59,16 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private Stage currentState = Stage.NA;
 
-    public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher, DirectoryReader filter) throws IOException {
-        super(filter);
-        // no push
-        in = new IndexSearcher(filter);
+    public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher, DirectoryReader filter) {
+        super(filter != null ? filter : searcher.reader());
+        // no push, because we don't have the extra assertions from asserting index searcher if we insert a filtered reader, can we fix this?
+        in = filter != null ? new IndexSearcher(filter) : searcher.searcher();
         this.searchContext = searchContext;
         setSimilarity(searcher.searcher().getSimilarity());
     }
 
     public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
-        super(searcher.reader());
-        in = searcher.searcher();
-        this.searchContext = searchContext;
-        setSimilarity(searcher.searcher().getSimilarity());
+        this(searchContext, searcher, null);
     }
 
     @Override

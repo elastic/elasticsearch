@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -39,7 +40,8 @@ public class AliasFieldsFiltering implements Streamable, ToXContent {
 
     private String[] includes;
 
-    public AliasFieldsFiltering() {
+    public AliasFieldsFiltering(StreamInput in) throws IOException {
+        readFrom(in);
     }
 
     public AliasFieldsFiltering(String[] includes) {
@@ -60,16 +62,12 @@ public class AliasFieldsFiltering implements Streamable, ToXContent {
         if (o == null || getClass() != o.getClass()) return false;
 
         AliasFieldsFiltering that = (AliasFieldsFiltering) o;
-
-        if (!Arrays.equals(includes, that.includes)) return false;
-
-        return true;
+        return Arrays.equals(includes, that.includes);
     }
 
     @Override
     public int hashCode() {
-        int result = includes != null ? Arrays.hashCode(includes) : 0;
-        return result;
+        return Arrays.hashCode(includes);
     }
 
     @Override
@@ -100,7 +98,7 @@ public class AliasFieldsFiltering implements Streamable, ToXContent {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException("Illegal start");
         }
-        String[] includes = null;
+        String[] includes = Strings.EMPTY_ARRAY;
         String fieldName = null;
         for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
             if (token == XContentParser.Token.FIELD_NAME) {

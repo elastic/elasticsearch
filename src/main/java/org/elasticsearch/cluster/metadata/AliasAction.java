@@ -214,7 +214,7 @@ public class AliasAction implements Streamable {
         filter = in.readOptionalString();
         indexRouting = in.readOptionalString();
         searchRouting = in.readOptionalString();
-        fieldsFiltering = in.readOptionalStreamable(new AliasFieldsFiltering());
+        fieldsFiltering = new AliasFieldsFiltering(in);
     }
 
     @Override

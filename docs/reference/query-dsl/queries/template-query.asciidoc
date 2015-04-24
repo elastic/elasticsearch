@@ -12,7 +12,7 @@ GET /_search
 {
     "query": {
         "template": {
-            "query": { "match": { "text": "{query_string}" }}},
+            "query": { "match": { "text": "{{query_string}}" }}},
             "params" : {
                 "query_string" : "all about search"
             }
@@ -45,7 +45,7 @@ GET /_search
 {
     "query": {
         "template": {
-            "query": "{ \"match\": { \"text\": \"{query_string}\" }}}", <1>
+            "query": "{ \"match\": { \"text\": \"{{query_string}}\" }}}", <1>
             "params" : {
                 "query_string" : "all about search"
             }
@@ -85,7 +85,7 @@ Alternatively, you can register a query template in the special `.scripts` index
 ------------------------------------------
 PUT /_search/template/my_template
 {
-    "template": { "match": { "text": "{query_string}" }}},
+    "template": { "match": { "text": "{{query_string}}" }}},
 }
 ------------------------------------------
 

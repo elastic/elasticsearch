@@ -116,7 +116,6 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -681,7 +680,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         return completionStats;
     }
 
-    public boolean syncFlushIfNoPendingChanges(String syncId, byte[] expectedCommitId) {
+    public Engine.SyncedFlushResult syncFlushIfNoPendingChanges(String syncId, byte[] expectedCommitId) {
         verifyStartedOrRecovering();
         logger.trace("trying to sync flush. sync id [{}]. expected commit id [{}]]", syncId, expectedCommitId);
         return engine().syncFlushIfNoPendingChanges(syncId, expectedCommitId);

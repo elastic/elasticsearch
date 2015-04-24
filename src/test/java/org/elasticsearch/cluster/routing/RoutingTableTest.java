@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -30,7 +29,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Before;
@@ -245,21 +243,5 @@ public class RoutingTableTest extends ElasticsearchAllocationTestCase {
         } catch (IndexMissingException e) {
             fail("Calling with non-existing index should be ignored at the moment");
         }
-    }
-
-    @Test
-    public void testAllActiveShardCopiesGrouped() {
-        assertThat(this.testRoutingTable.allActiveShardCopiesGrouped(new ShardId(TEST_INDEX_1, randomInt(numberOfShards - 1))).size(), is(0));
-        try {
-            this.testRoutingTable.allActiveShardCopiesGrouped(new ShardId(TEST_INDEX_1, numberOfShards)).size();
-            fail();
-        } catch (ElasticsearchIllegalStateException e) {
-        }
-        initPrimaries();
-        assertThat(this.testRoutingTable.allActiveShardCopiesGrouped(new ShardId(TEST_INDEX_1, randomInt(numberOfShards - 1))).size(), is(0));
-        startInitializingShards(TEST_INDEX_1);
-        assertThat(this.testRoutingTable.allActiveShardCopiesGrouped(new ShardId(TEST_INDEX_1, randomInt(numberOfShards - 1))).size(), is(1));
-        startInitializingShards(TEST_INDEX_1);
-        assertThat(this.testRoutingTable.allActiveShardCopiesGrouped(new ShardId(TEST_INDEX_1, randomInt(numberOfShards - 1))).size(), is(numberOfReplicas + 1));
     }
 }

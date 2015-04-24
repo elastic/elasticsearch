@@ -19,16 +19,14 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.syncedflush.SyncedFlushResponse;
-import org.elasticsearch.indices.syncedflush.SyncedFlushService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -79,6 +77,7 @@ public class FlushTest extends ElasticsearchIntegrationTest {
         }
     }
 
+    @TestLogging("indices:TRACE")
     public void testSyncedFlush() throws ExecutionException, InterruptedException, IOException {
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).get();
@@ -89,15 +88,16 @@ public class FlushTest extends ElasticsearchIntegrationTest {
             assertNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
         }
 
-        ClusterStateResponse state = client().admin().cluster().prepareState().get();
-        String nodeId = state.getState().getRoutingTable().index("test").shard(0).getShards().get(0).currentNodeId();
-        SyncedFlushResponse syncedFlushResponse = internalCluster().getInstance(SyncedFlushService.class).attemptSyncedFlush(new ShardId("test", 0));
-        assertTrue(syncedFlushResponse.success());
+        SyncedFlushService.SyncedFlushResult result = internalCluster().getInstance(SyncedFlushService.class).attemptSyncedFlush(new ShardId("test", 0));
+        assertTrue(result.success());
+        assertThat(result.totalShards(), equalTo(indexStats.getShards().length));
+        assertThat(result.successfulShards(), equalTo(indexStats.getShards().length));
 
         indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
-        assertThat(indexStats.getShards().length, equalTo(client().admin().indices().prepareGetIndex().get().getSettings().get("test").getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, -1) + 1));
+        String syncId = result.syncId();
         for (ShardStats shardStats : indexStats.getShards()) {
-            assertThat(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncedFlushResponse.getSyncId()));
+            final String shardSyncId = shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID);
+                assertThat(shardSyncId, equalTo(syncId));
         }
 
     }

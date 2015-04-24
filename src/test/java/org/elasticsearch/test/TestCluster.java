@@ -77,6 +77,12 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
     }
 
     /**
+     * Assertions that should run before the cluster is wiped should be called in this method
+     */
+    public void beforeIndexDeletion() {
+    }
+
+    /**
      * This method checks all the things that need to be checked after each test
      */
     public void assertAfterTest() throws IOException {

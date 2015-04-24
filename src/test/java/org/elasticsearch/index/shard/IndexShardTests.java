@@ -19,12 +19,18 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.junit.Test;
+
+import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Simple unit-test IndexShard related operations.
@@ -51,5 +57,38 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         }
         assertEquals(newValue, shard.isFlushOnClose());
 
+    }
+
+    @Test
+    public void testDeleteIndexDecreasesCounter() throws InterruptedException, ExecutionException, IOException {
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get());
+        ensureGreen("test");
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe("test");
+        IndexShard indexShard = indexService.shard(0);
+        client().admin().indices().prepareDelete("test").get();
+        assertThat(indexShard.getOperationsCount(), equalTo(0));
+        try {
+            indexShard.incrementOperationCounter();
+            fail("we should not be able to increment anymore");
+        } catch (IndexShardClosedException e) {
+            // expected
+        }
+    }
+
+    @Test
+    public void testIndexShardCounter() throws InterruptedException, ExecutionException, IOException {
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get());
+        ensureGreen("test");
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe("test");
+        IndexShard indexShard = indexService.shard(0);
+        indexShard.incrementOperationCounter();
+        assertEquals(2, indexShard.getOperationsCount());
+        indexShard.incrementOperationCounter();
+        assertEquals(3, indexShard.getOperationsCount());
+        indexShard.decrementOperationCounter();
+        indexShard.decrementOperationCounter();
+        assertEquals(1, indexShard.getOperationsCount());
     }
 }

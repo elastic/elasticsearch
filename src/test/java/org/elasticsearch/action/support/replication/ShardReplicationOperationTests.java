@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.support.replication;
 
+import com.google.common.base.Predicate;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -42,9 +43,11 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
@@ -56,7 +59,9 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -67,6 +72,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -83,7 +89,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
     private TransportService transportService;
     private CapturingTransport transport;
     private Action action;
-
+    private final AtomicInteger count = new AtomicInteger(0);
 
     @BeforeClass
     public static void beforeClass() {
@@ -98,6 +104,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         transportService = new TransportService(transport, threadPool);
         transportService.start();
         action = new Action(ImmutableSettings.EMPTY, "testAction", transportService, clusterService, threadPool);
+        count.set(1);
     }
 
     @AfterClass
@@ -106,7 +113,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         threadPool = null;
     }
 
-
     <T> void assertListenerThrows(String msg, PlainActionFuture<T> listener, Class<?> klass) throws InterruptedException {
         try {
             listener.get();
@@ -114,7 +120,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         } catch (ExecutionException ex) {
             assertThat(ex.getCause(), instanceOf(klass));
         }
-
     }
 
     @Test
@@ -146,7 +151,12 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         block = ClusterBlocks.builder()
                 .addGlobalBlock(new ClusterBlock(1, "non retryable", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
         clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
-        assertListenerThrows("primary phase should fail operation when moving from a retryable block a non-retryable one", listener, ClusterBlockException.class);
+        assertListenerThrows("primary phase should fail operation when moving from a retryable block to a non-retryable one", listener, ClusterBlockException.class);
+        assertIndexShardUninitialized();
+    }
+
+    public void assertIndexShardUninitialized() {
+        assertEquals(1, count.get());
     }
 
     @Test
@@ -176,7 +186,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             replicaStates[i] = ShardRoutingState.UNASSIGNED;
         }
         return state(index, primaryLocal, randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING), replicaStates);
-
     }
 
     ClusterState state(String index, boolean primaryLocal, ShardRoutingState primaryState, ShardRoutingState... replicaStates) {
@@ -238,7 +247,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             }
             indexShardRoutingBuilder.addShard(
                     new ImmutableShardRouting(index, shardId.id(), replicaNode, relocatingNode, false, replicaState, 0));
-
         }
 
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
@@ -281,6 +289,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
 
         listener.get();
         assertTrue("request wasn't processed on primary, despite of it being assigned", request.processedOnPrimary.get());
+        assertIndexShardCounter(1);
     }
 
     @Test
@@ -303,17 +312,23 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         if (primaryNodeId.equals(clusterService.localNode().id())) {
             logger.info("--> primary is assigned locally, testing for execution");
             assertTrue("request failed to be processed on a local primary", request.processedOnPrimary.get());
+            if (transport.capturedRequests().length > 0) {
+                assertIndexShardCounter(2);
+            } else {
+                assertIndexShardCounter(1);
+            }
         } else {
             logger.info("--> primary is assigned to [{}], checking request forwarded", primaryNodeId);
             final List<CapturingTransport.CapturedRequest> capturedRequests = transport.capturedRequestsByTargetNode().get(primaryNodeId);
             assertThat(capturedRequests, notNullValue());
             assertThat(capturedRequests.size(), equalTo(1));
             assertThat(capturedRequests.get(0).action, equalTo("testAction"));
+            assertIndexShardUninitialized();
         }
     }
 
     @Test
-    public void testWriteConsistency() {
+    public void testWriteConsistency() throws ExecutionException, InterruptedException {
         action = new ActionWithConsistency(ImmutableSettings.EMPTY, "testActionWithConsistency", transportService, clusterService, threadPool);
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);
@@ -361,17 +376,23 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             assertThat(primaryPhase.checkWriteConsistency(shardRoutingTable.primaryShard()), nullValue());
             primaryPhase.run();
             assertTrue("operations should have been perform, consistency level is met", request.processedOnPrimary.get());
+            if (assignedReplicas > 0) {
+                assertIndexShardCounter(2);
+            } else {
+                assertIndexShardCounter(1);
+            }
         } else {
             assertThat(primaryPhase.checkWriteConsistency(shardRoutingTable.primaryShard()), notNullValue());
             primaryPhase.run();
             assertFalse("operations should not have been perform, consistency level is *NOT* met", request.processedOnPrimary.get());
+            assertIndexShardUninitialized();
             for (int i = 0; i < replicaStates.length; i++) {
                 replicaStates[i] = ShardRoutingState.STARTED;
             }
             clusterService.setState(state(index, true, ShardRoutingState.STARTED, replicaStates));
             assertTrue("once the consistency level met, operation should continue", request.processedOnPrimary.get());
+            assertIndexShardCounter(2);
         }
-
     }
 
     @Test
@@ -420,7 +441,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
                 totalShards++;
             }
         }
-
         runReplicateTest(shardRoutingTable, assignedReplicas, totalShards);
     }
 
@@ -434,13 +454,14 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
 
         logger.debug("expecting [{}] assigned replicas, [{}] total shards. using state: \n{}", assignedReplicas, totalShards, clusterService.state().prettyPrint());
 
-
         final TransportShardReplicationOperationAction<Request, Request, Response>.InternalRequest internalRequest = action.new InternalRequest(request);
         internalRequest.concreteIndex(shardId.index().name());
+        Releasable reference = getOrCreateIndexShardOperationsCounter();
+        assertIndexShardCounter(2);
         TransportShardReplicationOperationAction<Request, Request, Response>.ReplicationPhase replicationPhase =
                 action.new ReplicationPhase(shardIt, request,
                         new Response(), new ClusterStateObserver(clusterService, logger),
-                        primaryShard, internalRequest, listener);
+                        primaryShard, internalRequest, listener, reference);
 
         assertThat(replicationPhase.totalShards(), equalTo(totalShards));
         assertThat(replicationPhase.pending(), equalTo(assignedReplicas));
@@ -481,8 +502,156 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         for (CapturingTransport.CapturedRequest capturedRequest : transport.capturedRequests()) {
             assertThat(capturedRequest.action, equalTo(ShardStateAction.SHARD_FAILED_ACTION_NAME));
         }
+        // all replicas have responded so the counter should be decreased again
+        assertIndexShardCounter(1);
     }
 
+    @Test
+    public void testCounterOnPrimary() throws InterruptedException, ExecutionException, IOException {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, 0);
+        // no replica, we only want to test on primary
+        clusterService.setState(state(index, true,
+                ShardRoutingState.STARTED));
+        logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
+        Request request = new Request(shardId).timeout("100ms");
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+
+        /**
+         * Execute an action that is stuck in shard operation until a latch is counted down.
+         * That way we can start the operation, check if the counter was incremented and then unblock the operation
+         * again to see if the counter is decremented afterwards.
+         * TODO: I could also write an action that asserts that the counter is 2 in the shard operation.
+         * However, this failure would only become apparent once listener.get is called. Seems a little implicit.
+         * */
+        action = new ActionWithDelay(ImmutableSettings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
+        final TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
+        Thread t = new Thread() {
+            public void run() {
+                primaryPhase.run();
+            }
+        };
+        t.start();
+        // shard operation should be ongoing, so the counter is at 2
+        // we have to wait here because increment happens in thread
+        awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(@Nullable Object input) {
+                    return (count.get() == 2);
+            }
+        });
+
+        assertIndexShardCounter(2);
+        assertThat(transport.capturedRequests().length, equalTo(0));
+        ((ActionWithDelay) action).countDownLatch.countDown();
+        t.join();
+        listener.get();
+        // operation finished, counter back to 0
+        assertIndexShardCounter(1);
+        assertThat(transport.capturedRequests().length, equalTo(0));
+    }
+
+    @Test
+    public void testCounterIncrementedWhileReplicationOngoing() throws InterruptedException, ExecutionException, IOException {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, 0);
+        // one replica to make sure replication is attempted
+        clusterService.setState(state(index, true,
+                ShardRoutingState.STARTED, ShardRoutingState.STARTED));
+        logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
+        Request request = new Request(shardId).timeout("100ms");
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
+        primaryPhase.run();
+        assertIndexShardCounter(2);
+        assertThat(transport.capturedRequests().length, equalTo(1));
+        // try once with successful response
+        transport.handleResponse(transport.capturedRequests()[0].requestId, TransportResponse.Empty.INSTANCE);
+        assertIndexShardCounter(1);
+        transport.clear();
+        request = new Request(shardId).timeout("100ms");
+        primaryPhase = action.new PrimaryPhase(request, listener);
+        primaryPhase.run();
+        assertIndexShardCounter(2);
+        assertThat(transport.capturedRequests().length, equalTo(1));
+        // try with failure response
+        transport.handleResponse(transport.capturedRequests()[0].requestId, new CorruptIndexException("simulated"));
+        assertIndexShardCounter(1);
+    }
+
+    @Test
+    public void testReplicasCounter() throws Exception {
+        final ShardId shardId = new ShardId("test", 0);
+        clusterService.setState(state(shardId.index().getName(), true,
+                ShardRoutingState.STARTED, ShardRoutingState.STARTED));
+        action = new ActionWithDelay(ImmutableSettings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
+        final Action.ReplicaOperationTransportHandler replicaOperationTransportHandler = action.new ReplicaOperationTransportHandler();
+        Thread t = new Thread() {
+            public void run() {
+                try {
+                    replicaOperationTransportHandler.messageReceived(action.newReplicaRequest(shardId, new Request()), createTransportChannel());
+                } catch (Exception e) {
+                }
+            }
+        };
+        t.start();
+        // shard operation should be ongoing, so the counter is at 2
+        // we have to wait here because increment happens in thread
+        awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(@Nullable Object input) {
+                return count.get() == 2;
+            }
+        });
+        ((ActionWithDelay) action).countDownLatch.countDown();
+        t.join();
+        // operation should have finished and counter decreased because no outstanding replica requests
+        assertIndexShardCounter(1);
+        // now check if this also works if operation throws exception
+        action = new ActionWithExceptions(ImmutableSettings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
+        final Action.ReplicaOperationTransportHandler replicaOperationTransportHandlerForException = action.new ReplicaOperationTransportHandler();
+        try {
+            replicaOperationTransportHandlerForException.messageReceived(action.newReplicaRequest(shardId, new Request()), createTransportChannel());
+            fail();
+        } catch (Throwable t2) {
+        }
+        assertIndexShardCounter(1);
+    }
+
+    @Test
+    public void testCounterDecrementedIfShardOperationThrowsException() throws InterruptedException, ExecutionException, IOException {
+        action = new ActionWithExceptions(ImmutableSettings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, 0);
+        clusterService.setState(state(index, true,
+                ShardRoutingState.STARTED, ShardRoutingState.STARTED));
+        logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
+        Request request = new Request(shardId).timeout("100ms");
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
+        primaryPhase.run();
+        // no replica request should have been sent yet
+        assertThat(transport.capturedRequests().length, equalTo(0));
+        // no matter if the operation is retried or not, counter must be be back to 1
+        assertIndexShardCounter(1);
+    }
+
+    private void assertIndexShardCounter(int expected) {
+        assertThat(count.get(), equalTo(expected));
+    }
+
+    /*
+    * Returns testIndexShardOperationsCounter or initializes it if it was already created in this test run.
+    * */
+    private synchronized Releasable getOrCreateIndexShardOperationsCounter() {
+        count.incrementAndGet();
+        return new Releasable() {
+            @Override
+            public void close() {
+                count.decrementAndGet();
+            }
+        };
+    }
 
     static class Request extends ShardReplicationOperationRequest<Request> {
         int shardId;
@@ -490,7 +659,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         public AtomicInteger processedOnReplicas = new AtomicInteger();
 
         Request() {
-            this.operationThreaded(false);
+            this.operationThreaded(randomBoolean());
         }
 
         Request(ShardId shardId) {
@@ -513,11 +682,13 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         }
     }
 
-    static class Response extends ActionResponse {
 
+    static class Response extends ActionResponse {
     }
 
-    static class Action extends TransportShardReplicationOperationAction<Request, Request, Response> {
+
+
+    class Action extends TransportShardReplicationOperationAction<Request, Request, Response> {
 
         boolean continueOnResolveRequest = true;
 
@@ -580,9 +751,18 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         protected boolean resolveIndex() {
             return false;
         }
+
+        @Override
+        protected Releasable getIndexShardOperationsCounter(ShardId shardId) {
+            return getOrCreateIndexShardOperationsCounter();
+        }
+
+        public ReplicaOperationRequest newReplicaRequest(ShardId shardId, Request request) {
+            return new ReplicaOperationRequest(shardId, request);
+        }
     }
 
-    static class ActionWithConsistency extends Action {
+    class ActionWithConsistency extends Action {
 
         ActionWithConsistency(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
             super(settings, actionName, transportService, clusterService, threadPool);
@@ -596,5 +776,98 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
 
     static DiscoveryNode newNode(int nodeId) {
         return new DiscoveryNode("node_" + nodeId, DummyTransportAddress.INSTANCE, Version.CURRENT);
+    }
+
+    /*
+    * Throws exceptions when executed. Used for testing if the counter is correctly decremented in case an operation fails.
+    * */
+    class ActionWithExceptions extends Action {
+
+        ActionWithExceptions(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) throws IOException {
+            super(settings, actionName, transportService, clusterService, threadPool);
+        }
+
+        @Override
+        protected Tuple<Response, Request> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) throws Throwable {
+            return throwException(shardRequest.shardId);
+        }
+
+        private Tuple<Response, Request> throwException(ShardId shardId) {
+            try {
+                if (randomBoolean()) {
+                    // throw a generic exception
+                    // for testing on replica this will actually cause an NPE because it will make the shard fail but
+                    // for this we need an IndicesService which is null.
+                    throw new ElasticsearchException("simulated");
+                } else {
+                    // throw an exception which will cause retry on primary and be ignored on replica
+                    throw new IndexShardNotStartedException(shardId, IndexShardState.RECOVERING);
+                }
+            } catch (Exception e) {
+                logger.info("throwing ", e);
+                throw e;
+            }
+        }
+
+        @Override
+        protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
+            throwException(shardRequest.shardId);
+        }
+    }
+
+    /**
+     * Delays the operation until  countDownLatch is counted down
+     */
+    class ActionWithDelay extends Action {
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+
+        ActionWithDelay(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) throws IOException {
+            super(settings, actionName, transportService, clusterService, threadPool);
+        }
+
+        @Override
+        protected Tuple<Response, Request> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) throws Throwable {
+            awaitLatch();
+            return new Tuple<>(new Response(), shardRequest.request);
+        }
+
+        private void awaitLatch() throws InterruptedException {
+            countDownLatch.await();
+            countDownLatch = new CountDownLatch(1);
+        }
+
+        @Override
+        protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
+            try {
+                awaitLatch();
+            } catch (InterruptedException e) {
+            }
+        }
+
+    }
+
+    /*
+    * Transport channel that is needed for replica operation testing.
+    * */
+    public TransportChannel createTransportChannel() {
+        return new TransportChannel() {
+
+            @Override
+            public String action() {
+                return null;
+            }
+
+            @Override
+            public void sendResponse(TransportResponse response) throws IOException {
+            }
+
+            @Override
+            public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
+            }
+
+            @Override
+            public void sendResponse(Throwable error) throws IOException {
+            }
+        };
     }
 }

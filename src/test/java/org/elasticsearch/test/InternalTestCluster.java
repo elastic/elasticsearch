@@ -69,11 +69,15 @@ import org.elasticsearch.common.util.BigArraysModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardModule;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -115,6 +119,7 @@ import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 
@@ -824,6 +829,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public static final String TRANSPORT_CLIENT_PREFIX = "transport_client_";
+
     static class TransportClientFactory {
         private static TransportClientFactory NO_SNIFF_CLIENT_FACTORY = new TransportClientFactory(false, ImmutableSettings.EMPTY);
         private static TransportClientFactory SNIFF_CLIENT_FACTORY = new TransportClientFactory(true, ImmutableSettings.EMPTY);
@@ -957,6 +963,26 @@ public final class InternalTestCluster extends TestCluster {
     public synchronized void afterTest() throws IOException {
         wipeDataDirectories();
         randomlyResetClients(); /* reset all clients - each test gets its own client based on the Random instance created above. */
+    }
+
+    @Override
+    public void beforeIndexDeletion() {
+        assertShardIndexCounter();
+    }
+
+    private void assertShardIndexCounter() {
+        final Collection<NodeAndClient> nodesAndClients = nodes.values();
+        for (NodeAndClient nodeAndClient : nodesAndClients) {
+            IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
+            for (IndexService indexService : indexServices) {
+                for (IndexShard indexShard : indexService) {
+                    assertThat(indexShard.getOperationsCount(), anyOf(equalTo(1), equalTo(0)));
+                    if (indexShard.getOperationsCount() == 0) {
+                        assertThat(indexShard.state(), equalTo(IndexShardState.CLOSED));
+                    }
+                }
+            }
+        }
     }
 
     private void randomlyResetClients() throws IOException {

@@ -76,7 +76,7 @@ public class NettyHttpServerPipeliningTest extends ElasticsearchTestCase {
         networkService = new NetworkService(ImmutableSettings.EMPTY);
         threadPool = new ThreadPool("test");
         mockPageCacheRecycler = new MockPageCacheRecycler(ImmutableSettings.EMPTY, threadPool);
-        bigArrays = new MockBigArrays(ImmutableSettings.EMPTY, mockPageCacheRecycler, new NoneCircuitBreakerService());
+        bigArrays = new MockBigArrays(mockPageCacheRecycler, new NoneCircuitBreakerService());
     }
 
     @After

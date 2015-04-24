@@ -34,7 +34,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -276,8 +275,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
     @Override
     public final Query termQuery(Object value, @Nullable QueryParseContext context) {
-        TermQuery scoringQuery = new TermQuery(new Term(names.indexName(), indexedValueForSearch(value)));
-        return new ConstantScoreQuery(scoringQuery);
+        return new TermQuery(new Term(names.indexName(), indexedValueForSearch(value)));
     }
 
     @Override

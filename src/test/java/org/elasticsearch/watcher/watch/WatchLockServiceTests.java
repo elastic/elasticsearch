@@ -101,7 +101,7 @@ public class WatchLockServiceTests extends ElasticsearchTestCase {
 
         List<FairRunner> runners = new ArrayList<>();
 
-        for(int i = 0; i < 100; ++i) {
+        for(int i = 0; i < 50; ++i) {
             FairRunner f = new FairRunner(i);
             runners.add(f);
             threads.add(new Thread(f));
@@ -110,7 +110,7 @@ public class WatchLockServiceTests extends ElasticsearchTestCase {
         for(int i = 0; i < threads.size(); ++i) {
             threads.get(i).start();
             runners.get(i).startLatch.await();
-            Thread.sleep(10);
+            Thread.sleep(25);
         }
 
         for(Thread t : threads) {

@@ -35,7 +35,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-public class SyncedFlushReadWriteTests extends ElasticsearchTestCase {
+public class SynceFlushStreamablesTests extends ElasticsearchTestCase {
 
     @Test
     public void streamWriteSyncResponse() throws InterruptedException, IOException {

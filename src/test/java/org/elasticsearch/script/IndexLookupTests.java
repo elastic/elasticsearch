@@ -581,8 +581,8 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
             }
         } catch (SearchPhaseExecutionException ex) {
             assertThat(
-                    "got " + ex.getDetailedMessage(),
-                    ex.getDetailedMessage().indexOf("Cannot iterate twice! If you want to iterate more that once, add _CACHE explicitly."),
+                    "got " + ex.toString(),
+                    ex.toString().indexOf("Cannot iterate twice! If you want to iterate more that once, add _CACHE explicitly."),
                     Matchers.greaterThan(-1));
         }
     }

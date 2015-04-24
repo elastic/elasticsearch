@@ -51,6 +51,8 @@ public class LogConfigurator {
 
     static final List<String> ALLOWED_SUFFIXES = ImmutableList.of(".yml", ".yaml", ".json", ".properties");
 
+    static final String ES_LOGGING_PROP_NAME = "es.logging";
+
     private static boolean loaded;
 
     private static ImmutableMap<String, String> replacements = new MapBuilder<String, String>()
@@ -73,6 +75,7 @@ public class LogConfigurator {
             .put("telnet", "org.apache.log4j.net.TelnetAppender")
                     // policies
             .put("timeBased", "org.apache.log4j.rolling.TimeBasedRollingPolicy")
+            .put("sizeBased", "org.apache.log4j.rolling.SizeBasedTriggeringPolicy")
                     // layouts
             .put("simple", "org.apache.log4j.SimpleLayout")
             .put("html", "org.apache.log4j.HTMLLayout")
@@ -125,15 +128,12 @@ public class LogConfigurator {
 
         try {
             Path startingPath;
-
-            final String esLoggingDir = System.getProperty("es.logging");
+            final String esLoggingDir = System.getProperty(ES_LOGGING_PROP_NAME);
             if (Strings.hasText(esLoggingDir)) {
-
                 final URL url = env.resolveConfig(esLoggingDir);
                 startingPath = new File(url.toURI()).toPath();
             } else {
-
-                startingPath = env.configFile().toPath();
+                startingPath = env.configFile().toAbsolutePath();
             }
 
             Files.walkFileTree(startingPath, EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {

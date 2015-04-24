@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.decider.*;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -109,9 +110,13 @@ public class ClusterDynamicSettingsModule extends AbstractModule {
         clusterDynamicSettings.addDynamicSetting(setting, validator);
     }
 
-
     @Override
     protected void configure() {
         bind(DynamicSettings.class).annotatedWith(ClusterDynamicSettings.class).toInstance(clusterDynamicSettings);
+
+        // Bind to null provider just in case somebody will forget to supply @ClusterDynamicSetting or @IndexDynamicSetting annotations
+        // This will cause any attempt to inject a unannotated DynamicSettings to fail with Guice error, instead of silently
+        // injecting an empty copy of dynamic settings
+        bind(DynamicSettings.class).toProvider(Providers.<DynamicSettings>of(null));
     }
 }

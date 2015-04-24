@@ -231,16 +231,6 @@
 #
 #http.enabled: false
 
-################################### Security ##################################
-
-# SecurityManager runs elasticsearch with a lower set of priviledges.
-# For more information, see
-# <https://docs.oracle.com/javase/tutorial/essential/environment/security.html>.
-
-# Disable security completely:
-#
-# security.enabled: false
-
 ################################### Gateway ###################################
 
 # The gateway allows for persisting the cluster state between full cluster

@@ -93,7 +93,7 @@ public class Bootstrap {
     }
     
     private void setupSecurity(Settings settings, Environment environment) throws Exception {
-        if (settings.getAsBoolean("security.enabled", true)) {
+        if (settings.getAsBoolean("security.manager.enabled", true)) {
             Security.configure(environment);
         }
     }

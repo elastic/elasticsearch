@@ -19,19 +19,22 @@
 
 package org.elasticsearch.bootstrap;
 
+import com.google.common.io.ByteStreams;
+
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.env.Environment;
 
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
@@ -44,6 +47,9 @@ import java.util.Set;
  */
 class Security {
     
+    /** template policy file, the one used in tests */
+    static final String POLICY_RESOURCE = "security.policy";
+    
     /** 
      * Initializes securitymanager for the environment
      * Can only happen once!
@@ -51,18 +57,24 @@ class Security {
     static void configure(Environment environment) throws IOException {
         // init lucene random seed. it will use /dev/urandom where available.
         StringHelper.randomId();
-        Path newConfig = processTemplate(environment.configFile().resolve("security.policy"), environment);
+        InputStream config = Security.class.getResourceAsStream(POLICY_RESOURCE);
+        if (config == null) {
+            throw new NoSuchFileException(POLICY_RESOURCE);
+        }
+        Path newConfig = processTemplate(config, environment);
         System.setProperty("java.security.policy", newConfig.toString());
         System.setSecurityManager(new SecurityManager());
         IOUtils.deleteFilesIgnoringExceptions(newConfig); // TODO: maybe log something if it fails?
     }
    
     // package-private for testing
-    static Path processTemplate(Path template, Environment environment) throws IOException {
+    static Path processTemplate(InputStream template, Environment environment) throws IOException {
         Path processed = Files.createTempFile(null, null);
         try (OutputStream output = new BufferedOutputStream(Files.newOutputStream(processed))) {
             // copy the template as-is.
-            Files.copy(template, output);
+            try (InputStream in = template) {
+                ByteStreams.copy(in, output);
+            }
             
             // add permissions for all configured paths.
             Set<Path> paths = new HashSet<>();

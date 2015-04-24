@@ -25,7 +25,7 @@ match a query:
 
 This aggregation also supports the `precision_threshold` and `rehash` options:
 
-experimental[The `precision_threshold` and `rehash` options are specific to the current internal implementation of the `cardinality` agg, which may changein the future.]
+experimental[The `precision_threshold` and `rehash` options are specific to the current internal implementation of the `cardinality` agg, which may change in the future]
 
 [source,js]
 --------------------------------------------------

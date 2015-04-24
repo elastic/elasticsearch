@@ -133,37 +133,13 @@ public class BytesRestResponseTests extends ElasticsearchTestCase {
     @Test
     public void testConvert() throws IOException {
         RestRequest request = new FakeRestRequest();
-        request.params().put("pretty", "true");
         RestChannel channel = new DetailedExceptionRestChannel(request);
         ShardSearchFailure failure = new ShardSearchFailure(new QueryParsingException(new Index("foo"), "foobar"), new SearchShardTarget("node_1", "foo", 1));
         ShardSearchFailure failure1 = new ShardSearchFailure(new QueryParsingException(new Index("foo"), "foobar"), new SearchShardTarget("node_1", "foo", 2));
         SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed",  new ShardSearchFailure[] {failure, failure1});
         BytesRestResponse response = new BytesRestResponse(channel, new RemoteTransportException("foo", ex));
         String text = response.content().toUtf8();
-        String expected = "{\n" +
-                "  \"error\" : {\n" +
-                "    \"root_cause\" : [ {\n" +
-                "      \"type\" : \"query_parsing_exception\",\n" +
-                "      \"reason\" : \"foobar\",\n" +
-                "      \"index\" : \"foo\"\n" +
-                "    } ],\n" +
-                "    \"type\" : \"search_phase_execution_exception\",\n" +
-                "    \"reason\" : \"all shards failed\",\n" +
-                "    \"phase\" : \"search\",\n" +
-                "    \"grouped\" : true,\n" +
-                "    \"failed_shards\" : [ {\n" +
-                "      \"shard\" : 1,\n" +
-                "      \"index\" : \"foo\",\n" +
-                "      \"node\" : \"node_1\",\n" +
-                "      \"reason\" : {\n" +
-                "        \"type\" : \"query_parsing_exception\",\n" +
-                "        \"reason\" : \"foobar\",\n" +
-                "        \"index\" : \"foo\"\n" +
-                "      }\n" +
-                "    } ]\n" +
-                "  },\n" +
-                "  \"status\" : 400\n" +
-                "}";
+        String expected = "{\"error\":{\"root_cause\":[{\"type\":\"query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\"}],\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\"}}]},\"status\":400}";
         assertEquals(expected.trim(), text.trim());
     }
 

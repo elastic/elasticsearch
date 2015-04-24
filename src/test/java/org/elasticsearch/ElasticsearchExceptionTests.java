@@ -111,26 +111,11 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
             ShardSearchFailure failure = new ShardSearchFailure(new QueryParsingException(new Index("foo"), "foobar"), new SearchShardTarget("node_1", "foo", 1));
             ShardSearchFailure failure1 = new ShardSearchFailure(new QueryParsingException(new Index("foo"), "foobar"), new SearchShardTarget("node_1", "foo", 2));
             SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed", new ShardSearchFailure[]{failure, failure1});
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+            XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            String expected = "{\n" +
-                    "  \"type\" : \"search_phase_execution_exception\",\n" +
-                    "  \"reason\" : \"all shards failed\",\n" +
-                    "  \"phase\" : \"search\",\n" +
-                    "  \"grouped\" : true,\n" +
-                    "  \"failed_shards\" : [ {\n" +
-                    "    \"shard\" : 1,\n" +
-                    "    \"index\" : \"foo\",\n" +
-                    "    \"node\" : \"node_1\",\n" +
-                    "    \"reason\" : {\n" +
-                    "      \"type\" : \"query_parsing_exception\",\n" +
-                    "      \"reason\" : \"foobar\",\n" +
-                    "      \"index\" : \"foo\"\n" +
-                    "    }\n" +
-                    "  } ]\n" +
-                    "}";
+            String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\"}}]}";
             assertEquals(expected, builder.string());
         }
         {
@@ -138,35 +123,11 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
             ShardSearchFailure failure1 = new ShardSearchFailure(new QueryParsingException(new Index("foo1"), "foobar"), new SearchShardTarget("node_1", "foo1", 1));
             ShardSearchFailure failure2 = new ShardSearchFailure(new QueryParsingException(new Index("foo1"), "foobar"), new SearchShardTarget("node_1", "foo1", 2));
             SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed", new ShardSearchFailure[]{failure, failure1, failure2});
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+            XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            String expected = "{\n" +
-                    "  \"type\" : \"search_phase_execution_exception\",\n" +
-                    "  \"reason\" : \"all shards failed\",\n" +
-                    "  \"phase\" : \"search\",\n" +
-                    "  \"grouped\" : true,\n" +
-                    "  \"failed_shards\" : [ {\n" +
-                    "    \"shard\" : 1,\n" +
-                    "    \"index\" : \"foo\",\n" +
-                    "    \"node\" : \"node_1\",\n" +
-                    "    \"reason\" : {\n" +
-                    "      \"type\" : \"query_parsing_exception\",\n" +
-                    "      \"reason\" : \"foobar\",\n" +
-                    "      \"index\" : \"foo\"\n" +
-                    "    }\n" +
-                    "  }, {\n" +
-                    "    \"shard\" : 1,\n" +
-                    "    \"index\" : \"foo1\",\n" +
-                    "    \"node\" : \"node_1\",\n" +
-                    "    \"reason\" : {\n" +
-                    "      \"type\" : \"query_parsing_exception\",\n" +
-                    "      \"reason\" : \"foobar\",\n" +
-                    "      \"index\" : \"foo1\"\n" +
-                    "    }\n" +
-                    "  } ]\n" +
-                    "}";
+            String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\"}},{\"shard\":1,\"index\":\"foo1\",\"node\":\"node_1\",\"reason\":{\"type\":\"query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo1\"}}]}";
             assertEquals(expected, builder.string());
         }
     }
@@ -187,27 +148,12 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
     public void testToXContent() throws IOException {
         {
             ElasticsearchException ex = new ElasticsearchException("foo", new ElasticsearchException("bar", new ElasticsearchIllegalArgumentException("index is closed", new RuntimeException("foobar"))));
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+            XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
 
-            String expected = "{\n" +
-                    "  \"type\" : \"exception\",\n" +
-                    "  \"reason\" : \"foo\",\n" +
-                    "  \"caused_by\" : {\n" +
-                    "    \"type\" : \"exception\",\n" +
-                    "    \"reason\" : \"bar\",\n" +
-                    "    \"caused_by\" : {\n" +
-                    "      \"type\" : \"illegal_argument_exception\",\n" +
-                    "      \"reason\" : \"index is closed\",\n" +
-                    "      \"caused_by\" : {\n" +
-                    "        \"type\" : \"runtime_exception\",\n" +
-                    "        \"reason\" : \"foobar\"\n" +
-                    "      }\n" +
-                    "    }\n" +
-                    "  }\n" +
-                    "}";
+            String expected = "{\"type\":\"exception\",\"reason\":\"foo\",\"caused_by\":{\"type\":\"exception\",\"reason\":\"bar\",\"caused_by\":{\"type\":\"illegal_argument_exception\",\"reason\":\"index is closed\",\"caused_by\":{\"type\":\"runtime_exception\",\"reason\":\"foobar\"}}}}";
             assertEquals(expected, builder.string());
         }
 
@@ -217,26 +163,23 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
                 // just a wrapper which is omitted
                 ex = new RemoteTransportException("foobar", ex);
             }
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+            XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             ElasticsearchException.toXContent(builder, ToXContent.EMPTY_PARAMS, ex);
             builder.endObject();
 
-            String expected = "{\n" +
-                    "  \"type\" : \"file_not_found_exception\",\n" +
-                    "  \"reason\" : \"foo not found\"\n" +
-                    "}";
+            String expected = "{\"type\":\"file_not_found_exception\",\"reason\":\"foo not found\"}";
             assertEquals(expected, builder.string());
         }
 
         { // test equivalence
             ElasticsearchException ex =  new RemoteTransportException("foobar", new FileNotFoundException("foo not found"));
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+            XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             ElasticsearchException.toXContent(builder, ToXContent.EMPTY_PARAMS, ex);
             builder.endObject();
 
-            XContentBuilder otherBuilder = XContentFactory.jsonBuilder().prettyPrint();
+            XContentBuilder otherBuilder = XContentFactory.jsonBuilder();
 
             otherBuilder.startObject();
             ex.toXContent(otherBuilder, ToXContent.EMPTY_PARAMS);

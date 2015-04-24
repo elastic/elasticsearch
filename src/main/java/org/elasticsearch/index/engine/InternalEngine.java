@@ -598,26 +598,26 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public boolean syncFlushIfNoPendingChanges(String syncId, byte[] expectedCommitId) throws EngineException {
+    public SyncedFlushResult syncFlushIfNoPendingChanges(String syncId, byte[] expectedCommitId) throws EngineException {
         // best effort attempt before we acquire locks
         ensureOpen();
         if (indexWriter.hasUncommittedChanges()) {
             logger.trace("can't sync commit [{}]. have pending changes", syncId);
-            return false;
+            return SyncedFlushResult.FAILED_PENDING_OPERATIONS;
         }
         if (Arrays.equals(expectedCommitId, lastCommittedSegmentInfos.getId()) == false) {
             logger.trace("can't sync commit [{}]. current commit id is not equal to expected.", syncId);
-            return false;
+            return SyncedFlushResult.FAILED_COMMIT_MISMATCH;
         }
         try (ReleasableLock lock = writeLock.acquire()) {
             ensureOpen();
             if (indexWriter.hasUncommittedChanges()) {
                 logger.trace("can't sync commit [{}]. have pending changes", syncId);
-                return false;
+                return SyncedFlushResult.FAILED_PENDING_OPERATIONS;
             }
             if (Arrays.equals(expectedCommitId, lastCommittedSegmentInfos.getId()) == false) {
                 logger.trace("can't sync commit [{}]. current commit id is not equal to expected.", syncId);
-                return false;
+                return SyncedFlushResult.FAILED_COMMIT_MISMATCH;
             }
             logger.trace("starting sync commit [{}]", syncId);
             long translogId = translog.currentId();
@@ -628,7 +628,7 @@ public class InternalEngine extends Engine {
             commitIndexWriter(indexWriter);
             logger.debug("successfully sync committed. sync id [{}].", syncId);
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-            return true;
+            return SyncedFlushResult.SUCCESS;
         } catch (IOException ex) {
             maybeFailEngine("sync commit", ex);
             throw new EngineException(shardId, "failed to sync commit", ex);

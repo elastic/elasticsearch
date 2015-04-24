@@ -44,6 +44,7 @@
         <tests.heap.size>512m</tests.heap.size>
         <tests.heapdump.path>${basedir}/logs/</tests.heapdump.path>
         <tests.topn>5</tests.topn>
+        <jvm.executable>${java.home}${file.separator}bin${file.separator}java</jvm.executable>
         <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
     </properties>
 
@@ -450,6 +451,7 @@
                             <goal>junit4</goal>
                         </goals>
                         <configuration>
+                            <jvm>${jvm.executable}</jvm>
                             <heartbeat>20</heartbeat>
                             <jvmOutputAction>pipe,warn</jvmOutputAction>
                             <leaveTemporary>true</leaveTemporary>

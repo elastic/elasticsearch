@@ -49,8 +49,7 @@ governing permissions and limitations under the License. -->
     </issueManagement>
 
     <properties>
-        <google.gce.version>v1-rev15-1.18.0-rc</google.gce.version>
-        <google.api.version>1.18.0-rc</google.api.version>
+        <google.gce.version>v1-rev59-1.20.0</google.gce.version>
         <es.plugin.port>9300</es.plugin.port>
     </properties>
 
@@ -74,21 +73,6 @@ governing permissions and limitations under the License. -->
         </dependency>
 
         <!-- Google APIs -->
-        <dependency>
-            <groupId>com.google.api-client</groupId>
-            <artifactId>google-api-client</artifactId>
-            <version>${google.api.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.google.http-client</groupId>
-            <artifactId>google-http-client-jackson2</artifactId>
-            <version>${google.api.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.google.oauth-client</groupId>
-            <artifactId>google-oauth-client-jetty</artifactId>
-            <version>${google.api.version}</version>
-        </dependency>
         <dependency>
           <groupId>com.google.apis</groupId>
           <artifactId>google-api-services-compute</artifactId>

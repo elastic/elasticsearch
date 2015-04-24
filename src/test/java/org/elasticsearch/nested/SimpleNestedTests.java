@@ -707,7 +707,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
                     .execute().actionGet();
             Assert.fail("SearchPhaseExecutionException should have been thrown");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("type [string] doesn't support mode [SUM]"));
+            assertThat(e.toString(), containsString("type [string] doesn't support mode [SUM]"));
         }
     }
 

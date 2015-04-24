@@ -26,10 +26,6 @@ import org.elasticsearch.index.IndexException;
  */
 public class PercolatorException extends IndexException {
 
-    public PercolatorException(Index index, String msg) {
-        super(index, msg);
-    }
-
     public PercolatorException(Index index, String msg, Throwable cause) {
         super(index, msg, cause);
     }

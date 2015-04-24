@@ -495,7 +495,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
         } catch(ElasticsearchIllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [invalid_alias]"));
             assertThat(e.getCause(), instanceOf(QueryParsingException.class));
-            assertThat(e.getCause().getMessage(), equalTo("[test] No filter registered for [invalid]"));
+            assertThat(e.getCause().getMessage(), equalTo("No filter registered for [invalid]"));
         }
     }
 
@@ -530,7 +530,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
             createIndex("test");
             fail("index creation should have failed due to alias with existing index name in mathching index template");
         } catch(InvalidAliasNameException e) {
-            assertThat(e.getMessage(), equalTo("[test] Invalid alias name [index], an index exists with the same name as the alias"));
+            assertThat(e.getMessage(), equalTo("Invalid alias name [index], an index exists with the same name as the alias"));
         }
     }
 

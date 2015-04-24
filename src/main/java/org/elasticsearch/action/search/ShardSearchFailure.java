@@ -25,24 +25,29 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;
 
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 
 import static org.elasticsearch.search.SearchShardTarget.readSearchShardTarget;
 
 /**
  * Represents a failure to search on a specific shard.
  */
-public class ShardSearchFailure implements ShardOperationFailedException {
+public class ShardSearchFailure implements ShardOperationFailedException, ToXContent {
 
     public static final ShardSearchFailure[] EMPTY_ARRAY = new ShardSearchFailure[0];
 
     private SearchShardTarget shardTarget;
     private String reason;
     private RestStatus status;
+    private Throwable cause;
 
     private ShardSearchFailure() {
 
@@ -59,12 +64,9 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         } else if (shardTarget != null) {
             this.shardTarget = shardTarget;
         }
-        if (actual != null && actual instanceof ElasticsearchException) {
-            status = ((ElasticsearchException) actual).status();
-        } else {
-            status = RestStatus.INTERNAL_SERVER_ERROR;
-        }
+        status = ExceptionsHelper.status(actual);
         this.reason = ExceptionsHelper.detailedMessage(t);
+        this.cause = actual;
     }
 
     public ShardSearchFailure(String reason, SearchShardTarget shardTarget) {
@@ -138,6 +140,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         }
         reason = in.readString();
         status = RestStatus.readFrom(in);
+        cause = in.readThrowable();
     }
 
     @Override
@@ -150,5 +153,26 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         }
         out.writeString(reason);
         RestStatus.writeTo(out, status);
+        out.writeThrowable(cause);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("shard", shardId());
+        builder.field("index", index());
+        if (shardTarget != null) {
+            builder.field("node", shardTarget.nodeId());
+        }
+        if (cause != null) {
+            builder.field("reason");
+            builder.startObject();
+            ElasticsearchException.toXContent(builder, params, cause);
+            builder.endObject();
+        }
+        return builder;
+    }
+
+    public Throwable getCause() {
+        return cause;
     }
 }

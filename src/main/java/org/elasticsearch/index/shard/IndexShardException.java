@@ -19,7 +19,10 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexException;
+
+import java.io.IOException;
 
 /**
  *
@@ -33,11 +36,24 @@ public class IndexShardException extends IndexException {
     }
 
     public IndexShardException(ShardId shardId, String msg, Throwable cause) {
-        super(shardId == null ? null : shardId.index(), false, "[" + (shardId == null ? "_na" : shardId.id()) + "] " + msg, cause);
+        super(shardId == null ? null : shardId.index(), msg, cause);
         this.shardId = shardId;
     }
 
     public ShardId shardId() {
         return shardId;
+    }
+
+    @Override
+    public String toString() {
+        return (shardId == null ? "_na" : shardId) + getMessage();
+    }
+
+    @Override
+    protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        if (shardId != null) {
+            builder.field("shard", shardId.getId());
+        }
+        super.innerToXContent(builder, params);
     }
 }

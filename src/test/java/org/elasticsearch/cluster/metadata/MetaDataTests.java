@@ -441,7 +441,8 @@ public class MetaDataTests extends ElasticsearchTestCase {
             md.concreteIndices(IndicesOptions.strictSingleIndexNoExpandForbidClosed(), "foofoo-closed", "foofoobar");
             fail();
         } catch(IndexClosedException e) {
-            assertThat(e.getMessage(), containsString("[foofoo-closed] closed"));
+            assertThat(e.getMessage(), equalTo("closed"));
+            assertEquals(e.index().getName(), "foofoo-closed");
         }
 
         String[] results = md.concreteIndices(IndicesOptions.strictSingleIndexNoExpandForbidClosed(), "foo", "barbaz");

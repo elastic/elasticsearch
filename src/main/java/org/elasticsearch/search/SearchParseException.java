@@ -28,11 +28,11 @@ import org.elasticsearch.search.internal.SearchContext;
 public class SearchParseException extends SearchContextException {
 
     public SearchParseException(SearchContext context, String msg) {
-        super(context, "Parse Failure [" + msg + "]");
+        super(context, msg);
     }
 
     public SearchParseException(SearchContext context, String msg, Throwable cause) {
-        super(context, "Parse Failure [" + msg + "]", cause);
+        super(context, msg, cause);
     }
 
     @Override

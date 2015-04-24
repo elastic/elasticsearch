@@ -51,7 +51,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        bigarrays = new BigArrays(ImmutableSettings.EMPTY, null, new NoneCircuitBreakerService());
+        bigarrays = new BigArrays(null, new NoneCircuitBreakerService());
     }
 
     @After

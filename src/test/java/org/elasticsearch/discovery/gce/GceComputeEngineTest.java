@@ -21,6 +21,7 @@ package org.elasticsearch.discovery.gce;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cloud.gce.GceComputeService;
+import org.elasticsearch.cloud.gce.GceComputeService.Fields;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -112,10 +113,10 @@ public class GceComputeEngineTest extends ElasticsearchIntegrationTest {
     public void nodes_with_different_tags_and_one_tag_set() {
         startNode(1,
                 GceComputeServiceTwoNodesDifferentTagsMock.class,
-                ImmutableSettings.settingsBuilder().put("discovery.gce.tags", "elasticsearch").build());
+                ImmutableSettings.settingsBuilder().put(Fields.TAGS, "elasticsearch").build());
         startNode(2,
                 GceComputeServiceTwoNodesDifferentTagsMock.class,
-                ImmutableSettings.settingsBuilder().put("discovery.gce.tags", "elasticsearch").build());
+                ImmutableSettings.settingsBuilder().put(Fields.TAGS, "elasticsearch").build());
 
         // We expect having 1 nodes as part of the cluster, let's test that
         checkNumberOfNodes(1);
@@ -131,10 +132,10 @@ public class GceComputeEngineTest extends ElasticsearchIntegrationTest {
     public void nodes_with_different_tags_and_two_tag_set() {
         startNode(1,
                 GceComputeServiceTwoNodesDifferentTagsMock.class,
-                ImmutableSettings.settingsBuilder().put("discovery.gce.tags", Lists.newArrayList("elasticsearch", "dev")).build());
+                ImmutableSettings.settingsBuilder().put(Fields.TAGS, Lists.newArrayList("elasticsearch", "dev")).build());
         startNode(2,
                 GceComputeServiceTwoNodesDifferentTagsMock.class,
-                ImmutableSettings.settingsBuilder().put("discovery.gce.tags", Lists.newArrayList("elasticsearch", "dev")).build());
+                ImmutableSettings.settingsBuilder().put(Fields.TAGS, Lists.newArrayList("elasticsearch", "dev")).build());
 
         // We expect having 1 nodes as part of the cluster, let's test that
         checkNumberOfNodes(1);
@@ -157,10 +158,10 @@ public class GceComputeEngineTest extends ElasticsearchIntegrationTest {
     public void nodes_with_same_tags_and_one_tag_set() {
         startNode(1,
                 GceComputeServiceTwoNodesSameTagsMock.class,
-                ImmutableSettings.settingsBuilder().put("discovery.gce.tags", "elasticsearch").build());
+                ImmutableSettings.settingsBuilder().put(Fields.TAGS, "elasticsearch").build());
         startNode(2,
                 GceComputeServiceTwoNodesSameTagsMock.class,
-                ImmutableSettings.settingsBuilder().put("discovery.gce.tags", "elasticsearch").build());
+                ImmutableSettings.settingsBuilder().put(Fields.TAGS, "elasticsearch").build());
 
         // We expect having 2 nodes as part of the cluster, let's test that
         checkNumberOfNodes(2);
@@ -170,10 +171,10 @@ public class GceComputeEngineTest extends ElasticsearchIntegrationTest {
     public void nodes_with_same_tags_and_two_tags_set() {
         startNode(1,
                 GceComputeServiceTwoNodesSameTagsMock.class,
-                ImmutableSettings.settingsBuilder().put("discovery.gce.tags", Lists.newArrayList("elasticsearch", "dev")).build());
+                ImmutableSettings.settingsBuilder().put(Fields.TAGS, Lists.newArrayList("elasticsearch", "dev")).build());
         startNode(2,
                 GceComputeServiceTwoNodesSameTagsMock.class,
-                ImmutableSettings.settingsBuilder().put("discovery.gce.tags", Lists.newArrayList("elasticsearch", "dev")).build());
+                ImmutableSettings.settingsBuilder().put(Fields.TAGS, Lists.newArrayList("elasticsearch", "dev")).build());
 
         // We expect having 2 nodes as part of the cluster, let's test that
         checkNumberOfNodes(2);
@@ -183,11 +184,11 @@ public class GceComputeEngineTest extends ElasticsearchIntegrationTest {
     public void multiple_zones_and_two_nodes_in_same_zone() {
         startNode(1,
                 GceComputeServiceTwoNodesOneZoneMock.class,
-                ImmutableSettings.settingsBuilder().put("cloud.gce.zone", Lists.newArrayList("us-central1-a", "us-central1-b",
+                ImmutableSettings.settingsBuilder().put(Fields.ZONE, Lists.newArrayList("us-central1-a", "us-central1-b",
                         "us-central1-f", "europe-west1-a", "europe-west1-b")).build());
         startNode(2,
                 GceComputeServiceTwoNodesOneZoneMock.class,
-                ImmutableSettings.settingsBuilder().put("cloud.gce.zone", Lists.newArrayList("us-central1-a", "us-central1-b",
+                ImmutableSettings.settingsBuilder().put(Fields.ZONE, Lists.newArrayList("us-central1-a", "us-central1-b",
                         "us-central1-f", "europe-west1-a", "europe-west1-b")).build());
 
         // We expect having 2 nodes as part of the cluster, let's test that
@@ -198,11 +199,11 @@ public class GceComputeEngineTest extends ElasticsearchIntegrationTest {
     public void multiple_zones_and_two_nodes_in_different_zones() {
         startNode(1,
                 GceComputeServiceTwoNodesTwoZonesMock.class,
-                ImmutableSettings.settingsBuilder().put("cloud.gce.zone", Lists.newArrayList("us-central1-a", "us-central1-b",
+                ImmutableSettings.settingsBuilder().put(Fields.ZONE, Lists.newArrayList("us-central1-a", "us-central1-b",
                         "us-central1-f", "europe-west1-a", "europe-west1-b")).build());
         startNode(2,
                 GceComputeServiceTwoNodesTwoZonesMock.class,
-                ImmutableSettings.settingsBuilder().put("cloud.gce.zone", Lists.newArrayList("us-central1-a", "us-central1-b",
+                ImmutableSettings.settingsBuilder().put(Fields.ZONE, Lists.newArrayList("us-central1-a", "us-central1-b",
                         "us-central1-f", "europe-west1-a", "europe-west1-b")).build());
 
         // We expect having 2 nodes as part of the cluster, let's test that
@@ -216,7 +217,7 @@ public class GceComputeEngineTest extends ElasticsearchIntegrationTest {
     public void zero_node_43() {
         startNode(1,
                 GceComputeServiceZeroNodeMock.class,
-                ImmutableSettings.settingsBuilder().put("cloud.gce.zone", Lists.newArrayList("us-central1-a", "us-central1-b",
+                ImmutableSettings.settingsBuilder().put(Fields.ZONE, Lists.newArrayList("us-central1-a", "us-central1-b",
                         "us-central1-f", "europe-west1-a", "europe-west1-b")).build());
     }
 

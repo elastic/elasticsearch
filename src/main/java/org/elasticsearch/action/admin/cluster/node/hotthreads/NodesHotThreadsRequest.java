@@ -38,6 +38,11 @@ public class NodesHotThreadsRequest extends NodesOperationRequest<NodesHotThread
     int snapshots = 10;
     boolean ignoreIdleThreads = true;
 
+    // for serialization
+    NodesHotThreadsRequest() {
+
+    }
+
     /**
      * Get hot threads from nodes based on the nodes ids specified. If none are passed, hot
      * threads for all nodes is used.

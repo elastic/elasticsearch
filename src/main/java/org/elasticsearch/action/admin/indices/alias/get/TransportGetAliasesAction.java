@@ -41,7 +41,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadOperationA
 
     @Inject
     public TransportGetAliasesAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, GetAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, GetAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, GetAliasesRequest.class);
     }
 
     @Override
@@ -53,11 +53,6 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadOperationA
     @Override
     protected ClusterBlockException checkBlock(GetAliasesRequest request, ClusterState state) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
-    }
-
-    @Override
-    protected GetAliasesRequest newRequest() {
-        return new GetAliasesRequest();
     }
 
     @Override

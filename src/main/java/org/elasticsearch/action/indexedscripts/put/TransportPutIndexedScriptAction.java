@@ -40,13 +40,8 @@ public class TransportPutIndexedScriptAction extends HandledTransportAction<PutI
     @Inject
     public TransportPutIndexedScriptAction(Settings settings, ThreadPool threadPool,
                                            ScriptService scriptService, TransportService transportService, ActionFilters actionFilters) {
-        super(settings, PutIndexedScriptAction.NAME, threadPool, transportService, actionFilters);
+        super(settings, PutIndexedScriptAction.NAME, threadPool, transportService, actionFilters, PutIndexedScriptRequest.class);
         this.scriptService = scriptService;
-    }
-
-    @Override
-    public PutIndexedScriptRequest newRequestInstance(){
-        return new PutIndexedScriptRequest();
     }
 
     @Override

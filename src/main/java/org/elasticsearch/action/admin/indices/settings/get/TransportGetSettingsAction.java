@@ -50,7 +50,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadOperation
     @Inject
     public TransportGetSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, SettingsFilter settingsFilter, ActionFilters actionFilters) {
-        super(settings, GetSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, GetSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetSettingsRequest.class);
         this.settingsFilter = settingsFilter;
     }
 
@@ -65,11 +65,6 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadOperation
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
-
-    @Override
-    protected GetSettingsRequest newRequest() {
-        return new GetSettingsRequest();
-    }
 
     @Override
     protected GetSettingsResponse newResponse() {

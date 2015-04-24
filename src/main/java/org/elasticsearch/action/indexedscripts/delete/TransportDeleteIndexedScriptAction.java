@@ -40,13 +40,8 @@ public class TransportDeleteIndexedScriptAction extends HandledTransportAction<D
     @Inject
     public TransportDeleteIndexedScriptAction(Settings settings, ThreadPool threadPool, ScriptService scriptService,
                                               TransportService transportService, ActionFilters actionFilters) {
-        super(settings, DeleteIndexedScriptAction.NAME, threadPool, transportService, actionFilters);
+        super(settings, DeleteIndexedScriptAction.NAME, threadPool, transportService, actionFilters, DeleteIndexedScriptRequest.class);
         this.scriptService = scriptService;
-    }
-
-    @Override
-    public DeleteIndexedScriptRequest newRequestInstance(){
-        return new DeleteIndexedScriptRequest();
     }
 
     @Override

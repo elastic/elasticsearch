@@ -36,6 +36,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.DefaultSearchContext;
@@ -62,7 +63,8 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
                                              ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                                              ShardStateAction shardStateAction, ScriptService scriptService,
                                              PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters);
+        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
+                ShardDeleteByQueryRequest.class, ShardDeleteByQueryRequest.class, ThreadPool.Names.INDEX);
         this.scriptService = scriptService;
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays;
@@ -71,21 +73,6 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
     @Override
     protected boolean checkWriteConsistency() {
         return true;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.INDEX;
-    }
-
-    @Override
-    protected ShardDeleteByQueryRequest newRequestInstance() {
-        return new ShardDeleteByQueryRequest();
-    }
-
-    @Override
-    protected ShardDeleteByQueryRequest newReplicaRequestInstance() {
-        return newRequestInstance();
     }
 
     @Override
@@ -121,10 +108,9 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
 
 
     @Override
-    protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
-        ShardDeleteByQueryRequest request = shardRequest.request;
-        IndexService indexService = indicesService.indexServiceSafe(shardRequest.shardId.getIndex());
-        IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
+    protected void shardOperationOnReplica(ShardId shardId, ShardDeleteByQueryRequest request) {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        IndexShard indexShard = indexService.shardSafe(shardId.id());
 
         SearchContext.setCurrent(new DefaultSearchContext(0, new ShardSearchLocalRequest(request.types(), request.nowInMillis()), null,
                 indexShard.acquireSearcher(DELETE_BY_QUERY_API, true), indexService, indexShard, scriptService,

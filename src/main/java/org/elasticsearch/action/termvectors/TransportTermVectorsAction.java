@@ -52,14 +52,9 @@ public class TransportTermVectorsAction extends TransportShardSingleOperationAct
     @Inject
     public TransportTermVectorsAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                       IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, TermVectorsAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, TermVectorsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                TermVectorsRequest.class, ThreadPool.Names.GET);
         this.indicesService = indicesService;
-    }
-
-    @Override
-    protected String executor() {
-        // TODO: Is this the right pool to execute this on?
-        return ThreadPool.Names.GET;
     }
 
     @Override
@@ -90,11 +85,6 @@ public class TransportTermVectorsAction extends TransportShardSingleOperationAct
         TermVectorsResponse response = indexShard.termVectorsService().getTermVectors(request, shardId.getIndex());
         response.updateTookInMillis(request.startTime());
         return response;
-    }
-
-    @Override
-    protected TermVectorsRequest newRequest() {
-        return new TermVectorsRequest();
     }
 
     @Override

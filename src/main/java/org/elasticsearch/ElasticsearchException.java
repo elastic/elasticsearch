@@ -22,18 +22,23 @@ package org.elasticsearch;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.HasRestHeaders;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 /**
  * A base class for all elasticsearch exceptions.
  */
-public class ElasticsearchException extends RuntimeException {
+public class ElasticsearchException extends RuntimeException implements ToXContent {
+
+    public static final String REST_EXCEPTION_SKIP_CAUSE = "rest.exception.skip_cause";
 
     /**
      * Construct a <code>ElasticsearchException</code> with the specified detail message.
@@ -62,12 +67,8 @@ public class ElasticsearchException extends RuntimeException {
         Throwable cause = unwrapCause();
         if (cause == this) {
             return RestStatus.INTERNAL_SERVER_ERROR;
-        } else if (cause instanceof ElasticsearchException) {
-            return ((ElasticsearchException) cause).status();
-        } else if (cause instanceof IllegalArgumentException) {
-            return RestStatus.BAD_REQUEST;
         } else {
-            return RestStatus.INTERNAL_SERVER_ERROR;
+            return ExceptionsHelper.status(cause);
         }
     }
 
@@ -112,19 +113,6 @@ public class ElasticsearchException extends RuntimeException {
             cause = cause.getCause();
         }
         return rootCause;
-    }
-
-    /**
-     * Retrieve the most specific cause of this exception, that is,
-     * either the innermost cause (root cause) or this exception itself.
-     * <p>Differs from {@link #getRootCause()} in that it falls back
-     * to the present exception if there is no root cause.
-     *
-     * @return the most specific cause (never <code>null</code>)
-     */
-    public Throwable getMostSpecificCause() {
-        Throwable rootCause = getRootCause();
-        return (rootCause != null ? rootCause : this);
     }
 
     /**
@@ -175,21 +163,6 @@ public class ElasticsearchException extends RuntimeException {
             this.headers = headers(headers);
         }
 
-        public WithRestHeaders(String msg, @Nullable ImmutableMap<String, List<String>> headers) {
-            super(msg);
-            this.headers = headers != null ? headers : ImmutableMap.<String, List<String>>of();
-        }
-
-        public WithRestHeaders(String msg, Throwable cause, Tuple<String, String[]>... headers) {
-            super(msg, cause);
-            this.headers = headers(headers);
-        }
-
-        public WithRestHeaders(String msg, Throwable cause, @Nullable ImmutableMap<String, List<String>> headers) {
-            super(msg, cause);
-            this.headers = headers != null ? headers : ImmutableMap.<String, List<String>>of();
-        }
-
         @Override
         public ImmutableMap<String, List<String>> getHeaders() {
             return headers;
@@ -215,4 +188,97 @@ public class ElasticsearchException extends RuntimeException {
             return ImmutableMap.copyOf(map);
         }
     }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (this instanceof ElasticsearchWrapperException) {
+            toXContent(builder, params, this);
+        } else {
+            builder.field("type", getExceptionName(this));
+            builder.field("reason", getMessage());
+            innerToXContent(builder, params);
+        }
+        return builder;
+    }
+
+    /**
+     * Renders additional per exception information into the xcontent
+     */
+    protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        causeToXContent(builder, params);
+    }
+
+    /**
+     * Renders a cause exception as xcontent
+     */
+    protected final void causeToXContent(XContentBuilder builder, Params params) throws IOException {
+        final Throwable cause = getCause();
+        if (cause != null && params.paramAsBoolean(REST_EXCEPTION_SKIP_CAUSE, false) == false) {
+            builder.field("caused_by");
+            builder.startObject();
+            toXContent(builder, params, cause);
+            builder.endObject();
+        }
+    }
+
+    /**
+     * Statis toXContent helper method that also renders non {@link org.elasticsearch.ElasticsearchException} instances as XContent.
+     */
+    public static void toXContent(XContentBuilder builder, Params params, Throwable ex) throws IOException {
+        ex = ExceptionsHelper.unwrapCause(ex);
+        if (ex instanceof ElasticsearchException) {
+            ((ElasticsearchException) ex).toXContent(builder, params);
+        } else {
+            builder.field("type", getExceptionName(ex));
+            builder.field("reason", ex.getMessage());
+            if (ex.getCause() != null) {
+                builder.field("caused_by");
+                builder.startObject();
+                toXContent(builder, params, ex.getCause());
+                builder.endObject();
+            }
+        }
+    }
+
+    /**
+     * Returns the root cause of this exception or mupltiple if different shards caused different exceptions
+     */
+    public ElasticsearchException[] guessRootCauses() {
+        final Throwable cause = getCause();
+        if (cause != null && cause instanceof ElasticsearchException) {
+            return ((ElasticsearchException) cause).guessRootCauses();
+        }
+        return new ElasticsearchException[] {this};
+    }
+
+    /**
+     * Returns the root cause of this exception or mupltiple if different shards caused different exceptions.
+     * If the given exception is not an instance of {@link org.elasticsearch.ElasticsearchException} an empty array
+     * is returned.
+     */
+    public static ElasticsearchException[] guessRootCauses(Throwable t) {
+        Throwable ex = ExceptionsHelper.unwrapCause(t);
+        if (ex instanceof ElasticsearchException) {
+            return ((ElasticsearchException) ex).guessRootCauses();
+        }
+        return new ElasticsearchException[0];
+    }
+
+    /**
+     * Returns a underscore case name for the given exception. This method strips <tt>Elasticsearch</tt> prefixes from exception names.
+     */
+    public static String getExceptionName(Throwable ex) {
+        String simpleName = ex.getClass().getSimpleName();
+        if (simpleName.startsWith("Elasticsearch")) {
+            simpleName = simpleName.substring("Elasticsearch".length());
+        }
+        return Strings.toUnderscoreCase(simpleName);
+    }
+
+    @Override
+    public String toString() {
+        return ExceptionsHelper.detailedMessage(this).trim();
+    }
+
+
 }

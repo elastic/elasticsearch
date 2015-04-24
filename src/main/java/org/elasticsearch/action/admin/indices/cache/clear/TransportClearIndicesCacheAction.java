@@ -58,19 +58,10 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
     public TransportClearIndicesCacheAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                             TransportService transportService, IndicesService indicesService,
                                             IndicesQueryCache indicesQueryCache, ActionFilters actionFilters) {
-        super(settings, ClearIndicesCacheAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, ClearIndicesCacheAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                ClearIndicesCacheRequest.class, ShardClearIndicesCacheRequest.class, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
         this.indicesQueryCache = indicesQueryCache;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected ClearIndicesCacheRequest newRequestInstance() {
-        return new ClearIndicesCacheRequest();
     }
 
     @Override
@@ -93,11 +84,6 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
             }
         }
         return new ClearIndicesCacheResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures);
-    }
-
-    @Override
-    protected ShardClearIndicesCacheRequest newShardRequest() {
-        return new ShardClearIndicesCacheRequest();
     }
 
     @Override

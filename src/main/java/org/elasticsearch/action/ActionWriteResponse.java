@@ -19,6 +19,9 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -164,15 +167,15 @@ public abstract class ActionWriteResponse extends ActionResponse {
             private String index;
             private int shardId;
             private String nodeId;
-            private String reason;
+            private Throwable cause;
             private RestStatus status;
             private boolean primary;
 
-            public Failure(String index, int shardId, @Nullable String nodeId, String reason, RestStatus status, boolean primary) {
+            public Failure(String index, int shardId, @Nullable String nodeId, Throwable cause, RestStatus status, boolean primary) {
                 this.index = index;
                 this.shardId = shardId;
                 this.nodeId = nodeId;
-                this.reason = reason;
+                this.cause = cause;
                 this.status = status;
                 this.primary = primary;
             }
@@ -209,7 +212,7 @@ public abstract class ActionWriteResponse extends ActionResponse {
              */
             @Override
             public String reason() {
-                return reason;
+                return ExceptionsHelper.detailedMessage(cause);
             }
 
             /**
@@ -233,7 +236,7 @@ public abstract class ActionWriteResponse extends ActionResponse {
                 index = in.readString();
                 shardId = in.readVInt();
                 nodeId = in.readOptionalString();
-                reason = in.readString();
+                cause = in.readThrowable();
                 status = RestStatus.readFrom(in);
                 primary = in.readBoolean();
             }
@@ -243,7 +246,7 @@ public abstract class ActionWriteResponse extends ActionResponse {
                 out.writeString(index);
                 out.writeVInt(shardId);
                 out.writeOptionalString(nodeId);
-                out.writeString(reason);
+                out.writeThrowable(cause);
                 RestStatus.writeTo(out, status);
                 out.writeBoolean(primary);
             }
@@ -254,7 +257,10 @@ public abstract class ActionWriteResponse extends ActionResponse {
                 builder.field(Fields._INDEX, index);
                 builder.field(Fields._SHARD, shardId);
                 builder.field(Fields._NODE, nodeId);
-                builder.field(Fields.REASON, reason);
+                builder.field(Fields.REASON);
+                builder.startObject();
+                ElasticsearchException.toXContent(builder, params, cause);
+                builder.endObject();
                 builder.field(Fields.STATUS, status);
                 builder.field(Fields.PRIMARY, primary);
                 builder.endObject();

@@ -310,7 +310,7 @@ public class ElasticsearchAssertions {
             assertVersionSerializable(searchResponse);
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.status(), equalTo(restStatus));
-            assertThat(e.getMessage(), reasonMatcher);
+            assertThat(e.toString(), reasonMatcher);
             for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
                 assertThat(shardSearchFailure.status(), equalTo(restStatus));
                 assertThat(shardSearchFailure.reason(), reasonMatcher);

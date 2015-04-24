@@ -24,14 +24,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
@@ -43,19 +42,18 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public abstract class TransportIndicesReplicationOperationAction<Request extends IndicesReplicationOperationRequest, Response extends ActionResponse, IndexRequest extends IndexReplicationOperationRequest, IndexResponse extends ActionResponse,
         ShardRequest extends ShardReplicationOperationRequest, ShardResponse extends ActionWriteResponse>
-        extends TransportAction<Request, Response> {
+        extends HandledTransportAction<Request, Response> {
 
     protected final ClusterService clusterService;
 
     protected final TransportIndexReplicationOperationAction<IndexRequest, IndexResponse, ShardRequest, ShardResponse> indexAction;
 
     protected TransportIndicesReplicationOperationAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                         TransportIndexReplicationOperationAction<IndexRequest, IndexResponse, ShardRequest, ShardResponse> indexAction, ActionFilters actionFilters) {
-        super(settings, actionName, threadPool, actionFilters);
+                                                         TransportIndexReplicationOperationAction<IndexRequest, IndexResponse, ShardRequest, ShardResponse> indexAction, ActionFilters actionFilters,
+                                                         Class<Request> request) {
+        super(settings, actionName, threadPool, transportService, actionFilters, request);
         this.clusterService = clusterService;
         this.indexAction = indexAction;
-
-        transportService.registerHandler(actionName, new TransportHandler());
     }
 
 
@@ -116,8 +114,6 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
         }
     }
 
-    protected abstract Request newRequestInstance();
-
     protected abstract Response newResponseInstance(Request request, AtomicReferenceArray indexResponses);
 
     protected abstract IndexRequest newIndexRequestInstance(Request request, String index, Set<String> routing, long startTimeInMillis);
@@ -127,42 +123,4 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
     protected abstract ClusterBlockException checkGlobalBlock(ClusterState state, Request request);
 
     protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request, String[] concreteIndices);
-
-    private class TransportHandler extends BaseTransportRequestHandler<Request> {
-
-        @Override
-        public Request newInstance() {
-            return newRequestInstance();
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
-        @Override
-        public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
-            // no need for a threaded listener, since we just send a response
-            request.listenerThreaded(false);
-            execute(request, new ActionListener<Response>() {
-                @Override
-                public void onResponse(Response result) {
-                    try {
-                        channel.sendResponse(result);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [" + actionName + "] and request [" + request + "]", e1);
-                    }
-                }
-            });
-        }
-    }
 }

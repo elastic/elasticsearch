@@ -115,8 +115,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     private final BitsetFilterCache bitsetFilterCache;
 
-    private final IndexStore indexStore;
-
     private final IndexSettingsService settingsService;
 
     private final NodeEnvironment nodeEnv;
@@ -131,7 +129,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     public IndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv,
                         AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService,
                         SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache,
-                        IndexStore indexStore, IndexSettingsService settingsService,
+                        IndexSettingsService settingsService,
                         IndexFieldDataService indexFieldData, BitsetFilterCache bitSetFilterCache, IndicesService indicesServices) {
         super(index, indexSettings);
         this.injector = injector;
@@ -143,7 +141,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         this.aliasesService = aliasesService;
         this.indexCache = indexCache;
         this.indexFieldData = indexFieldData;
-        this.indexStore = indexStore;
         this.settingsService = settingsService;
         this.bitsetFilterCache = bitSetFilterCache;
 
@@ -212,10 +209,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     public IndexSettingsService settingsService() {
         return this.settingsService;
-    }
-
-    public IndexStore store() {
-        return indexStore;
     }
 
     public IndexCache cache() {

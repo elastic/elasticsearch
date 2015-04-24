@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -57,7 +58,6 @@ public class TransportClientTests extends ElasticsearchIntegrationTest {
                 .put("path.home", createTempDir())
                 .put("node.name", "testNodeVersionIsUpdated")
                 .put("http.enabled", false)
-                .put("index.store.type", "ram")
                 .put("config.ignore_system_properties", true) // make sure we get what we set :)
                 .build()).clusterName("foobar").build();
         node.start();

@@ -37,7 +37,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.fs.FsDirectoryService;
+import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -62,8 +62,8 @@ public class MockFSDirectoryService extends FsDirectoryService {
     private final boolean checkIndexOnClose;
 
     @Inject
-    public MockFSDirectoryService(final ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, final IndicesService service, final ShardPath path) {
-        super(shardId, indexSettings, indexStore, path);
+    public MockFSDirectoryService(@IndexSettings Settings indexSettings, IndexStore indexStore, final IndicesService service, final ShardPath path) {
+        super(indexSettings, indexStore, path);
         final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.SETTING_INDEX_SEED, 0l);
         Random random = new Random(seed);
         helper = new MockDirectoryHelper(shardId, indexSettings, logger, random, seed);

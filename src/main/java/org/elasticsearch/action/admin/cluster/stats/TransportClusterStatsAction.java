@@ -67,14 +67,10 @@ public class TransportClusterStatsAction extends TransportNodesOperationAction<C
     public TransportClusterStatsAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                        ClusterService clusterService, TransportService transportService,
                                        NodeService nodeService, IndicesService indicesService, ActionFilters actionFilters) {
-        super(settings, ClusterStatsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
+        super(settings, ClusterStatsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+                ClusterStatsRequest.class, ClusterStatsNodeRequest.class, ThreadPool.Names.MANAGEMENT);
         this.nodeService = nodeService;
         this.indicesService = indicesService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
     }
 
     @Override
@@ -88,16 +84,6 @@ public class TransportClusterStatsAction extends TransportNodesOperationAction<C
         }
         return new ClusterStatsResponse(System.currentTimeMillis(), clusterName,
                 clusterService.state().metaData().uuid(), nodeStats.toArray(new ClusterStatsNodeResponse[nodeStats.size()]));
-    }
-
-    @Override
-    protected ClusterStatsRequest newRequestInstance() {
-        return new ClusterStatsRequest();
-    }
-
-    @Override
-    protected ClusterStatsNodeRequest newNodeRequest() {
-        return new ClusterStatsNodeRequest();
     }
 
     @Override

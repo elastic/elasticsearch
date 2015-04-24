@@ -61,11 +61,6 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
     }
 
     @Override
-    public boolean seekPositionSupported() {
-        return true;
-    }
-
-    @Override
     public long position() throws IOException {
         return count;
     }

@@ -21,6 +21,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -32,6 +33,7 @@ import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectInputStream;
 import java.util.*;
 
 /**
@@ -461,6 +463,15 @@ public abstract class StreamInput extends InputStream {
             return streamable;
         } else {
             return null;
+        }
+    }
+
+    public <T extends Throwable> T readThrowable() throws IOException {
+        try {
+            ObjectInputStream oin = new ObjectInputStream(this);
+            return (T) oin.readObject();
+        } catch (ClassNotFoundException e) {
+            throw new IOException("failed to deserialize exception", e);
         }
     }
 }

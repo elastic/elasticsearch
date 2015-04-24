@@ -72,9 +72,9 @@ public class MembershipAction extends AbstractComponent {
         this.listener = listener;
         this.clusterService = clusterService;
 
-        transportService.registerHandler(DISCOVERY_JOIN_ACTION_NAME, new JoinRequestRequestHandler());
-        transportService.registerHandler(DISCOVERY_JOIN_VALIDATE_ACTION_NAME, new ValidateJoinRequestRequestHandler());
-        transportService.registerHandler(DISCOVERY_LEAVE_ACTION_NAME, new LeaveRequestRequestHandler());
+        transportService.registerRequestHandler(DISCOVERY_JOIN_ACTION_NAME, JoinRequest.class, ThreadPool.Names.GENERIC, new JoinRequestRequestHandler());
+        transportService.registerRequestHandler(DISCOVERY_JOIN_VALIDATE_ACTION_NAME, ValidateJoinRequest.class, ThreadPool.Names.GENERIC, new ValidateJoinRequestRequestHandler());
+        transportService.registerRequestHandler(DISCOVERY_LEAVE_ACTION_NAME, LeaveRequest.class, ThreadPool.Names.GENERIC, new LeaveRequestRequestHandler());
     }
 
     public void close() {
@@ -133,12 +133,7 @@ public class MembershipAction extends AbstractComponent {
     }
 
 
-    private class JoinRequestRequestHandler extends BaseTransportRequestHandler<JoinRequest> {
-
-        @Override
-        public JoinRequest newInstance() {
-            return new JoinRequest();
-        }
+    private class JoinRequestRequestHandler implements TransportRequestHandler<JoinRequest> {
 
         @Override
         public void messageReceived(final JoinRequest request, final TransportChannel channel) throws Exception {
@@ -162,35 +157,20 @@ public class MembershipAction extends AbstractComponent {
                 }
             });
         }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.GENERIC;
-        }
     }
 
-    class ValidateJoinRequest extends TransportRequest {
+    static class ValidateJoinRequest extends TransportRequest {
 
         ValidateJoinRequest() {
         }
     }
 
-    private class ValidateJoinRequestRequestHandler extends BaseTransportRequestHandler<ValidateJoinRequest> {
-
-        @Override
-        public ValidateJoinRequest newInstance() {
-            return new ValidateJoinRequest();
-        }
+    class ValidateJoinRequestRequestHandler implements TransportRequestHandler<ValidateJoinRequest> {
 
         @Override
         public void messageReceived(ValidateJoinRequest request, TransportChannel channel) throws Exception {
             // for now, the mere fact that we can serialize the cluster state acts as validation....
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.GENERIC;
         }
     }
 
@@ -218,22 +198,12 @@ public class MembershipAction extends AbstractComponent {
         }
     }
 
-    private class LeaveRequestRequestHandler extends BaseTransportRequestHandler<LeaveRequest> {
-
-        @Override
-        public LeaveRequest newInstance() {
-            return new LeaveRequest();
-        }
+    private class LeaveRequestRequestHandler implements TransportRequestHandler<LeaveRequest> {
 
         @Override
         public void messageReceived(LeaveRequest request, TransportChannel channel) throws Exception {
             listener.onLeave(request.node);
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.GENERIC;
         }
     }
 }

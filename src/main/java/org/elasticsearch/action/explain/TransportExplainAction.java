@@ -71,7 +71,8 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
                                   TransportService transportService, IndicesService indicesService,
                                   ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
                                   BigArrays bigArrays, ActionFilters actionFilters) {
-        super(settings, ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                ExplainRequest.class, ThreadPool.Names.GET);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.pageCacheRecycler = pageCacheRecycler;
@@ -82,11 +83,6 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
     protected void doExecute(ExplainRequest request, ActionListener<ExplainResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
         super.doExecute(request, listener);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.GET; // Or use Names.SEARCH?
     }
 
     @Override
@@ -145,11 +141,6 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
             context.close();
             SearchContext.removeCurrent();
         }
-    }
-
-    @Override
-    protected ExplainRequest newRequest() {
-        return new ExplainRequest();
     }
 
     @Override

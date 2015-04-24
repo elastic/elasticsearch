@@ -43,6 +43,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.IndicesService;
@@ -168,7 +169,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
             if (metaData == null) {
                 return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
             }
-            String storeType = metaData.settings().get("index.store.type", "fs");
+            String storeType = metaData.settings().get(IndexStoreModule.STORE_TYPE, "fs");
             if (!storeType.contains("fs")) {
                 return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
             }

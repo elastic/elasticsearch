@@ -22,10 +22,8 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -55,9 +53,6 @@ public class OrFilterParser implements FilterParser {
 
         ArrayList<Filter> filters = newArrayList();
         boolean filtersFound = false;
-
-        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
-        HashedBytesRef cacheKey = null;
 
         String filterName = null;
         String currentFieldName = null;
@@ -93,12 +88,8 @@ public class OrFilterParser implements FilterParser {
                         }
                     }
                 } else if (token.isValue()) {
-                    if ("_cache".equals(currentFieldName)) {
-                        cache = parseContext.parseFilterCachePolicy();
-                    } else if ("_name".equals(currentFieldName)) {
+                    if ("_name".equals(currentFieldName)) {
                         filterName = parser.text();
-                    } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                        cacheKey = new HashedBytesRef(parser.text());
                     } else {
                         throw new QueryParsingException(parseContext, "[or] filter does not support [" + currentFieldName + "]");
                     }
@@ -119,10 +110,7 @@ public class OrFilterParser implements FilterParser {
         for (Filter filter : filters) {
             boolQuery.add(filter, Occur.SHOULD);
         }
-        Filter filter = Queries.wrap(boolQuery);
-        if (cache != null) {
-            filter = parseContext.cacheFilter(filter, cacheKey, cache);
-        }
+        Filter filter = new QueryWrapperFilter(boolQuery);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

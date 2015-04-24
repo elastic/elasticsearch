@@ -18,9 +18,9 @@
 
 package org.apache.lucene.search.postingshighlight;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
@@ -91,8 +91,7 @@ public final class CustomPostingsHighlighter extends XPostingsHighlighter {
     /*
     Our own api to highlight a single document field, passing in the query terms, and get back our own Snippet object
      */
-    public Snippet[] highlightDoc(String field, BytesRef[] terms, IndexSearcher searcher, int docId, int maxPassages) throws IOException {
-        IndexReader reader = searcher.getIndexReader();
+    public Snippet[] highlightDoc(String field, BytesRef[] terms, IndexReader reader, int docId, int maxPassages) throws IOException {
         IndexReaderContext readerContext = reader.getContext();
         List<LeafReaderContext> leaves = readerContext.leaves();
 

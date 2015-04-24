@@ -32,6 +32,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.BytesRef;
@@ -794,14 +795,13 @@ public class PercolatorService extends AbstractComponent {
 
     private void queryBasedPercolating(Engine.Searcher percolatorSearcher, PercolateContext context, QueryCollector percolateCollector) throws IOException {
         Filter percolatorTypeFilter = context.indexService().mapperService().documentMapper(TYPE_NAME).typeFilter();
-        percolatorTypeFilter = context.indexService().cache().filter().cache(percolatorTypeFilter, null, context.queryParserService().autoFilterCachePolicy());
 
         final Filter filter;
         if (context.aliasFilter() != null) {
             BooleanQuery booleanFilter = new BooleanQuery();
             booleanFilter.add(context.aliasFilter(), BooleanClause.Occur.MUST);
             booleanFilter.add(percolatorTypeFilter, BooleanClause.Occur.MUST);
-            filter = Queries.wrap(booleanFilter);
+            filter = new QueryWrapperFilter(booleanFilter);
         } else {
             filter = percolatorTypeFilter;
         }

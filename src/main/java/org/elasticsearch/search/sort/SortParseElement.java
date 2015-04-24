@@ -255,9 +255,9 @@ public class SortParseElement implements SearchParseElement {
                 BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter());
                 Filter innerDocumentsFilter;
                 if (nestedHelper.filterFound()) {
-                    innerDocumentsFilter = context.filterCache().cache(nestedHelper.getInnerFilter(), null, context.queryParserService().autoFilterCachePolicy());
+                    innerDocumentsFilter = nestedHelper.getInnerFilter();
                 } else {
-                    innerDocumentsFilter = context.filterCache().cache(nestedHelper.getNestedObjectMapper().nestedTypeFilter(), null, context.queryParserService().autoFilterCachePolicy());
+                    innerDocumentsFilter = nestedHelper.getNestedObjectMapper().nestedTypeFilter();
                 }
                 nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
             } else {

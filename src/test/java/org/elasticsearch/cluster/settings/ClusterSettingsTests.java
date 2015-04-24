@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDec
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -56,7 +57,7 @@ public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void clusterSettingsUpdateResponse() {
-        String key1 = "indices.cache.filter.size";
+        String key1 = IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC;
         int value1 = 10;
 
         String key2 = DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION;

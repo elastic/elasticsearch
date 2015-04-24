@@ -22,7 +22,8 @@ package org.elasticsearch.search.aggregations.bucket.filters;
 import com.google.common.collect.Lists;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -49,15 +50,16 @@ public class FiltersAggregator extends BucketsAggregator {
     static class KeyedFilter {
 
         final String key;
-        final Filter filter;
+        final Query filter;
 
-        KeyedFilter(String key, Filter filter) {
+        KeyedFilter(String key, Query filter) {
             this.key = key;
             this.filter = filter;
         }
     }
 
-    private final KeyedFilter[] filters;
+    private final String[] keys;
+    private final Weight[] filters;
     private final boolean keyed;
 
     public FiltersAggregator(String name, AggregatorFactories factories, List<KeyedFilter> filters, boolean keyed, AggregationContext aggregationContext,
@@ -65,18 +67,23 @@ public class FiltersAggregator extends BucketsAggregator {
             throws IOException {
         super(name, factories, aggregationContext, parent, reducers, metaData);
         this.keyed = keyed;
-        this.filters = filters.toArray(new KeyedFilter[filters.size()]);
+        this.keys = new String[filters.size()];
+        this.filters = new Weight[filters.size()];
+        for (int i = 0; i < filters.size(); ++i) {
+            KeyedFilter keyedFilter = filters.get(i);
+            this.keys[i] = keyedFilter.key;
+            this.filters[i] = aggregationContext.searchContext().searcher().createNormalizedWeight(keyedFilter.filter, false);
+        }
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
-        // TODO: use the iterator if the filter does not support random access
         // no need to provide deleted docs to the filter
         final Bits[] bits = new Bits[filters.length];
         for (int i = 0; i < filters.length; ++i) {
-            bits[i] = DocIdSets.asSequentialAccessBits(ctx.reader().maxDoc(), filters[i].filter.getDocIdSet(ctx, null));
-    }
+            bits[i] = DocIdSets.asSequentialAccessBits(ctx.reader().maxDoc(), filters[i].scorer(ctx, null));
+        }
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -92,10 +99,9 @@ public class FiltersAggregator extends BucketsAggregator {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         List<InternalFilters.Bucket> buckets = Lists.newArrayListWithCapacity(filters.length);
-        for (int i = 0; i < filters.length; i++) {
-            KeyedFilter filter = filters[i];
+        for (int i = 0; i < keys.length; i++) {
             long bucketOrd = bucketOrd(owningBucketOrdinal, i);
-            InternalFilters.Bucket bucket = new InternalFilters.Bucket(filter.key, bucketDocCount(bucketOrd), bucketAggregations(bucketOrd), keyed);
+            InternalFilters.Bucket bucket = new InternalFilters.Bucket(keys[i], bucketDocCount(bucketOrd), bucketAggregations(bucketOrd), keyed);
             buckets.add(bucket);
         }
         return new InternalFilters(name, buckets, keyed, reducers(), metaData());
@@ -105,8 +111,8 @@ public class FiltersAggregator extends BucketsAggregator {
     public InternalAggregation buildEmptyAggregation() {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<InternalFilters.Bucket> buckets = Lists.newArrayListWithCapacity(filters.length);
-        for (int i = 0; i < filters.length; i++) {
-            InternalFilters.Bucket bucket = new InternalFilters.Bucket(filters[i].key, 0, subAggs, keyed);
+        for (int i = 0; i < keys.length; i++) {
+            InternalFilters.Bucket bucket = new InternalFilters.Bucket(keys[i], 0, subAggs, keyed);
             buckets.add(bucket);
         }
         return new InternalFilters(name, buckets, keyed, reducers(), metaData());

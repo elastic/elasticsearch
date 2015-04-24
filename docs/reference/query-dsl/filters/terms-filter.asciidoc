@@ -19,13 +19,6 @@ The `terms` filter is also aliased with `in` as the filter name for
 simpler usage.
 
 [float]
-==== Caching
-
-The result of the filter is cached if there is evidence of reuse. It is
-possible to enable caching explicitely by setting `_cache` to `true` and
-to disable caching by setting `_cache` to `false`.
-
-[float]
 ==== Terms lookup mechanism
 
 When it's needed to specify a `terms` filter with a lot of terms it can
@@ -93,18 +86,13 @@ curl -XGET localhost:9200/tweets/_search -d '{
             "type" : "user",
             "id" : "2",
             "path" : "followers"
-          },
-          "_cache_key" : "user_2_friends"
+          }
         }
       }
     }
   }
 }'
 --------------------------------------------------
-
-If there are lots of matching values, then `_cache_key` is recommended to be set,
-so that the filter cache will not store a reference to the potentially heavy
-terms filter.
 
 The structure of the external terms document can also include array of
 inner objects, for example:

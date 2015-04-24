@@ -346,7 +346,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
                 .addAlias(new Alias("templated_alias-{index}"))
                 .addAlias(new Alias("filtered_alias").filter("{\"type\":{\"value\":\"type2\"}}"))
                 .addAlias(new Alias("complex_filtered_alias")
-                        .filter(FilterBuilders.termsFilter("_type",  "typeX", "typeY", "typeZ").execution("bool").cache(true)))
+                        .filter(FilterBuilders.termsFilter("_type",  "typeX", "typeY", "typeZ").execution("bool")))
                 .get();
 
         assertAcked(prepareCreate("test_index").addMapping("type1").addMapping("type2").addMapping("typeX").addMapping("typeY").addMapping("typeZ"));

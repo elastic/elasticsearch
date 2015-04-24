@@ -25,7 +25,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.DocumentMapper.MergeResult;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.io.IOException;
@@ -95,11 +94,11 @@ public final class Mapping implements ToXContent {
         return (T) rootMappersMap.get(clazz);
     }
 
-    /** @see DocumentMapper#merge(DocumentMapper, org.elasticsearch.index.mapper.DocumentMapper.MergeFlags) */
-    public MergeResult merge(Mapping mergeWith, MergeContext mergeContext) {
+    /** @see DocumentMapper#merge(Mapping, boolean) */
+    public void merge(Mapping mergeWith, MergeResult mergeResult) {
         assert rootMappers.length == mergeWith.rootMappers.length;
 
-        root.merge(mergeWith.root, mergeContext);
+        root.merge(mergeWith.root, mergeResult);
         for (RootMapper rootMapper : rootMappers) {
             // root mappers included in root object will get merge in the rootObjectMapper
             if (rootMapper.includeInObject()) {
@@ -107,15 +106,14 @@ public final class Mapping implements ToXContent {
             }
             RootMapper mergeWithRootMapper = mergeWith.rootMapper(rootMapper.getClass());
             if (mergeWithRootMapper != null) {
-                rootMapper.merge(mergeWithRootMapper, mergeContext);
+                rootMapper.merge(mergeWithRootMapper, mergeResult);
             }
         }
 
-        if (mergeContext.mergeFlags().simulate() == false) {
+        if (mergeResult.simulate() == false) {
             // let the merge with attributes to override the attributes
             meta = mergeWith.meta;
         }
-        return new MergeResult(mergeContext.buildConflicts());
     }
     
     @Override

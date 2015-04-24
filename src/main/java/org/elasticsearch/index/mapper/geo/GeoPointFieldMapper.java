@@ -50,7 +50,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ObjectMapperListener;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -643,39 +643,39 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        super.merge(mergeWith, mergeContext);
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+        super.merge(mergeWith, mergeResult);
         if (!this.getClass().equals(mergeWith.getClass())) {
             return;
         }
         GeoPointFieldMapper fieldMergeWith = (GeoPointFieldMapper) mergeWith;
 
         if (this.enableLatLon != fieldMergeWith.enableLatLon) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different lat_lon");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different lat_lon");
         }
         if (this.enableGeoHash != fieldMergeWith.enableGeoHash) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different geohash");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different geohash");
         }
         if (this.geoHashPrecision != fieldMergeWith.geoHashPrecision) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different geohash_precision");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different geohash_precision");
         }
         if (this.enableGeohashPrefix != fieldMergeWith.enableGeohashPrefix) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different geohash_prefix");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different geohash_prefix");
         }
         if (this.normalizeLat != fieldMergeWith.normalizeLat) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different normalize_lat");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different normalize_lat");
         }
         if (this.normalizeLon != fieldMergeWith.normalizeLon) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different normalize_lon");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different normalize_lon");
         }
         if (!Objects.equal(this.precisionStep, fieldMergeWith.precisionStep)) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different precision_step");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different precision_step");
         }
         if (this.validateLat != fieldMergeWith.validateLat) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different validate_lat");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different validate_lat");
         }
         if (this.validateLon != fieldMergeWith.validateLon) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different validate_lon");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different validate_lon");
         }
     }
 

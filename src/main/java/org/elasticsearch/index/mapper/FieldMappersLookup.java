@@ -49,7 +49,7 @@ class FieldMappersLookup implements Iterable<FieldMapper<?>> {
     /**
      * Return a new instance that contains the union of this instance and the provided mappers.
      */
-    public FieldMappersLookup copyAndAddAll(Collection<? extends FieldMapper<?>> newMappers) {
+    public FieldMappersLookup copyAndAddAll(Collection<FieldMapper<?>> newMappers) {
         CopyOnWriteHashMap<String, FieldMappers> map = this.mappers;
 
         for (FieldMapper<?> mapper : newMappers) {

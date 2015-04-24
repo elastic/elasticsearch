@@ -24,7 +24,6 @@ import org.elasticsearch.index.mapper.object.ObjectMapper;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.List;
 
 public enum MapperUtils {
     ;
@@ -42,8 +41,8 @@ public enum MapperUtils {
         return mapper;
     }
 
-    private static MergeContext newStrictMergeContext() {
-        return new MergeContext(new DocumentMapper.MergeFlags().simulate(false)) {
+    private static MergeResult newStrictMergeContext() {
+        return new MergeResult(false) {
 
             @Override
             public boolean hasConflicts() {
@@ -61,7 +60,7 @@ public enum MapperUtils {
             }
 
             @Override
-            public void addFieldMappers(List<FieldMapper<?>> fieldMappers) {
+            public void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
                 // no-op
             }
 

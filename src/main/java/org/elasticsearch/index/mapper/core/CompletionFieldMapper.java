@@ -44,7 +44,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -523,22 +523,22 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        super.merge(mergeWith, mergeContext);
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+        super.merge(mergeWith, mergeResult);
         CompletionFieldMapper fieldMergeWith = (CompletionFieldMapper) mergeWith;
         if (payloads != fieldMergeWith.payloads) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different payload values");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different payload values");
         }
         if (preservePositionIncrements != fieldMergeWith.preservePositionIncrements) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different 'preserve_position_increments' values");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different 'preserve_position_increments' values");
         }
         if (preserveSeparators != fieldMergeWith.preserveSeparators) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different 'preserve_separators' values");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different 'preserve_separators' values");
         }
         if(!ContextMapping.mappingsAreEqual(getContextMapping(), fieldMergeWith.getContextMapping())) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different 'context_mapping' values");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different 'context_mapping' values");
         }
-        if (!mergeContext.mergeFlags().simulate()) {
+        if (!mergeResult.simulate()) {
             this.maxInputLength = fieldMergeWith.maxInputLength;
         }
     }

@@ -38,6 +38,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -365,9 +366,9 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         Map<String, String> config = getConfigurationViaXContent(initialDateFieldMapper);
         assertThat(config.get("format"), is("EEE MMM dd HH:mm:ss.S Z yyyy||EEE MMM dd HH:mm:ss.SSS Z yyyy"));
 
-        DocumentMapper.MergeResult mergeResult = defaultMapper.merge(mergeMapper.mapping(), DocumentMapper.MergeFlags.mergeFlags().simulate(false));
+        MergeResult mergeResult = defaultMapper.merge(mergeMapper.mapping(), false);
 
-        assertThat("Merging resulting in conflicts: " + Arrays.asList(mergeResult.conflicts()), mergeResult.hasConflicts(), is(false));
+        assertThat("Merging resulting in conflicts: " + Arrays.asList(mergeResult.buildConflicts()), mergeResult.hasConflicts(), is(false));
         assertThat(defaultMapper.mappers().getMapper("field"), is(instanceOf(DateFieldMapper.class)));
 
         DateFieldMapper mergedFieldMapper = (DateFieldMapper) defaultMapper.mappers().getMapper("field");

@@ -89,56 +89,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class DocumentMapper implements ToXContent {
 
     /**
-     * A result of a merge.
-     */
-    public static class MergeResult {
-
-        private final String[] conflicts;
-
-        public MergeResult(String[] conflicts) {
-            this.conflicts = conflicts;
-        }
-
-        /**
-         * Does the merge have conflicts or not?
-         */
-        public boolean hasConflicts() {
-            return conflicts.length > 0;
-        }
-
-        /**
-         * The merge conflicts.
-         */
-        public String[] conflicts() {
-            return this.conflicts;
-        }
-    }
-
-    public static class MergeFlags {
-
-        public static MergeFlags mergeFlags() {
-            return new MergeFlags();
-        }
-
-        private boolean simulate = true;
-
-        public MergeFlags() {
-        }
-
-        /**
-         * A simulation run, don't perform actual modifications to the mapping.
-         */
-        public boolean simulate() {
-            return simulate;
-        }
-
-        public MergeFlags simulate(boolean simulate) {
-            this.simulate = simulate;
-            return this;
-        }
-    }
-
-    /**
      * A listener to be called during the parse process.
      */
     public static interface ParseListener<ParseContext> {
@@ -579,7 +529,7 @@ public class DocumentMapper implements ToXContent {
         return parser.contentType().xContent().createParser(builder.bytes());
     }
 
-    public void addFieldMappers(List<FieldMapper<?>> fieldMappers) {
+    public void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
         synchronized (mappersMutex) {
             this.fieldMappers = this.fieldMappers.copyAndAllAll(fieldMappers);
         }
@@ -629,20 +579,20 @@ public class DocumentMapper implements ToXContent {
         mapping.root.traverse(listener);
     }
 
-    private MergeContext newMergeContext(MergeFlags mergeFlags) {
-        return new MergeContext(mergeFlags) {
+    private MergeResult newMergeContext(boolean simulate) {
+        return new MergeResult(simulate) {
 
             List<String> conflicts = new ArrayList<>();
 
             @Override
-            public void addFieldMappers(List<FieldMapper<?>> fieldMappers) {
-                assert mergeFlags().simulate() == false;
+            public void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
+                assert simulate() == false;
                 DocumentMapper.this.addFieldMappers(fieldMappers);
             }
 
             @Override
             public void addObjectMappers(Collection<ObjectMapper> objectMappers) {
-                assert mergeFlags().simulate() == false;
+                assert simulate() == false;
                 DocumentMapper.this.addObjectMappers(objectMappers);
             }
 
@@ -664,10 +614,10 @@ public class DocumentMapper implements ToXContent {
         };
     }
 
-    public synchronized MergeResult merge(Mapping mapping, MergeFlags mergeFlags) {
-        final MergeContext mergeContext = newMergeContext(mergeFlags);
-        final MergeResult mergeResult = this.mapping.merge(mapping, mergeContext);
-        if (mergeFlags.simulate() == false) {
+    public synchronized MergeResult merge(Mapping mapping, boolean simulate) {
+        final MergeResult mergeResult = newMergeContext(simulate);
+        this.mapping.merge(mapping, mergeResult);
+        if (simulate == false) {
             refreshSource();
         }
         return mergeResult;

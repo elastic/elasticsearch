@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
@@ -35,7 +36,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isIn;
@@ -337,11 +337,11 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .field("orientation", "cw").endObject().endObject().endObject().endObject().string();
         DocumentMapper stage2 = parser.parse(stage2Mapping);
 
-        DocumentMapper.MergeResult mergeResult = stage1.merge(stage2.mapping(), mergeFlags().simulate(false));
+        MergeResult mergeResult = stage1.merge(stage2.mapping(), false);
         // check correct conflicts
         assertThat(mergeResult.hasConflicts(), equalTo(true));
-        assertThat(mergeResult.conflicts().length, equalTo(3));
-        ArrayList conflicts = new ArrayList<>(Arrays.asList(mergeResult.conflicts()));
+        assertThat(mergeResult.buildConflicts().length, equalTo(3));
+        ArrayList conflicts = new ArrayList<>(Arrays.asList(mergeResult.buildConflicts()));
         assertThat("mapper [shape] has different strategy", isIn(conflicts));
         assertThat("mapper [shape] has different tree", isIn(conflicts));
         assertThat("mapper [shape] has different tree_levels or precision", isIn(conflicts));
@@ -364,7 +364,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .startObject("properties").startObject("shape").field("type", "geo_shape").field("precision", "1m")
                 .field("distance_error_pct", 0.001).field("orientation", "cw").endObject().endObject().endObject().endObject().string();
         stage2 = parser.parse(stage2Mapping);
-        mergeResult = stage1.merge(stage2.mapping(), mergeFlags().simulate(false));
+        mergeResult = stage1.merge(stage2.mapping(), false);
 
         // verify mapping changes, and ensure no failures
         assertThat(mergeResult.hasConflicts(), equalTo(false));

@@ -41,8 +41,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapper.MergeFlags;
-import org.elasticsearch.index.mapper.DocumentMapper.MergeResult;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
@@ -500,8 +499,8 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         String updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", false).endObject()
                 .endObject().endObject().endObject().endObject().string();
-        MergeResult mergeResult = defaultMapper.merge(parser.parse(updatedMapping).mapping(), MergeFlags.mergeFlags().simulate(false));
-        assertFalse(Arrays.toString(mergeResult.conflicts()), mergeResult.hasConflicts());
+        MergeResult mergeResult = defaultMapper.merge(parser.parse(updatedMapping).mapping(), false);
+        assertFalse(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts());
 
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -515,10 +514,10 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", true).endObject()
                 .endObject().endObject().endObject().endObject().string();
-        mergeResult = defaultMapper.merge(parser.parse(updatedMapping).mapping(), MergeFlags.mergeFlags());
+        mergeResult = defaultMapper.merge(parser.parse(updatedMapping).mapping(), true);
         assertTrue(mergeResult.hasConflicts());
-        assertEquals(1, mergeResult.conflicts().length);
-        assertTrue(mergeResult.conflicts()[0].contains("cannot enable norms"));
+        assertEquals(1, mergeResult.buildConflicts().length);
+        assertTrue(mergeResult.buildConflicts()[0].contains("cannot enable norms"));
     }
 
     public void testTermsFilter() throws Exception {

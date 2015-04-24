@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -45,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -229,11 +229,11 @@ public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper docMapperAfter = parser.parse(mappingAfter);
 
-        DocumentMapper.MergeResult mergeResult = docMapperBefore.merge(docMapperAfter.mapping(), mergeFlags().simulate(true));
+        MergeResult mergeResult = docMapperBefore.merge(docMapperAfter.mapping(), true);
 
-        assertThat(Arrays.toString(mergeResult.conflicts()), mergeResult.hasConflicts(), equalTo(false));
+        assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(false));
 
-        docMapperBefore.merge(docMapperAfter.mapping(), mergeFlags().simulate(false));
+        docMapperBefore.merge(docMapperAfter.mapping(), false);
 
         fields = docMapperBefore.mappers().getMapper("copy_test").copyTo().copyToFields();
 

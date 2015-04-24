@@ -330,17 +330,27 @@ public class GatewayAllocator extends AbstractComponent {
                             if (primaryNodeStore != null && primaryNodeStore.allocated()) {
                                 long sizeMatched = 0;
 
-                                for (StoreFileMetaData storeFileMetaData : storeFilesMetaData) {
-                                    if (primaryNodeStore.fileExists(storeFileMetaData.name()) && primaryNodeStore.file(storeFileMetaData.name()).isSame(storeFileMetaData)) {
-                                        sizeMatched += storeFileMetaData.length();
-                                    }
-                                }
-                                logger.trace("{}: node [{}] has [{}/{}] bytes of re-usable data",
-                                        shard, discoNode.name(), new ByteSizeValue(sizeMatched), sizeMatched);
-                                if (sizeMatched > lastSizeMatched) {
-                                    lastSizeMatched = sizeMatched;
-                                    lastDiscoNodeMatched = discoNode;
+                                // see if we have a sync id we can make use of
+                                if (storeFilesMetaData.syncId() != null && storeFilesMetaData.syncId().equals(primaryNodeStore.syncId())) {
+                                    logger.trace("{}: node [{}] has same sync id {} as primary", shard, discoNode.name(), storeFilesMetaData.syncId());
                                     lastNodeMatched = node;
+                                    lastSizeMatched = Long.MAX_VALUE;
+                                    lastDiscoNodeMatched = discoNode;
+                                } else {
+                                    for (StoreFileMetaData storeFileMetaData : storeFilesMetaData) {
+                                        logger.trace("{}: node [{}] has file {}",
+                                                shard, discoNode.name(), storeFileMetaData.name());
+                                        if (primaryNodeStore.fileExists(storeFileMetaData.name()) && primaryNodeStore.file(storeFileMetaData.name()).isSame(storeFileMetaData)) {
+                                            sizeMatched += storeFileMetaData.length();
+                                        }
+                                    }
+                                    logger.trace("{}: node [{}] has [{}/{}] bytes of re-usable data",
+                                            shard, discoNode.name(), new ByteSizeValue(sizeMatched), sizeMatched);
+                                    if (sizeMatched > lastSizeMatched) {
+                                        lastSizeMatched = sizeMatched;
+                                        lastDiscoNodeMatched = discoNode;
+                                        lastNodeMatched = node;
+                                    }
                                 }
                             }
                         }

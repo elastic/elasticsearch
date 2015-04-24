@@ -65,6 +65,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.*;
@@ -137,11 +138,11 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
      * Perform phase1 of the recovery operations. Once this {@link SnapshotIndexCommit}
      * snapshot has been performed no commit operations (files being fsync'd)
      * are effectively allowed on this index until all recovery phases are done
-     *
+     * <p/>
      * Phase1 examines the segment files on the target node and copies over the
      * segments that are missing. Only segments that have the same size and
      * checksum can be reused
-     *
+     * <p/>
      * {@code InternalEngine#recover} is responsible for snapshotting the index
      * and releasing the snapshot once all 3 phases of recovery are complete
      */
@@ -168,28 +169,45 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
             // Generate a "diff" of all the identical, different, and missing
             // segment files on the target node, using the existing files on
             // the source node
-            final Store.RecoveryDiff diff = recoverySourceMetadata.recoveryDiff(new Store.MetadataSnapshot(request.existingFiles()));
-            for (StoreFileMetaData md : diff.identical) {
-                response.phase1ExistingFileNames.add(md.name());
-                response.phase1ExistingFileSizes.add(md.length());
-                existingTotalSize += md.length();
-                if (logger.isTraceEnabled()) {
-                    logger.trace("[{}][{}] recovery [phase1] to {}: not recovering [{}], exists in local store and has checksum [{}], size [{}]",
-                            indexName, shardId, request.targetNode(), md.name(), md.checksum(), md.length());
+            String recoverySourceSyncId = recoverySourceMetadata.getSyncId();
+            String recoveryTargetSyncId = request.metadataSnapshot().getSyncId();
+            final boolean recoverWithSyncId = recoverySourceSyncId != null &&
+                    recoverySourceSyncId.equals(recoveryTargetSyncId);
+            if (recoverWithSyncId) {
+                for (StoreFileMetaData md : request.metadataSnapshot()) {
+                    response.phase1ExistingFileNames.add(md.name());
+                    response.phase1ExistingFileSizes.add(md.length());
+                    existingTotalSize += md.length();
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("[{}][{}] recovery [phase1] to {}: not recovering [{}], checksum [{}], size [{}], sync ids {} coincide, will skip file copy",
+                                indexName, shardId, request.targetNode(), md.name(), md.checksum(), md.length(), recoverySourceMetadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID));
+                    }
+                    totalSize += md.length();
                 }
-                totalSize += md.length();
-            }
-            for (StoreFileMetaData md : Iterables.concat(diff.different, diff.missing)) {
-                if (request.existingFiles().containsKey(md.name())) {
-                    logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
-                            indexName, shardId, request.targetNode(), md.name(), request.existingFiles().get(md.name()), md);
-                } else {
-                    logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], does not exists in remote",
-                            indexName, shardId, request.targetNode(), md.name());
+            } else {
+                final Store.RecoveryDiff diff = recoverySourceMetadata.recoveryDiff(request.metadataSnapshot());
+                for (StoreFileMetaData md : diff.identical) {
+                    response.phase1ExistingFileNames.add(md.name());
+                    response.phase1ExistingFileSizes.add(md.length());
+                    existingTotalSize += md.length();
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("[{}][{}] recovery [phase1] to {}: not recovering [{}], exists in local store and has checksum [{}], size [{}]",
+                                indexName, shardId, request.targetNode(), md.name(), md.checksum(), md.length());
+                    }
+                    totalSize += md.length();
                 }
-                response.phase1FileNames.add(md.name());
-                response.phase1FileSizes.add(md.length());
-                totalSize += md.length();
+                for (StoreFileMetaData md : Iterables.concat(diff.different, diff.missing)) {
+                    if (request.metadataSnapshot().asMap().containsKey(md.name())) {
+                        logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
+                                indexName, shardId, request.targetNode(), md.name(), request.metadataSnapshot().asMap().get(md.name()), md);
+                    } else {
+                        logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], does not exists in remote",
+                                indexName, shardId, request.targetNode(), md.name());
+                    }
+                    response.phase1FileNames.add(md.name());
+                    response.phase1FileSizes.add(md.length());
+                    totalSize += md.length();
+                }
             }
             response.phase1TotalSize = totalSize;
             response.phase1ExistingTotalSize = existingTotalSize;
@@ -208,7 +226,6 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                             EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                 }
             });
-
 
             // This latch will be used to wait until all files have been transferred to the target node
             final CountDownLatch latch = new CountDownLatch(response.phase1FileNames.size());
@@ -364,8 +381,9 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                     // related to this recovery (out of date segments, for example)
                     // are deleted
                     try {
+                        final Store.MetadataSnapshot remainingFilesAfterCleanup = recoverWithSyncId? request.metadataSnapshot(): recoverySourceMetadata;
                         transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.CLEAN_FILES,
-                                new RecoveryCleanFilesRequest(request.recoveryId(), shard.shardId(), recoverySourceMetadata, shard.translog().estimatedNumberOfOperations()),
+                                new RecoveryCleanFilesRequest(request.recoveryId(), shard.shardId(), remainingFilesAfterCleanup, shard.translog().estimatedNumberOfOperations()),
                                 TransportRequestOptions.options().withTimeout(recoverySettings.internalActionTimeout()),
                                 EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                     } catch (RemoteTransportException remoteException) {
@@ -418,12 +436,12 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
 
     /**
      * Perform phase2 of the recovery process
-     *
+     * <p/>
      * Phase2 takes a snapshot of the current translog *without* acquiring the
      * write lock (however, the translog snapshot is a point-in-time view of
      * the translog). It then sends each translog operation to the target node
      * so it can be replayed into the new shard.
-     *
+     * <p/>
      * {@code InternalEngine#recover} is responsible for taking the snapshot
      * of the translog and releasing it once all 3 phases of recovery are complete
      */
@@ -469,11 +487,11 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
 
     /**
      * Perform phase 3 of the recovery process
-     *
+     * <p/>
      * Phase3 again takes a snapshot of the translog, however this time the
      * snapshot is acquired under a write lock. The translog operations are
      * sent to the target node where they are replayed.
-     *
+     * <p/>
      * {@code InternalEngine#recover} is responsible for taking the snapshot
      * of the translog, and after phase 3 completes the snapshots from all
      * three phases are released.
@@ -587,7 +605,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
 
     /**
      * Send the given snapshot's operations to this handler's target node.
-     *
+     * <p/>
      * Operations are bulked into a single request depending on an operation
      * count limit or size-in-bytes limit
      *
@@ -600,8 +618,8 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
         final List<Translog.Operation> operations = Lists.newArrayList();
         Translog.Operation operation;
         try {
-             operation = snapshot.next(); // this ex should bubble up
-        } catch (IOException ex){
+            operation = snapshot.next(); // this ex should bubble up
+        } catch (IOException ex) {
             throw new ElasticsearchException("failed to get next operation from translog", ex);
         }
 
@@ -659,9 +677,10 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
             }
             try {
                 operation = snapshot.next(); // this ex should bubble up
-            } catch (IOException ex){
+            } catch (IOException ex) {
                 throw new ElasticsearchException("failed to get next operation from translog", ex);
-            }        }
+            }
+        }
         // send the leftover
         if (!operations.isEmpty()) {
             cancellableThreads.execute(new Interruptable() {

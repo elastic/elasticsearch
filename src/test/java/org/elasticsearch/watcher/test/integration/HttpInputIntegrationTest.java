@@ -27,7 +27,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
+import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.httpInput;
@@ -61,7 +61,27 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
                                 .body(jsonBuilder().startObject().field("size", 1).endObject())
                                 .auth(shieldEnabled() ? new BasicAuth("test", "changeme") : null)))
                         .condition(scriptCondition("ctx.payload.hits.total == 1"))
-                        .addAction("_id", indexAction("idx", "action")))
+                        .addAction("_id", loggingAction("watch [{{ctx.watch_id}}] matched")))
+                .get();
+
+        if (timeWarped()) {
+            timeWarp().scheduler().trigger("_name");
+            refresh();
+        }
+        assertWatchWithMinimumPerformedActionsCount("_name", 1, false);
+    }
+
+    @Test
+    public void testHttpInput_clusterStats() throws Exception {
+        InetSocketAddress address = internalTestCluster().httpAddresses()[0];
+        watcherClient().preparePutWatch("_name")
+                .setSource(watchBuilder()
+                        .trigger(schedule(interval("5s")))
+                        .input(httpInput(HttpRequestTemplate.builder(address.getHostName(), address.getPort())
+                                .path("/_cluster/stats")
+                                .auth(shieldEnabled() ? new BasicAuth("test", "changeme") : null)))
+                        .condition(scriptCondition("ctx.payload.nodes.count.total > 1"))
+                        .addAction("_id", loggingAction("watch [{{ctx.watch_id}}] matched")))
                 .get();
 
         if (timeWarped()) {

@@ -44,7 +44,7 @@ import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.query.FilterBuilders;
-import org.elasticsearch.index.store.support.AbstractIndexStore;
+import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -308,7 +308,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     public void nonThrottleStats() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(ImmutableSettings.builder()
-                                .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
+                                .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                                 .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
@@ -341,7 +341,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     public void throttleStats() throws Exception {
         assertAcked(prepareCreate("test")
                     .setSettings(ImmutableSettings.builder()
-                                 .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
+                                 .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                                  .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")

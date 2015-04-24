@@ -89,8 +89,6 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         }
     }
 
-    private final NodeEnvironment nodeEnv;
-
     private final NodeSettingsService nodeSettingsService;
 
     private final IndicesService indicesService;
@@ -107,10 +105,9 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
     private TimeValue deleteShardTimeout;
 
     @Inject
-    public IndicesStore(Settings settings, NodeEnvironment nodeEnv, NodeSettingsService nodeSettingsService, IndicesService indicesService,
+    public IndicesStore(Settings settings, NodeSettingsService nodeSettingsService, IndicesService indicesService,
                         ClusterService clusterService, TransportService transportService) {
         super(settings);
-        this.nodeEnv = nodeEnv;
         this.nodeSettingsService = nodeSettingsService;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
@@ -133,7 +130,6 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
     IndicesStore() {
         super(ImmutableSettings.EMPTY);
-        nodeEnv = null;
         nodeSettingsService = null;
         indicesService = null;
         this.clusterService = null;

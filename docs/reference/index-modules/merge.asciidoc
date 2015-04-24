@@ -72,12 +72,6 @@ This policy has the following settings:
 	Higher values favor selecting merges that reclaim deletions. A value of
 	`0.0` means deletions don't impact merge selection. Defaults to `2.0`.
 
-`index.compound_format`::
-
-	Should the index be stored in compound format or not. Defaults to `false`.
-	See <<index-compound-format,`index.compound_format`>> in
-	<<index-modules-settings>>.
-
 For normal merging, this policy first computes a "budget" of how many
 segments are allowed to be in the index. If the index is over-budget,
 then the policy sorts segments by decreasing size (proportionally considering percent

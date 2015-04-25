@@ -298,6 +298,13 @@ public interface FieldMapper<T> extends Mapper {
     public boolean isGenerated();
 
     /**
+     * Parse using the provided {@link ParseContext} and return a mapping
+     * update if dynamic mappings modified the mappings, or {@code null} if
+     * mappings were not modified.
+     */
+    Mapper parse(ParseContext context) throws IOException;
+
+    /**
      * @return a {@link FieldStats} instance that maps to the type of this field based on the provided {@link Terms} instance.
      */
     FieldStats stats(Terms terms, int maxDoc) throws IOException;

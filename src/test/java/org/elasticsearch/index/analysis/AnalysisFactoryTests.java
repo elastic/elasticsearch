@@ -52,6 +52,7 @@ public class AnalysisFactoryTests extends ElasticsearchTestCase {
         put("pathhierarchy", PathHierarchyTokenizerFactory.class);
         put("pattern",       PatternTokenizerFactory.class);
         put("standard",      StandardTokenizerFactory.class);
+        put("sentence",      SentenceTokenizerFactory.class);
         put("thai",          ThaiTokenizerFactory.class);
         put("uax29urlemail", UAX29URLEmailTokenizerFactory.class);
         put("whitespace",    WhitespaceTokenizerFactory.class);

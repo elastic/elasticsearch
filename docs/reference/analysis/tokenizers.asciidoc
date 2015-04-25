@@ -32,3 +32,5 @@ include::tokenizers/classic-tokenizer.asciidoc[]
 
 include::tokenizers/thai-tokenizer.asciidoc[]
 
+include::tokenizers/sentence-tokenizer.asciidoc[]
+

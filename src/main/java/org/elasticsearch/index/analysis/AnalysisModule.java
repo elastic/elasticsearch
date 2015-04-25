@@ -451,6 +451,7 @@ public class AnalysisModule extends AbstractModule {
             tokenizersBindings.processTokenizer("letter", LetterTokenizerFactory.class);
             tokenizersBindings.processTokenizer("lowercase", LowerCaseTokenizerFactory.class);
             tokenizersBindings.processTokenizer("whitespace", WhitespaceTokenizerFactory.class);
+            tokenizersBindings.processTokenizer("sentence", SentenceTokenizerFactory.class);
 
             tokenizersBindings.processTokenizer("nGram", NGramTokenizerFactory.class);
             tokenizersBindings.processTokenizer("ngram", NGramTokenizerFactory.class);

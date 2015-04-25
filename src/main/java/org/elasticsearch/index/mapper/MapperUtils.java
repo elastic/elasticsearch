@@ -28,18 +28,7 @@ import java.util.Collection;
 public enum MapperUtils {
     ;
 
-    /**
-     * Parse the given {@code context} with the given {@code mapper} and apply
-     * the potential mapping update in-place. This method is useful when
-     * composing mapping updates.
-     */
-    public static <M extends Mapper> M parseAndMergeUpdate(M mapper, ParseContext context) throws IOException {
-        final Mapper update = mapper.parse(context);
-        if (update != null) {
-            merge(mapper, update);
-        }
-        return mapper;
-    }
+
 
     private static MergeResult newStrictMergeContext() {
         return new MergeResult(false) {

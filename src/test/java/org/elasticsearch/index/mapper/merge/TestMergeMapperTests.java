@@ -70,7 +70,7 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String objectMapping = XContentFactory.jsonBuilder().startObject().startObject("type1").endObject().endObject().string();
         DocumentMapper mapper = parser.parse(objectMapping);
-        assertThat(mapper.root().dynamic(), equalTo(ObjectMapper.Dynamic.TRUE));
+        assertNull(mapper.root().dynamic());
 
         String withDynamicMapping = XContentFactory.jsonBuilder().startObject().startObject("type1").field("dynamic", "false").endObject().endObject().string();
         DocumentMapper withDynamicMapper = parser.parse(withDynamicMapping);

@@ -429,9 +429,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             throw new MapperParsingException("failed to parse [" + names.fullName() + "]", e);
         }
         multiFields.parse(this, context);
-        if (copyTo != null) {
-            copyTo.parse(context);
-        }
         return null;
     }
 
@@ -897,6 +894,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
 
         public void parse(AbstractFieldMapper mainField, ParseContext context) throws IOException {
+            // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part of the mappings
             if (mappers.isEmpty()) {
                 return;
             }
@@ -1003,34 +1001,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             this.copyToFields = copyToFields;
         }
 
-        /**
-         * Creates instances of the fields that the current field should be copied to
-         */
-        public void parse(ParseContext context) throws IOException {
-            if (!context.isWithinCopyTo() && copyToFields.isEmpty() == false) {
-                context = context.createCopyToContext();
-                for (String field : copyToFields) {
-                    // In case of a hierarchy of nested documents, we need to figure out
-                    // which document the field should go to
-                    Document targetDoc = null;
-                    for (Document doc = context.doc(); doc != null; doc = doc.getParent()) {
-                        if (field.startsWith(doc.getPrefix())) {
-                            targetDoc = doc;
-                            break;
-                        }
-                    }
-                    assert targetDoc != null;
-                    final ParseContext copyToContext;
-                    if (targetDoc == context.doc()) {
-                        copyToContext = context;
-                    } else {
-                        copyToContext = context.switchDoc(targetDoc);
-                    }
-                    parse(field, copyToContext);
-                }
-            }
-        }
-
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (!copyToFields.isEmpty()) {
                 builder.startArray("copy_to");
@@ -1057,53 +1027,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
         public ImmutableList<String> copyToFields() {
             return copyToFields;
-        }
-
-        /**
-         * Creates an copy of the current field with given field name and boost
-         */
-        public void parse(String field, ParseContext context) throws IOException {
-            FieldMappers mappers = context.docMapper().mappers().indexName(field);
-            if (mappers != null && !mappers.isEmpty()) {
-                mappers.mapper().parse(context);
-            } else {
-                // The path of the dest field might be completely different from the current one so we need to reset it
-                context = context.overridePath(new ContentPath(0));
-
-                ObjectMapper mapper = context.root();
-                String objectPath = "";
-                String fieldPath = field;
-                int posDot = field.lastIndexOf('.');
-                if (posDot > 0) {
-                    objectPath = field.substring(0, posDot);
-                    context.path().add(objectPath);
-                    mapper = context.docMapper().objectMappers().get(objectPath);
-                    fieldPath = field.substring(posDot + 1);
-                }
-                if (mapper == null) {
-                    //TODO: Create an object dynamically?
-                    throw new MapperParsingException("attempt to copy value to non-existing object [" + field + "]");
-                }
-                ObjectMapper update = mapper.parseDynamicValue(context, fieldPath, context.parser().currentToken());
-                assert update != null; // we are parsing a dynamic value so we necessarily created a new mapping
-
-                // propagate the update to the root
-                while (objectPath.length() > 0) {
-                    String parentPath = "";
-                    ObjectMapper parent = context.root();
-                    posDot = objectPath.lastIndexOf('.');
-                    if (posDot > 0) {
-                        parentPath = objectPath.substring(0, posDot);
-                        parent = context.docMapper().objectMappers().get(parentPath);
-                    }
-                    if (parent == null) {
-                        throw new ElasticsearchIllegalStateException("[" + objectPath + "] has no parent for path [" + parentPath + "]");
-                    }
-                    update = parent.mappingUpdate(update);
-                    objectPath = parentPath;
-                }
-                context.addDynamicMappingsUpdate((RootObjectMapper) update);
-            }
         }
     }
 

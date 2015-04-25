@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.reducers.moving.avg;
 
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import com.google.common.collect.EvictingQueue;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -33,7 +32,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregationBuilder;
 import org.elasticsearch.search.aggregations.reducers.BucketHelpers;
-import org.elasticsearch.search.aggregations.reducers.ReducerTestHelpers;
+import org.elasticsearch.search.aggregations.reducers.ReducerHelperTests;
 import org.elasticsearch.search.aggregations.reducers.SimpleValue;
 import org.elasticsearch.search.aggregations.reducers.movavg.models.DoubleExpModel;
 import org.elasticsearch.search.aggregations.reducers.movavg.models.LinearModel;
@@ -75,7 +74,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
     static double beta;
     static BucketHelpers.GapPolicy gapPolicy;
     static ValuesSourceMetricsAggregationBuilder metric;
-    static List<ReducerTestHelpers.MockBucket> mockHisto;
+    static List<ReducerHelperTests.MockBucket> mockHisto;
 
     static Map<String, ArrayList<Double>> testValues;
 
@@ -124,7 +123,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
 
         gapPolicy = randomBoolean() ? BucketHelpers.GapPolicy.IGNORE : BucketHelpers.GapPolicy.INSERT_ZEROS;
         metric = randomMetric("the_metric", VALUE_FIELD);
-        mockHisto = ReducerTestHelpers.generateHistogram(interval, numBuckets, randomDouble(), randomDouble());
+        mockHisto = ReducerHelperTests.generateHistogram(interval, numBuckets, randomDouble(), randomDouble());
 
         testValues = new HashMap<>(8);
 
@@ -134,7 +133,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             }
         }
 
-        for (ReducerTestHelpers.MockBucket mockBucket : mockHisto) {
+        for (ReducerHelperTests.MockBucket mockBucket : mockHisto) {
             for (double value : mockBucket.docValues) {
                 builders.add(client().prepareIndex("idx", "type").setSource(jsonBuilder().startObject()
                         .field(INTERVAL_FIELD, mockBucket.key)
@@ -166,7 +165,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         ArrayList<Double> values = new ArrayList<>(numBuckets);
         EvictingQueue<Double> window = EvictingQueue.create(windowSize);
 
-        for (ReducerTestHelpers.MockBucket mockBucket : mockHisto) {
+        for (ReducerHelperTests.MockBucket mockBucket : mockHisto) {
             double metricValue;
             double[] docValues = mockBucket.docValues;
 
@@ -180,12 +179,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                     // otherwise insert a zero instead of the true value
                     metricValue = 0.0;
                 } else {
-                    metricValue = ReducerTestHelpers.calculateMetric(docValues, metric);
+                    metricValue = ReducerHelperTests.calculateMetric(docValues, metric);
                 }
 
             } else {
                 // If this isn't a gap, or is a _count, just insert the value
-                metricValue = target.equals(MetricTarget.VALUE) ? ReducerTestHelpers.calculateMetric(docValues, metric) : mockBucket.count;
+                metricValue = target.equals(MetricTarget.VALUE) ? ReducerHelperTests.calculateMetric(docValues, metric) : mockBucket.count;
             }
 
             window.offer(metricValue);
@@ -336,7 +335,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         List<Double> expectedValues = testValues.get(MovAvgType.SIMPLE.toString() + "_" + MetricTarget.VALUE.toString());
 
         Iterator<? extends Histogram.Bucket> actualIter = buckets.iterator();
-        Iterator<ReducerTestHelpers.MockBucket> expectedBucketIter = mockHisto.iterator();
+        Iterator<ReducerHelperTests.MockBucket> expectedBucketIter = mockHisto.iterator();
         Iterator<Double> expectedCountsIter = expectedCounts.iterator();
         Iterator<Double> expectedValuesIter = expectedValues.iterator();
 
@@ -344,7 +343,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             assertValidIterators(expectedBucketIter, expectedCountsIter, expectedValuesIter);
 
             Histogram.Bucket actual = actualIter.next();
-            ReducerTestHelpers.MockBucket expected = expectedBucketIter.next();
+            ReducerHelperTests.MockBucket expected = expectedBucketIter.next();
             Double expectedCount = expectedCountsIter.next();
             Double expectedValue = expectedValuesIter.next();
 
@@ -388,7 +387,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         List<Double> expectedValues = testValues.get(MovAvgType.LINEAR.toString() + "_" + MetricTarget.VALUE.toString());
 
         Iterator<? extends Histogram.Bucket> actualIter = buckets.iterator();
-        Iterator<ReducerTestHelpers.MockBucket> expectedBucketIter = mockHisto.iterator();
+        Iterator<ReducerHelperTests.MockBucket> expectedBucketIter = mockHisto.iterator();
         Iterator<Double> expectedCountsIter = expectedCounts.iterator();
         Iterator<Double> expectedValuesIter = expectedValues.iterator();
 
@@ -396,7 +395,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             assertValidIterators(expectedBucketIter, expectedCountsIter, expectedValuesIter);
 
             Histogram.Bucket actual = actualIter.next();
-            ReducerTestHelpers.MockBucket expected = expectedBucketIter.next();
+            ReducerHelperTests.MockBucket expected = expectedBucketIter.next();
             Double expectedCount = expectedCountsIter.next();
             Double expectedValue = expectedValuesIter.next();
 
@@ -440,7 +439,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         List<Double> expectedValues = testValues.get(MovAvgType.SINGLE.toString() + "_" + MetricTarget.VALUE.toString());
 
         Iterator<? extends Histogram.Bucket> actualIter = buckets.iterator();
-        Iterator<ReducerTestHelpers.MockBucket> expectedBucketIter = mockHisto.iterator();
+        Iterator<ReducerHelperTests.MockBucket> expectedBucketIter = mockHisto.iterator();
         Iterator<Double> expectedCountsIter = expectedCounts.iterator();
         Iterator<Double> expectedValuesIter = expectedValues.iterator();
 
@@ -448,7 +447,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             assertValidIterators(expectedBucketIter, expectedCountsIter, expectedValuesIter);
 
             Histogram.Bucket actual = actualIter.next();
-            ReducerTestHelpers.MockBucket expected = expectedBucketIter.next();
+            ReducerHelperTests.MockBucket expected = expectedBucketIter.next();
             Double expectedCount = expectedCountsIter.next();
             Double expectedValue = expectedValuesIter.next();
 
@@ -492,7 +491,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         List<Double> expectedValues = testValues.get(MovAvgType.DOUBLE.toString() + "_" + MetricTarget.VALUE.toString());
 
         Iterator<? extends Histogram.Bucket> actualIter = buckets.iterator();
-        Iterator<ReducerTestHelpers.MockBucket> expectedBucketIter = mockHisto.iterator();
+        Iterator<ReducerHelperTests.MockBucket> expectedBucketIter = mockHisto.iterator();
         Iterator<Double> expectedCountsIter = expectedCounts.iterator();
         Iterator<Double> expectedValuesIter = expectedValues.iterator();
 
@@ -500,7 +499,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             assertValidIterators(expectedBucketIter, expectedCountsIter, expectedValuesIter);
 
             Histogram.Bucket actual = actualIter.next();
-            ReducerTestHelpers.MockBucket expected = expectedBucketIter.next();
+            ReducerHelperTests.MockBucket expected = expectedBucketIter.next();
             Double expectedCount = expectedCountsIter.next();
             Double expectedValue = expectedValuesIter.next();
 

@@ -85,12 +85,19 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
     private TimeWarp timeWarp;
 
-    boolean shieldEnabled = enableShield();
+    private static Boolean shieldEnabled;
 
-    final ScheduleModule.Engine scheduleEngine = randomFrom(ScheduleModule.Engine.values());
+    private static ScheduleModule.Engine scheduleEngine;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
+        if (scheduleEngine == null) {
+            scheduleEngine = randomFrom(ScheduleModule.Engine.values());
+        }
+        if (shieldEnabled == null) {
+            shieldEnabled = enableShield();
+        }
+
         String scheduleImplName = scheduleEngine().name().toLowerCase(Locale.ROOT);
         logger.info("using schedule engine [" + scheduleImplName + "]");
         return ImmutableSettings.builder()
@@ -118,14 +125,14 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
     /**
      * @return whether shield has been enabled
      */
-    protected boolean shieldEnabled() {
+    protected final boolean shieldEnabled() {
         return shieldEnabled;
     }
 
     /**
      * @return The schedule trigger engine that will be used for the nodes.
      */
-    protected ScheduleModule.Engine scheduleEngine() {
+    protected final ScheduleModule.Engine scheduleEngine() {
         return scheduleEngine;
     }
 

@@ -20,8 +20,6 @@ import org.elasticsearch.watcher.watch.Watch;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondition;
@@ -31,7 +29,6 @@ import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = Scope.SUITE, randomDynamicTemplates = false)
 public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
 
     @Override

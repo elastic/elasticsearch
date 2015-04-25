@@ -36,8 +36,6 @@ import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
 
     @Override

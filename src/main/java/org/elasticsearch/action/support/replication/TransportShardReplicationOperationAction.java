@@ -495,7 +495,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         void finishAsFailed(Throwable failure) {
             if (finished.compareAndSet(false, true)) {
                 if (indexShard.get() != null) {
-                    decrementCounter(indexShard);
+                    decrementCounter(indexShard.get());
                 }
                 logger.trace("operation failed", failure);
                 listener.onFailure(failure);
@@ -508,7 +508,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             logger.warn("unexpected error during the primary phase for action [{}]", failure, actionName);
             if (finished.compareAndSet(false, true)) {
                 if (indexShard.get() != null) {
-                    decrementCounter(indexShard);
+                    decrementCounter(indexShard.get());
                 }
                 listener.onFailure(failure);
             } else {
@@ -536,7 +536,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
             final ReplicationPhase replicationPhase;
             try {
-                incrementCounterAndSet(indexShard, primary.shardId());
+                indexShard.set(resolveIndexShardAndIncrementRefCounter(primary.shardId()));
                 PrimaryOperationRequest por = new PrimaryOperationRequest(primary.id(), internalRequest.concreteIndex(), internalRequest.request());
                 Tuple<Response, ReplicaRequest> primaryResponse = shardOperationOnPrimary(observer.observedState(), por);
                 logger.trace("operation completed on primary [{}]", primary);
@@ -546,9 +546,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 // shard has not been allocated yet, retry it here
                 if (retryPrimaryException(e)) {
                     logger.trace("had an error while performing operation on primary ({}), scheduling a retry.", e.getMessage());
-                    if (indexShard.get() != null) {// we have to check for null here because in case the counter could not be incremented then an IndexShardClosedException is thrown and that will prevent setting the counter
-                        decrementCounter(indexShard);
-                    }
+                    decrementCounter(indexShard.get());
+                    indexShard.set(null);
                     retry(e);
                     return;
                 }
@@ -915,14 +914,14 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         private void forceFinishAsFailed(Throwable t) {
             if (finished.compareAndSet(false, true)) {
-                decrementCounter(indexShard);
+                decrementCounter(indexShard.get());
                 listener.onFailure(t);
             }
         }
 
         private void doFinish() {
             if (finished.compareAndSet(false, true)) {
-                decrementCounter(indexShard);
+                decrementCounter(indexShard.get());
                 final ShardId shardId = shardIt.shardId();
                 final ActionWriteResponse.ShardInfo.Failure[] failuresArray;
                 if (!shardReplicaFailures.isEmpty()) {
@@ -974,13 +973,18 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         }
     }
 
-    void incrementCounterAndSet(AtomicReference<IndexShard> indexShardReference, ShardId shardId) {
+    // resolve index shard and increment counter: should return IndexShard, put result in atomic reference
+    IndexShard resolveIndexShardAndIncrementRefCounter(ShardId shardId) {
         IndexShard indexShard = indicesService.indexServiceSafe(shardId.index().getName()).shardSafe(shardId.id());
         indexShard.incrementOperationCounter();
-        indexShardReference.set(indexShard);
+        return indexShard;
     }
 
-    void decrementCounter(AtomicReference<IndexShard> indexShard) {
-        indexShard.getAndSet(null).decrementOperationCounter();
+    // decrement counter if needed, index shard nullable and we either decremtn or not
+    // do not pass AtomicReference, only the index shard and remove when needed from atomic reference
+    void decrementCounter(@Nullable IndexShard indexShard) {
+        if (indexShard != null) {
+            indexShard.decrementOperationCounter();
+        }
     }
 }

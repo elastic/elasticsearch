@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -429,7 +430,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         TransportShardReplicationOperationAction<Request, Request, Response>.ReplicationPhase replicationPhase =
                 action.new ReplicationPhase(shardIt, request,
                         new Response(), new ClusterStateObserver(clusterService, logger),
-                        primaryShard, internalRequest, listener, null);
+                        primaryShard, internalRequest, listener, new AtomicReference<IndexShard>());
 
         assertThat(replicationPhase.totalShards(), equalTo(totalShards));
         assertThat(replicationPhase.pending(), equalTo(assignedReplicas));
@@ -553,13 +554,14 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         }
 
         @Override
-        void decrementCounter(AtomicReference<IndexShard> indexShard) {
+        IndexShard resolveIndexShardAndIncrementRefCounter(ShardId shardId) {
             // do nothing or decrement some other counter,
             // nocommit: what do we want to test here?
+            return null;
         }
 
         @Override
-        void incrementCounterAndSet(AtomicReference<IndexShard> indexShardReference, ShardId shardId) {
+        void decrementCounter(@Nullable IndexShard indexShard) {
             // do nothing or decrement some other counter,
             // nocommit: what do we want to test here?
         }

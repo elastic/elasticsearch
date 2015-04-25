@@ -32,6 +32,7 @@ import org.elasticsearch.script.javascript.support.ScriptValueConverter;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.mozilla.javascript.*;
+import org.mozilla.javascript.Script;
 
 import java.io.IOException;
 import java.util.List;

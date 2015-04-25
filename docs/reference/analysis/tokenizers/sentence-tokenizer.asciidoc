@@ -15,10 +15,10 @@ sentence breaks, like 1.23.
 
 the output will be six tokens:
 
-* `Hello world!`
-* `How are you?`
-* `I am fine.`
-* `This is a difficult sentence because I use I.D.`
-* `Newlines should also be accepted.`
+* `Hello world! `
+* `How are you? `
+* `I am fine.\n`
+* `This is a difficult sentence because I use I.D.\n\n`
+* `Newlines should also be accepted. `
 * `Numbers should not cause \nsentence breaks, like 1.23.`
 

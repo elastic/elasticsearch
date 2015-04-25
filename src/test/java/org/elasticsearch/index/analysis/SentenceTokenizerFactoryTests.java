@@ -44,11 +44,11 @@ public class SentenceTokenizerFactoryTests extends ElasticsearchTokenStreamTestC
         final Settings settings = ImmutableSettings.EMPTY;
         Tokenizer tokenizer = new SentenceTokenizerFactory(index, indexSettings, name, settings).create(new StringReader(text));
         assertTokenStreamContents(tokenizer, new String[]{
-                "Hello world!",
-                "How are you?",
-                "I am fine.",
-                "This is a difficult sentence because I use I.D.",
-                "Newlines should also be accepted.",
+                "Hello world! ",
+                "How are you? ",
+                "I am fine.\n",
+                "This is a difficult sentence because I use I.D.\n\n",
+                "Newlines should also be accepted. ",
                 "Numbers should not cause \nsentence breaks, like 1.23."});
     }
 

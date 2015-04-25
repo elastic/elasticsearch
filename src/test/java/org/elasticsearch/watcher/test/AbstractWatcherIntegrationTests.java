@@ -60,6 +60,7 @@ import org.elasticsearch.watcher.trigger.schedule.Schedules;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.WatcherService;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.File;
@@ -91,13 +92,6 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        if (scheduleEngine == null) {
-            scheduleEngine = randomFrom(ScheduleModule.Engine.values());
-        }
-        if (shieldEnabled == null) {
-            shieldEnabled = enableShield();
-        }
-
         String scheduleImplName = scheduleEngine().name().toLowerCase(Locale.ROOT);
         logger.info("using schedule engine [" + scheduleImplName + "]");
         return ImmutableSettings.builder()
@@ -158,6 +152,12 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         // Clear all internal watcher state for the next test method:
         logger.info("[{}#{}]: clearing watcher state", getTestClass().getSimpleName(), getTestName());
         stopWatcher();
+    }
+
+    @AfterClass
+    public static void _cleanupClass() {
+        shieldEnabled = null;
+        scheduleEngine = null;
     }
 
     @Override
@@ -503,6 +503,12 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
         @Override
         public void beforeTest(Random random, double transportClientRatio) throws IOException {
+            if (scheduleEngine == null) {
+                scheduleEngine = randomFrom(ScheduleModule.Engine.values());
+            }
+            if (shieldEnabled == null) {
+                shieldEnabled = enableShield();
+            }
             testCluster.beforeTest(random, transportClientRatio);
         }
 

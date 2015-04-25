@@ -29,7 +29,6 @@ import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
 import org.elasticsearch.index.mapper.attachment.test.MapperTestUtils;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -64,26 +63,26 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
         DocumentMapper docMapper = mapperParser.parse(mapping);
 
 
-        assertThat(docMapper.mappers().fullName("file").mapper(), instanceOf(StringFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("file.suggest").mapper(), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file"), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file.suggest"), instanceOf(StringFieldMapper.class));
 
-        assertThat(docMapper.mappers().fullName("file.date").mapper(), instanceOf(DateFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("file.date.string").mapper(), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file.date"), instanceOf(DateFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file.date.string"), instanceOf(StringFieldMapper.class));
 
-        assertThat(docMapper.mappers().fullName("file.title").mapper(), instanceOf(StringFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("file.title.suggest").mapper(), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file.title"), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file.title.suggest"), instanceOf(StringFieldMapper.class));
 
-        assertThat(docMapper.mappers().fullName("file.name").mapper(), instanceOf(StringFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("file.name.suggest").mapper(), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file.name"), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file.name.suggest"), instanceOf(StringFieldMapper.class));
 
-        assertThat(docMapper.mappers().fullName("file.author").mapper(), instanceOf(StringFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("file.author.suggest").mapper(), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file.author"), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file.author.suggest"), instanceOf(StringFieldMapper.class));
 
-        assertThat(docMapper.mappers().fullName("file.keywords").mapper(), instanceOf(StringFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("file.keywords.suggest").mapper(), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file.keywords"), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file.keywords.suggest"), instanceOf(StringFieldMapper.class));
 
-        assertThat(docMapper.mappers().fullName("file.content_type").mapper(), instanceOf(StringFieldMapper.class));
-        assertThat(docMapper.mappers().fullName("file.content_type.suggest").mapper(), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file.content_type"), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file.content_type.suggest"), instanceOf(StringFieldMapper.class));
     }
 
     @Test

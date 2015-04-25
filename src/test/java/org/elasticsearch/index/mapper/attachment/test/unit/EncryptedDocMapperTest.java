@@ -61,19 +61,19 @@ public class EncryptedDocMapperTest extends AttachmentUnitTestCase {
                 .endObject().bytes();
 
         ParseContext.Document doc =  docMapper.parse(json).rootDoc();
-        assertThat(doc.get(docMapper.mappers().smartName("file1").mapper().names().indexName()), containsString("World"));
-        assertThat(doc.get(docMapper.mappers().smartName("file1.title").mapper().names().indexName()), equalTo("Hello"));
-        assertThat(doc.get(docMapper.mappers().smartName("file1.author").mapper().names().indexName()), equalTo("kimchy"));
-        assertThat(doc.get(docMapper.mappers().smartName("file1.keywords").mapper().names().indexName()), equalTo("elasticsearch,cool,bonsai"));
-        assertThat(doc.get(docMapper.mappers().smartName("file1.content_type").mapper().names().indexName()), equalTo("text/html; charset=ISO-8859-1"));
-        assertThat(doc.getField(docMapper.mappers().smartName("file1.content_length").mapper().names().indexName()).numericValue().longValue(), is(344L));
+        assertThat(doc.get(docMapper.mappers().getMapper("file1").names().indexName()), containsString("World"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.title").names().indexName()), equalTo("Hello"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.author").names().indexName()), equalTo("kimchy"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.keywords").names().indexName()), equalTo("elasticsearch,cool,bonsai"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.content_type").names().indexName()), equalTo("text/html; charset=ISO-8859-1"));
+        assertThat(doc.getField(docMapper.mappers().getMapper("file1.content_length").names().indexName()).numericValue().longValue(), is(344L));
 
-        assertThat(doc.get(docMapper.mappers().smartName("file2").mapper().names().indexName()), nullValue());
-        assertThat(doc.get(docMapper.mappers().smartName("file2.title").mapper().names().indexName()), nullValue());
-        assertThat(doc.get(docMapper.mappers().smartName("file2.author").mapper().names().indexName()), nullValue());
-        assertThat(doc.get(docMapper.mappers().smartName("file2.keywords").mapper().names().indexName()), nullValue());
-        assertThat(doc.get(docMapper.mappers().smartName("file2.content_type").mapper().names().indexName()), nullValue());
-        assertThat(doc.getField(docMapper.mappers().smartName("file2.content_length").mapper().names().indexName()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file2").names().indexName()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.title").names().indexName()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.author").names().indexName()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.keywords").names().indexName()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.content_type").names().indexName()), nullValue());
+        assertThat(doc.getField(docMapper.mappers().getMapper("file2.content_length").names().indexName()), nullValue());
     }
 
     @Test
@@ -94,19 +94,19 @@ public class EncryptedDocMapperTest extends AttachmentUnitTestCase {
                 .endObject().bytes();
 
         ParseContext.Document doc =  docMapper.parse(json).rootDoc();
-        assertThat(doc.get(docMapper.mappers().smartName("file1").mapper().names().indexName()), nullValue());
-        assertThat(doc.get(docMapper.mappers().smartName("file1.title").mapper().names().indexName()), nullValue());
-        assertThat(doc.get(docMapper.mappers().smartName("file1.author").mapper().names().indexName()), nullValue());
-        assertThat(doc.get(docMapper.mappers().smartName("file1.keywords").mapper().names().indexName()), nullValue());
-        assertThat(doc.get(docMapper.mappers().smartName("file1.content_type").mapper().names().indexName()), nullValue());
-        assertThat(doc.getField(docMapper.mappers().smartName("file1.content_length").mapper().names().indexName()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file1").names().indexName()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.title").names().indexName()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.author").names().indexName()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.keywords").names().indexName()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.content_type").names().indexName()), nullValue());
+        assertThat(doc.getField(docMapper.mappers().getMapper("file1.content_length").names().indexName()), nullValue());
 
-        assertThat(doc.get(docMapper.mappers().smartName("file2").mapper().names().indexName()), containsString("World"));
-        assertThat(doc.get(docMapper.mappers().smartName("file2.title").mapper().names().indexName()), equalTo("Hello"));
-        assertThat(doc.get(docMapper.mappers().smartName("file2.author").mapper().names().indexName()), equalTo("kimchy"));
-        assertThat(doc.get(docMapper.mappers().smartName("file2.keywords").mapper().names().indexName()), equalTo("elasticsearch,cool,bonsai"));
-        assertThat(doc.get(docMapper.mappers().smartName("file2.content_type").mapper().names().indexName()), equalTo("text/html; charset=ISO-8859-1"));
-        assertThat(doc.getField(docMapper.mappers().smartName("file2.content_length").mapper().names().indexName()).numericValue().longValue(), is(344L));
+        assertThat(doc.get(docMapper.mappers().getMapper("file2").names().indexName()), containsString("World"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.title").names().indexName()), equalTo("Hello"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.author").names().indexName()), equalTo("kimchy"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.keywords").names().indexName()), equalTo("elasticsearch,cool,bonsai"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.content_type").names().indexName()), equalTo("text/html; charset=ISO-8859-1"));
+        assertThat(doc.getField(docMapper.mappers().getMapper("file2.content_length").names().indexName()).numericValue().longValue(), is(344L));
     }
 
     @Test(expected = MapperParsingException.class)
@@ -127,19 +127,19 @@ public class EncryptedDocMapperTest extends AttachmentUnitTestCase {
                 .endObject().bytes();
 
         ParseContext.Document doc =  docMapper.parse(json).rootDoc();
-        assertThat(doc.get(docMapper.mappers().smartName("file1").mapper().names().indexName()), nullValue());
-        assertThat(doc.get(docMapper.mappers().smartName("file1.title").mapper().names().indexName()), nullValue());
-        assertThat(doc.get(docMapper.mappers().smartName("file1.author").mapper().names().indexName()), nullValue());
-        assertThat(doc.get(docMapper.mappers().smartName("file1.keywords").mapper().names().indexName()), nullValue());
-        assertThat(doc.get(docMapper.mappers().smartName("file1.content_type").mapper().names().indexName()), nullValue());
-        assertThat(doc.getField(docMapper.mappers().smartName("file1.content_length").mapper().names().indexName()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file1").names().indexName()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.title").names().indexName()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.author").names().indexName()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.keywords").names().indexName()), nullValue());
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.content_type").names().indexName()), nullValue());
+        assertThat(doc.getField(docMapper.mappers().getMapper("file1.content_length").names().indexName()), nullValue());
 
-        assertThat(doc.get(docMapper.mappers().smartName("file2").mapper().names().indexName()), containsString("World"));
-        assertThat(doc.get(docMapper.mappers().smartName("file2.title").mapper().names().indexName()), equalTo("Hello"));
-        assertThat(doc.get(docMapper.mappers().smartName("file2.author").mapper().names().indexName()), equalTo("kimchy"));
-        assertThat(doc.get(docMapper.mappers().smartName("file2.keywords").mapper().names().indexName()), equalTo("elasticsearch,cool,bonsai"));
-        assertThat(doc.get(docMapper.mappers().smartName("file2.content_type").mapper().names().indexName()), equalTo("text/html; charset=ISO-8859-1"));
-        assertThat(doc.getField(docMapper.mappers().smartName("file2.content_length").mapper().names().indexName()).numericValue().longValue(), is(344L));
+        assertThat(doc.get(docMapper.mappers().getMapper("file2").names().indexName()), containsString("World"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.title").names().indexName()), equalTo("Hello"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.author").names().indexName()), equalTo("kimchy"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.keywords").names().indexName()), equalTo("elasticsearch,cool,bonsai"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.content_type").names().indexName()), equalTo("text/html; charset=ISO-8859-1"));
+        assertThat(doc.getField(docMapper.mappers().getMapper("file2.content_length").names().indexName()).numericValue().longValue(), is(344L));
     }
 
 }

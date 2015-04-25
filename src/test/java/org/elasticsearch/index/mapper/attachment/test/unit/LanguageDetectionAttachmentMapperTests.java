@@ -57,7 +57,7 @@ public class LanguageDetectionAttachmentMapperTests extends AttachmentUnitTestCa
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/language/language-mapping.json");
         docMapper = mapperParser.parse(mapping);
 
-        assertThat(docMapper.mappers().fullName("file.language").mapper(), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file.language"), instanceOf(StringFieldMapper.class));
     }
 
     private void testLanguage(String filename, String expected, String... forcedLanguage) throws IOException {
@@ -79,7 +79,7 @@ public class LanguageDetectionAttachmentMapperTests extends AttachmentUnitTestCa
         ParseContext.Document doc =  docMapper.parse(xcb.bytes()).rootDoc();
 
         // Our mapping should be kept as a String
-        assertThat(doc.get(docMapper.mappers().smartName("file.language").mapper().names().indexName()), equalTo(expected));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.language").names().indexName()), equalTo(expected));
     }
 
     @Test
@@ -132,6 +132,6 @@ public class LanguageDetectionAttachmentMapperTests extends AttachmentUnitTestCa
         ParseContext.Document doc =  docMapper.parse(xcb.bytes()).rootDoc();
 
         // Our mapping should be kept as a String
-        assertThat(doc.get(docMapper.mappers().smartName("file.language").mapper().names().indexName()), equalTo("en"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.language").names().indexName()), equalTo("en"));
     }
 }

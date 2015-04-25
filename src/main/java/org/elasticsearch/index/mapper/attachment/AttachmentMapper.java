@@ -391,7 +391,7 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public Mapper parse(ParseContext context) throws IOException {
         byte[] content = null;
         String contentType = null;
         int indexedChars = defaultIndexedChars;
@@ -454,7 +454,7 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
                 } else {
                     logger.warn("Tika can not be initialized with the current Locale [{}] on the current JVM [{}]",
                             Locale.getDefault().getLanguage(), Constants.JAVA_VERSION);
-                    return;
+                    return null;
                 }
             }
             // Set the maximum length of strings returned by the parseToString method, -1 sets no limit
@@ -473,7 +473,7 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
                 logger.debug("Failed to extract [{}] characters of text for [{}]: [{}]", indexedChars, name, e.getMessage());
                 logger.trace("exception caught", e);
             }
-            return;
+            return null;
         }
 
         context = context.createExternalValueContext(parsedContent);
@@ -580,6 +580,8 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
         if (copyTo != null) {
             copyTo.parse(context);
         }
+
+        return null;
     }
 
     @Override
@@ -588,7 +590,7 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         // ignore this for now
     }
 

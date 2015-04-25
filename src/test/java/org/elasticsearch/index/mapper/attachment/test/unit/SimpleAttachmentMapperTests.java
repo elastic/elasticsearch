@@ -25,7 +25,6 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
 import org.elasticsearch.index.mapper.attachment.test.MapperTestUtils;
-import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -58,9 +57,9 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
 
         ParseContext.Document doc = docMapper.parse(json).rootDoc();
 
-        assertThat(doc.get(docMapper.mappers().smartName("file.content_type").mapper().names().indexName()), equalTo("application/xhtml+xml"));
-        assertThat(doc.get(docMapper.mappers().smartName("file.title").mapper().names().indexName()), equalTo("XHTML test document"));
-        assertThat(doc.get(docMapper.mappers().smartName("file").mapper().names().indexName()), containsString("This document tests the ability of Apache Tika to extract content"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").names().indexName()), equalTo("application/xhtml+xml"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.title").names().indexName()), equalTo("XHTML test document"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file").names().indexName()), containsString("This document tests the ability of Apache Tika to extract content"));
 
         // re-parse it
         String builtMapping = docMapper.mappingSource().string();
@@ -70,8 +69,8 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
 
         doc = docMapper.parse(json).rootDoc();
 
-        assertThat(doc.get(docMapper.mappers().smartName("file.content_type").mapper().names().indexName()), equalTo("application/xhtml+xml"));
-        assertThat(doc.get(docMapper.mappers().smartName("file.title").mapper().names().indexName()), equalTo("XHTML test document"));
-        assertThat(doc.get(docMapper.mappers().smartName("file").mapper().names().indexName()), containsString("This document tests the ability of Apache Tika to extract content"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").names().indexName()), equalTo("application/xhtml+xml"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.title").names().indexName()), equalTo("XHTML test document"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file").names().indexName()), containsString("This document tests the ability of Apache Tika to extract content"));
     }
 }

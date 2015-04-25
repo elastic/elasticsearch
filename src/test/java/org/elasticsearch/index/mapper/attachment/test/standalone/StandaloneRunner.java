@@ -113,7 +113,7 @@ public class StandaloneRunner extends CliTool {
 
             terminal.println("## Extracted text");
             terminal.println("--------------------- BEGIN -----------------------");
-            terminal.println("%s", doc.get(docMapper.mappers().smartName("file").mapper().names().indexName()));
+            terminal.println("%s", doc.get(docMapper.mappers().getMapper("file").names().indexName()));
             terminal.println("---------------------- END ------------------------");
             terminal.println("## Metadata");
             printMetadataContent(doc, AttachmentMapper.FieldNames.AUTHOR);
@@ -129,7 +129,7 @@ public class StandaloneRunner extends CliTool {
         }
 
         private void printMetadataContent(ParseContext.Document doc, String field) {
-            terminal.println("- %s: %s", field, doc.get(docMapper.mappers().smartName("file." + field).mapper().names().indexName()));
+            terminal.println("- %s: %s", field, doc.get(docMapper.mappers().getMapper("file." + field).names().indexName()));
         }
 
         public static byte[] copyToBytes(Path path) throws IOException {

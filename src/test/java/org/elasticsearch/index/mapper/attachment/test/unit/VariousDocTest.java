@@ -143,8 +143,8 @@ public class VariousDocTest extends AttachmentUnitTestCase {
 
         ParseContext.Document doc =  docMapper.parse(json).rootDoc();
         if (!errorExpected) {
-            assertThat(doc.get(docMapper.mappers().smartName("file").mapper().names().indexName()), not(isEmptyOrNullString()));
-            logger.debug("-> extracted content: {}", doc.get(docMapper.mappers().smartName("file").mapper().names().indexName()));
+            assertThat(doc.get(docMapper.mappers().getMapper("file").names().indexName()), not(isEmptyOrNullString()));
+            logger.debug("-> extracted content: {}", doc.get(docMapper.mappers().getMapper("file").names().indexName()));
             logger.debug("-> extracted metadata:");
             printMetadataContent(doc, AUTHOR);
             printMetadataContent(doc, CONTENT_LENGTH);
@@ -158,6 +158,6 @@ public class VariousDocTest extends AttachmentUnitTestCase {
     }
 
     private void printMetadataContent(ParseContext.Document doc, String field) {
-        logger.debug("- [{}]: [{}]", field, doc.get(docMapper.mappers().smartName("file." + field).mapper().names().indexName()));
+        logger.debug("- [{}]: [{}]", field, doc.get(docMapper.mappers().getMapper("file." + field).names().indexName()));
     }
 }

@@ -49,6 +49,6 @@ public class DateAttachmentMapperTests extends AttachmentUnitTestCase {
         DocumentMapper docMapper = mapperParser.parse(mapping);
 
         // Our mapping should be kept as a String
-        assertThat(docMapper.mappers().fullName("file.date").mapper(), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file.date"), instanceOf(StringFieldMapper.class));
     }
 }

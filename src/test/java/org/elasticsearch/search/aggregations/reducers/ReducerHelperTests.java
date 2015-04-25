@@ -33,7 +33,7 @@ import java.util.ArrayList;
  * Provides helper methods and classes for use in Reducer tests, such as creating mock histograms or computing
  * simple metrics
  */
-public class ReducerTestHelpers extends ElasticsearchTestCase {
+public class ReducerHelperTests extends ElasticsearchTestCase {
 
     /**
      * Generates a mock histogram to use for testing.  Each MockBucket holds a doc count, key and document values

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.engine;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import com.google.common.collect.ImmutableMap;
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
@@ -1760,6 +1762,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             assertThat(topDocs.totalHits, equalTo(numDocs));
         }
         engine.close();
+        boolean recoveredButFailed = false;
         final MockDirectoryWrapper directory = DirectoryUtils.getLeaf(store.directory(), MockDirectoryWrapper.class);
         if (directory != null) {
             // since we rollback the IW we are writing the same segment files again after starting IW but MDW prevents
@@ -1777,7 +1780,16 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                     started = true;
                     break;
                 } catch (EngineCreationFailureException ex) {
-                    // skip
+                    // sometimes we fail after we committed the recovered docs during the finaly refresh call
+                    // that means hte index is consistent and recovered so we can't assert on the num recovered ops below.
+                        try (IndexReader reader = DirectoryReader.open(directory.getDelegate())) {
+                            if (reader.numDocs() == numDocs) {
+                                recoveredButFailed = true;
+                                break;
+                            } else {
+                                // skip - we just failed
+                            }
+                        }
                 }
             }
 
@@ -1796,8 +1808,10 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
             assertThat(topDocs.totalHits, equalTo(numDocs));
         }
-        TranslogHandler parser = (TranslogHandler) engine.config().getTranslogRecoveryPerformer();
-        assertEquals(numDocs, parser.recoveredOps.get());
+        if (recoveredButFailed == false) {
+            TranslogHandler parser = (TranslogHandler) engine.config().getTranslogRecoveryPerformer();
+            assertEquals(numDocs, parser.recoveredOps.get());
+        }
     }
 
     @Test

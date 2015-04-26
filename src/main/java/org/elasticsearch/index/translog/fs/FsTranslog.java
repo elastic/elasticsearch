@@ -46,7 +46,6 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.file.Path;
 import java.util.concurrent.ThreadLocalRandom;
 import java.nio.file.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -85,8 +84,6 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     private volatile int transientBufferSize;
 
     private final ApplySettings applySettings = new ApplySettings();
-
-    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     @Inject
     public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService,
@@ -148,23 +145,21 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     }
 
     private void close(boolean delete) {
-        if (closed.compareAndSet(false, true)) {
-            if (indexSettingsService != null) {
-                indexSettingsService.removeListener(applySettings);
+        if (indexSettingsService != null) {
+            indexSettingsService.removeListener(applySettings);
+        }
+        rwl.writeLock().lock();
+        try {
+            FsTranslogFile current1 = this.current;
+            if (current1 != null) {
+                current1.close(delete);
             }
-            rwl.writeLock().lock();
-            try {
-                FsTranslogFile current1 = this.current;
-                if (current1 != null) {
-                    current1.close(delete);
-                }
-                current1 = this.trans;
-                if (current1 != null) {
-                    current1.close(delete);
-                }
-            } finally {
-                rwl.writeLock().unlock();
+            current1 = this.trans;
+            if (current1 != null) {
+                current1.close(delete);
             }
+        } finally {
+            rwl.writeLock().unlock();
         }
     }
 
@@ -417,12 +412,14 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     @Override
     public FsChannelSnapshot snapshot() throws TranslogException {
         while (true) {
-            if (closed.get()) {
-                throw new TranslogException(shardId, "translog is already closed");
-            }
+            FsTranslogFile current = this.current;
             FsChannelSnapshot snapshot = current.snapshot();
             if (snapshot != null) {
                 return snapshot;
+            }
+            if (current.closed() && this.current == current) {
+                // check if we are closed and if we are still current - then this translog is closed and we can exit
+                throw new TranslogException(shardId, "current translog is already closed");
             }
             Thread.yield();
         }

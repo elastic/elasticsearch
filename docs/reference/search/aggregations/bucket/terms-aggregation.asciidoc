@@ -613,7 +613,7 @@ this would typically be too costly in terms of RAM.
 [[search-aggregations-bucket-terms-aggregation-execution-hint]]
 ==== Execution hint
 
-experimental[]
+experimental[The automated execution optimization is experimental, so this parameter is provided temporarily as a way to override the default behaviour]
 
 There are different mechanisms by which terms aggregations can be executed:
 

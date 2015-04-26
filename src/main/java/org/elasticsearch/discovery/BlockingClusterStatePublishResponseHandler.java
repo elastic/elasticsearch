@@ -20,41 +20,71 @@ package org.elasticsearch.discovery;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 
 /**
- * Default implementation of {@link ClusterStatePublishResponseHandler}, allows to  await a reply
- * to a cluster state publish from all non master nodes, up to a timeout
+ * Handles responses obtained when publishing a new cluster state from master to all non master nodes.
+ * Allows to await a reply from all non master nodes, up to a timeout
  */
-public class BlockingClusterStatePublishResponseHandler implements ClusterStatePublishResponseHandler {
+public class BlockingClusterStatePublishResponseHandler {
 
     private final CountDownLatch latch;
+    private final Set<DiscoveryNode> pendingNodes;
 
     /**
      * Creates a new BlockingClusterStatePublishResponseHandler
-     * @param nonMasterNodes number of nodes that are supposed to reply to a cluster state publish from master
+     * @param publishingToNodes the set of nodes to which the cluster state will be published and should respond
      */
-    public BlockingClusterStatePublishResponseHandler(int nonMasterNodes) {
-        //Don't count the master, as it's the one that does the publish
-        //the master won't call onResponse either
-        this.latch = new CountDownLatch(nonMasterNodes);
+    public BlockingClusterStatePublishResponseHandler(Set<DiscoveryNode> publishingToNodes) {
+        this.pendingNodes = ConcurrentCollections.newConcurrentSet();
+        this.pendingNodes.addAll(publishingToNodes);
+        this.latch = new CountDownLatch(pendingNodes.size());
     }
 
-    @Override
+    /**
+     * Called for each response obtained from non master nodes
+     *
+     * @param node the node that replied to the publish event
+     */
     public void onResponse(DiscoveryNode node) {
+        boolean found = pendingNodes.remove(node);
+        assert found : "node [" + node + "] already responded or failed";
         latch.countDown();
     }
 
-    @Override
+    /**
+     * Called for each failure obtained from non master nodes
+     * @param node the node that replied to the publish event
+     */
     public void onFailure(DiscoveryNode node, Throwable t) {
+        boolean found = pendingNodes.remove(node);
+        assert found : "node [" + node + "] already responded or failed";
         latch.countDown();
     }
 
-    @Override
+    /**
+     * Allows to wait for all non master nodes to reply to the publish event up to a timeout
+     * @param timeout the timeout
+     * @return true if the timeout expired or not, false otherwise
+     * @throws InterruptedException
+     */
     public boolean awaitAllNodes(TimeValue timeout) throws InterruptedException {
-        return latch.await(timeout.millis(), TimeUnit.MILLISECONDS);
+        boolean success = latch.await(timeout.millis(), TimeUnit.MILLISECONDS);
+        assert !success || pendingNodes.isEmpty() : "response count reached 0 but still waiting for some nodes";
+        return success;
+    }
+
+    /**
+     * returns a list of nodes which didn't respond yet
+     */
+    public DiscoveryNode[] pendingNodes() {
+        // we use a zero length array, because if we try to pre allocate we may need to remove trailing
+        // nulls if some nodes responded in the meanwhile
+        return pendingNodes.toArray(new DiscoveryNode[0]);
     }
 }

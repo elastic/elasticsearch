@@ -40,4 +40,5 @@ public class QueryParsingException extends IndexException {
     public RestStatus status() {
         return RestStatus.BAD_REQUEST;
     }
+
 }

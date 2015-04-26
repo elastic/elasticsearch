@@ -24,25 +24,24 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.PrefixFilter;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
@@ -68,7 +67,6 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = TypeFieldMapper.NAME;
-        public static final String INDEX_NAME = TypeFieldMapper.NAME;
 
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
@@ -85,37 +83,34 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
         public Builder() {
             super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
-            indexName = Defaults.INDEX_NAME;
+            indexName = Defaults.NAME;
         }
 
         @Override
         public TypeFieldMapper build(BuilderContext context) {
-            return new TypeFieldMapper(name, indexName, boost, fieldType, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
+            return new TypeFieldMapper(name, indexName, boost, fieldType, fieldDataSettings, context.indexSettings());
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
+                throw new MapperParsingException(NAME + " is not configurable");
+            }
             TypeFieldMapper.Builder builder = type();
             parseField(builder, builder.name, node, parserContext);
             return builder;
         }
     }
 
-
-    public TypeFieldMapper() {
-        this(Defaults.NAME, Defaults.INDEX_NAME);
+    public TypeFieldMapper(Settings indexSettings) {
+        this(Defaults.NAME, Defaults.NAME, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null, indexSettings);
     }
 
-    protected TypeFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null, null, null, ImmutableSettings.EMPTY);
-    }
-
-    public TypeFieldMapper(String name, String indexName, float boost, FieldType fieldType, PostingsFormatProvider postingsProvider,
-                           DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, indexName, indexName, name), boost, fieldType, null, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER, postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings);
+    public TypeFieldMapper(String name, String indexName, float boost, FieldType fieldType, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+        super(new Names(name, indexName, indexName, name), boost, fieldType, false, Lucene.KEYWORD_ANALYZER,
+                Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
     }
 
     @Override
@@ -126,11 +121,6 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     @Override
     public FieldDataType defaultFieldDataType() {
         return new FieldDataType("string");
-    }
-
-    @Override
-    public boolean hasDocValues() {
-        return false;
     }
 
     @Override
@@ -149,9 +139,9 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     @Override
     public Filter termFilter(Object value, @Nullable QueryParseContext context) {
         if (fieldType.indexOptions() == IndexOptions.NONE) {
-            return new PrefixFilter(new Term(UidFieldMapper.NAME, Uid.typePrefixAsBytes(BytesRefs.toBytesRef(value))));
+            return Queries.wrap(new PrefixQuery(new Term(UidFieldMapper.NAME, Uid.typePrefixAsBytes(BytesRefs.toBytesRef(value)))));
         }
-        return new TermFilter(names().createIndexNameTerm(BytesRefs.toBytesRef(value)));
+        return Queries.wrap(new TermQuery(names().createIndexNameTerm(BytesRefs.toBytesRef(value))));
     }
 
     @Override
@@ -169,8 +159,9 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public Mapper parse(ParseContext context) throws IOException {
         // we parse in pre parse
+        return null;
     }
 
     @Override
@@ -196,6 +187,9 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (indexCreatedBefore2x == false) {
+            return builder;
+        }
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // if all are defaults, no sense to write it at all
@@ -216,7 +210,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         // do nothing here, no merging, but also no exception
     }
 }

@@ -37,7 +37,7 @@
   - match: { hits.total: 1 }
 
   - do:
-      catch: /ElasticsearchIllegalArgumentException.Unable.to.find.on.disk.script.simple1/
+      catch: /Unable.to.find.on.disk.script.simple1/
       search_template:
         body: { "template" : "simple1" }
 

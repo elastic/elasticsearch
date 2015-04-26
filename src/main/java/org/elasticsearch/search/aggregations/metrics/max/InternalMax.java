@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -66,6 +67,7 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
         return max;
     }
 
+    @Override
     public double getValue() {
         return max;
     }
@@ -76,9 +78,9 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalMax reduce(ReduceContext reduceContext) {
+    public InternalMax reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double max = Double.NEGATIVE_INFINITY;
-        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+        for (InternalAggregation aggregation : aggregations) {
             max = Math.max(max, ((InternalMax) aggregation).max);
         }
         return new InternalMax(name, max, valueFormatter, getMetaData());
@@ -100,7 +102,7 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         boolean hasValue = !Double.isInfinite(max);
         builder.field(CommonFields.VALUE, hasValue ? max : null);
-        if (hasValue && valueFormatter != null) {
+        if (hasValue && valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
             builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(max));
         }
         return builder;

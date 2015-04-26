@@ -233,7 +233,6 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
 
     /**
      * Sets index settings that should be added or replaced during restore
-
      * @param settings index settings
      * @return this builder
      */

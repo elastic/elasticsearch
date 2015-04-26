@@ -20,16 +20,19 @@
 package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
+import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.CompletionLookupProvider;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * {@link PerFieldMappingPostingFormatCodec This postings format} is the default
@@ -43,19 +46,15 @@ import org.elasticsearch.index.mapper.MapperService;
 public class PerFieldMappingPostingFormatCodec extends Lucene50Codec {
     private final ESLogger logger;
     private final MapperService mapperService;
-    private final PostingsFormat defaultPostingFormat;
-    private final DocValuesFormat defaultDocValuesFormat;
 
     static {
         assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMappingPostingFormatCodec.class) : "PerFieldMappingPostingFormatCodec must subclass the latest lucene codec: " + Lucene.LATEST_CODEC;
     }
 
-    public PerFieldMappingPostingFormatCodec(Lucene50StoredFieldsFormat.Mode compressionMode, MapperService mapperService, PostingsFormat defaultPostingFormat, DocValuesFormat defaultDocValuesFormat, ESLogger logger) {
+    public PerFieldMappingPostingFormatCodec(Lucene50StoredFieldsFormat.Mode compressionMode, MapperService mapperService, ESLogger logger) {
         super(compressionMode);
         this.mapperService = mapperService;
         this.logger = logger;
-        this.defaultPostingFormat = defaultPostingFormat;
-        this.defaultDocValuesFormat = defaultDocValuesFormat;
     }
 
     @Override
@@ -63,20 +62,13 @@ public class PerFieldMappingPostingFormatCodec extends Lucene50Codec {
         final FieldMappers indexName = mapperService.indexName(field);
         if (indexName == null) {
             logger.warn("no index mapper found for field: [{}] returning default postings format", field);
-            return defaultPostingFormat;
+        } else if (indexName.mapper() instanceof CompletionFieldMapper) {
+            // CompletionFieldMapper needs a special postings format
+            final CompletionFieldMapper mapper = (CompletionFieldMapper) indexName.mapper();
+            final PostingsFormat defaultFormat = super.getPostingsFormatForField(field);
+            return mapper.postingsFormat(defaultFormat);
         }
-        PostingsFormatProvider postingsFormat = indexName.mapper().postingsFormatProvider();
-        return postingsFormat != null ? postingsFormat.get() : defaultPostingFormat;
+        return super.getPostingsFormatForField(field);
     }
 
-    @Override
-    public DocValuesFormat getDocValuesFormatForField(String field) {
-        final FieldMappers indexName = mapperService.indexName(field);
-        if (indexName == null) {
-            logger.warn("no index mapper found for field: [{}] returning default doc values format", field);
-            return defaultDocValuesFormat;
-        }
-        DocValuesFormatProvider docValuesFormat = indexName.mapper().docValuesFormatProvider();
-        return docValuesFormat != null ? docValuesFormat.get() : defaultDocValuesFormat;
-    }
 }

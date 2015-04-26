@@ -41,17 +41,23 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
     private long position;
     private BytesReference content;
     private StoreFileMetaData metaData;
+    private long sourceThrottleTimeInNanos;
+
+    private int totalTranslogOps;
 
     RecoveryFileChunkRequest() {
     }
 
-    public RecoveryFileChunkRequest(long recoveryId, ShardId shardId, StoreFileMetaData metaData, long position, BytesReference content, boolean lastChunk) {
+    public RecoveryFileChunkRequest(long recoveryId, ShardId shardId, StoreFileMetaData metaData, long position, BytesReference content,
+                                    boolean lastChunk, int totalTranslogOps, long sourceThrottleTimeInNanos) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.metaData = metaData;
         this.position = position;
         this.content = content;
         this.lastChunk = lastChunk;
+        this.totalTranslogOps = totalTranslogOps;
+        this.sourceThrottleTimeInNanos = sourceThrottleTimeInNanos;
     }
 
     public long recoveryId() {
@@ -83,6 +89,14 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
         return content;
     }
 
+    public int totalTranslogOps() {
+        return totalTranslogOps;
+    }
+
+    public long sourceThrottleTimeInNanos() {
+        return sourceThrottleTimeInNanos;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -98,6 +112,8 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
         writtenBy = Lucene.parseVersionLenient(versionString, null);
         metaData = new StoreFileMetaData(name, length, checksum, writtenBy);
         lastChunk = in.readBoolean();
+        totalTranslogOps = in.readVInt();
+        sourceThrottleTimeInNanos = in.readLong();
     }
 
     @Override
@@ -112,6 +128,8 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
         out.writeBytesReference(content);
         out.writeOptionalString(metaData.writtenBy() == null ? null : metaData.writtenBy().toString());
         out.writeBoolean(lastChunk);
+        out.writeVInt(totalTranslogOps);
+        out.writeLong(sourceThrottleTimeInNanos);
     }
 
     @Override

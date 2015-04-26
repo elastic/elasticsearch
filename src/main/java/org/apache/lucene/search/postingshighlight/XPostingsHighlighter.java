@@ -28,6 +28,7 @@ import org.apache.lucene.util.InPlaceMergeSorter;
 import org.apache.lucene.util.UnicodeUtil;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.text.BreakIterator;
 import java.util.*;
 
@@ -61,7 +62,16 @@ public class XPostingsHighlighter {
     // unnecessary.
 
     /** for rewriting: we don't want slow processing from MTQs */
-    private static final IndexReader EMPTY_INDEXREADER = new MultiReader();
+    private static final IndexSearcher EMPTY_INDEXSEARCHER;
+    static {
+      try {
+        IndexReader emptyReader = new MultiReader();
+        EMPTY_INDEXSEARCHER = new IndexSearcher(emptyReader);
+        EMPTY_INDEXSEARCHER.setQueryCache(null);
+      } catch (IOException bogus) {
+        throw new RuntimeException(bogus);
+      }
+    }
 
     /** Default maximum content size to process. Typically snippets
      *  closer to the beginning of the document better summarize its content */
@@ -283,12 +293,10 @@ public class XPostingsHighlighter {
         if (fieldsIn.length != maxPassagesIn.length) {
             throw new IllegalArgumentException("invalid number of maxPassagesIn");
         }
-        final IndexReader reader = searcher.getIndexReader();
-        query = rewrite(query);
         SortedSet<Term> queryTerms = new TreeSet<>();
-        query.extractTerms(queryTerms);
+        EMPTY_INDEXSEARCHER.createNormalizedWeight(query, false).extractTerms(queryTerms);
 
-        IndexReaderContext readerContext = reader.getContext();
+        IndexReaderContext readerContext = searcher.getIndexReader().getContext();
         List<LeafReaderContext> leaves = readerContext.leaves();
 
         // Make our own copies because we sort in-place:
@@ -391,7 +399,7 @@ public class XPostingsHighlighter {
         Map<Integer,Object> highlights = new HashMap<>();
 
         // reuse in the real sense... for docs in same segment we just advance our old enum
-        DocsAndPositionsEnum postings[] = null;
+        PostingsEnum postings[] = null;
         TermsEnum termsEnum = null;
         int lastLeaf = -1;
 
@@ -414,9 +422,13 @@ public class XPostingsHighlighter {
             if (t == null) {
                 continue; // nothing to do
             }
+            if (!t.hasOffsets()) {
+                // no offsets available
+                throw new IllegalArgumentException("field '" + field + "' was indexed without offsets, cannot highlight");
+            }
             if (leaf != lastLeaf) {
-                termsEnum = t.iterator(null);
-                postings = new DocsAndPositionsEnum[terms.length];
+                termsEnum = t.iterator();
+                postings = new PostingsEnum[terms.length];
             }
             Passage passages[] = highlightDoc(field, terms, content.length(), bi, doc - subContext.docBase, termsEnum, postings, maxPassages);
             if (passages.length == 0) {
@@ -437,7 +449,7 @@ public class XPostingsHighlighter {
     // we can intersect these with the postings lists via BreakIterator.preceding(offset),s
     // score each sentence as norm(sentenceStartOffset) * sum(weight * tf(freq))
     private Passage[] highlightDoc(String field, BytesRef terms[], int contentLength, BreakIterator bi, int doc,
-                                   TermsEnum termsEnum, DocsAndPositionsEnum[] postings, int n) throws IOException {
+                                   TermsEnum termsEnum, PostingsEnum[] postings, int n) throws IOException {
 
         //BEGIN EDIT added call to method that returns the offset for the current value (discrete highlighting)
         int valueOffset = getOffsetForCurrentValue(field, doc);
@@ -462,7 +474,7 @@ public class XPostingsHighlighter {
         float weights[] = new float[terms.length];
         // initialize postings
         for (int i = 0; i < terms.length; i++) {
-            DocsAndPositionsEnum de = postings[i];
+            PostingsEnum de = postings[i];
             int pDoc;
             if (de == EMPTY) {
                 continue;
@@ -471,11 +483,8 @@ public class XPostingsHighlighter {
                 if (!termsEnum.seekExact(terms[i])) {
                     continue; // term not found
                 }
-                de = postings[i] = termsEnum.docsAndPositions(null, null, DocsAndPositionsEnum.FLAG_OFFSETS);
-                if (de == null) {
-                    // no positions available
-                    throw new IllegalArgumentException("field '" + field + "' was indexed without offsets, cannot highlight");
-                }
+                de = postings[i] = termsEnum.postings(null, null, PostingsEnum.OFFSETS);
+                assert de != null;
                 pDoc = de.advance(doc);
             } else {
                 pDoc = de.docID();
@@ -512,12 +521,10 @@ public class XPostingsHighlighter {
 
         OffsetsEnum off;
         while ((off = pq.poll()) != null) {
-            final DocsAndPositionsEnum dp = off.dp;
+            final PostingsEnum dp = off.dp;
 
             int start = dp.startOffset();
-            if (start == -1) {
-                throw new IllegalArgumentException("field '" + field + "' was indexed without offsets, cannot highlight");
-            }
+            assert start >= 0;
             int end = dp.endOffset();
             // LUCENE-5166: this hit would span the content limit... however more valid
             // hits may exist (they are sorted by start). so we pretend like we never
@@ -651,11 +658,11 @@ public class XPostingsHighlighter {
     }
 
     private static class OffsetsEnum implements Comparable<OffsetsEnum> {
-        DocsAndPositionsEnum dp;
+        PostingsEnum dp;
         int pos;
         int id;
 
-        OffsetsEnum(DocsAndPositionsEnum dp, int id) throws IOException {
+        OffsetsEnum(PostingsEnum dp, int id) throws IOException {
             this.dp = dp;
             this.id = id;
             this.pos = 1;
@@ -677,7 +684,7 @@ public class XPostingsHighlighter {
         }
     }
 
-    private static final DocsAndPositionsEnum EMPTY = new DocsAndPositionsEnum() {
+    private static final PostingsEnum EMPTY = new PostingsEnum() {
 
         @Override
         public int nextPosition() throws IOException { return 0; }
@@ -707,19 +714,6 @@ public class XPostingsHighlighter {
         public long cost() { return 0; }
     };
 
-    /**
-     * we rewrite against an empty indexreader: as we don't want things like
-     * rangeQueries that don't summarize the document
-     */
-    private static Query rewrite(Query original) throws IOException {
-        Query query = original;
-        for (Query rewrittenQuery = query.rewrite(EMPTY_INDEXREADER); rewrittenQuery != query;
-             rewrittenQuery = query.rewrite(EMPTY_INDEXREADER)) {
-            query = rewrittenQuery;
-        }
-        return query;
-    }
-
     private static class LimitedStoredFieldVisitor extends StoredFieldVisitor {
         private final String fields[];
         private final char valueSeparators[];
@@ -739,7 +733,8 @@ public class XPostingsHighlighter {
         }
 
         @Override
-        public void stringField(FieldInfo fieldInfo, String value) throws IOException {
+        public void stringField(FieldInfo fieldInfo, byte[] bytes) throws IOException {
+            String value = new String(bytes, StandardCharsets.UTF_8);
             assert currentField >= 0;
             StringBuilder builder = builders[currentField];
             if (builder.length() > 0 && builder.length() < maxLength) {

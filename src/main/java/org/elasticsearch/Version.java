@@ -20,8 +20,8 @@
 package org.elasticsearch;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -179,7 +179,7 @@ public class Version {
     public static final int V_1_1_1_ID = 1010199;
     public static final Version V_1_1_1 = new Version(V_1_1_1_ID, false, org.apache.lucene.util.Version.LUCENE_4_7);
     public static final int V_1_1_2_ID = 1010299;
-    public static final Version V_1_1_2 = new Version(V_1_1_2_ID, true, org.apache.lucene.util.Version.LUCENE_4_7);
+    public static final Version V_1_1_2 = new Version(V_1_1_2_ID, false, org.apache.lucene.util.Version.LUCENE_4_7);
     public static final int V_1_2_0_ID = 1020099;
     public static final Version V_1_2_0 = new Version(V_1_2_0_ID, false, org.apache.lucene.util.Version.LUCENE_4_8);
     public static final int V_1_2_1_ID = 1020199;
@@ -209,7 +209,11 @@ public class Version {
     public static final int V_1_3_7_ID = 1030799;
     public static final Version V_1_3_7 = new Version(V_1_3_7_ID, false, org.apache.lucene.util.Version.LUCENE_4_9);
     public static final int V_1_3_8_ID = 1030899;
-    public static final Version V_1_3_8 = new Version(V_1_3_8_ID, true, org.apache.lucene.util.Version.LUCENE_4_9);
+    public static final Version V_1_3_8 = new Version(V_1_3_8_ID, false, org.apache.lucene.util.Version.LUCENE_4_9);
+    public static final int V_1_3_9_ID = 1030999;
+    public static final Version V_1_3_9 = new Version(V_1_3_9_ID, false, org.apache.lucene.util.Version.LUCENE_4_9);
+    public static final int V_1_3_10_ID = /*00*/1031099;
+    public static final Version V_1_3_10 = new Version(V_1_3_10_ID, true, org.apache.lucene.util.Version.LUCENE_4_9);
     public static final int V_1_4_0_Beta1_ID = 1040001;
     public static final Version V_1_4_0_Beta1 = new Version(V_1_4_0_Beta1_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_1);
     public static final int V_1_4_0_ID = 1040099;
@@ -219,11 +223,21 @@ public class Version {
     public static final int V_1_4_2_ID = 1040299;
     public static final Version V_1_4_2 = new Version(V_1_4_2_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_2);
     public static final int V_1_4_3_ID = 1040399;
-    public static final Version V_1_4_3 = new Version(V_1_4_3_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_2);
+    public static final Version V_1_4_3 = new Version(V_1_4_3_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_3);
+    public static final int V_1_4_4_ID = 1040499;
+    public static final Version V_1_4_4 = new Version(V_1_4_4_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_3);
+    public static final int V_1_4_5_ID = 1040599;
+    public static final Version V_1_4_5 = new Version(V_1_4_5_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_4);
     public static final int V_1_5_0_ID = 1050099;
-    public static final Version V_1_5_0 = new Version(V_1_5_0_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_3);
+    public static final Version V_1_5_0 = new Version(V_1_5_0_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_4);
+    public static final int V_1_5_1_ID = 1050199;
+    public static final Version V_1_5_1 = new Version(V_1_5_1_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_4);
+    public static final int V_1_5_2_ID = 1050299;
+    public static final Version V_1_5_2 = new Version(V_1_5_2_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_4);
+    public static final int V_1_6_0_ID = 1060099;
+    public static final Version V_1_6_0 = new Version(V_1_6_0_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_4);
     public static final int V_2_0_0_ID = 2000099;
-    public static final Version V_2_0_0 = new Version(V_2_0_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_1_0);
+    public static final Version V_2_0_0 = new Version(V_2_0_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_2_0);
 
     public static final Version CURRENT = V_2_0_0;
 
@@ -239,8 +253,18 @@ public class Version {
         switch (id) {
             case V_2_0_0_ID:
                 return V_2_0_0;
+            case V_1_6_0_ID:
+                return V_1_6_0;
+            case V_1_5_2_ID:
+                return V_1_5_2;
+            case V_1_5_1_ID:
+                return V_1_5_1;
             case V_1_5_0_ID:
                 return V_1_5_0;
+            case V_1_4_5_ID:
+                return V_1_4_5;
+            case V_1_4_4_ID:
+                return V_1_4_4;
             case V_1_4_3_ID:
                 return V_1_4_3;
             case V_1_4_2_ID:
@@ -251,6 +275,10 @@ public class Version {
                 return V_1_4_0;
             case V_1_4_0_Beta1_ID:
                 return V_1_4_0_Beta1;
+            case V_1_3_10_ID:
+                return V_1_3_10;
+            case V_1_3_9_ID:
+                return V_1_3_9;
             case V_1_3_8_ID:
                 return V_1_3_8;
             case V_1_3_7_ID:
@@ -457,7 +485,7 @@ public class Version {
         }
         String[] parts = version.split("\\.");
         if (parts.length < 3 || parts.length > 4) {
-            throw new IllegalArgumentException("the version needs to contain major, minor and revision, and optionally the build");
+            throw new IllegalArgumentException("the version needs to contain major, minor and revision, and optionally the build: " + version);
         }
 
         try {
@@ -553,6 +581,7 @@ public class Version {
         return sb.toString();
     }
 
+    @SuppressForbidden(reason = "System.out.*")
     public static void main(String[] args) {
         System.out.println("Version: " + Version.CURRENT + ", Build: " + Build.CURRENT.hashShort() + "/" + Build.CURRENT.timestamp() + ", JVM: " + JvmInfo.jvmInfo().version());
     }

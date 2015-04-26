@@ -43,6 +43,7 @@ import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -91,6 +92,7 @@ public abstract class SearchContext implements Releasable {
     private Multimap<Lifetime, Releasable> clearables = null;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
+    @Override
     public final void close() {
         if (closed.compareAndSet(false, true)) { // prevent double release
             try {
@@ -348,6 +350,11 @@ public abstract class SearchContext implements Releasable {
     public abstract FieldMappers smartNameFieldMappers(String name);
 
     public abstract FieldMapper smartNameFieldMapper(String name);
+
+    /**
+     * Looks up the given field, but does not restrict to fields in the types set on this context.
+     */
+    public abstract FieldMapper smartNameFieldMapperFromAnyType(String name);
 
     public abstract MapperService.SmartNameObjectMapper smartNameObjectMapper(String name);
 

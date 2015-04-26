@@ -92,6 +92,7 @@ public class SearchWhileRelocatingTests extends ElasticsearchIntegrationTest {
             Thread[] threads = new Thread[scaledRandomIntBetween(1, 3)];
             for (int j = 0; j < threads.length; j++) {
                 threads[j] = new Thread() {
+                    @Override
                     public void run() {
                         boolean criticalException = true;
                         try {

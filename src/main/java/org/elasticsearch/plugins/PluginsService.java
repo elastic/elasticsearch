@@ -21,6 +21,7 @@ package org.elasticsearch.plugins;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.*;
+
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -57,11 +59,13 @@ import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
  *
  */
 public class PluginsService extends AbstractComponent {
-    public static final String ES_PLUGIN_PROPERTIES_FILE_KEY = "properties_file";
+    public static final String ES_PLUGIN_PROPERTIES_FILE_KEY = "plugins.properties_file";
     public static final String ES_PLUGIN_PROPERTIES = "es-plugin.properties";
-    public static final String LOAD_PLUGIN_FROM_CLASSPATH = "load_classpath_plugins";
+    public static final String LOAD_PLUGIN_FROM_CLASSPATH = "plugins.load_classpath_plugins";
 
-    private static final PathMatcher PLUGIN_LIB_MATCHER = FileSystems.getDefault().getPathMatcher("glob:**.{jar,zip}");
+    static final String PLUGIN_LIB_PATTERN = "glob:**.{jar,zip}";
+    public static final String PLUGINS_CHECK_LUCENE_KEY = "plugins.check_lucene";
+    public static final String PLUGINS_INFO_REFRESH_INTERVAL_KEY = "plugins.info_refresh_interval";
 
 
     private final Environment environment;
@@ -98,9 +102,9 @@ public class PluginsService extends AbstractComponent {
     public PluginsService(Settings settings, Environment environment) {
         super(settings);
         this.environment = environment;
-        this.checkLucene = componentSettings.getAsBoolean("check_lucene", true);
-        this.esPluginPropertiesFile = componentSettings.get(ES_PLUGIN_PROPERTIES_FILE_KEY, ES_PLUGIN_PROPERTIES);
-        this.loadClasspathPlugins = componentSettings.getAsBoolean(LOAD_PLUGIN_FROM_CLASSPATH, true);
+        this.checkLucene = settings.getAsBoolean(PLUGINS_CHECK_LUCENE_KEY, true);
+        this.esPluginPropertiesFile = settings.get(ES_PLUGIN_PROPERTIES_FILE_KEY, ES_PLUGIN_PROPERTIES);
+        this.loadClasspathPlugins = settings.getAsBoolean(LOAD_PLUGIN_FROM_CLASSPATH, true);
 
         ImmutableList.Builder<Tuple<PluginInfo, Plugin>> tupleBuilder = ImmutableList.builder();
 
@@ -187,7 +191,7 @@ public class PluginsService extends AbstractComponent {
         }
         this.onModuleReferences = onModuleReferences.immutableMap();
 
-        this.refreshInterval = componentSettings.getAsTime("info_refresh_interval", TimeValue.timeValueSeconds(10));
+        this.refreshInterval = settings.getAsTime(PLUGINS_INFO_REFRESH_INTERVAL_KEY, TimeValue.timeValueSeconds(10));
     }
 
     public ImmutableList<Tuple<PluginInfo, Plugin>> plugins() {
@@ -387,13 +391,15 @@ public class PluginsService extends AbstractComponent {
                     List<Path> libFiles = Lists.newArrayList();
                     libFiles.addAll(Arrays.asList(files(plugin)));
                     Path libLocation = plugin.resolve("lib");
-                    if (Files.exists(libLocation) && Files.isDirectory(libLocation)) {
+                    if (Files.isDirectory(libLocation)) {
                         libFiles.addAll(Arrays.asList(files(libLocation)));
                     }
 
+                    PathMatcher matcher = PathUtils.getDefaultFileSystem().getPathMatcher(PLUGIN_LIB_PATTERN);
+
                     // if there are jars in it, add it as well
                     for (Path libFile : libFiles) {
-                        if (!hasLibExtension(libFile)) {
+                        if (!matcher.matches(libFile)) {
                             continue;
                         }
                         addURL.invoke(classLoader, libFile.toUri().toURL());
@@ -403,10 +409,6 @@ public class PluginsService extends AbstractComponent {
                 }
             }
         }
-    }
-
-    protected static boolean hasLibExtension(Path lib) {
-        return PLUGIN_LIB_MATCHER.matches(lib);
     }
 
     private Path[] files(Path from) throws IOException {
@@ -519,7 +521,7 @@ public class PluginsService extends AbstractComponent {
         // Let's try to find all _site plugins we did not already found
         Path pluginsFile = environment.pluginsFile();
 
-        if (!Files.exists(pluginsFile) || !Files.isDirectory(pluginsFile)) {
+        if (!Files.isDirectory(pluginsFile)) {
             return false;
         }
 

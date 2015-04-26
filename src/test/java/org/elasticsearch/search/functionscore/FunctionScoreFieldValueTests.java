@@ -100,5 +100,34 @@ public class FunctionScoreFieldValueTests extends ElasticsearchIntegrationTest {
             // This is fine, the query will throw an exception if executed
             // locally, instead of just having failures
         }
+
+        // don't permit an array of factors
+        try {
+          String querySource = "{" +
+            "\"query\": {" +
+            "  \"function_score\": {" +
+            "    \"query\": {" +
+            "      \"match\": {\"name\": \"foo\"}" +
+            "      }," +
+            "      \"functions\": [" +
+            "        {" +
+            "          \"field_value_factor\": {" +
+            "            \"field\": \"test\"," +
+            "            \"factor\": [1.2,2]" +
+            "          }" +
+            "        }" +
+            "      ]" +
+            "    }" +
+            "  }" +
+            "}";
+          response = client().prepareSearch("test")
+          .setSource(querySource)
+          .get();
+          assertFailures(response);
+        } catch (SearchPhaseExecutionException e) {
+          // This is fine, the query will throw an exception if executed
+          // locally, instead of just having failures
+        }
+
     }
 }

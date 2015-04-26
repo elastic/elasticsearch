@@ -175,6 +175,7 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
      * addition to the normal weightings) have their score multiplied by the
      * boost provided.
      */
+    @Override
     public FunctionScoreQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;

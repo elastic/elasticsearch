@@ -20,14 +20,15 @@
 package org.elasticsearch.index.percolator;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -49,8 +50,8 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.percolator.PercolatorService;
 
@@ -118,6 +119,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
         return percolateQueries;
     }
 
+    @Override
     public void close() {
         mapperService.removeTypeListener(percolateTypeListener);
         indicesLifecycle.removeListener(shardLifecycleListener);
@@ -275,12 +277,12 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
         }
 
         private int loadQueries(IndexShard shard) {
-            shard.refresh("percolator_load_queries", true);
+            shard.refresh("percolator_load_queries");
             // Maybe add a mode load? This isn't really a write. We need write b/c state=post_recovery
             try (Engine.Searcher searcher = shard.acquireSearcher("percolator_load_queries", true)) {
                 Query query = new ConstantScoreQuery(
                         indexCache.filter().cache(
-                                new TermFilter(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME)),
+                                Queries.wrap(new TermQuery(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME))),
                                 null,
                                 queryParserService.autoFilterCachePolicy()
                         )

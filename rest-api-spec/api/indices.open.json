@@ -1,6 +1,6 @@
 {
   "indices.open": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-open-close.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-open-close.html",
     "methods": ["POST"],
     "url": {
       "path": "/{index}/_open",
@@ -31,7 +31,7 @@
         },
         "expand_wildcards": {
            "type" : "enum",
-           "options" : ["open","closed"],
+           "options" : ["open","closed","none","all"],
            "default" : "closed",
            "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
         }

@@ -34,11 +34,6 @@ public class TypeMissingException extends IndexException {
         super(index, "type[" + Arrays.toString(types) + "] missing");
     }
 
-    public TypeMissingException(Index index, String[] types, String message) {
-        super(index, "type[" + Arrays.toString(types) + "] missing: " + message);
-    }
-
-
     @Override
     public RestStatus status() {
         return RestStatus.NOT_FOUND;

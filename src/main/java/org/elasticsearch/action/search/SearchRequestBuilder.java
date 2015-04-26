@@ -850,20 +850,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * {@link #setExtraSource(BytesReference)}.
      */
     public SearchRequestBuilder setSource(BytesReference source) {
-        request.source(source, false);
+        request.source(source);
         return this;
     }
-
-    /**
-     * Sets the source of the request as a json string. Note, settings anything other
-     * than the search type will cause this source to be overridden, consider using
-     * {@link #setExtraSource(BytesReference)}.
-     */
-    public SearchRequestBuilder setSource(BytesReference source, boolean unsafe) {
-        request.source(source, unsafe);
-        return this;
-    }
-
 
     /**
      * Sets the source of the request as a json string. Note, settings anything other
@@ -879,15 +868,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets the source of the request as a json string. Allows to set other parameters.
      */
     public SearchRequestBuilder setExtraSource(BytesReference source) {
-        request.extraSource(source, false);
-        return this;
-    }
-
-    /**
-     * Sets the source of the request as a json string. Allows to set other parameters.
-     */
-    public SearchRequestBuilder setExtraSource(BytesReference source, boolean unsafe) {
-        request.extraSource(source, unsafe);
+        request.extraSource(source);
         return this;
     }
 
@@ -975,7 +956,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     public SearchRequestBuilder setTemplateSource(BytesReference source) {
-        request.templateSource(source, true);
+        request.templateSource(source);
         return this;
     }
 

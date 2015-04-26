@@ -21,18 +21,19 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.StringAndBytesText;
-import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectInputStream;
 import java.util.*;
 
 /**
@@ -222,22 +223,6 @@ public abstract class StreamInput extends InputStream {
         return new StringAndBytesText(readBytesReference(length));
     }
 
-    public Text[] readTextArray() throws IOException {
-        int size = readVInt();
-        if (size == 0) {
-            return StringText.EMPTY_ARRAY;
-        }
-        Text[] ret = new Text[size];
-        for (int i = 0; i < size; i++) {
-            ret[i] = readText();
-        }
-        return ret;
-    }
-
-    public Text readSharedText() throws IOException {
-        return readText();
-    }
-
     @Nullable
     public String readOptionalString() throws IOException {
         if (readBoolean()) {
@@ -247,9 +232,9 @@ public abstract class StreamInput extends InputStream {
     }
 
     @Nullable
-    public String readOptionalSharedString() throws IOException {
+    public Integer readOptionalVInt() throws IOException {
         if (readBoolean()) {
-            return readSharedString();
+            return readVInt();
         }
         return null;
     }
@@ -286,10 +271,6 @@ public abstract class StreamInput extends InputStream {
         return spare.toString();
     }
 
-    public String readSharedString() throws IOException {
-        return readString();
-    }
-
 
     public final float readFloat() throws IOException {
         return Float.intBitsToFloat(readInt());
@@ -321,11 +302,13 @@ public abstract class StreamInput extends InputStream {
     /**
      * Resets the stream.
      */
+    @Override
     public abstract void reset() throws IOException;
 
     /**
      * Closes the stream to further operations.
      */
+    @Override
     public abstract void close() throws IOException;
 
 //    // IS
@@ -400,14 +383,14 @@ public abstract class StreamInput extends InputStream {
                 int size9 = readVInt();
                 Map map9 = new LinkedHashMap(size9);
                 for (int i = 0; i < size9; i++) {
-                    map9.put(readSharedString(), readGenericValue());
+                    map9.put(readString(), readGenericValue());
                 }
                 return map9;
             case 10:
                 int size10 = readVInt();
                 Map map10 = new HashMap(size10);
                 for (int i = 0; i < size10; i++) {
-                    map10.put(readSharedString(), readGenericValue());
+                    map10.put(readString(), readGenericValue());
                 }
                 return map10;
             case 11:
@@ -480,6 +463,15 @@ public abstract class StreamInput extends InputStream {
             return streamable;
         } else {
             return null;
+        }
+    }
+
+    public <T extends Throwable> T readThrowable() throws IOException {
+        try {
+            ObjectInputStream oin = new ObjectInputStream(this);
+            return (T) oin.readObject();
+        } catch (ClassNotFoundException e) {
+            throw new IOException("failed to deserialize exception", e);
         }
     }
 }

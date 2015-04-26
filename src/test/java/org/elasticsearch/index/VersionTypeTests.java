@@ -43,11 +43,6 @@ public class VersionTypeTests extends ElasticsearchTestCase {
         assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(Versions.NOT_FOUND, Versions.MATCH_ANY));
         assertFalse(VersionType.INTERNAL.isVersionConflictForReads(Versions.NOT_FOUND, Versions.MATCH_ANY));
 
-        // test 0 is still matching any for backwards compatibility with versions <1.2.0
-        assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(10, Versions.MATCH_ANY_PRE_1_2_0));
-        assertFalse(VersionType.INTERNAL.isVersionConflictForReads(10, Versions.MATCH_ANY_PRE_1_2_0));
-
-
         // and the stupid usual case
         assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(10, 10));
         assertFalse(VersionType.INTERNAL.isVersionConflictForReads(10, 10));

@@ -387,4 +387,23 @@ public class XContentMapValues {
             throw new ElasticsearchParseException(desc + " should be a hash but was of type: " + node.getClass());
         }
     }
+
+    /**
+     * Returns an array of string value from a node value.
+     *
+     * If the node represents an array the corresponding array of strings is returned.
+     * Otherwise the node is treated as a comma-separated string.
+     */
+    public static String[] nodeStringArrayValue(Object node) {
+        if (isArray(node)) {
+            List list = (List) node;
+            String[] arr = new String[list.size()];
+            for (int i = 0; i < arr.length; i++) {
+                arr[i] = nodeStringValue(list.get(i), null);
+            }
+            return arr;
+        } else {
+            return Strings.splitStringByCommaToArray(node.toString());
+        }
+    }
 }

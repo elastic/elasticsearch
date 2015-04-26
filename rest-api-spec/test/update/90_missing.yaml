@@ -20,6 +20,9 @@
 ---
 "Missing document (script)":
 
+  - skip:
+      features: groovy_scripting
+
 
   - do:
       catch:      missing

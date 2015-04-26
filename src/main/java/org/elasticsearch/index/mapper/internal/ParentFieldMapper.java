@@ -19,16 +19,18 @@
 package org.elasticsearch.index.mapper.internal;
 
 import com.google.common.base.Objects;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.queries.TermsFilter;
+import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -37,9 +39,16 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.InternalMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 
@@ -83,7 +92,6 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         protected String indexName;
 
         private String type;
-        protected PostingsFormatProvider postingsFormat;
         protected Settings fieldDataSettings;
 
         public Builder() {
@@ -97,11 +105,6 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             return builder;
         }
 
-        protected Builder postingsFormat(PostingsFormatProvider postingsFormat) {
-            this.postingsFormat = postingsFormat;
-            return builder;
-        }
-
         public Builder fieldDataSettings(Settings settings) {
             this.fieldDataSettings = settings;
             return builder;
@@ -112,7 +115,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             if (type == null) {
                 throw new MapperParsingException("Parent mapping must contain the parent type");
             }
-            return new ParentFieldMapper(name, indexName, type, postingsFormat, fieldDataSettings, context.indexSettings());
+            return new ParentFieldMapper(name, indexName, type, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -127,9 +130,8 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
                 if (fieldName.equals("type")) {
                     builder.type(fieldNode.toString());
                     iterator.remove();
-                } else if (fieldName.equals("postings_format")) {
-                    String postingFormatName = fieldNode.toString();
-                    builder.postingsFormat(parserContext.postingFormatService().get(postingFormatName));
+                } else if (fieldName.equals("postings_format") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                    // ignore before 2.0, reject on and after 2.0
                     iterator.remove();
                 } else if (fieldName.equals("fielddata")) {
                     // Only take over `loading`, since that is the only option now that is configurable:
@@ -148,15 +150,15 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     private final String type;
     private final BytesRef typeAsBytes;
 
-    protected ParentFieldMapper(String name, String indexName, String type, PostingsFormatProvider postingsFormat, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat, null, null, null, fieldDataSettings, indexSettings);
+    protected ParentFieldMapper(String name, String indexName, String type, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+        super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), false,
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
         this.type = type;
         this.typeAsBytes = type == null ? null : new BytesRef(type);
     }
 
     public ParentFieldMapper(Settings indexSettings) {
-        this(Defaults.NAME, Defaults.NAME, null, null, null, indexSettings);
+        this(Defaults.NAME, Defaults.NAME, null, null, indexSettings);
         this.fieldDataType = new FieldDataType("_parent", settingsBuilder().put(Loading.KEY, Loading.LAZY_VALUE));
     }
 
@@ -172,11 +174,6 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     @Override
     public FieldDataType defaultFieldDataType() {
         return new FieldDataType("_parent", settingsBuilder().put(Loading.KEY, Loading.EAGER_VALUE));
-    }
-
-    @Override
-    public boolean hasDocValues() {
-        return false;
     }
 
     @Override
@@ -278,7 +275,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         }
         BytesRef bValue = BytesRefs.toBytesRef(value);
         if (Uid.hasDelimiter(bValue)) {
-            return new TermFilter(new Term(names.indexName(), bValue));
+            return Queries.wrap(new TermQuery(new Term(names.indexName(), bValue)));
         }
 
         List<String> types = new ArrayList<>(context.mapperService().types().size());
@@ -289,16 +286,16 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         }
 
         if (types.isEmpty()) {
-            return Queries.MATCH_NO_FILTER;
+            return Queries.newMatchNoDocsFilter();
         } else if (types.size() == 1) {
-            return new TermFilter(new Term(names.indexName(), Uid.createUidAsBytes(types.get(0), bValue)));
+            return Queries.wrap(new TermQuery(new Term(names.indexName(), Uid.createUidAsBytes(types.get(0), bValue))));
         } else {
             // we use all non child types, cause we don't know if its exact or not...
             List<BytesRef> typesValues = new ArrayList<>(types.size());
             for (String type : context.mapperService().types()) {
                 typesValues.add(Uid.createUidAsBytes(type, bValue));
             }
-            return new TermsFilter(names.indexName(), typesValues);
+            return Queries.wrap(new TermsQuery(names.indexName(), typesValues));
         }
     }
 
@@ -331,7 +328,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
                 }
             }
         }
-        return new TermsFilter(names.indexName(), bValues);
+        return Queries.wrap(new TermsQuery(names.indexName(), bValues));
     }
 
     /**
@@ -366,13 +363,13 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         ParentFieldMapper other = (ParentFieldMapper) mergeWith;
         if (!Objects.equal(type, other.type)) {
-            mergeContext.addConflict("The _parent field's type option can't be changed");
+            mergeResult.addConflict("The _parent field's type option can't be changed: [" + type + "]->[" + other.type + "]");
         }
 
-        if (!mergeContext.mergeFlags().simulate()) {
+        if (!mergeResult.simulate()) {
             ParentFieldMapper fieldMergeWith = (ParentFieldMapper) mergeWith;
             if (fieldMergeWith.customFieldDataSettings != null) {
                 if (!Objects.equal(fieldMergeWith.customFieldDataSettings, this.customFieldDataSettings)) {

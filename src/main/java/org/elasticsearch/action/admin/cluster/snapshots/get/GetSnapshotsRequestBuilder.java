@@ -71,6 +71,16 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
     }
 
     /**
+     * Makes the request to return the current snapshot
+     *
+     * @return this builder
+     */
+    public GetSnapshotsRequestBuilder setCurrentSnapshot() {
+        request.snapshots(new String[] {GetSnapshotsRequest.CURRENT_SNAPSHOT});
+        return this;
+    }
+
+    /**
      * Adds additional snapshots to the list of snapshots to return
      *
      * @param snapshots additional snapshots

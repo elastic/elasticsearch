@@ -20,16 +20,22 @@
 package org.elasticsearch.indices;
 
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -44,18 +50,19 @@ public class IndicesCustomDataPathTests extends ElasticsearchIntegrationTest {
 
     @Before
     public void setup() {
-        path = newTempDirPath().toAbsolutePath().toString();
+        path = createTempDir().toAbsolutePath().toString();
     }
 
     @After
     public void teardown() throws Exception {
-        IOUtils.deleteFilesIgnoringExceptions(Paths.get(path));
+        IOUtils.deleteFilesIgnoringExceptions(PathUtils.get(path));
     }
 
     @Test
+    @TestLogging("_root:DEBUG,index:TRACE")
     public void testDataPathCanBeChanged() throws Exception {
         final String INDEX = "idx";
-        Path root = newTempDirPath();
+        Path root = createTempDir();
         Path startDir = root.resolve("start");
         Path endDir = root.resolve("end");
         logger.info("--> start dir: [{}]", startDir.toAbsolutePath().toString());
@@ -136,24 +143,5 @@ public class IndicesCustomDataPathTests extends ElasticsearchIntegrationTest {
         assertThat("found the hit", resp.getHits().getTotalHits(), equalTo(1L));
         assertAcked(client().admin().indices().prepareDelete(INDEX));
         assertPathHasBeenCleared(path);
-    }
-
-    private void assertPathHasBeenCleared(String path) throws Exception {
-        int count = 0;
-        StringBuilder sb = new StringBuilder();
-        sb.append("[");
-        if (Files.exists(Paths.get(path))) {
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(Paths.get(path))) {
-                for (Path file : stream) {
-                    if (Files.isRegularFile(file)) {
-                        count++;
-                        sb.append(file.toAbsolutePath().toString());
-                        sb.append("\n");
-                    }
-                }
-            }
-        }
-        sb.append("]");
-        assertThat(count + " files exist that should have been cleaned:\n" + sb.toString(), count, equalTo(0));
     }
 }

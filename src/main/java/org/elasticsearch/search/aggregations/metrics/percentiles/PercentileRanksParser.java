@@ -38,10 +38,12 @@ public class PercentileRanksParser extends AbstractPercentilesParser {
         return InternalPercentileRanks.TYPE.name();
     }
 
+    @Override
     protected String keysFieldName() {
         return "values";
     }
     
+    @Override
     protected AggregatorFactory buildFactory(SearchContext context, String aggregationName, ValuesSourceConfig<Numeric> valuesSourceConfig, double[] keys, double compression, boolean keyed) {
         if (keys == null) {
             throw new SearchParseException(context, "Missing token values in [" + aggregationName + "].");

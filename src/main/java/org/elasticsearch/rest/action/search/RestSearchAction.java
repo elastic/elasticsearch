@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.exists.RestExistsAction;
+import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -87,20 +88,11 @@ public class RestSearchAction extends BaseRestHandler {
         // get the content, and put it in the body
         // add content/source as template if template flag is set
         boolean isTemplateRequest = request.path().endsWith("/template");
-        if (request.hasContent()) {
+        if (RestActions.hasBodyContent(request)) {
             if (isTemplateRequest) {
-                searchRequest.templateSource(request.content(), request.contentUnsafe());
+                searchRequest.templateSource(RestActions.getRestContent(request));
             } else {
-                searchRequest.source(request.content(), request.contentUnsafe());
-            }
-        } else {
-            String source = request.param("source");
-            if (source != null) {
-                if (isTemplateRequest) {
-                    searchRequest.templateSource(source);
-                } else {
-                    searchRequest.source(source);
-                }
+                searchRequest.source(RestActions.getRestContent(request));
             }
         }
 
@@ -242,27 +234,6 @@ public class RestSearchAction extends BaseRestHandler {
                     }
                 } else {
                     searchSourceBuilder.sort(sort);
-                }
-            }
-        }
-
-        String sIndicesBoost = request.param("indices_boost");
-        if (sIndicesBoost != null) {
-            if (searchSourceBuilder == null) {
-                searchSourceBuilder = new SearchSourceBuilder();
-            }
-            String[] indicesBoost = Strings.splitStringByCommaToArray(sIndicesBoost);
-            for (String indexBoost : indicesBoost) {
-                int divisor = indexBoost.indexOf(',');
-                if (divisor == -1) {
-                    throw new ElasticsearchIllegalArgumentException("Illegal index boost [" + indexBoost + "], no ','");
-                }
-                String indexName = indexBoost.substring(0, divisor);
-                String sBoost = indexBoost.substring(divisor + 1);
-                try {
-                    searchSourceBuilder.indexBoost(indexName, Float.parseFloat(sBoost));
-                } catch (NumberFormatException e) {
-                    throw new ElasticsearchIllegalArgumentException("Illegal index boost [" + indexBoost + "], boost not a float number");
                 }
             }
         }

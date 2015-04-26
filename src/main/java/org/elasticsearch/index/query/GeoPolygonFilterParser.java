@@ -22,7 +22,7 @@ package org.elasticsearch.index.query;
 import com.google.common.collect.Lists;
 
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterCachingPolicy;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
@@ -37,8 +37,6 @@ import org.elasticsearch.index.search.geo.GeoPolygonFilter;
 
 import java.io.IOException;
 import java.util.List;
-
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
 
 /**
  * <pre>
@@ -70,7 +68,7 @@ public class GeoPolygonFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
+        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
         HashedBytesRef cacheKey = null;
         String fieldName = null;
 
@@ -157,7 +155,6 @@ public class GeoPolygonFilterParser implements FilterParser {
         if (cache != null) {
             filter = parseContext.cacheFilter(filter, cacheKey, cache);
         }
-        filter = wrapSmartNameFilter(filter, smartMappers, parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

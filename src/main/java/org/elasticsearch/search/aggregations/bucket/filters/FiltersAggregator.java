@@ -20,11 +20,18 @@
 package org.elasticsearch.search.aggregations.bucket.filters;
 
 import com.google.common.collect.Lists;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
@@ -49,40 +56,34 @@ public class FiltersAggregator extends BucketsAggregator {
     }
 
     private final KeyedFilter[] filters;
-    private final Bits[] bits;
-    private boolean keyed;
+    private final boolean keyed;
 
     public FiltersAggregator(String name, AggregatorFactories factories, List<KeyedFilter> filters, boolean keyed, AggregationContext aggregationContext,
             Aggregator parent, Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, metaData);
         this.keyed = keyed;
         this.filters = filters.toArray(new KeyedFilter[filters.size()]);
-        this.bits = new Bits[this.filters.length];
     }
 
     @Override
-    public boolean shouldCollect() {
-        return true;
-    }
-
-    @Override
-    public void setNextReader(LeafReaderContext reader) {
-        try {
-            for (int i = 0; i < filters.length; i++) {
-                bits[i] = DocIdSets.toSafeBits(reader.reader(), filters[i].filter.getDocIdSet(reader, null));
-            }
-        } catch (IOException ioe) {
-            throw new AggregationExecutionException("Failed to aggregate filter aggregator [" + name + "]", ioe);
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        // TODO: use the iterator if the filter does not support random access
+        // no need to provide deleted docs to the filter
+        final Bits[] bits = new Bits[filters.length];
+        for (int i = 0; i < filters.length; ++i) {
+            bits[i] = DocIdSets.asSequentialAccessBits(ctx.reader().maxDoc(), filters[i].filter.getDocIdSet(ctx, null));
         }
-    }
-
-    @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        for (int i = 0; i < bits.length; i++) {
-            if (bits[i].get(doc)) {
-                collectBucket(doc, bucketOrd(owningBucketOrdinal, i));
+        return new LeafBucketCollectorBase(sub, null) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                for (int i = 0; i < bits.length; i++) {
+                    if (bits[i].get(doc)) {
+                        collectBucket(sub, doc, bucketOrd(bucket, i));
+                    }
+                }
             }
-        }
+        };
     }
 
     @Override
@@ -108,7 +109,7 @@ public class FiltersAggregator extends BucketsAggregator {
         return new InternalFilters(name, buckets, keyed, metaData());
     }
 
-    private final long bucketOrd(long owningBucketOrdinal, int filterOrd) {
+    final long bucketOrd(long owningBucketOrdinal, int filterOrd) {
         return owningBucketOrdinal * filters.length + filterOrd;
     }
 

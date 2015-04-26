@@ -208,6 +208,17 @@ node:
   name: <NAME OF YOUR NODE>
 --------------------------------------------------
 
+The hostname of the machine is provided in the environment
+variable `HOSTNAME`. If on your machine you only run a
+single elasticsearch node for that cluster, you can set
+the node name to the hostname using the `${...}` notation:
+
+[source,yaml]
+--------------------------------------------------
+node:
+  name: ${HOSTNAME}
+--------------------------------------------------
+
 Internally, all settings are collapsed into "namespaced" settings. For
 example, the above gets collapsed into `node.name`. This means that
 its easy to support other configuration formats, for example,
@@ -323,6 +334,6 @@ appender section contains the destinations for the logs. Extensive information
 on how to customize logging and all the supported appenders can be found on
 the http://logging.apache.org/log4j/1.2/manual.html[log4j documentation].
 
-coming[1.5.0] Additional Appenders and other logging classes provided by 
+Additional Appenders and other logging classes provided by 
 http://logging.apache.org/log4j/extras/[log4j-extras] are also available, 
 out of the box.

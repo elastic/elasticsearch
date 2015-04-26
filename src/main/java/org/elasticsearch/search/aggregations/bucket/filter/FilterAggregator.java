@@ -22,7 +22,12 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
@@ -36,8 +41,6 @@ public class FilterAggregator extends SingleBucketAggregator {
 
     private final Filter filter;
 
-    private Bits bits;
-
     public FilterAggregator(String name,
                             org.apache.lucene.search.Filter filter,
                             AggregatorFactories factories,
@@ -49,19 +52,19 @@ public class FilterAggregator extends SingleBucketAggregator {
     }
 
     @Override
-    public void setNextReader(LeafReaderContext reader) {
-        try {
-            bits = DocIdSets.toSafeBits(reader.reader(), filter.getDocIdSet(reader, null));
-        } catch (IOException ioe) {
-            throw new AggregationExecutionException("Failed to aggregate filter aggregator [" + name + "]", ioe);
-        }
-    }
-
-    @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        if (bits.get(doc)) {
-            collectBucket(doc, owningBucketOrdinal);
-        }
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        // TODO: use the iterator if the filter does not support random access
+        // no need to provide deleted docs to the filter
+        final Bits bits = DocIdSets.asSequentialAccessBits(ctx.reader().maxDoc(), filter.getDocIdSet(ctx, null));
+        return new LeafBucketCollectorBase(sub, null) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (bits.get(doc)) {
+                    collectBucket(sub, doc, bucket);
+                }
+            }
+        };
     }
 
     @Override

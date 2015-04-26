@@ -28,6 +28,7 @@ import org.elasticsearch.common.text.Text;
 import org.joda.time.ReadableInstant;
 
 import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.util.Date;
 import java.util.LinkedHashMap;
@@ -48,10 +49,6 @@ public abstract class StreamOutput extends OutputStream {
     public StreamOutput setVersion(Version version) {
         this.version = version;
         return this;
-    }
-
-    public boolean seekPositionSupported() {
-        return false;
     }
 
     public long position() throws IOException {
@@ -176,12 +173,12 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public void writeOptionalSharedString(@Nullable String str) throws IOException {
-        if (str == null) {
+    public void writeOptionalVInt(@Nullable Integer integer) throws IOException {
+        if (integer == null) {
             writeBoolean(false);
         } else {
             writeBoolean(true);
-            writeSharedString(str);
+            writeVInt(integer);
         }
     }
 
@@ -208,17 +205,6 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public void writeTextArray(Text[] array) throws IOException {
-        writeVInt(array.length);
-        for (Text t : array) {
-            writeText(t);
-        }
-    }
-
-    public void writeSharedText(Text text) throws IOException {
-        writeText(text);
-    }
-
     public void writeString(String str) throws IOException {
         int charCount = str.length();
         writeVInt(charCount);
@@ -236,10 +222,6 @@ public abstract class StreamOutput extends OutputStream {
                 writeByte((byte) (0x80 | c >> 0 & 0x3F));
             }
         }
-    }
-
-    public void writeSharedString(String str) throws IOException {
-        writeString(str);
     }
 
     public void writeFloat(float v) throws IOException {
@@ -273,11 +255,13 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Forces any buffered output to be written.
      */
+    @Override
     public abstract void flush() throws IOException;
 
     /**
      * Closes this stream to further operations.
      */
+    @Override
     public abstract void close() throws IOException;
 
     public abstract void reset() throws IOException;
@@ -368,7 +352,7 @@ public abstract class StreamOutput extends OutputStream {
             Map<String, Object> map = (Map<String, Object>) value;
             writeVInt(map.size());
             for (Map.Entry<String, Object> entry : map.entrySet()) {
-                writeSharedString(entry.getKey());
+                writeString(entry.getKey());
                 writeGenericValue(entry.getValue());
             }
         } else if (type == Byte.class) {
@@ -444,5 +428,11 @@ public abstract class StreamOutput extends OutputStream {
         } else {
             writeBoolean(false);
         }
+    }
+
+    public void writeThrowable(Throwable throwable) throws IOException {
+        ObjectOutputStream out = new ObjectOutputStream(this);
+        out.writeObject(throwable);
+        out.flush();
     }
 }

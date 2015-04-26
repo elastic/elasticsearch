@@ -21,12 +21,15 @@ package org.elasticsearch.search.aggregations.metrics.min;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -42,45 +45,52 @@ import java.util.Map;
  */
 public class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
-    private final ValuesSource.Numeric valuesSource;
-    private NumericDoubleValues values;
+    final ValuesSource.Numeric valuesSource;
+    final ValueFormatter formatter;
 
-    private DoubleArray mins;
-    private ValueFormatter formatter;
+    DoubleArray mins;
 
     public MinAggregator(String name, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
             AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
-            mins = bigArrays.newDoubleArray(1, false);
+            mins = context.bigArrays().newDoubleArray(1, false);
             mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
         }
         this.formatter = formatter;
     }
 
     @Override
-    public boolean shouldCollect() {
-        return valuesSource != null;
+    public boolean needsScores() {
+        return valuesSource != null && valuesSource.needsScores();
     }
 
     @Override
-    public void setNextReader(LeafReaderContext reader) {
-        final SortedNumericDoubleValues values = valuesSource.doubleValues();
-        this.values = MultiValueMode.MIN.select(values, Double.POSITIVE_INFINITY);
-    }
-
-    @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        if (owningBucketOrdinal >= mins.size()) {
-            long from = mins.size();
-            mins = bigArrays.grow(mins, owningBucketOrdinal + 1);
-            mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        if (valuesSource == null) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final double value = values.get(doc);
-        double min = mins.get(owningBucketOrdinal);
-        min = Math.min(min, value);
-        mins.set(owningBucketOrdinal, min);
+        final BigArrays bigArrays = context.bigArrays();
+        final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
+        final NumericDoubleValues values = MultiValueMode.MIN.select(allValues, Double.POSITIVE_INFINITY);
+        return new LeafBucketCollectorBase(sub, allValues) {
+
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (bucket >= mins.size()) {
+                    long from = mins.size();
+                    mins = bigArrays.grow(mins, bucket + 1);
+                    mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
+                }
+                final double value = values.get(doc);
+                double min = mins.get(bucket);
+                min = Math.min(min, value);
+                mins.set(bucket, min);
+            }
+
+        };
     }
 
     @Override
@@ -89,12 +99,11 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        if (valuesSource == null) {
-            return new InternalMin(name, Double.POSITIVE_INFINITY, formatter, metaData());
+    public InternalAggregation buildAggregation(long bucket) {
+        if (valuesSource == null || bucket >= mins.size()) {
+            return buildEmptyAggregation();
         }
-        assert owningBucketOrdinal < mins.size();
-        return new InternalMin(name, mins.get(owningBucketOrdinal), formatter, metaData());
+        return new InternalMin(name, mins.get(bucket), formatter, metaData());
     }
 
     @Override

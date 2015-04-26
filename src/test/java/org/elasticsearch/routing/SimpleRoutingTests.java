@@ -20,6 +20,7 @@
 package org.elasticsearch.routing;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.explain.ExplainResponse;
@@ -30,27 +31,23 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.*;
 
-/**
- *
- */
 public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected int minimumNumberOfShards() {
         return 2;
     }
-
-    @Test
+    
     public void testSimpleCrudRouting() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -107,8 +104,7 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
             assertThat(client().prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(false));
         }
     }
-
-    @Test
+    
     public void testSimpleSearchRouting() {
         createIndex("test");
         ensureGreen();
@@ -174,8 +170,7 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
             assertThat(client().prepareCount().setRouting("0", "1", "0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
         }
     }
-
-    @Test
+    
     public void testRequiredRoutingMapping() throws Exception {
         client().admin().indices().prepareCreate("test").addAlias(new Alias("alias"))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_routing").field("required", true).endObject().endObject().endObject())
@@ -189,7 +184,7 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
         logger.info("--> indexing with id [1], with no routing, should fail");
         try {
             client().prepareIndex(indexOrAlias(), "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
-            fail();
+            fail("index with missing routing when routing is required should fail");
         } catch (ElasticsearchException e) {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
         }
@@ -199,17 +194,23 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
             assertThat(client().prepareGet(indexOrAlias(), "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
         }
 
-        logger.info("--> deleting with no routing, should broadcast the delete since _routing is required");
-        client().prepareDelete(indexOrAlias(), "type1", "1").setRefresh(true).execute().actionGet();
+        logger.info("--> deleting with no routing, should fail");
+        try {
+            client().prepareDelete(indexOrAlias(), "type1", "1").setRefresh(true).execute().actionGet();
+            fail("delete with missing routing when routing is required should fail");
+        } catch (ElasticsearchException e) {
+            assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
+        }
+
         for (int i = 0; i < 5; i++) {
             try {
                 client().prepareGet(indexOrAlias(), "type1", "1").execute().actionGet().isExists();
-                fail();
+                fail("get with missing routing when routing is required should fail");
             } catch (RoutingMissingException e) {
                 assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
             }
-            assertThat(client().prepareGet(indexOrAlias(), "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client().prepareGet(indexOrAlias(), "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
         }
 
         logger.info("--> indexing with id [1], and routing [0]");
@@ -230,8 +231,7 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
             assertThat(client().prepareGet(indexOrAlias(), "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(false));
         }
     }
-
-    @Test
+    
     public void testRequiredRoutingWithPathMapping() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .addAlias(new Alias("alias"))
@@ -239,6 +239,7 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
                         .startObject("_routing").field("required", true).field("path", "routing_field").endObject().startObject("properties")
                         .startObject("routing_field").field("type", "string").field("index", randomBoolean() ? "no" : "not_analyzed").field("doc_values", randomBoolean() ? "yes" : "no").endObject().endObject()
                         .endObject().endObject())
+                .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2_ID)
                 .execute().actionGet();
         ensureGreen();
 
@@ -269,14 +270,14 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
             assertThat(client().prepareGet(indexOrAlias(), "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
         }
     }
-
-    @Test
+    
     public void testRequiredRoutingWithPathMappingBulk() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .addAlias(new Alias("alias"))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
                         .startObject("_routing").field("required", true).field("path", "routing_field").endObject()
                         .endObject().endObject())
+                .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2_ID)
                 .execute().actionGet();
         ensureGreen();
 
@@ -301,14 +302,44 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @Test
-    public void testRequiredRoutingWithPathNumericType() throws Exception {
+    public void testRequiredRoutingBulk() throws Exception {
+        client().admin().indices().prepareCreate("test")
+            .addAlias(new Alias("alias"))
+            .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("_routing").field("required", true).endObject()
+                .endObject().endObject())
+            .execute().actionGet();
+        ensureGreen();
 
+        logger.info("--> indexing with id [1], and routing [0]");
+        client().prepareBulk().add(
+            client().prepareIndex(indexOrAlias(), "type1", "1").setRouting("0").setSource("field", "value1")).execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        logger.info("--> verifying get with no routing, should fail");
+        for (int i = 0; i < 5; i++) {
+            try {
+                client().prepareGet(indexOrAlias(), "type1", "1").execute().actionGet().isExists();
+                fail();
+            } catch (RoutingMissingException e) {
+                assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+                assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
+            }
+        }
+        logger.info("--> verifying get with routing, should find");
+        for (int i = 0; i < 5; i++) {
+            assertThat(client().prepareGet(indexOrAlias(), "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
+        }
+    }
+    
+    public void testRequiredRoutingWithPathNumericType() throws Exception {
+        
         client().admin().indices().prepareCreate("test")
                 .addAlias(new Alias("alias"))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
                         .startObject("_routing").field("required", true).field("path", "routing_field").endObject()
                         .endObject().endObject())
+                .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2_ID)
                 .execute().actionGet();
         ensureGreen();
 
@@ -331,8 +362,7 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
             assertThat(client().prepareGet(indexOrAlias(), "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
         }
     }
-
-    @Test
+    
     public void testRequiredRoutingMapping_variousAPIs() throws Exception {
         client().admin().indices().prepareCreate("test").addAlias(new Alias("alias"))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_routing").field("required", true).endObject().endObject().endObject())

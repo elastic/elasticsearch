@@ -103,6 +103,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         return canAllocate(node, allocation);
     }
 
+    @Override
     public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
         int currentRecoveries = 0;
         for (MutableShardRouting shard : node) {

@@ -19,7 +19,7 @@
 package org.elasticsearch.test.rest;
 
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -35,7 +35,6 @@ import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Execution context passed across the REST tests.
@@ -114,24 +113,15 @@ public class RestTestExecutionContext implements Closeable {
      * Extracts a specific value from the last saved response
      */
     public Object response(String path) throws IOException {
-        return response.evaluate(path);
+        return response.evaluate(path, stash);
     }
 
     /**
-     * Creates or updates the embedded REST client when needed. Needs to be called before each test.
+     * Creates the embedded REST client when needed. Needs to be called before each test.
      */
-    public void resetClient(InetSocketAddress[] addresses, Settings settings) throws IOException, RestException {
+    public void initClient(InetSocketAddress[] addresses, Settings settings) throws IOException, RestException {
         if (restClient == null) {
             restClient = new RestClient(restSpec, settings, addresses);
-        } else {
-            //re-initialize the REST client if the addresses have changed
-            //happens if there's a failure since we restart the global cluster due to that
-            Set<InetSocketAddress> newAddresses = Sets.newHashSet(addresses);
-            Set<InetSocketAddress> previousAddresses = Sets.newHashSet(restClient.httpAddresses());
-            if (!newAddresses.equals(previousAddresses)) {
-                restClient.close();
-                restClient = new RestClient(restSpec, settings, addresses);
-            }
         }
     }
 
@@ -151,13 +141,14 @@ public class RestTestExecutionContext implements Closeable {
     /**
      * Returns the current es version as a string
      */
-    public String esVersion() {
+    public Version esVersion() {
         return restClient.getEsVersion();
     }
 
     /**
      * Closes the execution context and releases the underlying resources
      */
+    @Override
     public void close() {
         if (restClient != null) {
             restClient.close();

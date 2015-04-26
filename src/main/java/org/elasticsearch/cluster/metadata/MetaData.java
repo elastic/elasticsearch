@@ -102,7 +102,6 @@ public class MetaData implements Iterable<IndexMetaData> {
         registerFactory(RepositoriesMetaData.TYPE, RepositoriesMetaData.FACTORY);
         registerFactory(SnapshotMetaData.TYPE, SnapshotMetaData.FACTORY);
         registerFactory(RestoreMetaData.TYPE, RestoreMetaData.FACTORY);
-        registerFactory(BenchmarkMetaData.TYPE, BenchmarkMetaData.FACTORY);
     }
 
     /**
@@ -128,7 +127,7 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     public static final String SETTING_READ_ONLY = "cluster.blocks.read_only";
 
-    public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA));
+    public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
 
     public static final MetaData EMPTY_META_DATA = builder().build();
 
@@ -320,9 +319,9 @@ public class MetaData implements Iterable<IndexMetaData> {
         return mapBuilder.build();
     }
 
-    private boolean matchAllAliases(final String[] aliases) {
+    private static boolean matchAllAliases(final String[] aliases) {
         for (String alias : aliases) {
-            if (alias.equals("_all")) {
+            if (alias.equals(ALL)) {
                 return true;
             }
         }
@@ -675,6 +674,15 @@ public class MetaData implements Iterable<IndexMetaData> {
 
             aliasesOrIndices = convertFromWildcards(aliasesOrIndices, indicesOptions);
         }
+
+        if (aliasesOrIndices == null || aliasesOrIndices.length == 0) {
+            if (!indicesOptions.allowNoIndices()) {
+                throw new ElasticsearchIllegalArgumentException("no indices were specified and wildcard expansion is disabled.");
+            } else {
+                return Strings.EMPTY_ARRAY;
+            }
+        }
+
         boolean failClosed = indicesOptions.forbidClosedIndices() && !indicesOptions.ignoreUnavailable();
 
         // optimize for single element index (common case)
@@ -1059,7 +1067,7 @@ public class MetaData implements Iterable<IndexMetaData> {
      * @param types the array containing index names
      * @return true if the provided array maps to all indices, false otherwise
      */
-    public boolean isAllTypes(String[] types) {
+    public static boolean isAllTypes(String[] types) {
         return types == null || types.length == 0 || isExplicitAllPattern(types);
     }
 

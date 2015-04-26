@@ -20,6 +20,7 @@
 package org.elasticsearch.search.query;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -36,7 +37,6 @@ import java.util.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 
-
 public class ExistsMissingTests extends ElasticsearchIntegrationTest {
 
     public void testExistsMissing() throws Exception {
@@ -45,9 +45,7 @@ public class ExistsMissingTests extends ElasticsearchIntegrationTest {
             .startObject()
                 .startObject("type")
                     .startObject(FieldNamesFieldMapper.NAME)
-                        // by setting randomly index to no we also test the pre-1.3 behavior
-                        .field("index", randomFrom("no", "not_analyzed"))
-                        .field("store", randomFrom("no", "yes"))
+                        .field("enabled", randomBoolean())
                     .endObject()
                     .startObject("properties")
                         .startObject("foo")
@@ -98,13 +96,12 @@ public class ExistsMissingTests extends ElasticsearchIntegrationTest {
 
         final Map<String, Integer> expected = new LinkedHashMap<String, Integer>();
         expected.put("foo", 1);
-        expected.put("f*", 2); // foo and bar.foo, that's how the expansion works
+        expected.put("f*", 1);
         expected.put("bar", 2);
         expected.put("bar.*", 2);
         expected.put("bar.foo", 1);
         expected.put("bar.bar", 1);
         expected.put("bar.bar.bar", 1);
-        expected.put("baz", 1);
         expected.put("foobar", 0);
 
         ensureYellow("idx");

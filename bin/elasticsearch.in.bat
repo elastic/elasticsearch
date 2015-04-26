@@ -14,11 +14,11 @@ for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 REM ***** JAVA options *****
 
 if "%ES_MIN_MEM%" == "" (
-set ES_MIN_MEM=256m
+set ES_MIN_MEM=${packaging.elasticsearch.heap.min}
 )
 
 if "%ES_MAX_MEM%" == "" (
-set ES_MAX_MEM=1g
+set ES_MAX_MEM=${packaging.elasticsearch.heap.max}
 )
 
 if NOT "%ES_HEAP_SIZE%" == "" (
@@ -59,12 +59,19 @@ set JAVA_OPTS=%JAVA_OPTS% -XX:+UseCMSInitiatingOccupancyOnly
 REM When running under Java 7
 REM JAVA_OPTS=%JAVA_OPTS% -XX:+UseCondCardMark
 
-if NOT "%ES_USE_GC_LOGGING%" == "" set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCDetails
-if NOT "%ES_USE_GC_LOGGING%" == "" set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCTimeStamps
-if NOT "%ES_USE_GC_LOGGING%" == "" set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintClassHistogram
-if NOT "%ES_USE_GC_LOGGING%" == "" set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintTenuringDistribution
-if NOT "%ES_USE_GC_LOGGING%" == "" set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCApplicationStoppedTime
-if NOT "%ES_USE_GC_LOGGING%" == "" set JAVA_OPTS=%JAVA_OPTS% -Xloggc:%ES_HOME%/logs/gc.log
+if "%ES_GC_LOG_FILE%" == "" goto nogclog
+
+:gclog
+set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCDetails
+set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCTimeStamps
+set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintClassHistogram
+set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintTenuringDistribution
+set JAVA_OPTS=%JAVA_OPTS% -XX:+PrintGCApplicationStoppedTime
+set JAVA_OPTS=%JAVA_OPTS% -Xloggc:%ES_GC_LOG_FILE%
+for %%F in ("%ES_GC_LOG_FILE%") do set ES_GC_LOG_FILE_DIRECTORY=%%~dpF
+if NOT EXIST "%ES_GC_LOG_FILE_DIRECTORY%\." mkdir "%ES_GC_LOG_FILE_DIRECTORY%"
+
+:nogclog
 
 REM Causes the JVM to dump its heap on OutOfMemory.
 set JAVA_OPTS=%JAVA_OPTS% -XX:+HeapDumpOnOutOfMemoryError

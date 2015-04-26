@@ -30,6 +30,9 @@ import java.io.IOException;
  */
 public class ClusterStatsRequest extends NodesOperationRequest<ClusterStatsRequest> {
 
+    ClusterStatsRequest() {
+    }
+
     /**
      * Get stats from nodes based on the nodes ids specified. If none are passed, stats
      * based on all nodes will be returned.

@@ -22,8 +22,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.text.StringText;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -92,13 +90,13 @@ public class DoubleTerms extends InternalTerms {
         }
 
         @Override
-        public String getKey() {
+        public String getKeyAsString() {
             return String.valueOf(term);
         }
 
         @Override
-        public Text getKeyAsText() {
-            return new StringText(String.valueOf(term));
+        public Object getKey() {
+            return term;
         }
 
         @Override
@@ -108,12 +106,7 @@ public class DoubleTerms extends InternalTerms {
 
         @Override
         int compareTerm(Terms.Bucket other) {
-            return Double.compare(term, other.getKeyAsNumber().doubleValue());
-        }
-
-        @Override
-        Object getKeyAsObject() {
-            return getKeyAsNumber();
+            return Double.compare(term, ((Number) other.getKey()).doubleValue());
         }
 
         @Override

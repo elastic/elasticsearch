@@ -99,8 +99,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
     }
 
     @Override
-    public InternalAggregation reduce(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         InternalCardinality reduced = null;
         for (InternalAggregation aggregation : aggregations) {
             final InternalCardinality cardinality = (InternalCardinality) aggregation;
@@ -129,7 +128,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         final long cardinality = getValue();
         builder.field(CommonFields.VALUE, cardinality);
-        if (valueFormatter != null) {
+        if (valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
             builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(cardinality));
         }
         return builder;

@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.ImmutableList;
+
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.SpawnModules;
@@ -27,7 +28,6 @@ import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.filters.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.missing.InternalMissing;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
@@ -36,6 +36,8 @@ import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.range.date.InternalDateRange;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.InternalGeoDistance;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.InternalIPv4Range;
+import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
+import org.elasticsearch.search.aggregations.bucket.sampler.UnmappedSampler;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantLongTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.UnmappedSignificantTerms;
@@ -83,6 +85,8 @@ public class TransportAggregationModule extends AbstractModule implements SpawnM
         InternalGlobal.registerStreams();
         InternalFilter.registerStreams();
         InternalFilters.registerStream();
+        InternalSampler.registerStreams();
+        UnmappedSampler.registerStreams();
         InternalMissing.registerStreams();
         StringTerms.registerStreams();
         LongTerms.registerStreams();
@@ -96,7 +100,6 @@ public class TransportAggregationModule extends AbstractModule implements SpawnM
         InternalDateRange.registerStream();
         InternalIPv4Range.registerStream();
         InternalHistogram.registerStream();
-        InternalDateHistogram.registerStream();
         InternalGeoDistance.registerStream();
         InternalNested.registerStream();
         InternalReverseNested.registerStream();

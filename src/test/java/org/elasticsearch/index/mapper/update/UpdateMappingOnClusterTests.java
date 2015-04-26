@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.update;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.client.Client;
@@ -38,7 +39,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-
 
 public class UpdateMappingOnClusterTests extends ElasticsearchIntegrationTest {
 
@@ -65,9 +65,9 @@ public class UpdateMappingOnClusterTests extends ElasticsearchIntegrationTest {
                 "[_all] has different store_term_vector_offsets values",
                 "[_all] has different store_term_vector_positions values",
                 "[_all] has different store_term_vector_payloads values",
-                "[_all] has different index_analyzer",
+                "[_all] has different analyzer",
                 "[_all] has different similarity"};
-        // auto_boost and fielddata and search_analyzer should not report conflict
+        // fielddata and search_analyzer should not report conflict
         testConflict(mapping, mappingUpdate, errorMessage);
     }
 
@@ -204,6 +204,7 @@ public class UpdateMappingOnClusterTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/10297")
     public void testTimestampMergingConflicts() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject(TYPE)
                 .startObject("_timestamp").field("enabled", true)

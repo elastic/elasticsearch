@@ -26,7 +26,9 @@ import com.carrotsearch.hppc.predicates.ObjectPredicate;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
@@ -48,7 +50,9 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.transport.ConnectTransportException;
 
-import java.util.*;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -77,8 +81,8 @@ public class GatewayAllocator extends AbstractComponent {
         this.listGatewayStartedShards = listGatewayStartedShards;
         this.listShardStoreMetaData = listShardStoreMetaData;
 
-        this.listTimeout = componentSettings.getAsTime("list_timeout", settings.getAsTime("gateway.local.list_timeout", TimeValue.timeValueSeconds(30)));
-        this.initialShards = componentSettings.get("initial_shards", settings.get("gateway.local.initial_shards", "quorum"));
+        this.listTimeout = settings.getAsTime("gateway.list_timeout", settings.getAsTime("gateway.local.list_timeout", TimeValue.timeValueSeconds(30)));
+        this.initialShards = settings.get("gateway.initial_shards", settings.get("gateway.local.initial_shards", "quorum"));
 
         logger.debug("using initial_shards [{}], list_timeout [{}]", initialShards, listTimeout);
     }
@@ -103,6 +107,7 @@ public class GatewayAllocator extends AbstractComponent {
         RoutingNodes routingNodes = allocation.routingNodes();
 
         // First, handle primaries, they must find a place to be allocated on here
+        MetaData metaData = routingNodes.metaData();
         Iterator<MutableShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
         while (unassignedIterator.hasNext()) {
             MutableShardRouting shard = unassignedIterator.next();
@@ -116,7 +121,7 @@ public class GatewayAllocator extends AbstractComponent {
                 continue;
             }
 
-            ObjectLongOpenHashMap<DiscoveryNode> nodesState = buildShardStates(nodes, shard);
+            ObjectLongOpenHashMap<DiscoveryNode> nodesState = buildShardStates(nodes, shard, metaData.index(shard.index()));
 
             int numberOfAllocationsFound = 0;
             long highestVersion = -1;
@@ -367,7 +372,7 @@ public class GatewayAllocator extends AbstractComponent {
         return changed;
     }
 
-    private ObjectLongOpenHashMap<DiscoveryNode> buildShardStates(final DiscoveryNodes nodes, MutableShardRouting shard) {
+    private ObjectLongOpenHashMap<DiscoveryNode> buildShardStates(final DiscoveryNodes nodes, MutableShardRouting shard, IndexMetaData indexMetaData) {
         ObjectLongOpenHashMap<DiscoveryNode> shardStates = cachedShardsState.get(shard.shardId());
         ObjectOpenHashSet<String> nodeIds;
         if (shardStates == null) {
@@ -396,20 +401,8 @@ public class GatewayAllocator extends AbstractComponent {
         }
 
         String[] nodesIdsArray = nodeIds.toArray(String.class);
-        TransportNodesListGatewayStartedShards.NodesGatewayStartedShards response = listGatewayStartedShards.list(shard.shardId(), nodesIdsArray, listTimeout).actionGet();
-        if (logger.isDebugEnabled()) {
-            if (response.failures().length > 0) {
-                StringBuilder sb = new StringBuilder(shard + ": failures when trying to list shards on nodes:");
-                for (int i = 0; i < response.failures().length; i++) {
-                    Throwable cause = ExceptionsHelper.unwrapCause(response.failures()[i]);
-                    if (cause instanceof ConnectTransportException) {
-                        continue;
-                    }
-                    sb.append("\n    -> ").append(response.failures()[i].getDetailedMessage());
-                }
-                logger.debug(sb.toString());
-            }
-        }
+        TransportNodesListGatewayStartedShards.NodesGatewayStartedShards response = listGatewayStartedShards.list(shard.shardId(), indexMetaData.getUUID(), nodesIdsArray, listTimeout).actionGet();
+        logListActionFailures(shard, "state", response.failures());
 
         for (TransportNodesListGatewayStartedShards.NodeGatewayStartedShards nodeShardState : response) {
             // -1 version means it does not exists, which is what the API returns, and what we expect to
@@ -418,6 +411,17 @@ public class GatewayAllocator extends AbstractComponent {
             shardStates.put(nodeShardState.getNode(), nodeShardState.version());
         }
         return shardStates;
+    }
+
+    private void logListActionFailures(MutableShardRouting shard, String actionType, FailedNodeException[] failures) {
+        for (final FailedNodeException failure : failures) {
+            Throwable cause = ExceptionsHelper.unwrapCause(failure);
+            if (cause instanceof ConnectTransportException) {
+                continue;
+            }
+            // we log warn here. debug logs with full stack traces will be logged if debug logging is turned on for TransportNodeListGatewayStartedShards
+            logger.warn("{}: failed to list shard {} on node [{}]", failure, shard.shardId(), actionType, failure.nodeId());
+        }
     }
 
     private Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> buildShardStores(DiscoveryNodes nodes, MutableShardRouting shard) {
@@ -448,19 +452,7 @@ public class GatewayAllocator extends AbstractComponent {
         if (!nodesIds.isEmpty()) {
             String[] nodesIdsArray = nodesIds.toArray(String.class);
             TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData nodesStoreFilesMetaData = listShardStoreMetaData.list(shard.shardId(), false, nodesIdsArray, listTimeout).actionGet();
-            if (logger.isTraceEnabled()) {
-                if (nodesStoreFilesMetaData.failures().length > 0) {
-                    StringBuilder sb = new StringBuilder(shard + ": failures when trying to list stores on nodes:");
-                    for (int i = 0; i < nodesStoreFilesMetaData.failures().length; i++) {
-                        Throwable cause = ExceptionsHelper.unwrapCause(nodesStoreFilesMetaData.failures()[i]);
-                        if (cause instanceof ConnectTransportException) {
-                            continue;
-                        }
-                        sb.append("\n    -> ").append(nodesStoreFilesMetaData.failures()[i].getDetailedMessage());
-                    }
-                    logger.trace(sb.toString());
-                }
-            }
+            logListActionFailures(shard, "stores", nodesStoreFilesMetaData.failures());
 
             for (TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData nodeStoreFilesMetaData : nodesStoreFilesMetaData) {
                 if (nodeStoreFilesMetaData.storeFilesMetaData() != null) {

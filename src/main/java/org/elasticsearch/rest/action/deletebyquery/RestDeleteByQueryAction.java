@@ -26,7 +26,6 @@ import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.ShardDeleteByQueryRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.QuerySourceBuilder;
-import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -55,27 +54,18 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         deleteByQueryRequest.listenerThreaded(false);
-        if (request.hasContent()) {
-            deleteByQueryRequest.source(request.content(), request.contentUnsafe());
+        if (RestActions.hasBodyContent(request)) {
+            deleteByQueryRequest.source(RestActions.getRestContent(request));
         } else {
-            String source = request.param("source");
-            if (source != null) {
-                deleteByQueryRequest.source(source);
-            } else {
-                QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
-                if (querySourceBuilder != null) {
-                    deleteByQueryRequest.source(querySourceBuilder);
-                }
+            QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
+            if (querySourceBuilder != null) {
+                deleteByQueryRequest.source(querySourceBuilder);
             }
         }
         deleteByQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         deleteByQueryRequest.timeout(request.paramAsTime("timeout", ShardDeleteByQueryRequest.DEFAULT_TIMEOUT));
 
         deleteByQueryRequest.routing(request.param("routing"));
-        String replicationType = request.param("replication");
-        if (replicationType != null) {
-            deleteByQueryRequest.replicationType(ReplicationType.fromString(replicationType));
-        }
         String consistencyLevel = request.param("consistency");
         if (consistencyLevel != null) {
             deleteByQueryRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));

@@ -56,8 +56,8 @@ setup:
     indices.get_mapping:
         index: test-x*
 
- - match: { test-xxx.mappings.type_1.properties: {}}
- - match: { test-xxy.mappings.type_2.properties: {}}
+ - match: { test-xxx.mappings.type_1: {}}
+ - match: { test-xxy.mappings.type_2: {}}
 
 ---
 "Get test-* with wildcard_expansion=all":
@@ -67,9 +67,9 @@ setup:
         index: test-x*
         expand_wildcards: all
 
- - match: { test-xxx.mappings.type_1.properties: {}}
- - match: { test-xxy.mappings.type_2.properties: {}}
- - match: { test-xyy.mappings.type_3.properties: {}}
+ - match: { test-xxx.mappings.type_1: {}}
+ - match: { test-xxy.mappings.type_2: {}}
+ - match: { test-xyy.mappings.type_3: {}}
 
 ---
 "Get test-* with wildcard_expansion=open":
@@ -79,8 +79,8 @@ setup:
         index: test-x*
         expand_wildcards: open
 
- - match: { test-xxx.mappings.type_1.properties: {}}
- - match: { test-xxy.mappings.type_2.properties: {}}
+ - match: { test-xxx.mappings.type_1: {}}
+ - match: { test-xxy.mappings.type_2: {}}
 
 ---
 "Get test-* with wildcard_expansion=closed":
@@ -90,7 +90,7 @@ setup:
         index: test-x*
         expand_wildcards: closed
 
- - match: { test-xyy.mappings.type_3.properties: {}}
+ - match: { test-xyy.mappings.type_3: {}}
 
 ---
 "Get test-* with wildcard_expansion=none":
@@ -110,8 +110,8 @@ setup:
         index: test-x*
         expand_wildcards: open,closed
 
- - match: { test-xxx.mappings.type_1.properties: {}}
- - match: { test-xxy.mappings.type_2.properties: {}}
- - match: { test-xyy.mappings.type_3.properties: {}}
+ - match: { test-xxx.mappings.type_1: {}}
+ - match: { test-xxy.mappings.type_2: {}}
+ - match: { test-xyy.mappings.type_3: {}}
 
 

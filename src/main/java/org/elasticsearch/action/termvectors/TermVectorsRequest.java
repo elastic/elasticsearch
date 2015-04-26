@@ -28,6 +28,7 @@ import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -74,8 +75,58 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
 
     private Map<String, String> perFieldAnalyzer;
 
+    private FilterSettings filterSettings;
+
+    public static final class FilterSettings {
+        public Integer maxNumTerms;
+        public Integer minTermFreq;
+        public Integer maxTermFreq;
+        public Integer minDocFreq;
+        public Integer maxDocFreq;
+        public Integer minWordLength;
+        public Integer maxWordLength;
+
+        public FilterSettings() {
+
+        }
+
+        public FilterSettings(@Nullable Integer maxNumTerms, @Nullable Integer minTermFreq, @Nullable Integer maxTermFreq,
+                              @Nullable Integer minDocFreq, @Nullable Integer maxDocFreq, @Nullable Integer minWordLength,
+                              @Nullable Integer maxWordLength) {
+            this.maxNumTerms = maxNumTerms;
+            this.minTermFreq = minTermFreq;
+            this.maxTermFreq = maxTermFreq;
+            this.minDocFreq = minDocFreq;
+            this.maxDocFreq = maxDocFreq;
+            this.minWordLength = minWordLength;
+            this.maxWordLength = maxWordLength;
+        }
+
+        public void readFrom(StreamInput in) throws IOException {
+            maxNumTerms = in.readOptionalVInt();
+            minTermFreq = in.readOptionalVInt();
+            maxTermFreq = in.readOptionalVInt();
+            minDocFreq = in.readOptionalVInt();
+            maxDocFreq = in.readOptionalVInt();
+            minWordLength = in.readOptionalVInt();
+            maxWordLength = in.readOptionalVInt();
+        }
+
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalVInt(maxNumTerms);
+            out.writeOptionalVInt(minTermFreq);
+            out.writeOptionalVInt(maxTermFreq);
+            out.writeOptionalVInt(minDocFreq);
+            out.writeOptionalVInt(maxDocFreq);
+            out.writeOptionalVInt(minWordLength);
+            out.writeOptionalVInt(maxWordLength);
+        }
+    }
+
     private EnumSet<Flag> flagsEnum = EnumSet.of(Flag.Positions, Flag.Offsets, Flag.Payloads,
             Flag.FieldStatistics);
+
+    long startTime;
 
     public TermVectorsRequest() {
     }
@@ -100,13 +151,22 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
         super(other.index());
         this.id = other.id();
         this.type = other.type();
+        if (this.doc != null) {
+            this.doc = other.doc().copyBytesArray();
+        }
         this.flagsEnum = other.getFlags().clone();
         this.preference = other.preference();
         this.routing = other.routing();
         if (other.selectedFields != null) {
             this.selectedFields = new HashSet<>(other.selectedFields);
         }
+        if (other.perFieldAnalyzer != null) {
+            this.perFieldAnalyzer = new HashMap<>(other.perFieldAnalyzer);
+        }
         this.realtime = other.realtime();
+        this.version = other.version();
+        this.versionType = VersionType.fromValue(other.versionType().getValue());
+        this.startTime = other.startTime();
     }
 
     public TermVectorsRequest(MultiGetRequest.Item item) {
@@ -132,6 +192,7 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
     /**
      * Returns the type of document to get the term vector for.
      */
+    @Override
     public String type() {
         return type;
     }
@@ -139,6 +200,7 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
     /**
      * Returns the id of document the term vector is requested for.
      */
+    @Override
     public String id() {
         return id;
     }
@@ -180,10 +242,12 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
     /**
      * @return The routing for this request.
      */
+    @Override
     public String routing() {
         return routing;
     }
 
+    @Override
     public TermVectorsRequest routing(String routing) {
         this.routing = routing;
         return this;
@@ -360,6 +424,21 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
         return this;
     }
 
+    /**
+     * Return the settings for filtering out terms.
+     */
+    public FilterSettings filterSettings() {
+        return this.filterSettings;
+    }
+
+    /**
+     * Sets the settings for filtering out terms.
+     */
+    public TermVectorsRequest filterSettings(FilterSettings settings) {
+        this.filterSettings = settings != null ? settings : null;
+        return this;
+    }
+
     public long version() {
         return version;
     }
@@ -385,6 +464,10 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
             flagsEnum.remove(flag);
             assert (!flagsEnum.contains(flag));
         }
+    }
+
+    public long startTime() {
+        return this.startTime;
     }
 
     @Override
@@ -435,6 +518,10 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
         if (in.readBoolean()) {
             perFieldAnalyzer = readPerFieldAnalyzer(in.readMap());
         }
+        if (in.readBoolean()) {
+            filterSettings = new FilterSettings();
+            filterSettings.readFrom(in);
+        }
         realtime = in.readBoolean();
         versionType = VersionType.fromValue(in.readByte());
         version = in.readLong();
@@ -468,6 +555,10 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
         out.writeBoolean(perFieldAnalyzer != null);
         if (perFieldAnalyzer != null) {
             out.writeGenericValue(perFieldAnalyzer);
+        }
+        out.writeBoolean(filterSettings != null);
+        if (filterSettings != null) {
+            filterSettings.writeTo(out);
         }
         out.writeBoolean(realtime());
         out.writeByte(versionType.getValue());
@@ -514,6 +605,8 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
                     termVectorsRequest.dfs(parser.booleanValue());
                 } else if (currentFieldName.equals("per_field_analyzer") || currentFieldName.equals("perFieldAnalyzer")) {
                     termVectorsRequest.perFieldAnalyzer(readPerFieldAnalyzer(parser.map()));
+                } else if (currentFieldName.equals("filter")) {
+                    termVectorsRequest.filterSettings(readFilterSettings(parser, termVectorsRequest));
                 } else if ("_index".equals(currentFieldName)) { // the following is important for multi request parsing.
                     termVectorsRequest.index = parser.text();
                 } else if ("_type".equals(currentFieldName)) {
@@ -557,5 +650,36 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
             }
         }
         return mapStrStr;
+    }
+
+    private static FilterSettings readFilterSettings(XContentParser parser, TermVectorsRequest termVectorsRequest) throws IOException {
+        FilterSettings settings = new FilterSettings();
+        XContentParser.Token token;
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (currentFieldName != null) {
+                if (currentFieldName.equals("max_num_terms")) {
+                    settings.maxNumTerms = parser.intValue();
+                } else if (currentFieldName.equals("min_term_freq")) {
+                    settings.minTermFreq = parser.intValue();
+                } else if (currentFieldName.equals("max_term_freq")) {
+                    settings.maxTermFreq = parser.intValue();
+                } else if (currentFieldName.equals("min_doc_freq")) {
+                    settings.minDocFreq = parser.intValue();
+                } else if (currentFieldName.equals("max_doc_freq")) {
+                    settings.maxDocFreq = parser.intValue();
+                } else if (currentFieldName.equals("min_word_length")) {
+                    settings.minWordLength = parser.intValue();
+                } else if (currentFieldName.equals("max_word_length")) {
+                    settings.maxWordLength = parser.intValue();
+                } else {
+                    throw new ElasticsearchParseException("The parameter " + currentFieldName
+                            + " is not valid for filter parameter for term vector request!");
+                }
+            }
+        }
+        return settings;
     }
 }

@@ -20,7 +20,6 @@
 package org.elasticsearch.client.support;
 
 import org.elasticsearch.action.*;
-import org.elasticsearch.action.bench.*;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -45,6 +44,10 @@ import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainRequestBuilder;
 import org.elasticsearch.action.explain.ExplainResponse;
+import org.elasticsearch.action.fieldstats.FieldStatsAction;
+import org.elasticsearch.action.fieldstats.FieldStatsRequest;
+import org.elasticsearch.action.fieldstats.FieldStatsRequestBuilder;
+import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.get.*;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -286,6 +289,7 @@ public abstract class AbstractClient implements Client {
      * @param request The put request
      * @return The result future
      */
+    @Override
     public ActionFuture<DeleteIndexedScriptResponse> deleteIndexedScript(DeleteIndexedScriptRequest request){
         return execute(DeleteIndexedScriptAction.INSTANCE, request);
     }
@@ -294,6 +298,7 @@ public abstract class AbstractClient implements Client {
     /**
      * Delete an indexed script
      */
+    @Override
     public DeleteIndexedScriptRequestBuilder prepareDeleteIndexedScript(){
         return DeleteIndexedScriptAction.INSTANCE.newRequestBuilder(this);
     }
@@ -304,6 +309,7 @@ public abstract class AbstractClient implements Client {
      * @param id
      * @return
      */
+    @Override
     public DeleteIndexedScriptRequestBuilder prepareDeleteIndexedScript(@Nullable String scriptLang, String id){
         return prepareDeleteIndexedScript().setScriptLang(scriptLang).setId(id);
     }
@@ -550,37 +556,17 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public void bench(BenchmarkRequest request, ActionListener<BenchmarkResponse> listener) {
-        execute(BenchmarkAction.INSTANCE, request, listener);
+    public void fieldStats(FieldStatsRequest request, ActionListener<FieldStatsResponse> listener) {
+        execute(FieldStatsAction.INSTANCE, request, listener);
     }
 
     @Override
-    public ActionFuture<BenchmarkResponse> bench(BenchmarkRequest request) {
-        return execute(BenchmarkAction.INSTANCE, request);
+    public ActionFuture<FieldStatsResponse> fieldStats(FieldStatsRequest request) {
+        return execute(FieldStatsAction.INSTANCE, request);
     }
 
     @Override
-    public BenchmarkRequestBuilder prepareBench(String... indices) {
-        return new BenchmarkRequestBuilder(this, indices);
-    }
-
-    @Override
-    public void abortBench(AbortBenchmarkRequest request, ActionListener<AbortBenchmarkResponse> listener) {
-        execute(AbortBenchmarkAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public AbortBenchmarkRequestBuilder prepareAbortBench(String... benchmarkNames) {
-        return new AbortBenchmarkRequestBuilder(this).setBenchmarkNames(benchmarkNames);
-    }
-
-    @Override
-    public void benchStatus(BenchmarkStatusRequest request, ActionListener<BenchmarkStatusResponse> listener) {
-        execute(BenchmarkStatusAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public BenchmarkStatusRequestBuilder prepareBenchStatus() {
-        return new BenchmarkStatusRequestBuilder(this);
+    public FieldStatsRequestBuilder prepareFieldStats() {
+        return new FieldStatsRequestBuilder(this);
     }
 }

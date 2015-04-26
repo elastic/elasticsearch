@@ -34,6 +34,7 @@ class ExposedKeyFactory<T> implements InternalFactory<T>, BindingProcessor.Creat
         this.privateElements = privateElements;
     }
 
+    @Override
     public void notify(Errors errors) {
         InjectorImpl privateInjector = (InjectorImpl) privateElements.getInjector();
         BindingImpl<T> explicitBinding = privateInjector.state.getExplicitBinding(key);
@@ -49,6 +50,7 @@ class ExposedKeyFactory<T> implements InternalFactory<T>, BindingProcessor.Creat
         this.delegate = explicitBinding;
     }
 
+    @Override
     public T get(Errors errors, InternalContext context, Dependency<?> dependency)
             throws ErrorsException {
         return delegate.getInternalFactory().get(errors, context, dependency);

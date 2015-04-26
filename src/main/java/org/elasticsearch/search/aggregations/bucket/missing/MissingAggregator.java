@@ -23,6 +23,8 @@ import org.apache.lucene.util.Bits;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -38,7 +40,6 @@ import java.util.Map;
 public class MissingAggregator extends SingleBucketAggregator {
 
     private final ValuesSource valuesSource;
-    private Bits docsWithValue;
 
     public MissingAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
                              AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
@@ -47,19 +48,23 @@ public class MissingAggregator extends SingleBucketAggregator {
     }
 
     @Override
-    public void setNextReader(LeafReaderContext reader) {
-        if (valuesSource != null) {
-            docsWithValue = valuesSource.docsWithValue(reader.reader().maxDoc());
-        } else {
-            docsWithValue = new Bits.MatchNoBits(reader.reader().maxDoc());
-        }
-    }
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
 
-    @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        if (docsWithValue != null && !docsWithValue.get(doc)) {
-            collectBucket(doc, owningBucketOrdinal);
+        final Bits docsWithValue;
+        if (valuesSource != null) {
+            docsWithValue = valuesSource.docsWithValue(ctx);
+        } else {
+            docsWithValue = new Bits.MatchNoBits(ctx.reader().maxDoc());
         }
+        return new LeafBucketCollectorBase(sub, docsWithValue) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (docsWithValue != null && !docsWithValue.get(doc)) {
+                    collectBucket(sub, doc, bucket);
+                }
+            }
+        };
     }
 
     @Override

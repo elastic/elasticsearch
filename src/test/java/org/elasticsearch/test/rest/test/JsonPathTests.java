@@ -19,6 +19,7 @@
 package org.elasticsearch.test.rest.test;
 
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.rest.Stash;
 import org.elasticsearch.test.rest.json.JsonPath;
 import org.junit.Test;
 
@@ -146,5 +147,23 @@ public class JsonPathTests extends ElasticsearchTestCase {
         assertThat(object, notNullValue());
         assertThat(object, instanceOf(Map.class));
         assertThat(((Map<String, Object>)object).containsKey("field1"), equalTo(true));
+    }
+
+    @Test
+    public void testEvaluateStashInPropertyName() throws Exception {
+        String json = "{ \"field1\": { \"elements\" : {\"element1\": \"value1\"}}}";
+        JsonPath jsonPath = new JsonPath(json);
+        try {
+            jsonPath.evaluate("field1.$placeholder.element1");
+            fail("evaluate should have failed due to unresolved placeholder");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("stashed value not found for key [$placeholder]"));
+        }
+
+        Stash stash = new Stash();
+        stash.stashValue("placeholder", "elements");
+        Object object = jsonPath.evaluate("field1.$placeholder.element1", stash);
+        assertThat(object, notNullValue());
+        assertThat(object.toString(), equalTo("value1"));
     }
 }

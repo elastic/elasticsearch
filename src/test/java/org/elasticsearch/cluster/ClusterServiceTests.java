@@ -20,6 +20,7 @@ package org.elasticsearch.cluster;
 
 import com.google.common.base.Predicate;
 import com.google.common.util.concurrent.ListenableFuture;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
@@ -176,6 +177,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
             }
         });
 
+        ensureGreen();
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
 
         assertThat(allNodesAcked.get(), equalTo(true));
@@ -247,6 +249,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
             }
         });
 
+        ensureGreen();
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
 
         assertThat(allNodesAcked.get(), equalTo(true));
@@ -373,6 +376,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
             }
         });
 
+        ensureGreen();
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
 
         assertThat(allNodesAcked.get(), equalTo(true));
@@ -447,6 +451,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
             }
         });
 
+        ensureGreen();
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
 
         assertThat(allNodesAcked.get(), equalTo(false));
@@ -598,7 +603,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         block2.countDown();
     }
 
-    @Test
+    @Test @Slow
     public void testLocalNodeMasterListenerCallbacks() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
@@ -653,6 +658,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
 
         // there should not be any master as the minimum number of required eligible masters is not met
         awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object obj) {
                 return clusterService1.state().nodes().masterNode() == null && clusterService1.state().status() == ClusterState.ClusterStateStatus.APPLIED;
             }

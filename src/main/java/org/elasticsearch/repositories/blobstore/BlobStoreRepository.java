@@ -151,8 +151,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         Map<String, String> snpashotOnlyParams = Maps.newHashMap();
         snpashotOnlyParams.put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_SNAPSHOT);
         snapshotOnlyFormatParams = new ToXContent.MapParams(snpashotOnlyParams);
-        snapshotRateLimiter = getRateLimiter(repositorySettings, "max_snapshot_bytes_per_sec", new ByteSizeValue(20, ByteSizeUnit.MB));
-        restoreRateLimiter = getRateLimiter(repositorySettings, "max_restore_bytes_per_sec", new ByteSizeValue(20, ByteSizeUnit.MB));
+        snapshotRateLimiter = getRateLimiter(repositorySettings, "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
+        restoreRateLimiter = getRateLimiter(repositorySettings, "max_restore_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
     }
 
     /**
@@ -259,10 +259,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      */
     @Override
     public void deleteSnapshot(SnapshotId snapshotId) {
-        Snapshot snapshot = readSnapshot(snapshotId);
+        ImmutableList<String> indices = ImmutableList.of();
+        try {
+            indices = readSnapshot(snapshotId).indices();
+        } catch (SnapshotMissingException ex) {
+            throw ex;
+        } catch (SnapshotException | ElasticsearchParseException ex) {
+            logger.warn("cannot read snapshot file [{}]", ex, snapshotId);
+        }
         MetaData metaData = null;
         try {
-            metaData = readSnapshotMetaData(snapshotId, snapshot.indices(), true);
+            metaData = readSnapshotMetaData(snapshotId, indices, true);
         } catch (IOException | SnapshotException ex) {
             logger.warn("cannot read metadata for snapshot [{}]", ex, snapshotId);
         }
@@ -284,7 +291,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
             }
             writeSnapshotList(snapshotIds);
             // Now delete all indices
-            for (String index : snapshot.indices()) {
+            for (String index : indices) {
                 BlobPath indexPath = basePath().add("indices").add(index);
                 BlobContainer indexMetaDataBlobContainer = blobStore().blobContainer(indexPath);
                 try {
@@ -437,7 +444,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      */
     private RateLimiter getRateLimiter(RepositorySettings repositorySettings, String setting, ByteSizeValue defaultRate) {
         ByteSizeValue maxSnapshotBytesPerSec = repositorySettings.settings().getAsBytesSize(setting,
-                componentSettings.getAsBytesSize(setting, defaultRate));
+                settings.getAsBytesSize(setting, defaultRate));
         if (maxSnapshotBytesPerSec.bytes() <= 0) {
             return null;
         } else {

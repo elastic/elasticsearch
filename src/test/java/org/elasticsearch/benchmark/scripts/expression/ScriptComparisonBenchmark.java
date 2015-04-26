@@ -137,7 +137,7 @@ public class ScriptComparisonBenchmark {
         }
         bulkRequest.execute().actionGet();
         client.admin().indices().prepareRefresh("test").execute().actionGet();
-        client.admin().indices().prepareFlush("test").setFull(true).execute().actionGet();
+        client.admin().indices().prepareFlush("test").execute().actionGet();
         System.out.println("done");
     }
 

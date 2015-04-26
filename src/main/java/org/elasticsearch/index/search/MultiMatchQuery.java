@@ -158,6 +158,7 @@ public class MultiMatchQuery extends MatchQuery {
             super(false, tieBreaker);
         }
 
+        @Override
         public List<Query> buildGroupedQueries(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames, Object value, String minimumShouldMatch) throws IOException {
             Map<Analyzer, List<FieldAndMapper>> groups = new HashMap<>();
             List<Tuple<String, Float>> missing = new ArrayList<>();
@@ -205,10 +206,12 @@ public class MultiMatchQuery extends MatchQuery {
             return queries.isEmpty() ? null : queries;
         }
 
+        @Override
         public boolean forceAnalyzeQueryString() {
             return blendedFields != null;
         }
 
+        @Override
         public Query blendTerm(Term term, FieldMapper mapper) {
             if (blendedFields == null) {
                 return super.blendTerm(term, mapper);
@@ -262,6 +265,7 @@ public class MultiMatchQuery extends MatchQuery {
         }
     }
 
+    @Override
     protected boolean forceAnalyzeQueryString() {
         return this.queryBuilder == null ? super.forceAnalyzeQueryString() : this.queryBuilder.forceAnalyzeQueryString();
     }

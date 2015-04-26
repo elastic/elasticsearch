@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -76,9 +77,9 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
     }
 
     @Override
-    public InternalAggregation reduce(ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long valueCount = 0;
-        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+        for (InternalAggregation aggregation : aggregations) {
             valueCount += ((InternalValueCount) aggregation).value;
         }
         return new InternalValueCount(name, valueCount, valueFormatter, getMetaData());
@@ -97,7 +98,7 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(CommonFields.VALUE, value);
-        if (valueFormatter != null) {
+        if (valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
             builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(value));
         }
         return builder;

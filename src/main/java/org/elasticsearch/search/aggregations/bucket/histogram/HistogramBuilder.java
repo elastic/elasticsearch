@@ -35,8 +35,7 @@ public class HistogramBuilder extends ValuesSourceAggregationBuilder<HistogramBu
     private Long minDocCount;
     private Long extendedBoundsMin;
     private Long extendedBoundsMax;
-    private Long preOffset;
-    private Long postOffset;
+    private Long offset;
 
     /**
      * Constructs a new histogram aggregation builder.
@@ -92,18 +91,10 @@ public class HistogramBuilder extends ValuesSourceAggregationBuilder<HistogramBu
     }
 
     /**
-     * Set the offset to apply prior to computing buckets.
+     * Set the offset to apply to shift bucket boundaries.
      */
-    public HistogramBuilder preOffset(long preOffset) {
-        this.preOffset = preOffset;
-        return this;
-    }
-
-    /**
-     * Set the offset to apply after having computed buckets.
-     */
-    public HistogramBuilder postOffset(long postOffset) {
-        this.postOffset = postOffset;
+    public HistogramBuilder offset(long offset) {
+        this.offset = offset;
         return this;
     }
 
@@ -119,14 +110,9 @@ public class HistogramBuilder extends ValuesSourceAggregationBuilder<HistogramBu
             order.toXContent(builder, params);
         }
 
-        if (preOffset != null) {
-            builder.field("pre_offset", preOffset);
+        if (offset != null) {
+            builder.field("offset", offset);
         }
-
-        if (postOffset != null) {
-            builder.field("post_offset", postOffset);
-        }
-
 
         if (minDocCount != null) {
             builder.field("min_doc_count", minDocCount);

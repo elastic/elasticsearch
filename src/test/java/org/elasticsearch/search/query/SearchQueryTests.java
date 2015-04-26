@@ -20,6 +20,7 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.util.English;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -30,6 +31,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.*;
@@ -51,17 +53,17 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
-
+@Slow
 public class SearchQueryTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -170,7 +172,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
 
         assertFailures(client().prepareSearch().setQuery(matchQuery("field1", "quick brown").type(Type.PHRASE).slop(0)),
                     RestStatus.INTERNAL_SERVER_ERROR,
-                    containsString("field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick"));
+                    containsString("field \"field1\" was indexed without position data; cannot run PhraseQuery"));
     }
 
     @Test // see #3521
@@ -481,14 +483,14 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                     client().prepareSearch().setQuery(matchQuery("field1", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).get();
                     fail("SearchPhaseExecutionException should have been thrown");
                 } catch (SearchPhaseExecutionException e) {
-                    assertTrue(e.getMessage().endsWith("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick)]; }"));
+                    assertTrue(e.toString().contains("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery"));
                 }
                 cluster().wipeIndices("test");
             } catch (MapperParsingException ex) {
                 assertThat(version.toString(), version.onOrAfter(Version.V_1_0_0_RC2), equalTo(true));
                 assertThat(ex.getCause().getMessage(), equalTo("'omit_term_freq_and_positions' is not supported anymore - use ['index_options' : 'docs']  instead"));
             }
-            version = randomVersion();
+            version = randomVersion(random());
         }
     }
 
@@ -561,7 +563,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
             fail("expected SearchPhaseExecutionException (total failure)");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-            assertThat(e.getMessage(), containsString("unit [D] not supported for date math"));
+            assertThat(e.toString(), containsString("unit [D] not supported for date math"));
         }
     }
 
@@ -596,7 +598,8 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     private void typeFilterTests(String index) throws Exception {
-        assertAcked(prepareCreate("test")
+        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        assertAcked(prepareCreate("test").setSettings(indexSettings)
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1")
                         .startObject("_type").field("index", index).endObject()
                         .endObject().endObject())
@@ -629,7 +632,8 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     private void idsFilterTests(String index) throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
+        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings)
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1")
                         .startObject("_id").field("index", index).endObject()
                         .endObject().endObject()));
@@ -674,7 +678,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "type1", "3").setSource("field2", "value2_3"),
                 client().prepareIndex("test", "type1", "4").setSource("field3", "value3_4"));
 
-        assertHitCount(client().prepareSearch().setQuery(filteredQuery(matchAllQuery(), limitFilter(2))).get(), 2l);
+        assertHitCount(client().prepareSearch().setQuery(filteredQuery(matchAllQuery(), limitFilter(2))).get(), 4l); // no-op
     }
 
     @Test
@@ -1492,14 +1496,10 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 .setQuery(spanOrQuery().clause(spanTermQuery("description", "bar"))).get();
         assertHitCount(searchResponse, 1l);
 
-        searchResponse = client().prepareSearch("test")
-                .setQuery(spanOrQuery().clause(spanTermQuery("test.description", "bar"))).get();
-        assertHitCount(searchResponse, 1l);
-
         searchResponse = client().prepareSearch("test").setQuery(
                 spanNearQuery()
                         .clause(spanTermQuery("description", "foo"))
-                        .clause(spanTermQuery("test.description", "other"))
+                        .clause(spanTermQuery("description", "other"))
                         .slop(3)).get();
         assertHitCount(searchResponse, 3l);
     }
@@ -1584,7 +1584,6 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 .startObject("s")
                 .startObject("_routing")
                 .field("required", true)
-                .field("path", "bs")
                 .endObject()
                 .startObject("properties")
                 .startObject("online")
@@ -1605,8 +1604,8 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
             .addMapping("bs", "online", "type=boolean", "ts", "type=date,ignore_malformed=false,format=dateOptionalTime"));
         ensureGreen();
 
-        client().prepareIndex("test", "s", "1").setSource("online", false, "bs", "Y", "ts", System.currentTimeMillis() - 100).get();
-        client().prepareIndex("test", "s", "2").setSource("online", true, "bs", "X", "ts", System.currentTimeMillis() - 10000000).get();
+        client().prepareIndex("test", "s", "1").setRouting("Y").setSource("online", false, "bs", "Y", "ts", System.currentTimeMillis() - 100).get();
+        client().prepareIndex("test", "s", "2").setRouting("X").setSource("online", true, "bs", "X", "ts", System.currentTimeMillis() - 10000000).get();
         client().prepareIndex("test", "bs", "3").setSource("online", false, "ts", System.currentTimeMillis() - 100).get();
         client().prepareIndex("test", "bs", "4").setSource("online", true, "ts", System.currentTimeMillis() - 123123).get();
         refresh();
@@ -1665,7 +1664,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 .putArray("index.analysis.analyzer.search.filter", "lowercase", "synonym")
                 .put("index.analysis.filter.synonym.type", "synonym")
                 .putArray("index.analysis.filter.synonym.synonyms", "fast, quick"));
-        assertAcked(builder.addMapping("test", "text", "type=string,index_analyzer=index,search_analyzer=search"));
+        assertAcked(builder.addMapping("test", "text", "type=string,analyzer=index,search_analyzer=search"));
         ensureGreen();
         client().prepareIndex("test", "test", "1").setSource("text", "quick brown fox").get();
         refresh();
@@ -1696,7 +1695,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 .putArray("index.analysis.analyzer.search.filter", "lowercase", "keyword_repeat", "porterStem", "unique_stem")
                 .put("index.analysis.filter.unique_stem.type", "unique")
                 .put("index.analysis.filter.unique_stem.only_on_same_position", true));
-        assertAcked(builder.addMapping("test", "text", "type=string,index_analyzer=index,search_analyzer=search"));
+        assertAcked(builder.addMapping("test", "text", "type=string,analyzer=index,search_analyzer=search"));
         ensureGreen();
         client().prepareIndex("test", "test", "1").setSource("text", "the fox runs across the street").get();
         refresh();
@@ -1721,7 +1720,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 .putArray("index.analysis.analyzer.search.filter", "lowercase", "synonym")
                 .put("index.analysis.filter.synonym.type", "synonym")
                 .putArray("index.analysis.filter.synonym.synonyms", "fast, quick"));
-        assertAcked(builder.addMapping("test", "text", "type=string,index_analyzer=index,search_analyzer=search"));
+        assertAcked(builder.addMapping("test", "text", "type=string,analyzer=index,search_analyzer=search"));
         ensureGreen();
 
         client().prepareIndex("test", "test", "1").setSource("text", "quick brown fox").get();
@@ -2097,19 +2096,19 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
             assertHitCount(searchResponse, 2);
         }
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("\"one two\"").field("product.desc")).get();
+            SearchResponse searchResponse = client().prepareSearch("test").setTypes("product").setQuery(QueryBuilders.queryStringQuery("\"one two\"").field("desc")).get();
             assertHitCount(searchResponse, 1);
         }
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("\"one three\"~5").field("product.desc")).get();
+            SearchResponse searchResponse = client().prepareSearch("test").setTypes("product").setQuery(QueryBuilders.queryStringQuery("\"one three\"~5").field("desc")).get();
             assertHitCount(searchResponse, 1);
         }
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("customer.desc")).get();
+            SearchResponse searchResponse = client().prepareSearch("test").setTypes("customer").setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("desc")).get();
             assertHitCount(searchResponse, 1);
         }
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("customer.desc")).get();
+            SearchResponse searchResponse = client().prepareSearch("test").setTypes("customer").setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("desc")).get();
             assertHitCount(searchResponse, 1);
         }
     }
@@ -2346,7 +2345,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 .put("index.analysis.tokenizer.my_ngram_tokenizer.min_gram", "1")
                 .put("index.analysis.tokenizer.my_ngram_tokenizer.max_gram", "10")
                 .putArray("index.analysis.tokenizer.my_ngram_tokenizer.token_chars", new String[0]));
-        assertAcked(builder.addMapping("test", "origin", "type=string,copy_to=meta", "meta", "type=string,index_analyzer=my_ngram_analyzer"));
+        assertAcked(builder.addMapping("test", "origin", "type=string,copy_to=meta", "meta", "type=string,analyzer=my_ngram_analyzer"));
         // we only have ngrams as the index analyzer so searches will get standard analyzer
         ensureGreen();
 
@@ -2494,8 +2493,8 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                     .get();
             fail("query is invalid and should have produced a parse exception");
         } catch (Exception e) {
-            assertThat("query could not be parsed due to bad format: " + e.getMessage(),
-                    e.getMessage().contains("Illegal value for id, expecting a string or number, got: START_ARRAY"),
+            assertThat("query could not be parsed due to bad format: " + e.toString(),
+                    e.toString().contains("Illegal value for id, expecting a string or number, got: START_ARRAY"),
                     equalTo(true));
         }
     }

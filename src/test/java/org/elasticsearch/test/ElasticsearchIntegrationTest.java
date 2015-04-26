@@ -18,27 +18,29 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.RandomizedContext;
-import com.carrotsearch.randomizedtesting.Randomness;
-import com.carrotsearch.randomizedtesting.SeedUtils;
+import com.carrotsearch.randomizedtesting.*;
+import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
 
+import org.apache.commons.lang3.StringUtils;
+import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.store.StoreRateLimiting;
-import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
@@ -73,7 +75,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -86,18 +88,27 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
-import org.elasticsearch.index.mapper.internal.*;
-import org.elasticsearch.index.merge.policy.*;
+import org.elasticsearch.index.mapper.internal.SizeFieldMapper;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.index.merge.policy.AbstractMergePolicyProvider;
+import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
+import org.elasticsearch.index.merge.policy.LogDocMergePolicyProvider;
+import org.elasticsearch.index.merge.policy.MergePolicyModule;
+import org.elasticsearch.index.merge.policy.MergePolicyProvider;
+import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.store.StoreModule;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.index.translog.fs.FsTranslog;
@@ -108,53 +119,75 @@ import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
+import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
+import org.elasticsearch.transport.netty.NettyTransport;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
-import org.junit.*;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.net.InetSocketAddress;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.InternalTestCluster.clusterName;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * {@link ElasticsearchIntegrationTest} is an abstract base class to run integration
- * tests against a JVM private Elasticsearch Cluster. The test class supports 3 different
+ * tests against a JVM private Elasticsearch Cluster. The test class supports 2 different
  * cluster scopes.
  * <ul>
- * <li>{@link Scope#GLOBAL} - uses a cluster shared across test suites. This cluster doesn't allow any modifications to
- * the cluster settings and will fail if any persistent cluster settings are applied during tear down.</li>
  * <li>{@link Scope#TEST} - uses a new cluster for each individual test method.</li>
- * <li>{@link Scope#SUITE} - uses a cluster shared across all test method in the same suite</li>
+ * <li>{@link Scope#SUITE} - uses a cluster shared across all test methods in the same suite</li>
  * </ul>
  * <p/>
- * The most common test scope it {@link Scope#GLOBAL} which shares a cluster per JVM. This cluster is only set-up once
- * and can be used as long as the tests work on a per index basis without changing any cluster wide settings or require
- * any specific node configuration. This is the best performing option since it sets up the cluster only once.
+ * The most common test scope is {@link Scope#SUITE} which shares a cluster per test suite.
  * <p/>
- * If the tests need specific node settings or change persistent and/or transient cluster settings either {@link Scope#TEST}
- * or {@link Scope#SUITE} should be used. To configure a scope for the test cluster the {@link ClusterScope} annotation
+ * If the test methods need specific node settings or change persistent and/or transient cluster settings {@link Scope#TEST}
+ * should be used. To configure a scope for the test cluster the {@link ClusterScope} annotation
  * should be used, here is an example:
  * <pre>
  *
@@ -163,12 +196,11 @@ import static org.hamcrest.Matchers.*;
  * }
  * </pre>
  * <p/>
- * If no {@link ClusterScope} annotation is present on an integration test the default scope it {@link Scope#GLOBAL}
+ * If no {@link ClusterScope} annotation is present on an integration test the default scope is {@link Scope#SUITE}
  * <p/>
  * A test cluster creates a set of nodes in the background before the test starts. The number of nodes in the cluster is
- * determined at random and can change across tests. The minimum number of nodes in the shared global cluster is <code>2</code>.
- * For other scopes the {@link ClusterScope} allows configuring the initial number of nodes that are created before
- * the tests start.
+ * determined at random and can change across tests. The {@link ClusterScope} allows configuring the initial number of nodes
+ * that are created before the tests start.
  * <p/>
  *  <pre>
  * @ClusterScope(scope=Scope.SUITE, numDataNodes=3)
@@ -193,15 +225,29 @@ import static org.hamcrest.Matchers.*;
  * </p>
  */
 @Ignore
-@AbstractRandomizedTest.Integration
+@ElasticsearchIntegrationTest.Integration
+@LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
 public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase {
 
+    /**
+     * Property that allows to control whether the Integration tests are run (default) or not
+     */
+    public static final String SYSPROP_INTEGRATION = "tests.integration";
+
+    /**
+     * Annotation for integration tests
+     */
+    @Inherited
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @TestGroup(enabled = true, sysProperty = ElasticsearchIntegrationTest.SYSPROP_INTEGRATION)
+    public @interface Integration {
+    }
+
     /** node names of the corresponding clusters will start with these prefixes */
-    public static final String GLOBAL_CLUSTER_NODE_PREFIX = "node_";
     public static final String SUITE_CLUSTER_NODE_PREFIX = "node_s";
     public static final String TEST_CLUSTER_NODE_PREFIX = "node_t";
 
-    private static TestCluster GLOBAL_CLUSTER;
     /**
      * Key used to set the transport client ratio via the commandline -D{@value #TESTS_CLIENT_RATIO}
      */
@@ -251,8 +297,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     /**
      * The current cluster depending on the configured {@link Scope}.
-     * By default if no {@link ClusterScope} is configured this will hold a reference to the global cluster carried
-     * on across test suites.
+     * By default if no {@link ClusterScope} is configured this will hold a reference to the suite cluster.
      */
     private static TestCluster currentCluster;
 
@@ -274,12 +319,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         try {
             final Scope currentClusterScope = getCurrentClusterScope();
             switch (currentClusterScope) {
-                case GLOBAL:
-                    currentCluster = buildAndPutCluster(currentClusterScope, SeedUtils.parseSeed(RandomizedContext.current().getRunnerSeedAsString()));
-                    break;
                 case SUITE:
                     assert SUITE_SEED != null : "Suite seed was not initialized";
-                    currentCluster = buildAndPutCluster(currentClusterScope, SUITE_SEED.longValue());
+                    currentCluster = buildAndPutCluster(currentClusterScope, SUITE_SEED);
                     break;
                 case TEST:
                     currentCluster = buildAndPutCluster(currentClusterScope, randomLong());
@@ -290,12 +332,20 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             cluster().beforeTest(getRandom(), getPerTestTransportClientRatio());
             cluster().wipe();
             randomIndexTemplate();
-            logger.info("[{}#{}]: before test", getTestClass().getSimpleName(), getTestName());
+            printTestMessage("before");
         } catch (OutOfMemoryError e) {
             if (e.getMessage().contains("unable to create new native thread")) {
                 ElasticsearchTestCase.printStackDump(logger);
             }
             throw e;
+        }
+    }
+
+    private void printTestMessage(String message) {
+        if (isSuiteScopedTest(getClass())) {
+            logger.info("[{}]: {} suite", getTestClass().getSimpleName(), message);
+        } else {
+            logger.info("[{}#{}]: {} test", getTestClass().getSimpleName(), getTestName(), message);
         }
     }
 
@@ -317,28 +367,26 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
             randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards())
                     .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas());
-            
-            randomSettingsBuilder.put("index.codec", randomFrom("default", "best_compression"));
+
+            // if the test class is annotated with SuppressCodecs("*"), it means don't use lucene's codec randomization
+            // otherwise, use it, it has assertions and so on that can find bugs.
+            SuppressCodecs annotation = getClass().getAnnotation(SuppressCodecs.class);
+            if (annotation != null && annotation.value().length == 1 && "*".equals(annotation.value()[0])) {
+                randomSettingsBuilder.put("index.codec", randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC));
+            } else {
+                randomSettingsBuilder.put("index.codec", CodecService.LUCENE_DEFAULT_CODEC);
+            }
             XContentBuilder mappings = null;
             if (frequently() && randomDynamicTemplates()) {
                 mappings = XContentFactory.jsonBuilder().startObject().startObject("_default_");
                 if (randomBoolean()) {
-                    mappings.startObject(IdFieldMapper.NAME)
-                            .field("index", randomFrom("not_analyzed", "no"))
-                            .endObject();
-                }
-                if (randomBoolean()) {
-                    mappings.startObject(TypeFieldMapper.NAME)
-                            .field("index", randomFrom("no", "not_analyzed"))
-                            .endObject();
-                }
-                if (randomBoolean()) {
+                    boolean timestampEnabled = randomBoolean();
                     mappings.startObject(TimestampFieldMapper.NAME)
-                            .field("enabled", randomBoolean())
-                            .startObject("fielddata")
-                            .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
-                            .endObject()
-                            .endObject();
+                            .field("enabled", timestampEnabled);
+                    if (timestampEnabled) {
+                        mappings.field("doc_values", randomBoolean());
+                    }
+                    mappings.endObject();
                 }
                 if (randomBoolean()) {
                     mappings.startObject(SizeFieldMapper.NAME)
@@ -346,64 +394,62 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                             .endObject();
                 }
                 if (randomBoolean()) {
-                    mappings.startObject(AllFieldMapper.NAME)
-                            .field("auto_boost", true)
-                            .endObject();
-                }
-                if (randomBoolean()) {
                     mappings.startObject(SourceFieldMapper.NAME)
                             .field("compress", randomBoolean())
                             .endObject();
                 }
-                if (compatibilityVersion().onOrAfter(Version.V_1_3_0)) {
-                    // some tests rely on this BWC version behavior that we wanna keep
-                    mappings.startObject(FieldNamesFieldMapper.NAME)
-                            .startObject("fielddata")
-                            .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst", "doc_values"))
-                            .endObject()
-                            .endObject();
-                }
                 mappings.startArray("dynamic_templates")
                         .startObject()
-                        .startObject("template-strings")
-                        .field("match_mapping_type", "string")
+                    .startObject("template-strings")
+                    .field("match_mapping_type", "string")
                         .startObject("mapping")
-                        .startObject("fielddata")
-                        .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst")) // unfortunately doc values only work on not_analyzed fields
-                        .field(Loading.KEY, randomLoadingValues())
+                    .startObject("fielddata")
+                    .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst"))
+                    .field(Loading.KEY, randomLoadingValues())
                         .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
                         .startObject()
-                        .startObject("template-longs")
-                        .field("match_mapping_type", "long")
-                        .startObject("mapping")
-                        .startObject("fielddata")
-                        .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
-                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
+                    .startObject("template-longs")
+                    .field("match_mapping_type", "long")
+                    .startObject("mapping")
+                    .field("doc_values", randomBoolean())
+                    .startObject("fielddata")
+                    .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
                         .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
                         .startObject()
-                        .startObject("template-doubles")
-                        .field("match_mapping_type", "double")
-                        .startObject("mapping")
-                        .startObject("fielddata")
-                        .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
-                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
+                    .startObject("template-doubles")
+                    .field("match_mapping_type", "double")
+                    .startObject("mapping")
+                    .field("doc_values", randomBoolean())
+                    .startObject("fielddata")
+                    .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
                         .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
                         .startObject()
-                        .startObject("template-geo_points")
-                        .field("match_mapping_type", "geo_point")
-                        .startObject("mapping")
-                        .startObject("fielddata")
-                        .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
-                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
+                    .startObject("template-geo_points")
+                    .field("match_mapping_type", "geo_point")
+                    .startObject("mapping")
+                    .field("doc_values", randomBoolean())
+                    .startObject("fielddata")
+                    .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .startObject()
+                    .startObject("template-booleans")
+                    .field("match_mapping_type", "boolean")
+                    .startObject("mapping")
+                    .startObject("fielddata")
+                    .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
+                    .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
                         .endObject()
                         .endObject()
                         .endObject()
@@ -425,7 +471,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
     }
 
-    private static ImmutableSettings.Builder setRandomSettings(Random random, ImmutableSettings.Builder builder) {
+    protected ImmutableSettings.Builder setRandomSettings(Random random, ImmutableSettings.Builder builder) {
         setRandomMerge(random, builder);
         setRandomTranslogSettings(random, builder);
         setRandomNormsLoading(random, builder);
@@ -457,7 +503,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         if (random.nextBoolean()) {
-            builder.put(RecoverySettings.INDICES_RECOVERY_COMPRESS, randomBoolean());
+            builder.put(RecoverySettings.INDICES_RECOVERY_COMPRESS, random.nextBoolean());
         }
 
         if (random.nextBoolean()) {
@@ -469,14 +515,16 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         if (random.nextBoolean()) {
-            builder.put(IndicesQueryCache.INDICES_CACHE_QUERY_CONCURRENCY_LEVEL, randomIntBetween(1, 32));
-            builder.put(IndicesFieldDataCache.FIELDDATA_CACHE_CONCURRENCY_LEVEL, randomIntBetween(1, 32));
-            builder.put(IndicesFilterCache.INDICES_CACHE_FILTER_CONCURRENCY_LEVEL, randomIntBetween(1, 32));
+            builder.put("index.shard.check_on_startup", randomFrom(random, "false", "checksum", "true"));
         }
-        if (globalCompatibilityVersion().before(Version.V_1_3_2)) {
-            // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
-            // see #7210
-            builder.put(RecoverySettings.INDICES_RECOVERY_COMPRESS, false);
+
+        if (random.nextBoolean()) {
+            builder.put(IndicesQueryCache.INDICES_CACHE_QUERY_CONCURRENCY_LEVEL, RandomInts.randomIntBetween(random, 1, 32));
+            builder.put(IndicesFieldDataCache.FIELDDATA_CACHE_CONCURRENCY_LEVEL, RandomInts.randomIntBetween(random, 1, 32));
+            builder.put(IndicesFilterCache.INDICES_CACHE_FILTER_CONCURRENCY_LEVEL, RandomInts.randomIntBetween(random, 1, 32));
+        }
+        if (random.nextBoolean()) {
+            builder.put(NettyTransport.PING_SCHEDULE, RandomInts.randomIntBetween(random, 100, 2000) + "ms");
         }
         return builder;
     }
@@ -564,12 +612,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         TestCluster testCluster = clusters.remove(clazz); // remove this cluster first
         clearClusters(); // all leftovers are gone by now... this is really just a double safety if we miss something somewhere
         switch (currentClusterScope) {
-            case GLOBAL:
-                // never put the global cluster into the map otherwise it will be closed
-                if (GLOBAL_CLUSTER == null) {
-                    return GLOBAL_CLUSTER = buildWithPrivateContext(currentClusterScope, seed);
-                }
-                return GLOBAL_CLUSTER;
             case SUITE:
                 if (testCluster == null) { // only build if it's not there yet
                     testCluster = buildWithPrivateContext(currentClusterScope, seed);
@@ -581,24 +623,23 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 testCluster = buildTestCluster(currentClusterScope, seed);
                 break;
         }
-        assert testCluster != GLOBAL_CLUSTER : "Global cluster must be handled via the GLOBAL_CLUSTER static member";
         clusters.put(clazz, testCluster);
         return testCluster;
     }
 
-   private static void clearClusters() throws IOException {
+    private static void clearClusters() throws IOException {
         if (!clusters.isEmpty()) {
             IOUtils.close(clusters.values());
             clusters.clear();
         }
     }
 
-    protected final void afterInternal() throws Exception {
+    protected final void afterInternal(boolean afterClass) throws Exception {
         boolean success = false;
         try {
-            logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
-            clearDisruptionScheme();
             final Scope currentClusterScope = getCurrentClusterScope();
+            printTestMessage("cleaning up after");
+            clearDisruptionScheme();
             try {
                 if (cluster() != null) {
                     if (currentClusterScope != Scope.TEST) {
@@ -610,6 +651,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     }
                     ensureClusterSizeConsistency();
                     cluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
+                    if (afterClass || currentClusterScope == Scope.TEST) {
+                        cluster().close();
+                    }
                     cluster().assertAfterTest();
                 }
             } finally {
@@ -617,29 +661,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     clearClusters(); // it is ok to leave persistent / transient cluster state behind if scope is TEST
                 }
             }
-            logger.info("[{}#{}]: cleaned up after test", getTestClass().getSimpleName(), getTestName());
+            printTestMessage("cleaned up after");
             success = true;
         } finally {
-            // TODO: it looks like CurrentTestFailedMarker is never set at this point, so testFailed() will always be false?
-            if (!success || CurrentTestFailedMarker.testFailed()) {
-                // if we failed that means that something broke horribly so we should
-                // clear all clusters and if the current cluster is the global we shut that one
-                // down as well to prevent subsequent tests from failing due to the same problem.
-                // we also reset everything in the case we had a failure in the suite to make sure subsequent
-                // tests get a new / clean cluster
-                clearClusters();
-                if (currentCluster == GLOBAL_CLUSTER) {
-                    if (GLOBAL_CLUSTER != null) {
-                        IOUtils.closeWhileHandlingException(GLOBAL_CLUSTER);
-                    }
-                    GLOBAL_CLUSTER = null;
-                }
-                currentCluster = null;
-            }
-            if (currentCluster != null) {
-                // this can be null if the test fails due to static initialization ie. missing parameter on the cmd
-                currentCluster.afterTest();
-                currentCluster = null;
+            if (!success) {
+                // if we failed here that means that something broke horribly so we should clear all clusters
+                // TODO: just let the exception happen, WTF is all this horseshit
+                // afterTestRule.forceFailure();
             }
         }
     }
@@ -745,7 +773,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
         // 30% of the time
         if (randomInt(9) < 3) {
-            String dataPath = "data/custom-" + CHILD_JVM_ID + "/" + UUID.randomUUID().toString();
+            final Path dataPath = createTempDir();
             logger.info("using custom data_path for index: [{}]", dataPath);
             builder.put(IndexMetaData.SETTING_DATA_PATH, dataPath);
         }
@@ -947,7 +975,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 .health(Requests.clusterHealthRequest(indices).timeout(timeout).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info("ensureGreen timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
-            assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));
+            fail("timed out waiting for green state");
         }
         assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         logger.debug("indices {} are green", indices.length == 0 ? "[_all]" : indices);
@@ -1020,34 +1048,37 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     public long waitForDocs(final long numDocs, int maxWaitTime, TimeUnit maxWaitTimeUnit, final @Nullable BackgroundIndexer indexer)
             throws InterruptedException {
-        final long[] lastKnownCount = {-1};
+        final AtomicLong lastKnownCount = new AtomicLong(-1);
         long lastStartCount = -1;
         Predicate<Object> testDocs = new Predicate<Object>() {
+            @Override
             public boolean apply(Object o) {
-                lastKnownCount[0] = indexer.totalIndexedDocs();
-                if (lastKnownCount[0] >= numDocs) {
+                if (indexer != null) {
+                    lastKnownCount.set(indexer.totalIndexedDocs());
+                }
+                if (lastKnownCount.get() >= numDocs) {
                     long count = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount();
-                    if (count == lastKnownCount[0]) {
+                    if (count == lastKnownCount.get()) {
                         // no progress - try to refresh for the next time
                         client().admin().indices().prepareRefresh().get();
                     }
-                    lastKnownCount[0] = count;
-                    logger.debug("[{}] docs visible for search. waiting for [{}]", lastKnownCount[0], numDocs);
+                    lastKnownCount.set(count);
+                    logger.debug("[{}] docs visible for search. waiting for [{}]", lastKnownCount.get(), numDocs);
                 } else {
-                    logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount[0], numDocs);
+                    logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount.get(), numDocs);
                 }
-                return lastKnownCount[0] >= numDocs;
+                return lastKnownCount.get() >= numDocs;
             }
         };
 
         while (!awaitBusy(testDocs, maxWaitTime, maxWaitTimeUnit)) {
-            if (lastStartCount == lastKnownCount[0]) {
+            if (lastStartCount == lastKnownCount.get()) {
                 // we didn't make any progress
                 fail("failed to reach " + numDocs + "docs");
             }
-            lastStartCount = lastKnownCount[0];
+            lastStartCount = lastKnownCount.get();
         }
-        return lastKnownCount[0];
+        return lastKnownCount.get();
     }
 
 
@@ -1057,8 +1088,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     public void setMinimumMasterNodes(int n) {
         assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, n))
-                .get().isAcknowledged());
+            settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, n))
+            .get().isAcknowledged());
     }
 
     /**
@@ -1088,7 +1119,14 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     public void logSegmentsState(String... indices) throws Exception {
         IndicesSegmentResponse segsRsp = client().admin().indices().prepareSegments(indices).get();
         logger.debug("segments {} state: \n{}", indices.length == 0 ? "[_all]" : indices,
-                     segsRsp.toXContent(JsonXContent.contentBuilder().prettyPrint(), ToXContent.EMPTY_PARAMS).string());
+                segsRsp.toXContent(JsonXContent.contentBuilder().prettyPrint(), ToXContent.EMPTY_PARAMS).string());
+    }
+
+    /**
+     * Prints current memory stats as info logging.
+     */
+    public void logMemoryStats() {
+        logger.info("memory: {}", XContentHelper.toString(client().admin().cluster().prepareNodesStats().clear().setJvm(true).get()));
     }
 
     void ensureClusterSizeConsistency() {
@@ -1208,7 +1246,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     protected OptimizeResponse optimize() {
         waitForRelocation();
-        OptimizeResponse actionGet = client().admin().indices().prepareOptimize().execute().actionGet();
+        OptimizeResponse actionGet = client().admin().indices().prepareOptimize().setMaxNumSegments(1).execute().actionGet();
         assertNoFailures(actionGet);
         return actionGet;
     }
@@ -1299,7 +1337,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         Set<Tuple<String, String>> bogusIds = new HashSet<>();
         if (random.nextBoolean() && !builders.isEmpty() && dummyDocuments) {
             builders = new ArrayList<>(builders);
-            final String[] indices = indicesSet.toArray(new String[0]);
+            final String[] indices = indicesSet.toArray(new String[indicesSet.size()]);
             // inject some bogus docs
             final int numBogusDocs = scaledRandomIntBetween(1, builders.size() * 2);
             final int unicodeLen = between(1, 10);
@@ -1383,6 +1421,24 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
     }
 
+    /** Disables an index block for the specified index */
+    public static void disableIndexBlock(String index, String block) {
+        Settings settings = ImmutableSettings.builder().put(block, false).build();
+        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+    }
+
+    /** Enables an index block for the specified index */
+    public static void enableIndexBlock(String index, String block) {
+        Settings settings = ImmutableSettings.builder().put(block, true).build();
+        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+    }
+
+    /** Sets or unsets the cluster read_only mode **/
+    public static void setClusterReadOnly(boolean value) {
+        Settings settings = settingsBuilder().put(MetaData.SETTING_READ_ONLY, value).build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
+    }
+
     private static CountDownLatch newLatch(List<CountDownLatch> latches) {
         CountDownLatch l = new CountDownLatch(1);
         latches.add(l);
@@ -1415,12 +1471,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * The scope of a test cluster used together with
      * {@link org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope} annotations on {@link org.elasticsearch.test.ElasticsearchIntegrationTest} subclasses.
      */
-    public static enum Scope {
-        /**
-         * A globally shared cluster. This cluster doesn't allow modification of transient or persistent
-         * cluster settings.
-         */
-        GLOBAL,
+    public enum Scope {
         /**
          * A cluster shared across all method in a single test suite
          */
@@ -1433,16 +1484,16 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     /**
      * Defines a cluster scope for a {@link org.elasticsearch.test.ElasticsearchIntegrationTest} subclass.
-     * By default if no {@link ClusterScope} annotation is present {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#GLOBAL} is used
+     * By default if no {@link ClusterScope} annotation is present {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#SUITE} is used
      * together with randomly chosen settings like number of nodes etc.
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ElementType.TYPE})
     public @interface ClusterScope {
         /**
-         * Returns the scope. {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#GLOBAL} is default.
+         * Returns the scope. {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#SUITE} is default.
          */
-        Scope scope() default Scope.GLOBAL;
+        Scope scope() default Scope.SUITE;
 
         /**
          * Returns the number of nodes in the cluster. Default is <tt>-1</tt> which means
@@ -1468,12 +1519,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
          * negative value means that the number of client nodes will be randomized.
          */
         int numClientNodes() default InternalTestCluster.DEFAULT_NUM_CLIENT_NODES;
-
-        /**
-         * Returns whether the ability to randomly have benchmark (client) nodes as part of the cluster needs to be enabled.
-         * Default is {@link InternalTestCluster#DEFAULT_ENABLE_RANDOM_BENCH_NODES}.
-         */
-        boolean enableRandomBenchNodes() default InternalTestCluster.DEFAULT_ENABLE_RANDOM_BENCH_NODES;
 
         /**
          * Returns the transport client ratio. By default this returns <code>-1</code> which means a random
@@ -1524,6 +1569,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             this.builder = builder;
         }
 
+        @Override
         protected void addError(Throwable t) {
             errors.add(new Tuple<>(builder, t));
         }
@@ -1556,8 +1602,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     private static Scope getCurrentClusterScope(Class<?> clazz) {
         ClusterScope annotation = getAnnotation(clazz);
-        // if we are not annotated assume global!
-        return annotation == null ? Scope.GLOBAL : annotation.scope();
+        // if we are not annotated assume suite!
+        return annotation == null ? Scope.SUITE : annotation.scope();
     }
 
     private int getNumDataNodes() {
@@ -1580,14 +1626,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return annotation == null ? InternalTestCluster.DEFAULT_NUM_CLIENT_NODES : annotation.numClientNodes();
     }
 
-    private boolean enableRandomBenchNodes() {
-        ClusterScope annotation = getAnnotation(this.getClass());
-        return annotation == null ? InternalTestCluster.DEFAULT_ENABLE_RANDOM_BENCH_NODES : annotation.enableRandomBenchNodes();
-    }
-
     private boolean randomDynamicTemplates() {
         ClusterScope annotation = getAnnotation(this.getClass());
-        return annotation == null ? true : annotation.randomDynamicTemplates();
+        return annotation == null || annotation.randomDynamicTemplates();
     }
 
     /**
@@ -1603,6 +1644,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 // from failing on nodes without enough disk space
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "1b")
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "1b")
+                .put("script.indexed", "on")
+                .put("script.inline", "on")
+                // wait short time for other active shards before actually deleting, default 30s not needed in tests
+                .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT, new TimeValue(1, TimeUnit.SECONDS))
                 .build();
     }
 
@@ -1616,77 +1661,72 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return ImmutableSettings.EMPTY;
     }
 
+    private ExternalTestCluster buildExternalCluster(String clusterAddresses) {
+        String[] stringAddresses = clusterAddresses.split(",");
+        TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
+        int i = 0;
+        for (String stringAddress : stringAddresses) {
+            String[] split = stringAddress.split(":");
+            if (split.length < 2) {
+                throw new IllegalArgumentException("address [" + clusterAddresses + "] not valid");
+            }
+            try {
+                transportAddresses[i++] = new InetSocketTransportAddress(split[0], Integer.valueOf(split[1]));
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("port is not valid, expected number but was [" + split[1] + "]");
+            }
+        }
+        return new ExternalTestCluster(transportAddresses);
+    }
+
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
-        int numClientNodes = InternalTestCluster.DEFAULT_NUM_CLIENT_NODES;
-        boolean enableRandomBenchNodes = InternalTestCluster.DEFAULT_ENABLE_RANDOM_BENCH_NODES;
-        boolean enableHttpPipelining = InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING;
-        int minNumDataNodes = InternalTestCluster.DEFAULT_MIN_NUM_DATA_NODES;
-        int maxNumDataNodes = InternalTestCluster.DEFAULT_MAX_NUM_DATA_NODES;
-        SettingsSource settingsSource = InternalTestCluster.DEFAULT_SETTINGS_SOURCE;
+        String clusterAddresses = System.getProperty(TESTS_CLUSTER);
+        if (Strings.hasLength(clusterAddresses)) {
+            if (scope == Scope.TEST) {
+                throw new IllegalArgumentException("Cannot run TEST scope test with " + TESTS_CLUSTER);
+            }
+            return buildExternalCluster(clusterAddresses);
+        }
+
         final String nodePrefix;
+        final LifecycleScope nodeDirScope;
         switch (scope) {
-            case GLOBAL:
-                if (globalCompatibilityVersion().before(Version.V_1_2_0)) {
-                    numClientNodes = 0;
-                }
-                nodePrefix = GLOBAL_CLUSTER_NODE_PREFIX;
-                break;
             case TEST:
                 nodePrefix = TEST_CLUSTER_NODE_PREFIX;
+                nodeDirScope = LifecycleScope.TEST;
                 break;
             case SUITE:
                 nodePrefix = SUITE_CLUSTER_NODE_PREFIX;
+                nodeDirScope = LifecycleScope.SUITE;
                 break;
             default:
                 throw new ElasticsearchException("Scope not supported: " + scope);
         }
-        if (scope == Scope.GLOBAL) {
-            String cluster = System.getProperty(TESTS_CLUSTER);
-            if (Strings.hasLength(cluster)) {
-                String[] stringAddresses = cluster.split(",");
-                TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
-                int i = 0;
-                for (String stringAddress : stringAddresses) {
-                    String[] split = stringAddress.split(":");
-                    if (split.length < 2) {
-                        throw new IllegalArgumentException("address [" + cluster + "] not valid");
-                    }
-                    try {
-                        transportAddresses[i++] = new InetSocketTransportAddress(split[0], Integer.valueOf(split[1]));
-                    } catch (NumberFormatException e) {
-                        throw new IllegalArgumentException("port is not valid, expected number but was [" + split[1] + "]");
-                    }
-                }
-                return new ExternalTestCluster(transportAddresses);
+        SettingsSource settingsSource = new SettingsSource() {
+            @Override
+            public Settings node(int nodeOrdinal) {
+                return ImmutableSettings.builder().put(Node.HTTP_ENABLED, false).
+                        put(nodeSettings(nodeOrdinal)).build();
             }
+
+            @Override
+            public Settings transportClient() {
+                return transportClientSettings();
+            }
+        };
+
+        int numDataNodes = getNumDataNodes();
+        int minNumDataNodes;
+        int maxNumDataNodes;
+        if (numDataNodes >= 0) {
+            minNumDataNodes = maxNumDataNodes = numDataNodes;
         } else {
-            settingsSource = new SettingsSource() {
-                @Override
-                public Settings node(int nodeOrdinal) {
-                    return ImmutableSettings.builder().put(InternalNode.HTTP_ENABLED, false).
-                            put(nodeSettings(nodeOrdinal)).build();
-                }
-
-                @Override
-                public Settings transportClient() {
-                    return transportClientSettings();
-                }
-            };
-
-            int numDataNodes = getNumDataNodes();
-            if (numDataNodes >= 0) {
-                minNumDataNodes = maxNumDataNodes = numDataNodes;
-            } else {
-                minNumDataNodes = getMinNumDataNodes();
-                maxNumDataNodes = getMaxNumDataNodes();
-            }
-
-            numClientNodes = getNumClientNodes();
-            enableRandomBenchNodes = enableRandomBenchNodes();
+            minNumDataNodes = getMinNumDataNodes();
+            maxNumDataNodes = getMaxNumDataNodes();
         }
-        return new InternalTestCluster(seed, minNumDataNodes, maxNumDataNodes,
-                clusterName(scope.name(), Integer.toString(CHILD_JVM_ID), seed), settingsSource, numClientNodes,
-                enableRandomBenchNodes, enableHttpPipelining, CHILD_JVM_ID, nodePrefix);
+        return new InternalTestCluster(seed, createTempDir(), minNumDataNodes, maxNumDataNodes,
+                InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", settingsSource, getNumClientNodes(),
+                InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix);
     }
 
     /**
@@ -1730,7 +1770,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * "paged_bytes", "fst", or "doc_values".
      */
     public static String randomBytesFieldDataFormat() {
-        return randomFrom(Arrays.asList("paged_bytes", "fst", "doc_values"));
+        return randomFrom(Arrays.asList("paged_bytes", "fst"));
     }
 
     /**
@@ -1742,7 +1782,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         // It sounds like some Java Time Zones are unknown by JODA. For example: Asia/Riyadh88
         // We need to fallback in that case to a known time zone
         try {
-            timeZone = DateTimeZone.forTimeZone(randomTimeZone());
+            timeZone = DateTimeZone.forTimeZone(RandomizedTest.randomTimeZone());
         } catch (IllegalArgumentException e) {
             timeZone = DateTimeZone.forOffsetHours(randomIntBetween(-12, 12));
         }
@@ -1778,6 +1818,39 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return nodes;
     }
 
+    /**
+     * Asserts that there are no files in the specified path
+     */
+    public void assertPathHasBeenCleared(String path) throws Exception {
+        assertPathHasBeenCleared(PathUtils.get(path));
+    }
+
+    /**
+     * Asserts that there are no files in the specified path
+     */
+    public void assertPathHasBeenCleared(Path path) throws Exception {
+        logger.info("--> checking that [{}] has been cleared", path);
+        int count = 0;
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        if (Files.exists(path)) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
+                for (Path file : stream) {
+                    logger.info("--> found file: [{}]", file.toAbsolutePath().toString());
+                    if (Files.isDirectory(file)) {
+                        assertPathHasBeenCleared(file);
+                    } else if (Files.isRegularFile(file)) {
+                        count++;
+                        sb.append(file.toAbsolutePath().toString());
+                        sb.append("\n");
+                    }
+                }
+            }
+        }
+        sb.append("]");
+        assertThat(count + " files exist that should have been cleaned:\n" + sb.toString(), count, equalTo(0));
+    }
+
     protected static class NumShards {
         public final int numPrimaries;
         public final int numReplicas;
@@ -1807,8 +1880,12 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     @After
     public final void after() throws Exception {
+        // Deleting indices is going to clear search contexts implicitely so we
+        // need to check that there are no more in-flight search contexts before
+        // we remove indices
+        super.ensureAllSearchContextsReleased();
         if (runTestScopeLifecycle()) {
-            afterInternal();
+            afterInternal(false);
         }
     }
 
@@ -1816,7 +1893,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     public static void afterClass() throws Exception {
         if (!runTestScopeLifecycle()) {
             try {
-                INSTANCE.afterInternal();
+                INSTANCE.afterInternal(true);
             } finally {
                 INSTANCE = null;
             }
@@ -1824,10 +1901,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             clearClusters();
         }
         SUITE_SEED = null;
+        currentCluster = null;
     }
 
     private static void initializeSuiteScope() throws Exception {
-        Class<?> targetClass = getContext().getTargetClass();
+        Class<?> targetClass = getTestClass();
         /**
          * Note we create these test class instance via reflection
          * since JUnit creates a new instance per test and that is also
@@ -1865,15 +1943,27 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * Return settings that could be used to start a node that has the given zipped home directory.
      */
     protected Settings prepareBackwardsDataDir(Path backwardsIndex, Object... settings) throws IOException {
-        Path indexDir = newTempDirPath();
+        Path indexDir = createTempDir();
         Path dataDir = indexDir.resolve("data");
         try (InputStream stream = Files.newInputStream(backwardsIndex)) {
             TestUtil.unzip(stream, indexDir);
         }
         assertTrue(Files.exists(dataDir));
-        Path[] list = FileSystemUtils.files(dataDir);
+
+        // list clusters in the datapath, ignoring anything from extrasfs
+        final Path[] list;
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dataDir)) {
+            List<Path> dirs = new ArrayList<>();
+            for (Path p : stream) {
+                if (!p.getFileName().toString().startsWith("extra")) {
+                    dirs.add(p);
+                }
+            }
+            list = dirs.toArray(new Path[0]);
+        }
+
         if (list.length != 1) {
-            throw new IllegalStateException("Backwards index must contain exactly one cluster");
+            throw new IllegalStateException("Backwards index must contain exactly one cluster\n" + StringUtils.join(list, "\n"));
         }
         Path src = list[0];
         Path dest = dataDir.resolve(internalCluster().getClusterName());
@@ -1892,6 +1982,16 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return builder.build();
     }
 
+    protected HttpRequestBuilder httpClient() {
+        final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
+        final NodeInfo[] nodes = nodeInfos.getNodes();
+        assertTrue(nodes.length > 0);
+        TransportAddress publishAddress = randomFrom(nodes).getHttp().address().publishAddress();
+        assertEquals(1, publishAddress.uniqueAddressTypeId());
+        InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
+        return new HttpRequestBuilder(HttpClients.createDefault()).host(address.getHostName()).port(address.getPort());
+    }
+
     /**
      * This method is executed iff the test is annotated with {@link SuiteScopeTest}
      * before the first test of this class is executed.
@@ -1902,25 +2002,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     private static boolean isSuiteScopedTest(Class<?> clazz) {
-        if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
-            return false;
-        }
-        SuiteScopeTest annotation = clazz.getAnnotation(SuiteScopeTest.class);
-        if (annotation != null) {
-            return true;
-        }
-        return isSuiteScopedTest(clazz.getSuperclass());
-    }
-
-    private static boolean isSuiteScopeCluster(Class<?> clazz) {
-        if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
-            return false;
-        }
-        SuiteScopeTest annotation = clazz.getAnnotation(SuiteScopeTest.class);
-        if (annotation != null) {
-            return true;
-        }
-        return isSuiteScopedTest(clazz.getSuperclass());
+        return clazz.getAnnotation(SuiteScopeTest.class) != null;
     }
 
     /**
@@ -1930,7 +2012,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * that is executed in a separate test instance. Variables that need to be accessible across test instances must be static.
      */
     @Retention(RetentionPolicy.RUNTIME)
-    @Target({ElementType.TYPE})
+    @Inherited
     @Ignore
     public @interface SuiteScopeTest {
     }

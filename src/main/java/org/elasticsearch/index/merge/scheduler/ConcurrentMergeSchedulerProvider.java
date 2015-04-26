@@ -113,6 +113,7 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
         indexSettingsService.removeListener(applySettings);
     }
 
+    @Override
     public int getMaxMerges() {
         return this.maxMergeCount;
     }
@@ -138,9 +139,11 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
 
         @Override
         protected void handleMergeException(Directory dir, Throwable exc) {
-            logger.warn("failed to merge", exc);
+            logger.error("failed to merge", exc);
             provider.failedMerge(new MergePolicy.MergeException(exc, dir));
-            super.handleMergeException(dir, exc);
+            // NOTE: do not call super.handleMergeException here, which would just re-throw the exception
+            // and let Java's thread exc handler see it / log it to stderr, but we already 1) logged it
+            // and 2) handled the exception by failing the engine
         }
 
         @Override
@@ -162,8 +165,9 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
         }
 
         @Override
-        protected void maybeStall(IndexWriter writer) {
+        protected boolean maybeStall(IndexWriter writer) {
             // Don't stall here, because we do our own index throttling (in InternalEngine.IndexThrottle) when merges can't keep up
+            return true;
         }
     }
 

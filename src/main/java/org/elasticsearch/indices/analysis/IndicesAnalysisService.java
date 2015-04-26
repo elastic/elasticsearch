@@ -143,6 +143,7 @@ public class IndicesAnalysisService extends AbstractComponent implements Closeab
         return analyzerProviderFactory.analyzer();
     }
 
+    @Override
     public void close() {
         for (PreBuiltAnalyzerProviderFactory analyzerProviderFactory : analyzerProviderFactories.values()) {
             try {

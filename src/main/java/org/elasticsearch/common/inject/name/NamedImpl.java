@@ -29,15 +29,18 @@ class NamedImpl implements Named, Serializable {
         this.value = checkNotNull(value, "name");
     }
 
+    @Override
     public String value() {
         return this.value;
     }
 
+    @Override
     public int hashCode() {
         // This is specified in java.lang.Annotation.
         return (127 * "value".hashCode()) ^ value.hashCode();
     }
 
+    @Override
     public boolean equals(Object o) {
         if (!(o instanceof Named)) {
             return false;
@@ -47,10 +50,12 @@ class NamedImpl implements Named, Serializable {
         return value.equals(other.value());
     }
 
+    @Override
     public String toString() {
         return "@" + Named.class.getName() + "(value=" + value + ")";
     }
 
+    @Override
     public Class<? extends Annotation> annotationType() {
         return Named.class;
     }

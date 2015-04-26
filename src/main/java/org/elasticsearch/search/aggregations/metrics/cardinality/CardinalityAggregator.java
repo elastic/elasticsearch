@@ -40,6 +40,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -70,35 +71,36 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         this.valuesSource = valuesSource;
         this.rehash = rehash;
         this.precision = precision;
-        this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, bigArrays, 1);
+        this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
         this.formatter = formatter;
     }
 
     @Override
-    public void setNextReader(LeafReaderContext reader) {
-        postCollectLastCollector();
-        collector = createCollector(reader);
+    public boolean needsScores() {
+        return valuesSource != null && valuesSource.needsScores();
     }
 
-    private Collector createCollector(LeafReaderContext reader) {
-
+    private Collector pickCollector(LeafReaderContext ctx) throws IOException {
+        if (valuesSource == null) {
+            return new EmptyCollector();
+        }
         // if rehash is false then the value source is either already hashed, or the user explicitly
         // requested not to hash the values (perhaps they already hashed the values themselves before indexing the doc)
         // so we can just work with the original value source as is
         if (!rehash) {
-            MurmurHash3Values hashValues = MurmurHash3Values.cast(((ValuesSource.Numeric) valuesSource).longValues());
+            MurmurHash3Values hashValues = MurmurHash3Values.cast(((ValuesSource.Numeric) valuesSource).longValues(ctx));
             return new DirectCollector(counts, hashValues);
         }
 
         if (valuesSource instanceof ValuesSource.Numeric) {
             ValuesSource.Numeric source = (ValuesSource.Numeric) valuesSource;
-            MurmurHash3Values hashValues = source.isFloatingPoint() ? MurmurHash3Values.hash(source.doubleValues()) : MurmurHash3Values.hash(source.longValues());
+            MurmurHash3Values hashValues = source.isFloatingPoint() ? MurmurHash3Values.hash(source.doubleValues(ctx)) : MurmurHash3Values.hash(source.longValues(ctx));
             return new DirectCollector(counts, hashValues);
         }
 
         if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
             ValuesSource.Bytes.WithOrdinals source = (ValuesSource.Bytes.WithOrdinals) valuesSource;
-            final RandomAccessOrds ordinalValues = source.ordinalsValues();
+            final RandomAccessOrds ordinalValues = source.ordinalsValues(ctx);
             final long maxOrd = ordinalValues.getValueCount();
             if (maxOrd == 0) {
                 return new EmptyCollector();
@@ -108,22 +110,20 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
             // only use ordinals if they don't increase memory usage by more than 25%
             if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
-                return new OrdinalsCollector(counts, ordinalValues, bigArrays);
+                return new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
             }
         }
 
-        return new DirectCollector(counts, MurmurHash3Values.hash(valuesSource.bytesValues()));
-    }
-
-
-    @Override
-    public boolean shouldCollect() {
-        return valuesSource != null;
+        return new DirectCollector(counts, MurmurHash3Values.hash(valuesSource.bytesValues(ctx)));
     }
 
     @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        collector.collect(doc, owningBucketOrdinal);
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        postCollectLastCollector();
+
+        collector = pickCollector(ctx);
+        return collector;
     }
 
     private void postCollectLastCollector() {
@@ -169,15 +169,13 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         Releasables.close(counts, collector);
     }
 
-    private static interface Collector extends Releasable {
+    private static abstract class Collector extends LeafBucketCollector implements Releasable {
 
-        void collect(int doc, long bucketOrd);
-
-        void postCollect();
+        public abstract void postCollect();
 
     }
 
-    private static class EmptyCollector implements Collector {
+    private static class EmptyCollector extends Collector {
 
         @Override
         public void collect(int doc, long bucketOrd) {
@@ -195,7 +193,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
     }
 
-    private static class DirectCollector implements Collector {
+    private static class DirectCollector extends Collector {
 
         private final MurmurHash3Values hashes;
         private final HyperLogLogPlusPlus counts;
@@ -226,7 +224,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     }
 
-    private static class OrdinalsCollector implements Collector {
+    private static class OrdinalsCollector extends Collector {
 
         private static final long SHALLOW_FIXEDBITSET_SIZE = RamUsageEstimator.shallowSizeOfInstance(FixedBitSet.class);
 

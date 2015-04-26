@@ -22,6 +22,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.util.English;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -63,7 +64,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -257,6 +257,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         }
     }
 
+    @Override
     public void assertAllShardsOnNodes(String index, String pattern) {
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
@@ -395,7 +396,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
                     .addMapping("type", mapping));
         } catch (MapperParsingException ex) {
             assertThat(ex.getCause(), instanceOf(ElasticsearchIllegalArgumentException.class));
-            assertThat(ex.getCause().getMessage(), equalTo("type=_field_names is not supported on indices created before version 1.3.0 is your cluster running multiple datanode versions?"));
+            assertThat(ExceptionsHelper.detailedMessage(ex).contains("type=_field_names is not supported on indices created before version 1.3.0"), equalTo(true));
         }
 
     }
@@ -534,7 +535,6 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs));
 
-        //use routing
         DeleteResponse deleteResponse = client().prepareDelete("test", "test", firstDocId).setRouting("routing").get();
         assertThat(deleteResponse.isFound(), equalTo(true));
         GetResponse getResponse = client().prepareGet("test", "test", firstDocId).setRouting("routing").get();
@@ -543,17 +543,6 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         searchResponse = client().prepareSearch("test").get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs - 1));
-
-        //don't use routing and trigger a broadcast delete
-        deleteResponse = client().prepareDelete("test", "test", secondDocId).get();
-        assertThat(deleteResponse.isFound(), equalTo(true));
-
-        getResponse = client().prepareGet("test", "test", secondDocId).setRouting(secondRouting).get();
-        assertThat(getResponse.isExists(), equalTo(false));
-        refresh();
-        searchResponse = client().prepareSearch("test").setSize(numDocs).get();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs - 2));
     }
 
     @Test

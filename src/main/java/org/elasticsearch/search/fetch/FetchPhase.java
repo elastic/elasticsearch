@@ -19,7 +19,9 @@
 
 package org.elasticsearch.search.fetch;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -27,21 +29,26 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.fieldvisitor.*;
+import org.elasticsearch.index.fieldvisitor.AllFieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.JustUidFieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.UidAndSourceFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
@@ -59,6 +66,7 @@ import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -102,6 +110,7 @@ public class FetchPhase implements SearchPhase {
     public void preProcess(SearchContext context) {
     }
 
+    @Override
     public void execute(SearchContext context) {
         FieldsVisitor fieldsVisitor;
         Set<String> fieldNames = null;
@@ -204,7 +213,7 @@ public class FetchPhase implements SearchPhase {
 
     private int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
         if (context.mapperService().hasNested()) {
-            BitDocIdSet nonNested = context.bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE).getDocIdSet(subReaderContext);
+            BitDocIdSet nonNested = context.bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter()).getDocIdSet(subReaderContext);
             BitSet bits = nonNested.bits();
             if (!bits.get(subDocId)) {
                 return bits.nextSetBit(subDocId);
@@ -235,10 +244,10 @@ public class FetchPhase implements SearchPhase {
         InternalSearchHit searchHit = new InternalSearchHit(docId, fieldsVisitor.uid().id(), typeText, searchFields);
 
         // go over and extract fields that are not mapped / stored
-        context.lookup().setNextReader(subReaderContext);
-        context.lookup().setNextDocId(subDocId);
+        SourceLookup sourceLookup = context.lookup().source();
+        sourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
         if (fieldsVisitor.source() != null) {
-            context.lookup().source().setNextSource(fieldsVisitor.source());
+            sourceLookup.setSource(fieldsVisitor.source());
         }
         if (extractFieldNames != null) {
             for (String extractFieldName : extractFieldNames) {
@@ -278,8 +287,8 @@ public class FetchPhase implements SearchPhase {
 
         Map<String, SearchHitField> searchFields = getSearchFields(context, nestedSubDocId, loadAllStored, fieldNames, subReaderContext);
         DocumentMapper documentMapper = context.mapperService().documentMapper(rootFieldsVisitor.uid().type());
-        context.lookup().setNextReader(subReaderContext);
-        context.lookup().setNextDocId(nestedSubDocId);
+        SourceLookup sourceLookup = context.lookup().source();
+        sourceLookup.setSegmentAndDocument(subReaderContext, nestedSubDocId);
 
         ObjectMapper nestedObjectMapper = documentMapper.findNestedObjectMapper(nestedSubDocId, context.bitsetFilterCache(), subReaderContext);
         assert nestedObjectMapper != null;
@@ -293,16 +302,28 @@ public class FetchPhase implements SearchPhase {
             List<Map<String, Object>> nestedParsedSource;
             SearchHit.NestedIdentity nested = nestedIdentity;
             do {
-                nestedParsedSource = (List<Map<String, Object>>) XContentMapValues.extractValue(nested.getField().string(), sourceAsMap);
+                Object extractedValue = XContentMapValues.extractValue(nested.getField().string(), sourceAsMap);
+                if (extractedValue == null) {
+                    // The nested objects may not exist in the _source, because it was filtered because of _source filtering
+                    break;
+                } else if (extractedValue instanceof List) {
+                    // nested field has an array value in the _source
+                    nestedParsedSource = (List<Map<String, Object>>) extractedValue;
+                } else if (extractedValue instanceof Map) {
+                    // nested field has an object value in the _source. This just means the nested field has just one inner object, which is valid, but uncommon.
+                    nestedParsedSource = ImmutableList.of((Map < String, Object >) extractedValue);
+                } else {
+                    throw new ElasticsearchIllegalStateException("extracted source isn't an object or an array");
+                }
                 sourceAsMap = nestedParsedSource.get(nested.getOffset());
                 nested = nested.getChild();
             } while (nested != null);
 
-            context.lookup().source().setNextSource(sourceAsMap);
+            context.lookup().source().setSource(sourceAsMap);
             XContentType contentType = tuple.v1();
             BytesReference nestedSource = contentBuilder(contentType).map(sourceAsMap).bytes();
-            context.lookup().source().setNextSource(nestedSource);
-            context.lookup().source().setNextSourceContentType(contentType);
+            context.lookup().source().setSource(nestedSource);
+            context.lookup().source().setSourceContentType(contentType);
         }
 
         InternalSearchHit searchHit = new InternalSearchHit(nestedTopDocId, rootFieldsVisitor.uid().id(), documentMapper.typeText(), nestedIdentity, searchFields);
@@ -361,12 +382,18 @@ public class FetchPhase implements SearchPhase {
             String field;
             Filter parentFilter;
             nestedParentObjectMapper = documentMapper.findParentObjectMapper(nestedObjectMapper);
-            if (nestedParentObjectMapper != null && nestedObjectMapper.nested().isNested()) {
+            if (nestedParentObjectMapper != null) {
                 field = nestedObjectMapper.name();
+                if (!nestedParentObjectMapper.nested().isNested()) {
+                    nestedObjectMapper = nestedParentObjectMapper;
+                    // all right, the parent is a normal object field, so this is the best identiy we can give for that:
+                    nestedIdentity = new InternalSearchHit.InternalNestedIdentity(field, 0, nestedIdentity);
+                    continue;
+                }
                 parentFilter = nestedParentObjectMapper.nestedTypeFilter();
             } else {
                 field = nestedObjectMapper.fullPath();
-                parentFilter = NonNestedDocsFilter.INSTANCE;
+                parentFilter = Queries.newNonNestedFilter();
             }
 
             BitDocIdSet parentBitSet = context.bitsetFilterCache().getBitDocIdSetFilter(parentFilter).getDocIdSet(subReaderContext);

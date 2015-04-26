@@ -22,8 +22,9 @@ package org.elasticsearch.action.admin.indices.alias;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.AliasesRequest;
+import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -39,7 +40,10 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.FilterBuilder;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.cluster.metadata.AliasAction.readAliasAction;
@@ -47,11 +51,13 @@ import static org.elasticsearch.cluster.metadata.AliasAction.readAliasAction;
 /**
  * A request to add/remove aliases for one or more indices.
  */
-public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> implements IndicesRequest {
+public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> implements CompositeIndicesRequest {
 
     private List<AliasActions> allAliasActions = Lists.newArrayList();
-    
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
+
+    //indices options that require every specified index to exist, expand wildcards only to open indices and
+    //don't allow that no indices are resolved from wildcard expressions
+    private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false);
 
     public IndicesAliasesRequest() {
 
@@ -64,11 +70,11 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
      * holds the AliasAction and in addition the arrays or alias names and
      * indices that is later used to create the final AliasAction instances.
      */
-    public static class AliasActions {
+    public static class AliasActions implements AliasesRequest {
         private String[] indices = Strings.EMPTY_ARRAY;
         private String[] aliases = Strings.EMPTY_ARRAY;
         private AliasAction aliasAction;
-        
+
         public AliasActions(AliasAction.Type type, String[] indices, String[] aliases) {
             aliasAction = new AliasAction(type);
             indices(indices);
@@ -132,30 +138,38 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             aliasAction.filter(filter);
             return this;
         }
-        
-        public void indices(String... indices) {
-            if (indices == null) {
-                throw new ElasticsearchIllegalArgumentException("indices must not be null");
-            }
-            List<String> finalIndices = new ArrayList<>();
-            for (String index : indices) {
-                if (index != null) {
-                    finalIndices.add(index);
-                }
-            }
-            this.indices = finalIndices.toArray(new String[finalIndices.size()]);
+
+        @Override
+        public AliasActions indices(String... indices) {
+            this.indices = indices;
+            return this;
         }
-        
-        public void aliases(String... aliases) {
+
+        @Override
+        public AliasActions aliases(String... aliases) {
             this.aliases = aliases;
+            return this;
         }
-        
+
+        @Override
         public String[] aliases() {
             return aliases;
         }
-        
+
+        @Override
+        public boolean expandAliasesWildcards() {
+            //remove operations support wildcards among aliases, add operations don't
+            return aliasAction.actionType() == Type.REMOVE;
+        }
+
+        @Override
         public String[] indices() {
             return indices;
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return INDICES_OPTIONS;
         }
 
         public AliasAction aliasAction() {
@@ -163,7 +177,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         }
 
         public String[] concreteAliases(MetaData metaData, String concreteIndex) {
-            if (aliasAction.actionType() == Type.REMOVE) {
+            if (expandAliasesWildcards()) {
                 //for DELETE we expand the aliases
                 String[] indexAsArray = {concreteIndex};
                 ImmutableOpenMap<String, ImmutableList<AliasMetaData>> aliasMetaData = metaData.findAliases(aliases, indexAsArray);
@@ -295,30 +309,19 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                     }
                 }
             }
-            if (!CollectionUtils.isEmpty(aliasAction.indices)) {
+            if (CollectionUtils.isEmpty(aliasAction.indices)) {
+                validationException = addValidationError("Alias action [" + aliasAction.actionType().name().toLowerCase(Locale.ENGLISH)
+                        + "]: Property [index] was either missing or null", validationException);
+            } else {
                 for (String index : aliasAction.indices) {
                     if (!Strings.hasText(index)) {
                         validationException = addValidationError("Alias action [" + aliasAction.actionType().name().toLowerCase(Locale.ENGLISH)
                                 + "]: [index] may not be empty string", validationException);
                     }
                 }
-            } else {
-                validationException = addValidationError("Alias action [" + aliasAction.actionType().name().toLowerCase(Locale.ENGLISH)
-                        + "]: Property [index] was either missing or null", validationException);
             }
         }
         return validationException;
-    }
-
-    @Override
-    public String[] indices() {
-        List<String> indices = Lists.newArrayList();
-        for (AliasActions aliasActions : aliasActions()) {
-            if (!CollectionUtils.isEmpty(aliasActions.indices())) {
-                Collections.addAll(indices, aliasActions.indices);
-            }
-        }
-        return indices.toArray(new String[indices.size()]);
     }
 
     @Override
@@ -341,14 +344,17 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         writeTimeout(out);
     }
 
-    @Override
     public IndicesOptions indicesOptions() {
-        return indicesOptions;
+        return INDICES_OPTIONS;
     }
     
-    private AliasActions readAliasActions(StreamInput in) throws IOException {
+    private static AliasActions readAliasActions(StreamInput in) throws IOException {
         AliasActions actions = new AliasActions();
         return actions.readFrom(in);
     }
 
+    @Override
+    public List<? extends IndicesRequest> subRequests() {
+        return allAliasActions;
+    }
 }

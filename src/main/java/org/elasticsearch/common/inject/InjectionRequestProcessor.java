@@ -109,6 +109,7 @@ class InjectionRequestProcessor extends AbstractProcessor {
         void injectMembers() {
             try {
                 injector.callInContext(new ContextualCallable<Void>() {
+                    @Override
                     public Void call(InternalContext context) {
                         for (SingleMemberInjector injector : memberInjectors) {
                             injector.inject(errors, context, null);

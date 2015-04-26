@@ -34,6 +34,9 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class GetSnapshotsRequest extends MasterNodeOperationRequest<GetSnapshotsRequest> {
 
+    public static final String ALL_SNAPSHOTS = "_all";
+    public static final String CURRENT_SNAPSHOT = "_current";
+
     private String repository;
 
     private String[] snapshots = Strings.EMPTY_ARRAY;

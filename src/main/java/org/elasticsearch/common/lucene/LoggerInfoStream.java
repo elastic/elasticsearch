@@ -40,10 +40,12 @@ public final class LoggerInfoStream extends InfoStream {
         ifdLogger = Loggers.getLogger(parentLogger, ".lucene.iw.ifd");
     }
 
+    @Override
     public void message(String component, String message) {
         getLogger(component).trace("{} {}: {}", Thread.currentThread().getName(), component, message);
     }
 
+    @Override
     public boolean isEnabled(String component) {
         // TP is a special "test point" component; we don't want
         // to log it:

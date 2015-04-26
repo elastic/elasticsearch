@@ -19,23 +19,24 @@
 
 package org.elasticsearch.transport.netty;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-
 import org.elasticsearch.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.HandlesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.math.MathUtils;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.netty.ReleaseChannelFutureListener;
@@ -110,76 +111,51 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     public static final String CONNECTIONS_PER_NODE_REG = "transport.connections_per_node.reg";
     public static final String CONNECTIONS_PER_NODE_STATE = "transport.connections_per_node.state";
     public static final String CONNECTIONS_PER_NODE_PING = "transport.connections_per_node.ping";
-    private static final String DEFAULT_PORT_RANGE = "9300-9400";
+    public static final String PING_SCHEDULE = "transport.ping_schedule"; // the scheduled internal ping interval setting
+    public static final TimeValue DEFAULT_PING_SCHEDULE = TimeValue.timeValueMillis(-1); // the default ping schedule, defaults to disabled (-1)
+    public static final String DEFAULT_PORT_RANGE = "9300-9400";
+    public static final String DEFAULT_PROFILE = "default";
 
-    private final NetworkService networkService;
-    final Version version;
+    protected final NetworkService networkService;
+    protected final Version version;
 
-    private final boolean blockingClient;
-    private final TimeValue connectTimeout;
-    private final ByteSizeValue maxCumulationBufferCapacity;
-    private final int maxCompositeBufferComponents;
-    final boolean compress;
-    private final ReceiveBufferSizePredictorFactory receiveBufferSizePredictorFactory;
-    private final int workerCount;
-    private final ByteSizeValue receivePredictorMin;
-    private final ByteSizeValue receivePredictorMax;
+    protected final boolean blockingClient;
+    protected final TimeValue connectTimeout;
+    protected final ByteSizeValue maxCumulationBufferCapacity;
+    protected final int maxCompositeBufferComponents;
+    protected final boolean compress;
+    protected final ReceiveBufferSizePredictorFactory receiveBufferSizePredictorFactory;
+    protected final int workerCount;
+    protected final ByteSizeValue receivePredictorMin;
+    protected final ByteSizeValue receivePredictorMax;
 
-    final int connectionsPerNodeRecovery;
-    final int connectionsPerNodeBulk;
-    final int connectionsPerNodeReg;
-    final int connectionsPerNodeState;
-    final int connectionsPerNodePing;
+    protected final int connectionsPerNodeRecovery;
+    protected final int connectionsPerNodeBulk;
+    protected final int connectionsPerNodeReg;
+    protected final int connectionsPerNodeState;
+    protected final int connectionsPerNodePing;
 
-    /*
-    final int workerCount;
-    final int bossCount;
+    private final TimeValue pingSchedule;
 
-    final boolean blockingServer;
-
-    final String port;
-
-    final String bindHost;
-
-    final String publishHost;
-
-    final int publishPort;
-
-    final boolean compress;
-
-    final TimeValue connectTimeout;
-    final String tcpNoDelay;
-    final String tcpKeepAlive;
-    final Boolean reuseAddress;
-
-    final ByteSizeValue tcpSendBufferSize;
-    final ByteSizeValue tcpReceiveBufferSize;
-
-    final int connectionsPerNodeRecovery;
-    final int connectionsPerNodeBulk;
-    final int connectionsPerNodeReg;
-    final int connectionsPerNodeState;
-    final int connectionsPerNodePing;
-
-    final ByteSizeValue maxCumulationBufferCapacity;
-    final int maxCompositeBufferComponents;
-    */
-
-    final BigArrays bigArrays;
-    private final ThreadPool threadPool;
-    private volatile OpenChannelsHandler serverOpenChannels;
-    private volatile ClientBootstrap clientBootstrap;
+    protected final BigArrays bigArrays;
+    protected final ThreadPool threadPool;
+    protected volatile OpenChannelsHandler serverOpenChannels;
+    protected volatile ClientBootstrap clientBootstrap;
     // node id to actual channel
-    final ConcurrentMap<DiscoveryNode, NodeChannels> connectedNodes = newConcurrentMap();
-    private final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
-    private final Map<String, Channel> serverChannels = newConcurrentMap();
-    private volatile TransportServiceAdapter transportServiceAdapter;
-    private volatile BoundTransportAddress boundAddress;
-    private final KeyedLock<String> connectionLock = new KeyedLock<>();
+    protected final ConcurrentMap<DiscoveryNode, NodeChannels> connectedNodes = newConcurrentMap();
+    protected final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
+    protected final Map<String, Channel> serverChannels = newConcurrentMap();
+    protected final Map<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
+    protected volatile TransportServiceAdapter transportServiceAdapter;
+    protected volatile BoundTransportAddress boundAddress;
+    protected final KeyedLock<String> connectionLock = new KeyedLock<>();
 
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on... (this might help with 100% CPU when stopping the transport?)
     private final ReadWriteLock globalLock = new ReentrantReadWriteLock();
+
+    // package visibility for tests
+    final ScheduledPing scheduledPing;
 
     @Inject
     public NettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version) {
@@ -194,17 +170,17 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         this.workerCount = settings.getAsInt(WORKER_COUNT, EsExecutors.boundedNumberOfProcessors(settings) * 2);
-        this.blockingClient = settings.getAsBoolean("transport.tcp.blocking_client", settings.getAsBoolean(TCP_BLOCKING_CLIENT, settings.getAsBoolean(TCP_BLOCKING, false)));
-        this.connectTimeout = componentSettings.getAsTime("connect_timeout", settings.getAsTime("transport.tcp.connect_timeout", settings.getAsTime(TCP_CONNECT_TIMEOUT, TCP_DEFAULT_CONNECT_TIMEOUT)));
-        this.maxCumulationBufferCapacity = componentSettings.getAsBytesSize("max_cumulation_buffer_capacity", null);
-        this.maxCompositeBufferComponents = componentSettings.getAsInt("max_composite_buffer_components", -1);
+        this.blockingClient = settings.getAsBoolean("transport.netty.transport.tcp.blocking_client", settings.getAsBoolean(TCP_BLOCKING_CLIENT, settings.getAsBoolean(TCP_BLOCKING, false)));
+        this.connectTimeout = this.settings.getAsTime("transport.netty.connect_timeout", settings.getAsTime("transport.tcp.connect_timeout", settings.getAsTime(TCP_CONNECT_TIMEOUT, TCP_DEFAULT_CONNECT_TIMEOUT)));
+        this.maxCumulationBufferCapacity = this.settings.getAsBytesSize("transport.netty.max_cumulation_buffer_capacity", null);
+        this.maxCompositeBufferComponents = this.settings.getAsInt("transport.netty.max_composite_buffer_components", -1);
         this.compress = settings.getAsBoolean(TransportSettings.TRANSPORT_TCP_COMPRESS, false);
 
-        this.connectionsPerNodeRecovery = componentSettings.getAsInt("connections_per_node.recovery", settings.getAsInt(CONNECTIONS_PER_NODE_RECOVERY, 2));
-        this.connectionsPerNodeBulk = componentSettings.getAsInt("connections_per_node.bulk", settings.getAsInt(CONNECTIONS_PER_NODE_BULK, 3));
-        this.connectionsPerNodeReg = componentSettings.getAsInt("connections_per_node.reg", settings.getAsInt(CONNECTIONS_PER_NODE_REG, 6));
-        this.connectionsPerNodeState = componentSettings.getAsInt("connections_per_node.high", settings.getAsInt(CONNECTIONS_PER_NODE_STATE, 1));
-        this.connectionsPerNodePing = componentSettings.getAsInt("connections_per_node.ping", settings.getAsInt(CONNECTIONS_PER_NODE_PING, 1));
+        this.connectionsPerNodeRecovery = this.settings.getAsInt("transport.netty.connections_per_node.recovery", settings.getAsInt(CONNECTIONS_PER_NODE_RECOVERY, 2));
+        this.connectionsPerNodeBulk = this.settings.getAsInt("transport.netty.connections_per_node.bulk", settings.getAsInt(CONNECTIONS_PER_NODE_BULK, 3));
+        this.connectionsPerNodeReg = this.settings.getAsInt("transport.netty.connections_per_node.reg", settings.getAsInt(CONNECTIONS_PER_NODE_REG, 6));
+        this.connectionsPerNodeState = this.settings.getAsInt("transport.netty.connections_per_node.high", settings.getAsInt(CONNECTIONS_PER_NODE_STATE, 1));
+        this.connectionsPerNodePing = this.settings.getAsInt("transport.netty.connections_per_node.ping", settings.getAsInt(CONNECTIONS_PER_NODE_PING, 1));
 
         // we want to have at least 1 for reg/state/ping
         if (this.connectionsPerNodeReg == 0) {
@@ -218,19 +194,25 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         long defaultReceiverPredictor = 512 * 1024;
-        if (JvmInfo.jvmInfo().mem().directMemoryMax().bytes() > 0) {
+        if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes() > 0) {
             // we can guess a better default...
-            long l = (long) ((0.3 * JvmInfo.jvmInfo().mem().directMemoryMax().bytes()) / workerCount);
+            long l = (long) ((0.3 * JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes()) / workerCount);
             defaultReceiverPredictor = Math.min(defaultReceiverPredictor, Math.max(l, 64 * 1024));
         }
 
         // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
-        this.receivePredictorMin = componentSettings.getAsBytesSize("receive_predictor_min", componentSettings.getAsBytesSize("receive_predictor_size", new ByteSizeValue(defaultReceiverPredictor)));
-        this.receivePredictorMax = componentSettings.getAsBytesSize("receive_predictor_max", componentSettings.getAsBytesSize("receive_predictor_size", new ByteSizeValue(defaultReceiverPredictor)));
+        this.receivePredictorMin = this.settings.getAsBytesSize("transport.netty.receive_predictor_min", this.settings.getAsBytesSize("transport.netty.receive_predictor_size", new ByteSizeValue(defaultReceiverPredictor)));
+        this.receivePredictorMax = this.settings.getAsBytesSize("transport.netty.receive_predictor_max", this.settings.getAsBytesSize("transport.netty.receive_predictor_size", new ByteSizeValue(defaultReceiverPredictor)));
         if (receivePredictorMax.bytes() == receivePredictorMin.bytes()) {
             receiveBufferSizePredictorFactory = new FixedReceiveBufferSizePredictorFactory((int) receivePredictorMax.bytes());
         } else {
             receiveBufferSizePredictorFactory = new AdaptiveReceiveBufferSizePredictorFactory((int) receivePredictorMin.bytes(), (int) receivePredictorMin.bytes(), (int) receivePredictorMax.bytes());
+        }
+
+        this.scheduledPing = new ScheduledPing();
+        this.pingSchedule = settings.getAsTime(PING_SCHEDULE, DEFAULT_PING_SCHEDULE);
+        if (pingSchedule.millis() > 0) {
+            threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, scheduledPing);
         }
     }
 
@@ -253,67 +235,77 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     protected void doStart() throws ElasticsearchException {
-        clientBootstrap = createClientBootstrap();
-
-        if (!settings.getAsBoolean("network.server", true)) {
-            return;
-        }
-
-        final OpenChannelsHandler openChannels = new OpenChannelsHandler(logger);
-        this.serverOpenChannels = openChannels;
-
-        // extract default profile first and create standard bootstrap
-        Map<String, Settings> profiles = settings.getGroups("transport.profiles", true);
-        if (!profiles.containsKey("default")) {
-            profiles = Maps.newHashMap(profiles);
-            profiles.put("default", ImmutableSettings.EMPTY);
-        }
-
-        Settings fallbackSettings = createFallbackSettings();
-        Settings defaultSettings = profiles.get("default");
-
-        // loop through all profiles and strart them app, special handling for default one
-        for (Map.Entry<String, Settings> entry : profiles.entrySet()) {
-            Settings profileSettings = entry.getValue();
-            String name = entry.getKey();
-
-            if ("default".equals(name)) {
-                profileSettings = settingsBuilder()
-                        .put(profileSettings)
-                        .put("port", profileSettings.get("port", componentSettings.get("port", this.settings.get("transport.tcp.port", DEFAULT_PORT_RANGE))))
-                        .build();
-            } else {
-                // if profile does not have a port, skip it
-                if (profileSettings.get("port") == null) {
-                    logger.info("No port configured for profile [{}], not binding", name);
-                    continue;
-                }
-            }
-
-            // merge fallback settings with default settings with profile settings so we have complete settings with default values
-            Settings mergedSettings = settingsBuilder()
-                    .put(fallbackSettings)
-                    .put(defaultSettings)
-                    .put(profileSettings)
-                    .build();
-
-            createServerBootstrap(name, mergedSettings);
-            bindServerBootstrap(name, mergedSettings);
-        }
-
-        InetSocketAddress boundAddress = (InetSocketAddress) serverChannels.get("default").getLocalAddress();
-        InetSocketAddress publishAddress;
-        int publishPort = componentSettings.getAsInt("publish_port", settings.getAsInt("transport.publish_port", 0));
-        if (0 == publishPort) {
-            publishPort = boundAddress.getPort();
-        }
+        boolean success = false;
         try {
-            String publishHost = componentSettings.get("publish_host", settings.get("transport.publish_host", settings.get("transport.host")));
-            publishAddress = new InetSocketAddress(networkService.resolvePublishHostAddress(publishHost), publishPort);
+            clientBootstrap = createClientBootstrap();
+            if (settings.getAsBoolean("network.server", true)) {
+                final OpenChannelsHandler openChannels = new OpenChannelsHandler(logger);
+                this.serverOpenChannels = openChannels;
+
+                // extract default profile first and create standard bootstrap
+                Map<String, Settings> profiles = settings.getGroups("transport.profiles", true);
+                if (!profiles.containsKey(DEFAULT_PROFILE)) {
+                    profiles = Maps.newHashMap(profiles);
+                    profiles.put(DEFAULT_PROFILE, ImmutableSettings.EMPTY);
+                }
+
+                Settings fallbackSettings = createFallbackSettings();
+                Settings defaultSettings = profiles.get(DEFAULT_PROFILE);
+
+                // loop through all profiles and strart them app, special handling for default one
+                for (Map.Entry<String, Settings> entry : profiles.entrySet()) {
+                    Settings profileSettings = entry.getValue();
+                    String name = entry.getKey();
+
+                    if (DEFAULT_PROFILE.equals(name)) {
+                        profileSettings = settingsBuilder()
+                                .put(profileSettings)
+                                .put("port", profileSettings.get("port", this.settings.get("transport.tcp.port", DEFAULT_PORT_RANGE)))
+                                .build();
+                    } else {
+                        // if profile does not have a port, skip it
+                        if (profileSettings.get("port") == null) {
+                            logger.info("No port configured for profile [{}], not binding", name);
+                            continue;
+                        }
+                    }
+
+                    // merge fallback settings with default settings with profile settings so we have complete settings with default values
+                    Settings mergedSettings = settingsBuilder()
+                            .put(fallbackSettings)
+                            .put(defaultSettings)
+                            .put(profileSettings)
+                            .build();
+
+                    createServerBootstrap(name, mergedSettings);
+                    bindServerBootstrap(name, mergedSettings);
+                }
+
+                InetSocketAddress boundAddress = (InetSocketAddress) serverChannels.get(DEFAULT_PROFILE).getLocalAddress();
+                int publishPort = settings.getAsInt("transport.netty.publish_port", settings.getAsInt("transport.publish_port", boundAddress.getPort()));
+                String publishHost = settings.get("transport.netty.publish_host", settings.get("transport.publish_host", settings.get("transport.host")));
+                InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
+                this.boundAddress = new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress));
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                doStop();
+            }
+        }
+    }
+
+    @Override
+    public Map<String, BoundTransportAddress> profileBoundAddresses() {
+        return ImmutableMap.copyOf(profileBoundAddresses);
+    }
+
+    private InetSocketAddress createPublishAddress(String publishHost, int publishPort) {
+        try {
+            return new InetSocketAddress(networkService.resolvePublishHostAddress(publishHost), publishPort);
         } catch (Exception e) {
             throw new BindTransportException("Failed to resolve publish address", e);
         }
-        this.boundAddress = new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress));
     }
 
     private ClientBootstrap createClientBootstrap() {
@@ -321,7 +313,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         if (blockingClient) {
             clientBootstrap = new ClientBootstrap(new OioClientSocketChannelFactory(Executors.newCachedThreadPool(daemonThreadFactory(settings, TRANSPORT_CLIENT_WORKER_THREAD_NAME_PREFIX))));
         } else {
-            int bossCount = componentSettings.getAsInt("boss_count", 1);
+            int bossCount = settings.getAsInt("transport.netty.boss_count", 1);
             clientBootstrap = new ClientBootstrap(new NioClientSocketChannelFactory(
                     Executors.newCachedThreadPool(daemonThreadFactory(settings, TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX)),
                     bossCount,
@@ -331,29 +323,29 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         clientBootstrap.setPipelineFactory(configureClientChannelPipelineFactory());
         clientBootstrap.setOption("connectTimeoutMillis", connectTimeout.millis());
 
-        String tcpNoDelay = componentSettings.get("tcp_no_delay", settings.get(TCP_NO_DELAY, "true"));
+        String tcpNoDelay = settings.get("transport.netty.tcp_no_delay", settings.get(TCP_NO_DELAY, "true"));
         if (!"default".equals(tcpNoDelay)) {
             clientBootstrap.setOption("tcpNoDelay", Booleans.parseBoolean(tcpNoDelay, null));
         }
 
-        String tcpKeepAlive = componentSettings.get("tcp_keep_alive", settings.get(TCP_KEEP_ALIVE, "true"));
+        String tcpKeepAlive = settings.get("transport.netty.tcp_keep_alive", settings.get(TCP_KEEP_ALIVE, "true"));
         if (!"default".equals(tcpKeepAlive)) {
             clientBootstrap.setOption("keepAlive", Booleans.parseBoolean(tcpKeepAlive, null));
         }
 
-        ByteSizeValue tcpSendBufferSize = componentSettings.getAsBytesSize("tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
+        ByteSizeValue tcpSendBufferSize = settings.getAsBytesSize("transport.netty.tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
         if (tcpSendBufferSize != null && tcpSendBufferSize.bytes() > 0) {
             clientBootstrap.setOption("sendBufferSize", tcpSendBufferSize.bytes());
         }
 
-        ByteSizeValue tcpReceiveBufferSize = componentSettings.getAsBytesSize("tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, TCP_DEFAULT_RECEIVE_BUFFER_SIZE));
+        ByteSizeValue tcpReceiveBufferSize = settings.getAsBytesSize("transport.netty.tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, TCP_DEFAULT_RECEIVE_BUFFER_SIZE));
         if (tcpReceiveBufferSize != null && tcpReceiveBufferSize.bytes() > 0) {
             clientBootstrap.setOption("receiveBufferSize", tcpReceiveBufferSize.bytes());
         }
 
         clientBootstrap.setOption("receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
 
-        Boolean reuseAddress = componentSettings.getAsBoolean("reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
+        Boolean reuseAddress = settings.getAsBoolean("transport.netty.reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
         if (reuseAddress != null) {
             clientBootstrap.setOption("reuseAddress", reuseAddress);
         }
@@ -364,37 +356,37 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     private Settings createFallbackSettings() {
         ImmutableSettings.Builder fallbackSettingsBuilder = settingsBuilder();
 
-        String fallbackBindHost = componentSettings.get("bind_host", settings.get("transport.bind_host", settings.get("transport.host")));
+        String fallbackBindHost = settings.get("transport.netty.bind_host", settings.get("transport.bind_host", settings.get("transport.host")));
         if (fallbackBindHost != null) {
             fallbackSettingsBuilder.put("bind_host", fallbackBindHost);
         }
 
-        String fallbackPublishHost = componentSettings.get("publish_host", settings.get("transport.publish_host", settings.get("transport.host")));
+        String fallbackPublishHost = settings.get("transport.netty.publish_host", settings.get("transport.publish_host", settings.get("transport.host")));
         if (fallbackPublishHost != null) {
             fallbackSettingsBuilder.put("publish_host", fallbackPublishHost);
         }
 
-        String fallbackTcpNoDelay = componentSettings.get("tcp_no_delay", settings.get(TCP_NO_DELAY, "true"));
+        String fallbackTcpNoDelay = settings.get("transport.netty.tcp_no_delay", settings.get(TCP_NO_DELAY, "true"));
         if (fallbackTcpNoDelay != null) {
             fallbackSettingsBuilder.put("tcp_no_delay", fallbackTcpNoDelay);
         }
 
-        String fallbackTcpKeepAlive = componentSettings.get("tcp_keep_alive", settings.get(TCP_KEEP_ALIVE, "true"));
+        String fallbackTcpKeepAlive = settings.get("transport.netty.tcp_keep_alive", settings.get(TCP_KEEP_ALIVE, "true"));
         if (fallbackTcpKeepAlive != null) {
             fallbackSettingsBuilder.put("tcp_keep_alive", fallbackTcpKeepAlive);
         }
 
-        Boolean fallbackReuseAddress = componentSettings.getAsBoolean("reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
+        Boolean fallbackReuseAddress = settings.getAsBoolean("transport.netty.reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
         if (fallbackReuseAddress != null) {
             fallbackSettingsBuilder.put("reuse_address", fallbackReuseAddress);
         }
 
-        ByteSizeValue fallbackTcpSendBufferSize = componentSettings.getAsBytesSize("tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
+        ByteSizeValue fallbackTcpSendBufferSize = settings.getAsBytesSize("transport.netty.tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
         if (fallbackTcpSendBufferSize != null) {
             fallbackSettingsBuilder.put("tcp_send_buffer_size", fallbackTcpSendBufferSize);
         }
 
-        ByteSizeValue fallbackTcpBufferSize = componentSettings.getAsBytesSize("tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, TCP_DEFAULT_RECEIVE_BUFFER_SIZE));
+        ByteSizeValue fallbackTcpBufferSize = settings.getAsBytesSize("transport.netty.tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, TCP_DEFAULT_RECEIVE_BUFFER_SIZE));
         if (fallbackTcpBufferSize != null) {
             fallbackSettingsBuilder.put("tcp_receive_buffer_size", fallbackTcpBufferSize);
         }
@@ -430,6 +422,14 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         });
         if (!success) {
             throw new BindTransportException("Failed to bind to [" + port + "]", lastException.get());
+        }
+
+        if (!DEFAULT_PROFILE.equals(name)) {
+            InetSocketAddress boundAddress = (InetSocketAddress) serverChannels.get(name).getLocalAddress();
+            int publishPort = settings.getAsInt("publish_port", boundAddress.getPort());
+            String publishHost = settings.get("publish_host", boundAddress.getHostString());
+            InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
+            profileBoundAddresses.put(name, new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress)));
         }
 
         logger.debug("Bound profile [{}] to address [{}]", name, serverChannels.get(name).getLocalAddress());
@@ -580,7 +580,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             index = address.lastIndexOf(':');
             if (index == -1) {
                 List<TransportAddress> addresses = Lists.newArrayList();
-                String defaultPort = settings.get("transport.profiles.default.port", componentSettings.get("port", this.settings.get("transport.tcp.port", DEFAULT_PORT_RANGE)));
+                String defaultPort = settings.get("transport.profiles.default.port", settings.get("transport.netty.port", this.settings.get("transport.tcp.port", DEFAULT_PORT_RANGE)));
                 int[] iPorts = new PortsRange(defaultPort).ports();
                 for (int iPort : iPorts) {
                     addresses.add(new InetSocketTransportAddress(address, iPort));
@@ -604,7 +604,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         return this.boundAddress;
     }
 
-    void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
+    protected void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
         if (!lifecycle.started()) {
             // ignore
             return;
@@ -624,6 +624,18 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
             ctx.getChannel().close();
             disconnectFromNodeChannel(ctx.getChannel(), e.getCause());
+        } else if (e.getCause() instanceof SizeHeaderFrameDecoder.HttpOnTransportException) {
+            // in case we are able to return data, serialize the exception content and sent it back to the client
+            if (ctx.getChannel().isOpen()) {
+                ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(e.getCause().getMessage().getBytes(Charsets.UTF_8));
+                ChannelFuture channelFuture = ctx.getChannel().write(buffer);
+                channelFuture.addListener(new ChannelFutureListener() {
+                    @Override
+                    public void operationComplete(ChannelFuture future) throws Exception {
+                        future.getChannel().close();
+                    }
+                });
+            }
         } else {
             logger.warn("exception caught on transport layer [{}], closing connection", e.getCause(), ctx.getChannel());
             // close the channel, which will cause a node to be disconnected if relevant
@@ -665,7 +677,6 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 status = TransportStatus.setCompress(status);
                 stream = CompressorFactory.defaultCompressor().streamOutput(stream);
             }
-            stream = new HandlesStreamOutput(stream);
 
             // we pick the smallest of the 2, to support both backward and forward compatibility
             // note, this is the only place we need to do this, since from here on, we use the serialized version
@@ -675,7 +686,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             stream.setVersion(version);
             stream.writeString(action);
 
-            ReleasableBytesReference bytes;
+            ReleasablePagedBytesReference bytes;
             ChannelBuffer buffer;
             // it might be nice to somehow generalize this optimization, maybe a smart "paged" bytes output
             // that create paged channel buffers, but its tricky to know when to do it (where this option is
@@ -700,6 +711,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             ReleaseChannelFutureListener listener = new ReleaseChannelFutureListener(bytes);
             future.addListener(listener);
             addedReleaseListener = true;
+            transportServiceAdapter.onRequestSent(node, requestId, action, request, options);
         } finally {
             if (!addedReleaseListener) {
                 Releasables.close(bStream.bytes());
@@ -754,6 +766,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                         }
                     }
                     // we acquire a connection lock, so no way there is an existing connection
+                    nodeChannels.start();
                     connectedNodes.put(node, nodeChannels);
                     if (logger.isDebugEnabled()) {
                         logger.debug("connected to node [{}]", node);
@@ -772,7 +785,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
 
-    private NodeChannels connectToChannelsLight(DiscoveryNode node) {
+    protected NodeChannels connectToChannelsLight(DiscoveryNode node) {
         InetSocketAddress address = ((InetSocketTransportAddress) node.address()).address();
         ChannelFuture connect = clientBootstrap.connect(address);
         connect.awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
@@ -785,7 +798,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         return new NodeChannels(channels, channels, channels, channels, channels);
     }
 
-    private void connectToChannels(NodeChannels nodeChannels, DiscoveryNode node) {
+    protected void connectToChannels(NodeChannels nodeChannels, DiscoveryNode node) {
         ChannelFuture[] connectRecovery = new ChannelFuture[nodeChannels.recovery.length];
         ChannelFuture[] connectBulk = new ChannelFuture[nodeChannels.bulk.length];
         ChannelFuture[] connectReg = new ChannelFuture[nodeChannels.reg.length];
@@ -902,7 +915,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     /**
      * Disconnects from a node, only if the relevant channel is found to be part of the node channels.
      */
-    private boolean disconnectFromNode(DiscoveryNode node, Channel channel, String reason) {
+    protected boolean disconnectFromNode(DiscoveryNode node, Channel channel, String reason) {
         // this might be called multiple times from all the node channels, so do a lightweight
         // check outside of the lock
         NodeChannels nodeChannels = connectedNodes.get(node);
@@ -932,7 +945,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     /**
      * Disconnects from a node if a channel is found as part of that nodes channels.
      */
-    private void disconnectFromNodeChannel(final Channel channel, final Throwable failure) {
+    protected void disconnectFromNodeChannel(final Channel channel, final Throwable failure) {
         threadPool().generic().execute(new Runnable() {
 
             @Override
@@ -948,7 +961,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         });
     }
 
-    private Channel nodeChannel(DiscoveryNode node, TransportRequestOptions options) throws ConnectTransportException {
+    protected Channel nodeChannel(DiscoveryNode node, TransportRequestOptions options) throws ConnectTransportException {
         NodeChannels nodeChannels = connectedNodes.get(node);
         if (nodeChannels == null) {
             throw new NodeNotConnectedException(node, "Node not connected");
@@ -982,7 +995,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 sizeHeader.setMaxCumulationBufferComponents(nettyTransport.maxCompositeBufferComponents);
             }
             channelPipeline.addLast("size", sizeHeader);
-            channelPipeline.addLast("dispatcher", new MessageChannelHandler(nettyTransport, nettyTransport.logger));
+            // using a dot as a prefix means, this cannot come from any settings parsed
+            channelPipeline.addLast("dispatcher", new MessageChannelHandler(nettyTransport, nettyTransport.logger, ".client"));
             return channelPipeline;
         }
     }
@@ -1019,12 +1033,12 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 sizeHeader.setMaxCumulationBufferComponents(nettyTransport.maxCompositeBufferComponents);
             }
             channelPipeline.addLast("size", sizeHeader);
-            channelPipeline.addLast("dispatcher", new MessageChannelHandler(nettyTransport, nettyTransport.logger));
+            channelPipeline.addLast("dispatcher", new MessageChannelHandler(nettyTransport, nettyTransport.logger, name));
             return channelPipeline;
         }
     }
 
-    private class ChannelCloseListener implements ChannelFutureListener {
+    protected class ChannelCloseListener implements ChannelFutureListener {
 
         private final DiscoveryNode node;
 
@@ -1048,6 +1062,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     public static class NodeChannels {
 
+        ImmutableList<Channel> allChannels = ImmutableList.of();
         private Channel[] recovery;
         private final AtomicInteger recoveryCounter = new AtomicInteger();
         private Channel[] bulk;
@@ -1067,12 +1082,12 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             this.ping = ping;
         }
 
-        public boolean hasChannel(Channel channel) {
-            return hasChannel(channel, recovery) || hasChannel(channel, bulk) || hasChannel(channel, reg) || hasChannel(channel, state) || hasChannel(channel, ping);
+        public void start() {
+            this.allChannels = ImmutableList.<Channel>builder().add(recovery).add(bulk).add(reg).add(state).add(ping).build();
         }
 
-        private boolean hasChannel(Channel channel, Channel[] channels) {
-            for (Channel channel1 : channels) {
+        public boolean hasChannel(Channel channel) {
+            for (Channel channel1 : allChannels) {
                 if (channel.equals(channel1)) {
                     return true;
                 }
@@ -1098,18 +1113,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         public synchronized void close() {
             List<ChannelFuture> futures = new ArrayList<>();
-            closeChannelsAndWait(recovery, futures);
-            closeChannelsAndWait(bulk, futures);
-            closeChannelsAndWait(reg, futures);
-            closeChannelsAndWait(state, futures);
-            closeChannelsAndWait(ping, futures);
-            for (ChannelFuture future : futures) {
-                future.awaitUninterruptibly();
-            }
-        }
-
-        private void closeChannelsAndWait(Channel[] channels, List<ChannelFuture> futures) {
-            for (Channel channel : channels) {
+            for (Channel channel : allChannels) {
                 try {
                     if (channel != null && channel.isOpen()) {
                         futures.add(channel.close());
@@ -1118,6 +1122,45 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     //ignore
                 }
             }
+            for (ChannelFuture future : futures) {
+                future.awaitUninterruptibly();
+            }
+        }
+    }
+
+    class ScheduledPing implements Runnable {
+
+        final CounterMetric successfulPings = new CounterMetric();
+        final CounterMetric failedPings = new CounterMetric();
+
+        @Override
+        public void run() {
+            if (lifecycle.stoppedOrClosed()) {
+                return;
+            }
+            for (Map.Entry<DiscoveryNode, NodeChannels> entry : connectedNodes.entrySet()) {
+                DiscoveryNode node = entry.getKey();
+                NodeChannels channels = entry.getValue();
+                for (Channel channel : channels.allChannels) {
+                    try {
+                        ChannelFuture future = channel.write(NettyHeader.pingHeader());
+                        future.addListener(new ChannelFutureListener() {
+                            @Override
+                            public void operationComplete(ChannelFuture future) throws Exception {
+                                successfulPings.inc();
+                            }
+                        });
+                    } catch (Throwable t) {
+                        if (channel.isOpen()) {
+                            logger.debug("[{}] failed to send ping transport message", t, node);
+                            failedPings.inc();
+                        } else {
+                            logger.trace("[{}] failed to send ping transport message (channel closed)", t, node);
+                        }
+                    }
+                }
+            }
+            threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, this);
         }
     }
 }

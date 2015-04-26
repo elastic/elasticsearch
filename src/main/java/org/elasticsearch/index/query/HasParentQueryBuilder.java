@@ -44,6 +44,7 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
         this.queryBuilder = parentQuery;
     }
 
+    @Override
     public HasParentQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;
@@ -73,6 +74,7 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
         return this;
     }
 
+    @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(HasParentQueryParser.NAME);
         builder.field("query");

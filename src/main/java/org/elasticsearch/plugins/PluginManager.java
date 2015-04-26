@@ -21,26 +21,22 @@ package org.elasticsearch.plugins;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.*;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.http.client.HttpDownloadHelper;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.net.MalformedURLException;
@@ -48,7 +44,6 @@ import java.net.URL;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFileAttributeView;
-import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.*;
 
@@ -95,14 +90,17 @@ public class PluginManager {
 
         TrustManager[] trustAllCerts = new TrustManager[]{
                 new X509TrustManager() {
+                    @Override
                     public java.security.cert.X509Certificate[] getAcceptedIssuers() {
                         return null;
                     }
 
+                    @Override
                     public void checkClientTrusted(
                             java.security.cert.X509Certificate[] certs, String authType) {
                     }
 
+                    @Override
                     public void checkServerTrusted(
                             java.security.cert.X509Certificate[] certs, String authType) {
                     }
@@ -237,7 +235,7 @@ public class PluginManager {
         // It could potentially be a non explicit _site plugin
         boolean potentialSitePlugin = true;
         Path binFile = extractLocation.resolve("bin");
-        if (Files.exists(binFile) && Files.isDirectory(binFile)) {
+        if (Files.isDirectory(binFile)) {
             Path toLocation = pluginHandle.binDir(environment);
             debug("Found bin, moving to " + toLocation.toAbsolutePath());
             if (Files.exists(toLocation)) {
@@ -270,7 +268,7 @@ public class PluginManager {
         }
 
         Path configFile = extractLocation.resolve("config");
-        if (Files.exists(configFile) && Files.isDirectory(configFile)) {
+        if (Files.isDirectory(configFile)) {
             Path configDestLocation = pluginHandle.configDir(environment);
             debug("Found config, moving to " + configDestLocation.toAbsolutePath());
             moveFilesWithoutOverwriting(configFile, configDestLocation, ".new");
@@ -375,9 +373,7 @@ public class PluginManager {
         Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(EMPTY_SETTINGS, true);
 
         try {
-            if (!Files.exists(initialSettings.v2().pluginsFile())) {
-                Files.createDirectories(initialSettings.v2().pluginsFile());
-            }
+            Files.createDirectories(initialSettings.v2().pluginsFile());
         } catch (IOException e) {
             displayHelp("Unable to create plugins dir: " + initialSettings.v2().pluginsFile());
             System.exit(EXIT_CODE_ERROR);
@@ -581,6 +577,7 @@ public class PluginManager {
         if (outputMode != OutputMode.SILENT) SysOut.println(line);
     }
 
+    @SuppressForbidden(reason = "System#out")
     static class SysOut {
 
         public static void newline() {

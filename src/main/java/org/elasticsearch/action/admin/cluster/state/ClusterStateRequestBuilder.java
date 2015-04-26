@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
 
@@ -86,6 +87,11 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
      */
     public ClusterStateRequestBuilder setIndices(String... indices) {
         request.indices(indices);
+        return this;
+    }
+
+    public ClusterStateRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
+        request.indicesOptions(indicesOptions);
         return this;
     }
 

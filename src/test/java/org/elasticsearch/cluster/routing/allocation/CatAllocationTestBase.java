@@ -26,8 +26,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.engine.internal.InternalEngine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Ignore;

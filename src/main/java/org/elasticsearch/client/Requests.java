@@ -21,7 +21,6 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
-import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
@@ -45,7 +44,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
@@ -279,17 +277,6 @@ public class Requests {
     }
 
     /**
-     * Deletes mapping (and all its data) from one or more indices.
-     *
-     * @param indices The indices the mapping will be deleted from. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
-     * @return The create mapping request
-     * @see org.elasticsearch.client.IndicesAdminClient#deleteMapping(org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest)
-     */
-    public static DeleteMappingRequest deleteMappingRequest(String... indices) {
-        return new DeleteMappingRequest(indices);
-    }
-
-    /**
      * Creates an index aliases request allowing to add and remove aliases.
      *
      * @return The index aliases request
@@ -452,24 +439,6 @@ public class Requests {
      */
     public static NodesShutdownRequest nodesShutdownRequest(String... nodesIds) {
         return new NodesShutdownRequest(nodesIds);
-    }
-
-    /**
-     * Restarts all nodes in the cluster.
-     */
-    public static NodesRestartRequest nodesRestartRequest() {
-        return new NodesRestartRequest();
-    }
-
-    /**
-     * Restarts specific nodes in the cluster.
-     *
-     * @param nodesIds The nodes ids to restart
-     * @return The nodes info request
-     * @see org.elasticsearch.client.ClusterAdminClient#nodesRestart(org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequest)
-     */
-    public static NodesRestartRequest nodesRestartRequest(String... nodesIds) {
-        return new NodesRestartRequest(nodesIds);
     }
 
     /**

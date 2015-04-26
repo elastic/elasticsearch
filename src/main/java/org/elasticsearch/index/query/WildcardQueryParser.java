@@ -30,8 +30,6 @@ import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
-
 /**
  *
  */
@@ -107,10 +105,9 @@ public class WildcardQueryParser implements QueryParser {
         QueryParsers.setRewriteMethod(wildcardQuery, rewriteMethod);
         wildcardQuery.setRewriteMethod(QueryParsers.parseRewriteMethod(rewriteMethod));
         wildcardQuery.setBoost(boost);
-        Query query =  wrapSmartNameQuery(wildcardQuery, smartNameFieldMappers, parseContext);
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+            parseContext.addNamedQuery(queryName, wildcardQuery);
         }
-        return query;
+        return wildcardQuery;
     }
 }

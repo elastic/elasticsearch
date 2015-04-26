@@ -51,29 +51,22 @@ import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.*;
  */
 public class NettyHttpChannel extends HttpChannel {
 
-    private static final ChannelBuffer END_JSONP;
-
-    static {
-        BytesRef U_END_JSONP = new BytesRef(");");
-        END_JSONP = ChannelBuffers.wrappedBuffer(U_END_JSONP.bytes, U_END_JSONP.offset, U_END_JSONP.length);
-    }
-
     private final NettyHttpServerTransport transport;
     private final Channel channel;
     private final org.jboss.netty.handler.codec.http.HttpRequest nettyRequest;
     private OrderedUpstreamMessageEvent orderedUpstreamMessageEvent = null;
     private Pattern corsPattern;
 
-    public NettyHttpChannel(NettyHttpServerTransport transport, NettyHttpRequest request, Pattern corsPattern) {
-        super(request);
+    public NettyHttpChannel(NettyHttpServerTransport transport, NettyHttpRequest request, Pattern corsPattern, boolean detailedErrorsEnabled) {
+        super(request, detailedErrorsEnabled);
         this.transport = transport;
         this.channel = request.getChannel();
         this.nettyRequest = request.request();
         this.corsPattern = corsPattern;
     }
 
-    public NettyHttpChannel(NettyHttpServerTransport transport, NettyHttpRequest request, Pattern corsPattern, OrderedUpstreamMessageEvent orderedUpstreamMessageEvent) {
-        this(transport, request, corsPattern);
+    public NettyHttpChannel(NettyHttpServerTransport transport, NettyHttpRequest request, Pattern corsPattern, OrderedUpstreamMessageEvent orderedUpstreamMessageEvent, boolean detailedErrorsEnabled) {
+        this(transport, request, corsPattern, detailedErrorsEnabled);
         this.orderedUpstreamMessageEvent = orderedUpstreamMessageEvent;
     }
 
@@ -144,25 +137,7 @@ public class NettyHttpChannel extends HttpChannel {
         ChannelBuffer buffer;
         boolean addedReleaseListener = false;
         try {
-            if (response.contentThreadSafe()) {
-                buffer = content.toChannelBuffer();
-            } else {
-                buffer = content.copyBytesArray().toChannelBuffer();
-            }
-            // handle JSONP
-            String callback = request.param("callback");
-            if (callback != null) {
-                final BytesRef callbackBytes = new BytesRef(callback);
-                callbackBytes.bytes[callbackBytes.length] = '(';
-                callbackBytes.length++;
-                buffer = ChannelBuffers.wrappedBuffer(NettyUtils.DEFAULT_GATHERING,
-                        ChannelBuffers.wrappedBuffer(callbackBytes.bytes, callbackBytes.offset, callbackBytes.length),
-                        buffer,
-                        ChannelBuffers.wrappedBuffer(END_JSONP)
-                );
-                // Add content-type header of "application/javascript"
-                resp.headers().add(HttpHeaders.Names.CONTENT_TYPE, "application/javascript");
-            }
+            buffer = content.toChannelBuffer();
             resp.setContent(buffer);
 
             // If our response doesn't specify a content-type header, set one
@@ -201,7 +176,7 @@ public class NettyHttpChannel extends HttpChannel {
                 future = channel.write(resp);
             }
 
-            if (response.contentThreadSafe() && content instanceof Releasable) {
+            if (content instanceof Releasable) {
                 future.addListener(new ReleaseChannelFutureListener((Releasable) content));
                 addedReleaseListener = true;
             }

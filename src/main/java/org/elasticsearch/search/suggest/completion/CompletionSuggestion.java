@@ -105,6 +105,7 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
                 return XContentHelper.convertToMap(payload, false).v2();
             }
 
+            @Override
             public void setScore(float score) {
                 super.setScore(score);
             }

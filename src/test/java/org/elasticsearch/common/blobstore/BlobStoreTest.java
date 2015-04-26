@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.common.blobstore;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -41,6 +41,7 @@ import static com.google.common.collect.Maps.newHashMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
+@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class BlobStoreTest extends ElasticsearchTestCase {
 
     @Test
@@ -140,7 +141,7 @@ public class BlobStoreTest extends ElasticsearchTestCase {
     }
 
     protected BlobStore newBlobStore() throws IOException {
-        Path tempDir = newTempDirPath(LifecycleScope.TEST);
+        Path tempDir = createTempDir();
         Settings settings = randomBoolean() ? ImmutableSettings.EMPTY : ImmutableSettings.builder().put("buffer_size", new ByteSizeValue(randomIntBetween(1, 100), ByteSizeUnit.KB)).build();
         FsBlobStore store = new FsBlobStore(settings, tempDir);
         return store;

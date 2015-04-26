@@ -33,7 +33,6 @@ import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -66,7 +65,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
  *
  */
 @ElasticsearchIntegrationTest.SuiteScopeTest
-@TestLogging("org.elasticsearch.action.search:TRACE,org.elasticsearch.search:TRACE")
 public class DoubleTermsTests extends AbstractTermsTests {
 
     private static final int NUM_DOCS = 5; // TODO: randomize the size?
@@ -74,6 +72,7 @@ public class DoubleTermsTests extends AbstractTermsTests {
     private static final String MULTI_VALUED_FIELD_NAME = "d_values";
     private static HashMap<Double, Map<String, Object>> expectedMultiSortBuckets;
 
+    @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -220,7 +219,7 @@ public class DoubleTermsTests extends AbstractTermsTests {
     }
 
     private String key(Terms.Bucket bucket) {
-        return randomBoolean() ? bucket.getKey() : bucket.getKeyAsText().string();
+        return bucket.getKeyAsString();
     }
 
     @Test
@@ -409,7 +408,7 @@ public class DoubleTermsTests extends AbstractTermsTests {
             Sum sum = bucket.getAggregations().get("sum");
             assertThat(sum, notNullValue());
             assertThat((long) sum.getValue(), equalTo(i+i+1l));
-            assertThat((String) propertiesKeys[i], equalTo(String.valueOf((double) i)));
+            assertThat((double) propertiesKeys[i], equalTo((double) i));
             assertThat((long) propertiesDocCounts[i], equalTo(1l));
             assertThat((double) propertiesCounts[i], equalTo((double) i + i + 1l));
         }
@@ -465,7 +464,7 @@ public class DoubleTermsTests extends AbstractTermsTests {
             Terms.Bucket bucket = terms.getBucketByKey("" + (i + 1d));
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (i+1d)));
-            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i+1));
+            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i + 1));
             assertThat(bucket.getDocCount(), equalTo(1l));
         }
     }
@@ -520,7 +519,7 @@ public class DoubleTermsTests extends AbstractTermsTests {
             Terms.Bucket bucket = terms.getBucketByKey("" + (i + 1d));
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (i+1d)));
-            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i+1));
+            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i + 1));
             if (i == 0 || i == 5) {
                 assertThat(bucket.getDocCount(), equalTo(1l));
             } else {
@@ -592,7 +591,7 @@ public class DoubleTermsTests extends AbstractTermsTests {
             Terms.Bucket bucket = terms.getBucketByKey("" + (i + 1d));
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (i+1d)));
-            assertThat(bucket.getKeyAsNumber().doubleValue(), equalTo(i+1d));
+            assertThat(bucket.getKeyAsNumber().doubleValue(), equalTo(i + 1d));
             final long count = i == 0 || i == 5 ? 1 : 2;
             double s = 0;
             for (int j = 0; j < NUM_DOCS; ++j) {
@@ -807,7 +806,7 @@ public class DoubleTermsTests extends AbstractTermsTests {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
-        Histogram.Bucket bucket = histo.getBucketByKey(1l);
+        Histogram.Bucket bucket = histo.getBuckets().get(1);
         assertThat(bucket, Matchers.notNullValue());
 
         Terms terms = bucket.getAggregations().get("terms");

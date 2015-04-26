@@ -1,6 +1,9 @@
 ---
 "Script":
 
+  - skip:
+      features: groovy_scripting
+
   - do:
       index:
           index:  test_1

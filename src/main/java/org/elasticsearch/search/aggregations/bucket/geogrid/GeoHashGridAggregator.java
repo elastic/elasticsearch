@@ -24,7 +24,9 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -45,7 +47,6 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     private final int shardSize;
     private final ValuesSource.Numeric valuesSource;
     private final LongHash bucketOrds;
-    private SortedNumericDocValues values;
 
     public GeoHashGridAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource,
                               int requiredSize, int shardSize, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
@@ -57,35 +58,37 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     }
 
     @Override
-    public boolean shouldCollect() {
-        return true;
+    public boolean needsScores() {
+        return (valuesSource != null && valuesSource.needsScores()) || super.needsScores();
     }
 
     @Override
-    public void setNextReader(LeafReaderContext reader) {
-        values = valuesSource.longValues();
-    }
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        final SortedNumericDocValues values = valuesSource.longValues(ctx);
+        return new LeafBucketCollectorBase(sub, null) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                assert bucket == 0;
+                values.setDocument(doc);
+                final int valuesCount = values.count();
 
-    @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
-        values.setDocument(doc);
-        final int valuesCount = values.count();
-
-        long previous = Long.MAX_VALUE;
-        for (int i = 0; i < valuesCount; ++i) {
-            final long val = values.valueAt(i);
-            if (previous != val || i == 0) {
-                long bucketOrdinal = bucketOrds.add(val);
-                if (bucketOrdinal < 0) { // already seen
-                    bucketOrdinal = - 1 - bucketOrdinal;
-                    collectExistingBucket(doc, bucketOrdinal);
-                } else {
-                    collectBucket(doc, bucketOrdinal);
+                long previous = Long.MAX_VALUE;
+                for (int i = 0; i < valuesCount; ++i) {
+                    final long val = values.valueAt(i);
+                    if (previous != val || i == 0) {
+                        long bucketOrdinal = bucketOrds.add(val);
+                        if (bucketOrdinal < 0) { // already seen
+                            bucketOrdinal = - 1 - bucketOrdinal;
+                            collectExistingBucket(sub, doc, bucketOrdinal);
+                        } else {
+                            collectBucket(sub, doc, bucketOrdinal);
+                        }
+                        previous = val;
+                    }
                 }
-                previous = val;
             }
-        }
+        };
     }
 
     // private impl that stores a bucket ord. This allows for computing the aggregations lazily.

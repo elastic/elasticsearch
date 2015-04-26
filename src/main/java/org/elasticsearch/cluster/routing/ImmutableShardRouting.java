@@ -248,6 +248,7 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
      * @param out {@link StreamOutput} to write shard information to
      * @throws IOException if something happens during write
      */
+    @Override
     public void writeToThin(StreamOutput out) throws IOException {
         out.writeLong(version);
         if (currentNodeId != null) {
@@ -300,19 +301,21 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         if (shardId != that.shardId) {
             return false;
         }
-        if (currentNodeId != null ? !currentNodeId.equals(that.currentNodeId) : that.currentNodeId != null)
+        if (currentNodeId != null ? !currentNodeId.equals(that.currentNodeId) : that.currentNodeId != null) {
             return false;
+        }
         if (index != null ? !index.equals(that.index) : that.index != null) {
             return false;
         }
-        if (relocatingNodeId != null ? !relocatingNodeId.equals(that.relocatingNodeId) : that.relocatingNodeId != null)
+        if (relocatingNodeId != null ? !relocatingNodeId.equals(that.relocatingNodeId) : that.relocatingNodeId != null) {
             return false;
+        }
         if (state != that.state) {
             return false;
         }
-        if (restoreSource != null ? !restoreSource.equals(that.restoreSource) : that.restoreSource != null)
+        if (restoreSource != null ? !restoreSource.equals(that.restoreSource) : that.restoreSource != null) {
             return false;
-
+        }
         return true;
     }
 

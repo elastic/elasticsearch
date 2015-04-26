@@ -80,14 +80,14 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
     @Inject
     public ResourceWatcherService(Settings settings, ThreadPool threadPool) {
         super(settings);
-        this.enabled = componentSettings.getAsBoolean("enabled", true);
+        this.enabled = settings.getAsBoolean("watcher.enabled", true);
         this.threadPool = threadPool;
 
-        TimeValue interval = componentSettings.getAsTime("interval.low", Frequency.LOW.interval);
+        TimeValue interval = settings.getAsTime("watcher.interval.low", Frequency.LOW.interval);
         lowMonitor = new ResourceMonitor(interval, Frequency.LOW);
-        interval = componentSettings.getAsTime("interval.medium", componentSettings.getAsTime("interval", Frequency.MEDIUM.interval));
+        interval = settings.getAsTime("watcher.interval.medium", settings.getAsTime("watcher.interval", Frequency.MEDIUM.interval));
         mediumMonitor = new ResourceMonitor(interval, Frequency.MEDIUM);
-        interval = componentSettings.getAsTime("interval.high", Frequency.HIGH.interval);
+        interval = settings.getAsTime("watcher.interval.high", Frequency.HIGH.interval);
         highMonitor = new ResourceMonitor(interval, Frequency.HIGH);
     }
 

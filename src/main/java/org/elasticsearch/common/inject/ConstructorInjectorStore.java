@@ -31,6 +31,7 @@ class ConstructorInjectorStore {
 
     private final FailableCache<TypeLiteral<?>, ConstructorInjector<?>> cache
             = new FailableCache<TypeLiteral<?>, ConstructorInjector<?>>() {
+        @Override
         @SuppressWarnings("unchecked")
         protected ConstructorInjector<?> create(TypeLiteral<?> type, Errors errors)
                 throws ErrorsException {

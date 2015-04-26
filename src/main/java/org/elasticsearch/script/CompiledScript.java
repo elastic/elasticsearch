@@ -20,23 +20,35 @@
 package org.elasticsearch.script;
 
 /**
- *
+ * CompiledScript holds all the parameters necessary to execute a previously compiled script.
  */
 public class CompiledScript {
 
-    private final String type;
-
+    private final String lang;
     private final Object compiled;
 
-    public CompiledScript(String type, Object compiled) {
-        this.type = type;
+    /**
+     * Constructor for CompiledScript.
+     * @param lang The language of the script to be executed.
+     * @param compiled The compiled script Object that is executable.
+     */
+    public CompiledScript(String lang, Object compiled) {
+        this.lang = lang;
         this.compiled = compiled;
     }
 
+    /**
+     * Method to get the language.
+     * @return The language of the script to be executed.
+     */
     public String lang() {
-        return type;
+        return lang;
     }
 
+    /**
+     * Method to get the compiled script object.
+     * @return The compiled script Object that is executable.
+     */
     public Object compiled() {
         return compiled;
     }

@@ -60,7 +60,7 @@ public class ClusterRerouteResponse extends AcknowledgedResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        state = ClusterState.Builder.readFrom(in, null, null);
+        state = ClusterState.Builder.readFrom(in, null);
         readAcknowledged(in);
         explanations = RoutingExplanations.readFrom(in);
     }

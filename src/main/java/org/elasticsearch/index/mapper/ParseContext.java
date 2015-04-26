@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.hppc.ObjectObjectMap;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.google.common.collect.Lists;
-import org.apache.lucene.analysis.Analyzer;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -38,7 +38,11 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.DocumentMapper.ParseListener;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -195,31 +199,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public boolean mappingsModified() {
-            return in.mappingsModified();
-        }
-
-        @Override
-        public void setMappingsModified() {
-            in.setMappingsModified();
-        }
-
-        @Override
-        public void setWithinNewMapper() {
-            in.setWithinNewMapper();
-        }
-
-        @Override
-        public void clearWithinNewMapper() {
-            in.clearWithinNewMapper();
-        }
-
-        @Override
-        public boolean isWithinNewMapper() {
-            return in.isWithinNewMapper();
-        }
-
-        @Override
         public boolean isWithinCopyTo() {
             return in.isWithinCopyTo();
         }
@@ -355,16 +334,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public Analyzer analyzer() {
-            return in.analyzer();
-        }
-
-        @Override
-        public void analyzer(Analyzer analyzer) {
-            in.analyzer(analyzer);
-        }
-
-        @Override
         public boolean externalValueSet() {
             return in.externalValueSet();
         }
@@ -389,6 +358,15 @@ public abstract class ParseContext {
             return in.stringBuilder();
         }
 
+        @Override
+        public void addDynamicMappingsUpdate(Mapper update) {
+            in.addDynamicMappingsUpdate(update);
+        }
+
+        @Override
+        public Mapper dynamicMappingsUpdate() {
+            return in.dynamicMappingsUpdate();
+        }
     }
 
     public static class InternalParseContext extends ParseContext {
@@ -404,8 +382,6 @@ public abstract class ParseContext {
         private Document document;
 
         private List<Document> documents = Lists.newArrayList();
-
-        private Analyzer analyzer;
 
         private final String index;
 
@@ -425,12 +401,11 @@ public abstract class ParseContext {
 
         private Map<String, String> ignoredValues = new HashMap<>();
 
-        private boolean mappingsModified = false;
-        private boolean withinNewMapper = false;
-
         private AllEntries allEntries = new AllEntries();
 
         private float docBoost = 1.0f;
+
+        private Mapper dynamicMappingsUpdate = null;
 
         public InternalParseContext(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
             this.index = index;
@@ -449,123 +424,122 @@ public abstract class ParseContext {
             } else {
                 this.documents = null;
             }
-            this.analyzer = null;
             this.uid = null;
             this.version = null;
             this.id = null;
             this.sourceToParse = source;
             this.source = source == null ? null : sourceToParse.source();
             this.path.reset();
-            this.mappingsModified = false;
-            this.withinNewMapper = false;
             this.listener = listener == null ? DocumentMapper.ParseListener.EMPTY : listener;
             this.allEntries = new AllEntries();
             this.ignoredValues.clear();
             this.docBoost = 1.0f;
+            this.dynamicMappingsUpdate = null;
         }
 
+        @Override
         public boolean flyweight() {
             return sourceToParse.flyweight();
         }
 
+        @Override
         public DocumentMapperParser docMapperParser() {
             return this.docMapperParser;
         }
 
-        public boolean mappingsModified() {
-            return this.mappingsModified;
-        }
-
-        public void setMappingsModified() {
-            this.mappingsModified = true;
-        }
-
-        public void setWithinNewMapper() {
-            this.withinNewMapper = true;
-        }
-
-        public void clearWithinNewMapper() {
-            this.withinNewMapper = false;
-        }
-
-        public boolean isWithinNewMapper() {
-            return withinNewMapper;
-        }
-
+        @Override
         public String index() {
             return this.index;
         }
 
+        @Override
         @Nullable
         public Settings indexSettings() {
             return this.indexSettings;
         }
 
+        @Override
         public String type() {
             return sourceToParse.type();
         }
 
+        @Override
         public SourceToParse sourceToParse() {
             return this.sourceToParse;
         }
 
+        @Override
         public BytesReference source() {
             return source;
         }
 
         // only should be used by SourceFieldMapper to update with a compressed source
+        @Override
         public void source(BytesReference source) {
             this.source = source;
         }
 
+        @Override
         public ContentPath path() {
             return this.path;
         }
 
+        @Override
         public XContentParser parser() {
             return this.parser;
         }
 
+        @Override
         public DocumentMapper.ParseListener listener() {
             return this.listener;
         }
 
+        @Override
         public Document rootDoc() {
             return documents.get(0);
         }
 
+        @Override
         public List<Document> docs() {
             return this.documents;
         }
 
+        @Override
         public Document doc() {
             return this.document;
         }
 
+        @Override
         public void addDoc(Document doc) {
             this.documents.add(doc);
         }
 
+        @Override
         public RootObjectMapper root() {
             return docMapper.root();
         }
 
+        @Override
         public DocumentMapper docMapper() {
             return this.docMapper;
         }
 
+        @Override
         public AnalysisService analysisService() {
             return docMapperParser.analysisService;
         }
 
+        @Override
         public String id() {
             return id;
         }
 
+        @Override
         public void ignoredValue(String indexName, String value) {
             ignoredValues.put(indexName, value);
         }
 
+        @Override
         public String ignoredValue(String indexName) {
             return ignoredValues.get(indexName);
         }
@@ -573,10 +547,12 @@ public abstract class ParseContext {
         /**
          * Really, just the id mapper should set this.
          */
+        @Override
         public void id(String id) {
             this.id = id;
         }
 
+        @Override
         public Field uid() {
             return this.uid;
         }
@@ -584,34 +560,32 @@ public abstract class ParseContext {
         /**
          * Really, just the uid mapper should set this.
          */
+        @Override
         public void uid(Field uid) {
             this.uid = uid;
         }
 
+        @Override
         public Field version() {
             return this.version;
         }
 
+        @Override
         public void version(Field version) {
             this.version = version;
         }
 
+        @Override
         public AllEntries allEntries() {
             return this.allEntries;
         }
 
-        public Analyzer analyzer() {
-            return this.analyzer;
-        }
-
-        public void analyzer(Analyzer analyzer) {
-            this.analyzer = analyzer;
-        }
-
+        @Override
         public float docBoost() {
             return this.docBoost;
         }
 
+        @Override
         public void docBoost(float docBoost) {
             this.docBoost = docBoost;
         }
@@ -620,25 +594,31 @@ public abstract class ParseContext {
          * A string builder that can be used to construct complex names for example.
          * Its better to reuse the.
          */
+        @Override
         public StringBuilder stringBuilder() {
             stringBuilder.setLength(0);
             return this.stringBuilder;
+        }
+
+        @Override
+        public void addDynamicMappingsUpdate(Mapper mapper) {
+            assert mapper instanceof RootObjectMapper : mapper;
+            if (dynamicMappingsUpdate == null) {
+                dynamicMappingsUpdate = mapper;
+            } else {
+                MapperUtils.merge(dynamicMappingsUpdate, mapper);
+            }
+        }
+
+        @Override
+        public Mapper dynamicMappingsUpdate() {
+            return dynamicMappingsUpdate;
         }
     }
 
     public abstract boolean flyweight();
 
     public abstract DocumentMapperParser docMapperParser();
-
-    public abstract boolean mappingsModified();
-
-    public abstract void setMappingsModified();
-
-    public abstract void setWithinNewMapper();
-
-    public abstract void clearWithinNewMapper();
-
-    public abstract boolean isWithinNewMapper();
 
     /**
      * Return a new context that will be within a copy-to operation.
@@ -789,10 +769,6 @@ public abstract class ParseContext {
 
     public abstract AllEntries allEntries();
 
-    public abstract Analyzer analyzer();
-
-    public abstract void analyzer(Analyzer analyzer);
-
     /**
      * Return a new context that will have the external value set.
      */
@@ -844,4 +820,13 @@ public abstract class ParseContext {
      */
     public abstract StringBuilder stringBuilder();
 
+    /**
+     * Add a dynamic update to the root object mapper.
+     */
+    public abstract void addDynamicMappingsUpdate(Mapper update);
+
+    /**
+     * Get dynamic updates to the root object mapper.
+     */
+    public abstract Mapper dynamicMappingsUpdate();
 }

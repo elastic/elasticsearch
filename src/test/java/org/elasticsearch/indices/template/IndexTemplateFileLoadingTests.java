@@ -33,6 +33,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
@@ -48,7 +49,7 @@ public class IndexTemplateFileLoadingTests extends ElasticsearchIntegrationTest 
         settingsBuilder.put(super.nodeSettings(nodeOrdinal));
 
         try {
-            Path directory = newTempDirPath(LifecycleScope.SUITE);
+            Path directory = createTempDir();
             settingsBuilder.put("path.conf", directory.toAbsolutePath());
 
             Path templatesDir = directory.resolve("templates");
@@ -81,10 +82,10 @@ public class IndexTemplateFileLoadingTests extends ElasticsearchIntegrationTest 
 
     @Test
     public void testThatLoadingTemplateFromFileWorks() throws Exception {
-        final int iters = scaledRandomIntBetween(5, 20);
+        final int iters = scaledRandomIntBetween(1, 5);
         Set<String> indices = new HashSet<>();
         for (int i = 0; i < iters; i++) {
-            String indexName = "foo" + randomRealisticUnicodeOfLengthBetween(0, 5);
+            String indexName = "foo" + randomAsciiOfLengthBetween(0, 5).toLowerCase(Locale.ROOT);
             if (indices.contains(indexName)) {
                 continue;
             }

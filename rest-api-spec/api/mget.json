@@ -1,6 +1,6 @@
 {
   "mget": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/docs-multi-get.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-multi-get.html",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_mget",
@@ -16,6 +16,10 @@
         }
       },
       "params": {
+        "source": {
+          "type" : "string",
+          "description" : "The URL-encoded request definition"
+        },
         "fields": {
           "type": "list",
           "description" : "A comma-separated list of fields to return in the response"

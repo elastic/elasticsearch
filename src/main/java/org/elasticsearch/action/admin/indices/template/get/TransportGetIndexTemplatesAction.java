@@ -44,7 +44,7 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadOpe
 
     @Inject
     public TransportGetIndexTemplatesAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, GetIndexTemplatesAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, GetIndexTemplatesAction.NAME, transportService, clusterService, threadPool, actionFilters, GetIndexTemplatesRequest.class);
     }
 
     @Override
@@ -54,12 +54,7 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadOpe
 
     @Override
     protected ClusterBlockException checkBlock(GetIndexTemplatesRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
-    }
-
-    @Override
-    protected GetIndexTemplatesRequest newRequest() {
-        return new GetIndexTemplatesRequest();
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override

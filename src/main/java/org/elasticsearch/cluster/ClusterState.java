@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -33,7 +32,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
-import org.elasticsearch.cluster.routing.allocation.AllocationExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -44,7 +42,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -133,8 +130,6 @@ public class ClusterState implements ToXContent {
 
     // built on demand
     private volatile RoutingNodes routingNodes;
-
-    private SettingsFilter settingsFilter;
 
     private volatile ClusterStateStatus status;
 
@@ -234,11 +229,6 @@ public class ClusterState implements ToXContent {
         return routingNodes;
     }
 
-    public ClusterState settingsFilter(SettingsFilter settingsFilter) {
-        this.settingsFilter = settingsFilter;
-        return this;
-    }
-
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder();
         sb.append("version: ").append(version).append("\n");
@@ -269,6 +259,7 @@ public class ClusterState implements ToXContent {
         NODES("nodes"),
         METADATA("metadata"),
         ROUTING_TABLE("routing_table"),
+        ROUTING_NODES("routing_nodes"),
         CUSTOMS("customs");
 
         private static Map<String, Metric> valueToEnum;
@@ -385,9 +376,6 @@ public class ClusterState implements ToXContent {
 
                 builder.startObject("settings");
                 Settings settings = templateMetaData.settings();
-                if (settingsFilter != null) {
-                    settings = settingsFilter.filterSettings(settings);
-                }
                 settings.toXContent(builder, params);
                 builder.endObject();
 
@@ -418,9 +406,6 @@ public class ClusterState implements ToXContent {
 
                 builder.startObject("settings");
                 Settings settings = indexMetaData.settings();
-                if (settingsFilter != null) {
-                    settings = settingsFilter.filterSettings(settings);
-                }
                 settings.toXContent(builder, params);
                 builder.endObject();
 
@@ -479,7 +464,7 @@ public class ClusterState implements ToXContent {
         }
 
         // routing nodes
-        if (metrics.contains(Metric.ROUTING_TABLE)) {
+        if (metrics.contains(Metric.ROUTING_NODES)) {
             builder.startObject("routing_nodes");
             builder.startArray("unassigned");
             for (ShardRouting shardRouting : readOnlyRoutingNodes().unassigned()) {
@@ -617,18 +602,13 @@ public class ClusterState implements ToXContent {
         /**
          * @param data               input bytes
          * @param localNode          used to set the local node in the cluster state.
-         * @param defaultClusterName this cluster name will be used of if the deserialized cluster state does not have a name set
-         *                           (which is only introduced in version 1.1.1)
          */
-        public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode, ClusterName defaultClusterName) throws IOException {
-            return readFrom(new BytesStreamInput(data, false), localNode, defaultClusterName);
+        public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode) throws IOException {
+            return readFrom(new BytesStreamInput(data), localNode);
         }
 
         public static void writeTo(ClusterState state, StreamOutput out) throws IOException {
-            out.writeBoolean(state.clusterName != null);
-            if (state.clusterName != null) {
-                state.clusterName.writeTo(out);
-            }
+            state.clusterName.writeTo(out);
             out.writeLong(state.version());
             MetaData.Builder.writeTo(state.metaData(), out);
             RoutingTable.Builder.writeTo(state.routingTable(), out);
@@ -644,14 +624,9 @@ public class ClusterState implements ToXContent {
         /**
          * @param in                 input stream
          * @param localNode          used to set the local node in the cluster state. can be null.
-         * @param defaultClusterName this cluster name will be used of receiving a cluster state from a node on version older than 1.1.1
-         *                           or if the sending node did not set a cluster name
          */
-        public static ClusterState readFrom(StreamInput in, @Nullable DiscoveryNode localNode, @Nullable ClusterName defaultClusterName) throws IOException {
-            ClusterName clusterName = defaultClusterName;
-            if (in.readBoolean()) {
-                clusterName = ClusterName.readClusterName(in);
-            }
+        public static ClusterState readFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
+            ClusterName clusterName = ClusterName.readClusterName(in);
             Builder builder = new Builder(clusterName);
             builder.version = in.readLong();
             builder.metaData = MetaData.Builder.readFrom(in);

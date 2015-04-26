@@ -99,11 +99,12 @@ public class RestNodesInfoAction extends BaseRestHandler {
             nodesInfoRequest.plugins(metrics.contains("plugins"));
         }
 
+        settingsFilter.addFilterSettingParams(request);
+
         client.admin().cluster().nodesInfo(nodesInfoRequest, new RestBuilderListener<NodesInfoResponse>(channel) {
 
             @Override
             public RestResponse buildResponse(NodesInfoResponse response, XContentBuilder builder) throws Exception {
-                response.settingsFilter(settingsFilter);
                 builder.startObject();
                 response.toXContent(builder, request);
                 builder.endObject();

@@ -44,5 +44,6 @@ public interface ConvertedConstantBinding<T> extends Binding<T>, HasDependencies
     /**
      * Returns a singleton set containing only the converted key.
      */
+    @Override
     Set<Dependency<?>> getDependencies();
 }

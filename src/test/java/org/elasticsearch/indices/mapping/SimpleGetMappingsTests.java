@@ -28,8 +28,11 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Arrays;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -143,4 +146,30 @@ public class SimpleGetMappingsTests extends ElasticsearchIntegrationTest {
         assertThat(response.mappings().get("indexb").get("Btype"), notNullValue());
     }
 
+    @Test
+    public void testGetMappingsWithBlocks() throws IOException {
+        client().admin().indices().prepareCreate("test")
+                .addMapping("typeA", getMappingForType("typeA"))
+                .addMapping("typeB", getMappingForType("typeB"))
+                .execute().actionGet();
+        ensureGreen();
+
+        for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {
+            try {
+                enableIndexBlock("test", block);
+                GetMappingsResponse response = client().admin().indices().prepareGetMappings().execute().actionGet();
+                assertThat(response.mappings().size(), equalTo(1));
+                assertThat(response.mappings().get("test").size(), equalTo(2));
+            } finally {
+                disableIndexBlock("test", block);
+            }
+        }
+
+        try {
+            enableIndexBlock("test", SETTING_BLOCKS_METADATA);
+            assertBlocked(client().admin().indices().prepareGetMappings(), INDEX_METADATA_BLOCK);
+        } finally {
+            disableIndexBlock("test", SETTING_BLOCKS_METADATA);
+        }
+    }
 }

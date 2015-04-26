@@ -21,7 +21,9 @@ package org.elasticsearch.common.http.client;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.*;
@@ -109,6 +111,7 @@ public class HttpDownloadHelper {
         /**
          * begin a download
          */
+        @Override
         public void beginDownload() {
 
         }
@@ -116,12 +119,14 @@ public class HttpDownloadHelper {
         /**
          * tick handler
          */
+        @Override
         public void onTick() {
         }
 
         /**
          * end a download
          */
+        @Override
         public void endDownload() {
 
         }
@@ -130,6 +135,7 @@ public class HttpDownloadHelper {
     /**
      * verbose progress system prints to some output stream
      */
+    @SuppressForbidden(reason = "System#out")
     public static class VerboseProgress implements DownloadProgress {
         private int dots = 0;
         // CheckStyle:VisibilityModifier OFF - bc
@@ -157,6 +163,7 @@ public class HttpDownloadHelper {
         /**
          * begin a download
          */
+        @Override
         public void beginDownload() {
             writer.print("Downloading ");
             dots = 0;
@@ -165,6 +172,7 @@ public class HttpDownloadHelper {
         /**
          * tick handler
          */
+        @Override
         public void onTick() {
             writer.print(".");
             if (dots++ > 50) {
@@ -176,6 +184,7 @@ public class HttpDownloadHelper {
         /**
          * end a download
          */
+        @Override
         public void endDownload() {
             writer.println("DONE");
             writer.flush();
@@ -205,6 +214,7 @@ public class HttpDownloadHelper {
             progress = p;
         }
 
+        @Override
         public void run() {
             try {
                 success = get();
@@ -270,6 +280,9 @@ public class HttpDownloadHelper {
                 ((HttpURLConnection) connection).setUseCaches(true);
                 ((HttpURLConnection) connection).setConnectTimeout(5000);
             }
+            connection.setRequestProperty("ES-Version", Version.CURRENT.toString());
+            connection.setRequestProperty("User-Agent", "elasticsearch-plugin-manager");
+
             // connect to the remote site (may take some time)
             connection.connect();
 

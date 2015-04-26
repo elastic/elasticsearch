@@ -169,13 +169,13 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                 req = client.prepareSearch()
                         .setPreference(suggestions.getPreference())
                         .setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.bytesFilter(querySource)))
-                        .setSearchType(SearchType.COUNT)
+                        .setSize(0)
                         .setTerminateAfter(1);
             } else {
                 req = client.prepareSearch()
                         .setPreference(suggestions.getPreference())
                         .setQuery(querySource)
-                        .setSearchType(SearchType.COUNT)
+                        .setSize(0)
                         .setTerminateAfter(1);
             }
             multiSearchRequestBuilder.add(req);

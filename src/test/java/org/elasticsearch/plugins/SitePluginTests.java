@@ -21,6 +21,7 @@ package org.elasticsearch.plugins;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.rest.RestStatus;
@@ -48,16 +49,12 @@ public class SitePluginTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        try {
-            Path pluginDir = Paths.get(SitePluginTests.class.getResource("/org/elasticsearch/plugins").toURI());
-            return settingsBuilder()
-                    .put(super.nodeSettings(nodeOrdinal))
-                    .put("path.plugins", pluginDir.toAbsolutePath())
-                    .put("force.http.enabled", true)
-                    .build();
-        } catch (URISyntaxException ex) {
-            throw new RuntimeException(ex);
-        }
+        Path pluginDir = getDataPath("/org/elasticsearch/plugins");
+        return settingsBuilder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("path.plugins", pluginDir.toAbsolutePath())
+                .put("force.http.enabled", true)
+                .build();
     }
 
     public HttpRequestBuilder httpClient() {

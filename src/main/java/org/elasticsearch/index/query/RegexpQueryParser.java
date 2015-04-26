@@ -33,8 +33,6 @@ import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
-
 /**
  *
  */
@@ -112,16 +110,7 @@ public class RegexpQueryParser implements QueryParser {
         Query query = null;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
-            if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
-                String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
-                try {
-                    query = smartNameFieldMappers.mapper().regexpQuery(value, flagsValue, maxDeterminizedStates, method, parseContext);
-                } finally {
-                    QueryParseContext.setTypes(previousTypes);
-                }
-            } else {
-                query = smartNameFieldMappers.mapper().regexpQuery(value, flagsValue, maxDeterminizedStates, method, parseContext);
-            }
+            query = smartNameFieldMappers.mapper().regexpQuery(value, flagsValue, maxDeterminizedStates, method, parseContext);
         }
         if (query == null) {
             RegexpQuery regexpQuery = new RegexpQuery(new Term(fieldName, BytesRefs.toBytesRef(value)), flagsValue, maxDeterminizedStates);
@@ -131,7 +120,6 @@ public class RegexpQueryParser implements QueryParser {
             query = regexpQuery;
         }
         query.setBoost(boost);
-        query =  wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }

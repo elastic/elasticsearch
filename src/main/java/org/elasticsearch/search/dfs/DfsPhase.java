@@ -53,6 +53,7 @@ public class DfsPhase implements SearchPhase {
     public void preProcess(SearchContext context) {
     }
 
+    @Override
     public void execute(SearchContext context) {
         final ObjectOpenHashSet<Term> termsSet = new ObjectOpenHashSet<>();
         try {
@@ -60,7 +61,7 @@ public class DfsPhase implements SearchPhase {
                 context.updateRewriteQuery(context.searcher().rewrite(context.query()));
             }
 
-            context.query().extractTerms(new DelegateSet(termsSet));
+            context.searcher().createNormalizedWeight(context.query(), true).extractTerms(new DelegateSet(termsSet));
             for (RescoreSearchContext rescoreContext : context.rescore()) {
                 rescoreContext.rescorer().extractTerms(context, rescoreContext, new DelegateSet(termsSet));
             }

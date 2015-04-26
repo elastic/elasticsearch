@@ -24,6 +24,8 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.io.IOException;
+
 /**
  * A {@link org.apache.lucene.index.FilterDirectoryReader} that exposes
  * Elasticsearch internal per shard / index information like the shard ID.
@@ -33,7 +35,7 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
     private final ShardId shardId;
     private final FilterDirectoryReader.SubReaderWrapper wrapper;
 
-    private ElasticsearchDirectoryReader(DirectoryReader in, FilterDirectoryReader.SubReaderWrapper wrapper, ShardId shardId) {
+    private ElasticsearchDirectoryReader(DirectoryReader in, FilterDirectoryReader.SubReaderWrapper wrapper, ShardId shardId) throws IOException {
         super(in, wrapper);
         this.wrapper = wrapper;
         this.shardId = shardId;
@@ -47,7 +49,7 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
     }
 
     @Override
-    protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) {
+    protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
         return new ElasticsearchDirectoryReader(in, wrapper, shardId);
     }
 
@@ -59,7 +61,7 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
      * @param reader the reader to wrap
      * @param shardId the shard ID to expose via the elasticsearch internal reader wrappers.
      */
-    public static ElasticsearchDirectoryReader wrap(DirectoryReader reader, ShardId shardId) {
+    public static ElasticsearchDirectoryReader wrap(DirectoryReader reader, ShardId shardId) throws IOException {
         return new ElasticsearchDirectoryReader(reader, new SubReaderWrapper(shardId), shardId);
     }
 

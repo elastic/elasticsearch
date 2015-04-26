@@ -53,7 +53,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable {
 
     private static ObjectOpenHashSet<String> RESERVED_FIELDS = ObjectOpenHashSet.from(
-            "_uid", "_id", "_type", "_source",  "_all", "_analyzer", "_boost", "_parent", "_routing", "_index",
+            "_uid", "_id", "_type", "_source",  "_all", "_analyzer", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
     );
 

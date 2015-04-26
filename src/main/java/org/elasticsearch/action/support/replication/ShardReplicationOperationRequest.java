@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -28,6 +27,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -41,12 +41,12 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
-    protected TimeValue timeout = DEFAULT_TIMEOUT;
+    ShardId internalShardId;
 
+    protected TimeValue timeout = DEFAULT_TIMEOUT;
     protected String index;
 
     private boolean threadedOperation = true;
-    private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
     private volatile boolean canHaveDuplicates = false;
 
@@ -77,7 +77,6 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         this.timeout = request.timeout();
         this.index = request.index();
         this.threadedOperation = request.operationThreaded();
-        this.replicationType = request.replicationType();
         this.consistencyLevel = request.consistencyLevel();
     }
 
@@ -149,29 +148,6 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
-    /**
-     * The replication type.
-     */
-    public ReplicationType replicationType() {
-        return this.replicationType;
-    }
-
-    /**
-     * Sets the replication type.
-     */
-    @SuppressWarnings("unchecked")
-    public final T replicationType(ReplicationType replicationType) {
-        this.replicationType = replicationType;
-        return (T) this;
-    }
-
-    /**
-     * Sets the replication type.
-     */
-    public final T replicationType(String replicationType) {
-        return replicationType(ReplicationType.fromString(replicationType));
-    }
-
     public WriteConsistencyLevel consistencyLevel() {
         return this.consistencyLevel;
     }
@@ -197,10 +173,12 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        replicationType = ReplicationType.fromId(in.readByte());
+        if (in.readBoolean()) {
+            internalShardId = ShardId.readShardId(in);
+        }
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
-        index = in.readSharedString();
+        index = in.readString();
         canHaveDuplicates = in.readBoolean();
         // no need to serialize threaded* parameters, since they only matter locally
     }
@@ -208,17 +186,10 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeByte(replicationType.id());
+        out.writeOptionalStreamable(internalShardId);
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
-        out.writeSharedString(index);
+        out.writeString(index);
         out.writeBoolean(canHaveDuplicates);
-    }
-
-    /**
-     * Called before the request gets forked into a local thread.
-     */
-    public void beforeLocalFork() {
-
     }
 }

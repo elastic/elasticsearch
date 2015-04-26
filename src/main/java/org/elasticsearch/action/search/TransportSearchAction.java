@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.type.*;
 import org.elasticsearch.action.support.ActionFilters;
@@ -59,8 +60,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                  TransportSearchDfsQueryAndFetchAction dfsQueryAndFetchAction,
                                  TransportSearchQueryAndFetchAction queryAndFetchAction,
                                  TransportSearchScanAction scanAction,
-                                 TransportSearchCountAction countAction, ActionFilters actionFilters) {
-        super(settings, SearchAction.NAME, threadPool, transportService, actionFilters);
+                                 TransportSearchCountAction countAction,
+                                 ActionFilters actionFilters) {
+        super(settings, SearchAction.NAME, threadPool, transportService, actionFilters, SearchRequest.class);
         this.clusterService = clusterService;
         this.dfsQueryThenFetchAction = dfsQueryThenFetchAction;
         this.queryThenFetchAction = queryThenFetchAction;
@@ -68,10 +70,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.queryAndFetchAction = queryAndFetchAction;
         this.scanAction = scanAction;
         this.countAction = countAction;
-
-        this.optimizeSingleShard = componentSettings.getAsBoolean("optimize_single_shard", true);
-
-
+        this.optimizeSingleShard = this.settings.getAsBoolean("action.search.optimize_single_shard", true);
     }
 
     @Override
@@ -106,11 +105,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             scanAction.execute(searchRequest, listener);
         } else if (searchRequest.searchType() == SearchType.COUNT) {
             countAction.execute(searchRequest, listener);
+        } else {
+            throw new ElasticsearchIllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");
         }
-    }
-
-    @Override
-    public SearchRequest newRequestInstance() {
-        return new SearchRequest();
     }
 }

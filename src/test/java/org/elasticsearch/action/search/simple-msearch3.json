@@ -4,5 +4,5 @@
 {"query" : {"match_all" {}}}
 {"index" : ["test4", "test1"], "type" :  [ "type2", "type1" ]}
 {"query" : {"match_all" {}}}
-{"search_type" : "count"}
+{"search_type" : "dfs_query_then_fetch"}
 {"query" : {"match_all" {}}}

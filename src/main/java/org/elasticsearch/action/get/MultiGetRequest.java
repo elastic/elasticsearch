@@ -22,7 +22,6 @@ package org.elasticsearch.action.get;
 import com.google.common.collect.Iterators;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
@@ -174,8 +173,8 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            index = in.readSharedString();
-            type = in.readOptionalSharedString();
+            index = in.readString();
+            type = in.readOptionalString();
             id = in.readString();
             routing = in.readOptionalString();
             int size = in.readVInt();
@@ -193,8 +192,8 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeSharedString(index);
-            out.writeOptionalSharedString(type);
+            out.writeString(index);
+            out.writeOptionalString(type);
             out.writeString(id);
             out.writeOptionalString(routing);
             if (fields == null) {

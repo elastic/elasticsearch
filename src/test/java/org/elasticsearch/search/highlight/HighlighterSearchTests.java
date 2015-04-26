@@ -21,6 +21,7 @@ package org.elasticsearch.search.highlight;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
+
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -29,9 +30,15 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.BoostableQueryBuilder;
+import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder.Operator;
 import org.elasticsearch.index.query.MatchQueryBuilder.Type;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -50,16 +57,43 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.missingFilter;
 import static org.elasticsearch.index.query.FilterBuilders.typeFilter;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.boostingQuery;
+import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
+import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchPhrasePrefixQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.regexpQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNotHighlighted;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  *
  */
+@Slow
 public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
@@ -91,7 +125,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
                         .startObject("fields")
                         .startObject("autocomplete")
                         .field("type", "string")
-                        .field("index_analyzer", "autocomplete")
+                        .field("analyzer", "autocomplete")
                         .field("search_analyzer", "search_autocomplete")
                         .field("term_vector", "with_positions_offsets")
                         .endObject()
@@ -143,7 +177,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
          * query. We cut off and extract terms if there are more than 16 terms in the query
          */
         assertAcked(prepareCreate("test")
-                .addMapping("test", "body", "type=string,index_analyzer=custom_analyzer,search_analyzer=custom_analyzer,term_vector=with_positions_offsets")
+                .addMapping("test", "body", "type=string,analyzer=custom_analyzer,search_analyzer=custom_analyzer,term_vector=with_positions_offsets")
                 .setSettings(
                         settingsBuilder().put(indexSettings())
                                 .put("analysis.filter.wordDelimiter.type", "word_delimiter")
@@ -173,8 +207,8 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         assertAcked(prepareCreate("test")
                 .addMapping("test",
-                        "name", "type=string,index_analyzer=name_index_analyzer,search_analyzer=name_search_analyzer," + randomStoreField() + "term_vector=with_positions_offsets",
-                        "name2", "type=string,index_analyzer=name2_index_analyzer,search_analyzer=name_search_analyzer," + randomStoreField() + "term_vector=with_positions_offsets")
+                        "name", "type=string,analyzer=name_index_analyzer,search_analyzer=name_search_analyzer," + randomStoreField() + "term_vector=with_positions_offsets",
+                        "name2", "type=string,analyzer=name2_index_analyzer,search_analyzer=name_search_analyzer," + randomStoreField() + "term_vector=with_positions_offsets")
                 .setSettings(settingsBuilder()
                         .put(indexSettings())
                         .put("analysis.filter.my_ngram.max_gram", 20)
@@ -240,8 +274,8 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
     public void testNgramHighlighting() throws ElasticsearchException, IOException {
         assertAcked(prepareCreate("test")
                 .addMapping("test",
-                        "name", "type=string,index_analyzer=name_index_analyzer,search_analyzer=name_search_analyzer,term_vector=with_positions_offsets",
-                        "name2", "type=string,index_analyzer=name2_index_analyzer,search_analyzer=name_search_analyzer,term_vector=with_positions_offsets")
+                        "name", "type=string,analyzer=name_index_analyzer,search_analyzer=name_search_analyzer,term_vector=with_positions_offsets",
+                        "name2", "type=string,analyzer=name2_index_analyzer,search_analyzer=name_search_analyzer,term_vector=with_positions_offsets")
                 .setSettings(settingsBuilder()
                         .put(indexSettings())
                         .put("analysis.filter.my_ngram.max_gram", 20)
@@ -645,38 +679,6 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
-    }
-
-    @Test
-    public void testPlainHighlighterDocumentAnalyzer() throws Exception {
-        client().admin().indices().prepareCreate("test")
-        .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("_analyzer")
-                .field("path", "language_analyzer")
-            .endObject()
-            .startObject("properties")
-                .startObject("language_analyzer")
-                    .field("type", "string")
-                    .field("index", "not_analyzed")
-                .endObject()
-                .startObject("text")
-                    .field("type", "string")
-                .endObject()
-            .endObject()
-            .endObject().endObject()).execute().actionGet();
-        ensureYellow();
-
-        index("test", "type1", "1",
-                "language_analyzer", "english",
-                "text", "Look at me, I'm eating cars.");
-        refresh();
-
-        SearchResponse response = client().prepareSearch("test")
-                .setQuery(QueryBuilders.matchQuery("text", "car"))
-                .addHighlightedField(
-                        new HighlightBuilder.Field("text").preTags("<1>").postTags("</1>").requireFieldMatch(true))
-                .get();
-        assertHighlight(response, 0, "text", 0, 1, equalTo("Look at me, I'm eating <1>cars</1>."));
     }
 
     @Test
@@ -2530,75 +2532,6 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
             String prefix = prefixes.get(hit.id());
             assertHighlight(hit, "field1", 0, 1, equalTo("Sentence " + prefix + " <em>test</em>."));
         }
-    }
-
-    @Test //https://github.com/elasticsearch/elasticsearch/issues/4116
-    public void testPostingsHighlighterCustomIndexName() {
-        assertAcked(prepareCreate("test")
-            .addMapping("type1", "field1", "type=string,index_options=offsets,index_name=my_field"));
-        ensureGreen();
-
-        client().prepareIndex("test", "type1", "1").setSource("field1", "First sentence. Second sentence.").get();
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchQuery("field1", "first")).addHighlightedField("field1").get();
-        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("<em>First</em> sentence."));
-
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("my_field", "first")).addHighlightedField("field1").get();
-        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("<em>First</em> sentence."));
-
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("my_field", "first")).addHighlightedField("my_field").get();
-        assertHighlight(searchResponse, 0, "my_field", 0, 1, equalTo("<em>First</em> sentence."));
-
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("my_field", "first"))
-                .addHighlightedField("field1").setHighlighterRequireFieldMatch(true).get();
-        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("<em>First</em> sentence."));
-    }
-
-    @Test
-    public void testFastVectorHighlighterCustomIndexName() {
-        assertAcked(prepareCreate("test")
-                .addMapping("type1", "field1", "type=string,term_vector=with_positions_offsets,index_name=my_field"));
-        ensureGreen();
-
-        client().prepareIndex("test", "type1", "1").setSource("field1", "First sentence. Second sentence.").get();
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchQuery("field1", "first")).addHighlightedField("field1").get();
-        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("<em>First</em> sentence. Second sentence."));
-
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("my_field", "first")).addHighlightedField("field1").get();
-        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("<em>First</em> sentence. Second sentence."));
-
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("my_field", "first")).addHighlightedField("my_field").get();
-        assertHighlight(searchResponse, 0, "my_field", 0, 1, equalTo("<em>First</em> sentence. Second sentence."));
-
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("my_field", "first"))
-                .addHighlightedField("field1").setHighlighterRequireFieldMatch(true).get();
-        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("<em>First</em> sentence. Second sentence."));
-    }
-
-    @Test
-    public void testPlainHighlighterCustomIndexName() {
-        assertAcked(prepareCreate("test")
-                .addMapping("type1", "field1", "type=string,index_name=my_field"));
-        ensureGreen();
-
-        client().prepareIndex("test", "type1", "1").setSource("field1", "First sentence. Second sentence.").get();
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchQuery("field1", "first")).addHighlightedField("field1").get();
-        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("<em>First</em> sentence. Second sentence."));
-
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("my_field", "first")).addHighlightedField("field1").get();
-        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("<em>First</em> sentence. Second sentence."));
-
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("my_field", "first")).addHighlightedField("my_field").get();
-        assertHighlight(searchResponse, 0, "my_field", 0, 1, equalTo("<em>First</em> sentence. Second sentence."));
-
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("my_field", "first"))
-                .addHighlightedField("field1").setHighlighterRequireFieldMatch(true).get();
-        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("<em>First</em> sentence. Second sentence."));
     }
 
     @Test

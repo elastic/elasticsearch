@@ -1,6 +1,6 @@
 {
   "indices.upgrade": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-upgrade.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-upgrade.html",
     "methods": ["POST"],
     "url": {
       "path": "/_upgrade",
@@ -18,7 +18,7 @@
         },
         "expand_wildcards": {
             "type" : "enum",
-            "options" : ["open","closed"],
+            "options" : ["open","closed","none","all"],
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
         },
@@ -27,8 +27,12 @@
             "description" : "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
         },
         "wait_for_completion": {
+           "type" : "boolean",
+           "description" : "Specify whether the request should block until the all segments are upgraded (default: false)"
+	},
+        "only_ancient_segments": {
           "type" : "boolean",
-          "description" : "Specify whether the request should block until the all segments are upgraded (default: false)"
+          "description" : "If true, only ancient (an older Lucene major release) segments will be upgraded"
         }
       }
     },

@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BitsFilteredDocIdSet;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -41,7 +42,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.NoopCollector;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.IntArray;
@@ -159,12 +159,7 @@ public class ChildrenQuery extends Query {
     }
 
     @Override
-    public void extractTerms(Set<Term> terms) {
-        rewrittenChildQuery.extractTerms(terms);
-    }
-
-    @Override
-    public Weight createWeight(IndexSearcher searcher) throws IOException {
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
         SearchContext sc = SearchContext.current();
         assert rewrittenChildQuery != null;
         assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader
@@ -174,7 +169,7 @@ public class ChildrenQuery extends Query {
         IndexParentChildFieldData globalIfd = ifd.loadGlobal(searcher.getIndexReader());
         if (globalIfd == null) {
             // No docs of the specified type exist on this shard
-            return Queries.newMatchNoDocsQuery().createWeight(searcher);
+            return new BooleanQuery().createWeight(searcher, needsScores);
         }
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
         indexSearcher.setSimilarity(searcher.getSimilarity());
@@ -219,7 +214,7 @@ public class ChildrenQuery extends Query {
             indexSearcher.search(childQuery, collector);
             numFoundParents = collector.foundParents();
             if (numFoundParents == 0) {
-                return Queries.newMatchNoDocsQuery().createWeight(searcher);
+                return new BooleanQuery().createWeight(searcher, needsScores);
             }
             abort = false;
         } finally {
@@ -235,7 +230,7 @@ public class ChildrenQuery extends Query {
         } else {
             parentFilter = this.parentFilter;
         }
-        return new ParentWeight(rewrittenChildQuery.createWeight(searcher), parentFilter, numFoundParents, collector, minChildren,
+        return new ParentWeight(this, rewrittenChildQuery.createWeight(searcher, needsScores), parentFilter, numFoundParents, collector, minChildren,
                 maxChildren);
     }
 
@@ -251,7 +246,8 @@ public class ChildrenQuery extends Query {
         protected float queryNorm;
         protected float queryWeight;
 
-        protected ParentWeight(Weight childWeight, Filter parentFilter, long remaining, ParentCollector collector, int minChildren, int maxChildren) {
+        protected ParentWeight(Query query, Weight childWeight, Filter parentFilter, long remaining, ParentCollector collector, int minChildren, int maxChildren) {
+            super(query);
             this.childWeight = childWeight;
             this.parentFilter = parentFilter;
             this.remaining = remaining;
@@ -261,13 +257,12 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-            return new Explanation(getBoost(), "not implemented yet...");
+        public void extractTerms(Set<Term> terms) {
         }
 
         @Override
-        public Query getQuery() {
-            return ChildrenQuery.this;
+        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+            return Explanation.match(getBoost(), "not implemented yet...");
         }
 
         @Override
@@ -397,6 +392,12 @@ public class ChildrenQuery extends Query {
             this.scores = this.bigArrays.newFloatArray(512, false);
         }
 
+        @Override
+        public boolean needsScores() {
+            return true;
+        }
+
+        @Override
         protected void newParent(long parentIdx) throws IOException {
             scores = bigArrays.grow(scores, parentIdx + 1);
             scores.set(parentIdx, scorer.score());
@@ -417,6 +418,7 @@ public class ChildrenQuery extends Query {
             this.occurrences = bigArrays.newIntArray(512, false);
         }
 
+        @Override
         protected void newParent(long parentIdx) throws IOException {
             scores = bigArrays.grow(scores, parentIdx + 1);
             scores.set(parentIdx, scorer.score());
@@ -658,6 +660,7 @@ public class ChildrenQuery extends Query {
             this.occurrences = ((ParentScoreCountCollector) collector).occurrences;
         }
 
+        @Override
         protected boolean acceptAndScore(long parentIdx) {
             int count = occurrences.get(parentIdx);
             if (count < minChildren || count > maxChildren) {

@@ -21,13 +21,29 @@ package org.elasticsearch.common;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.BufferedReader;
-import java.util.*;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Properties;
+import java.util.Random;
+import java.util.Set;
+import java.util.StringTokenizer;
+import java.util.TreeSet;
 
 /**
  *
@@ -1062,5 +1078,19 @@ public class Strings {
      *  primary key.  The id is opaque and the implementation is free to change at any time! */
     public static String base64UUID() {
         return TIME_UUID_GENERATOR.getBase64UUID();
+    }
+
+    /**
+     * Return a {@link String} that is the json representation of the provided
+     * {@link ToXContent}.
+     */
+    public static String toString(ToXContent toXContent) {
+        try {
+            XContentBuilder builder = JsonXContent.contentBuilder();
+            toXContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            return builder.string();
+        } catch (IOException e) {
+            throw new AssertionError("Cannot happen", e);
+        }
     }
 }

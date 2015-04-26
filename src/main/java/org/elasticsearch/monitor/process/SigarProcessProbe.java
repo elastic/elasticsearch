@@ -52,8 +52,10 @@ public class SigarProcessProbe extends AbstractComponent implements ProcessProbe
         ProcessStats stats = new ProcessStats();
         stats.timestamp = System.currentTimeMillis();
         stats.openFileDescriptors = JmxProcessProbe.getOpenFileDescriptorCount();
-
         try {
+            if (stats.openFileDescriptors == -1) {
+                stats.openFileDescriptors = sigar.getProcFd(sigar.getPid()).getTotal();
+            }
             ProcCpu cpu = sigar.getProcCpu(sigar.getPid());
             stats.cpu = new ProcessStats.Cpu();
             stats.cpu.percent = (short) (cpu.getPercent() * 100);

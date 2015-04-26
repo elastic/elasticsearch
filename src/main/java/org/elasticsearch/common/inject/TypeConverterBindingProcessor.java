@@ -59,6 +59,7 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
             convertToPrimitiveType(double.class, Double.class);
 
             convertToClass(Character.class, new TypeConverter() {
+                @Override
                 public Object convert(String value, TypeLiteral<?> toType) {
                     value = value.trim();
                     if (value.length() != 1) {
@@ -74,6 +75,7 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
             });
 
             convertToClasses(Matchers.subclassesOf(Enum.class), new TypeConverter() {
+                @Override
                 @SuppressWarnings("unchecked")
                 public Object convert(String value, TypeLiteral<?> toType) {
                     return Enum.valueOf((Class) toType.getRawType(), value);
@@ -87,6 +89,7 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
 
             internalConvertToTypes(
                     new AbstractMatcher<TypeLiteral<?>>() {
+                        @Override
                         public boolean matches(TypeLiteral<?> typeLiteral) {
                             return typeLiteral.getRawType() == Class.class;
                         }
@@ -97,6 +100,7 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
                         }
                     },
                     new TypeConverter() {
+                        @Override
                         @SuppressWarnings("unchecked")
                         public Object convert(String value, TypeLiteral<?> toType) {
                             try {
@@ -123,6 +127,7 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
                     "parse" + Strings.capitalize(primitiveType.getName()), String.class);
 
             TypeConverter typeConverter = new TypeConverter() {
+                @Override
                 @SuppressWarnings("unchecked")
                 public Object convert(String value, TypeLiteral<?> toType) {
                     try {
@@ -153,6 +158,7 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
     private void convertToClasses(final Matcher<? super Class<?>> typeMatcher,
                                   TypeConverter converter) {
         internalConvertToTypes(new AbstractMatcher<TypeLiteral<?>>() {
+            @Override
             public boolean matches(TypeLiteral<?> typeLiteral) {
                 Type type = typeLiteral.getType();
                 if (!(type instanceof Class)) {

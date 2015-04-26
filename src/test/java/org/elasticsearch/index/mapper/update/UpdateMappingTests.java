@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
@@ -79,9 +80,9 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
     private void testNoConflictWhileMergingAndMappingChanged(XContentBuilder mapping, XContentBuilder mappingUpdate, XContentBuilder expectedMapping) throws IOException {
         IndexService indexService = createIndex("test", ImmutableSettings.settingsBuilder().build(), "type", mapping);
         // simulate like in MetaDataMappingService#putMapping
-        DocumentMapper.MergeResult mergeResult = indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedString(mappingUpdate.bytes()), true), DocumentMapper.MergeFlags.mergeFlags().simulate(false));
+        MergeResult mergeResult = indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedString(mappingUpdate.bytes()), true).mapping(), false);
         // assure we have no conflicts
-        assertThat(mergeResult.conflicts().length, equalTo(0));
+        assertThat(mergeResult.buildConflicts().length, equalTo(0));
         // make sure mappings applied
         CompressedString mappingAfterUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         assertThat(mappingAfterUpdate.toString(), equalTo(expectedMapping.string()));
@@ -103,9 +104,9 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
         IndexService indexService = createIndex("test", ImmutableSettings.settingsBuilder().build(), "type", mapping);
         CompressedString mappingBeforeUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         // simulate like in MetaDataMappingService#putMapping
-        DocumentMapper.MergeResult mergeResult = indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedString(mappingUpdate.bytes()), true), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
+        MergeResult mergeResult = indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedString(mappingUpdate.bytes()), true).mapping(), true);
         // assure we have conflicts
-        assertThat(mergeResult.conflicts().length, equalTo(1));
+        assertThat(mergeResult.buildConflicts().length, equalTo(1));
         // make sure simulate flag actually worked - no mappings applied
         CompressedString mappingAfterUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         assertThat(mappingAfterUpdate, equalTo(mappingBeforeUpdate));
@@ -120,22 +121,14 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("type")
                 .startObject("_index")
                 .field("enabled", enabled)
-                .field("store", true)
-                .startObject("fielddata")
-                .field("format", "fst")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject();
         DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedString(indexMapping.string()), true);
         assertThat(documentMapper.indexMapper().enabled(), equalTo(enabled));
-        assertTrue(documentMapper.indexMapper().fieldType().stored());
-        assertThat(documentMapper.indexMapper().fieldDataType().getFormat(null), equalTo("fst"));
         documentMapper.refreshSource();
         documentMapper = indexService.mapperService().parse("type", new CompressedString(documentMapper.mappingSource().string()), true);
         assertThat(documentMapper.indexMapper().enabled(), equalTo(enabled));
-        assertTrue(documentMapper.indexMapper().fieldType().stored());
-        assertThat(documentMapper.indexMapper().fieldDataType().getFormat(null), equalTo("fst"));
     }
 
     @Test
@@ -174,7 +167,6 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("type")
                 .startObject("_size")
                 .field("enabled", enabled)
-                .field("store", true)
                 .endObject()
                 .endObject()
                 .endObject();

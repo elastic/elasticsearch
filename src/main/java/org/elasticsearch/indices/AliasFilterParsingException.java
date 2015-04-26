@@ -27,10 +27,6 @@ import org.elasticsearch.index.IndexException;
  */
 public class AliasFilterParsingException extends IndexException {
 
-    public AliasFilterParsingException(Index index, String name, String desc) {
-        super(index, "[" + name + "], " + desc);
-    }
-
     public AliasFilterParsingException(Index index, String name, String desc, Throwable ex) {
         super(index, "[" + name + "], " + desc, ex);
     }

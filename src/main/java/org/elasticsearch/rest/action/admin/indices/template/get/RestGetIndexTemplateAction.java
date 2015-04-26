@@ -56,6 +56,8 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
 
         GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
+        getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));
+
         getIndexTemplatesRequest.listenerThreaded(false);
 
         final boolean implicitAll = getIndexTemplatesRequest.names().length == 0;

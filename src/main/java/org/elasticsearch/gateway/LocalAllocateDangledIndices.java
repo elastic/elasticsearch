@@ -40,6 +40,7 @@ import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 
 /**
  */
@@ -59,17 +60,17 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
-        transportService.registerHandler(ACTION_NAME, new AllocateDangledRequestHandler());
+        transportService.registerRequestHandler(ACTION_NAME, AllocateDangledRequest.class, ThreadPool.Names.SAME, new AllocateDangledRequestHandler());
     }
 
-    public void allocateDangled(IndexMetaData[] indices, final Listener listener) {
+    public void allocateDangled(Collection<IndexMetaData> indices, final Listener listener) {
         ClusterState clusterState = clusterService.state();
         DiscoveryNode masterNode = clusterState.nodes().masterNode();
         if (masterNode == null) {
             listener.onFailure(new MasterNotDiscoveredException("no master to send allocate dangled request"));
             return;
         }
-        AllocateDangledRequest request = new AllocateDangledRequest(clusterService.localNode(), indices);
+        AllocateDangledRequest request = new AllocateDangledRequest(clusterService.localNode(), indices.toArray(new IndexMetaData[indices.size()]));
         transportService.sendRequest(masterNode, ACTION_NAME, request, new TransportResponseHandler<AllocateDangledResponse>() {
             @Override
             public AllocateDangledResponse newInstance() {
@@ -99,13 +100,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
         void onFailure(Throwable e);
     }
 
-    class AllocateDangledRequestHandler extends BaseTransportRequestHandler<AllocateDangledRequest> {
-
-        @Override
-        public AllocateDangledRequest newInstance() {
-            return new AllocateDangledRequest();
-        }
-
+    class AllocateDangledRequestHandler implements TransportRequestHandler<AllocateDangledRequest> {
         @Override
         public void messageReceived(final AllocateDangledRequest request, final TransportChannel channel) throws Exception {
             String[] indexNames = new String[request.indices.length];
@@ -158,7 +153,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                     try {
                         channel.sendResponse(t);
                     } catch (Exception e) {
-                        logger.error("failed send response for allocating dangled", e);
+                        logger.warn("failed send response for allocating dangled", e);
                     }
                 }
 
@@ -167,15 +162,10 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                     try {
                         channel.sendResponse(new AllocateDangledResponse(true));
                     } catch (IOException e) {
-                        logger.error("failed send response for allocating dangled", e);
+                        logger.warn("failed send response for allocating dangled", e);
                     }
                 }
             });
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 

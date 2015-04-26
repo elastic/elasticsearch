@@ -23,7 +23,6 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.Iterables;
-
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
@@ -55,6 +54,8 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -65,7 +66,9 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.test.engine.MockInternalEngine;
+import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.engine.AssertingSearcher;
+import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -81,6 +84,8 @@ import java.util.concurrent.TimeUnit;
 
 import static com.google.common.base.Predicates.isNull;
 import static org.elasticsearch.test.ElasticsearchTestCase.*;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -114,6 +119,42 @@ public class ElasticsearchAssertions {
     public static void assertAcked(DeleteIndexResponse response) {
         assertThat("Delete Index failed - not acked", response.isAcknowledged(), equalTo(true));
         assertVersionSerializable(response);
+    }
+
+    /**
+     * Executes the request and fails if the request has not been blocked.
+     *
+     * @param builder the request builder
+     */
+    public static void assertBlocked(ActionRequestBuilder builder) {
+        assertBlocked(builder, null);
+    }
+
+    /**
+     * Executes the request and fails if the request has not been blocked by a specific {@link ClusterBlock}.
+     *
+     * @param builder the request builder
+     * @param expectedBlock the expected block
+     */
+    public static void assertBlocked(ActionRequestBuilder builder, ClusterBlock expectedBlock) {
+        try {
+            builder.get();
+            fail("Request executed with success but a ClusterBlockException was expected");
+        } catch (ClusterBlockException e) {
+            assertThat(e.blocks().size(), greaterThan(0));
+            assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
+
+            if (expectedBlock != null) {
+                boolean found = false;
+                for (ClusterBlock clusterBlock : e.blocks()) {
+                    if (clusterBlock.id() == expectedBlock.id()) {
+                        found = true;
+                        break;
+                    }
+                }
+                assertThat("Request should have been blocked by [" + expectedBlock + "] instead of " + e.blocks(), found, equalTo(true));
+            }
+        }
     }
 
     public static String formatShardStatus(BroadcastOperationResponse response) {
@@ -269,7 +310,7 @@ public class ElasticsearchAssertions {
             assertVersionSerializable(searchResponse);
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.status(), equalTo(restStatus));
-            assertThat(e.getMessage(), reasonMatcher);
+            assertThat(e.toString(), reasonMatcher);
             for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
                 assertThat(shardSearchFailure.status(), equalTo(restStatus));
                 assertThat(shardSearchFailure.reason(), reasonMatcher);
@@ -277,6 +318,12 @@ public class ElasticsearchAssertions {
         } catch (Exception e) {
             fail("SearchPhaseExecutionException expected but got " + e.getClass());
         }
+    }
+
+    public static void assertFailures(PercolateResponse percolateResponse) {
+        assertThat("Expected at least one shard failure, got none",
+            percolateResponse.getShardFailures().length, greaterThan(0));
+        assertVersionSerializable(percolateResponse);
     }
 
     public static void assertNoFailures(BroadcastOperationResponse response) {
@@ -578,8 +625,8 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertVersionSerializable(Streamable streamable) {
-        assertTrue(Version.CURRENT.after(getPreviousVersion()));
-        assertVersionSerializable(randomVersion(), streamable);
+        assertTrue(Version.CURRENT.after(VersionUtils.getPreviousVersion()));
+        assertVersionSerializable(randomVersion(random()), streamable);
     }
 
     public static void assertVersionSerializable(Version version, Streamable streamable) {
@@ -642,28 +689,29 @@ public class ElasticsearchAssertions {
          * pending we will fail anyway.*/
         try {
             if (awaitBusy(new Predicate<Object>() {
+                @Override
                 public boolean apply(Object o) {
-                    return MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty();
+                    return MockEngineSupport.INFLIGHT_ENGINE_SEARCHERS.isEmpty();
                 }
             }, 5, TimeUnit.SECONDS)) {
                 return;
             }
         } catch (InterruptedException ex) {
-            if (MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty()) {
+            if (MockEngineSupport.INFLIGHT_ENGINE_SEARCHERS.isEmpty()) {
                 return;
             }
         }
         try {
             RuntimeException ex = null;
             StringBuilder builder = new StringBuilder("Unclosed Searchers instance for shards: [");
-            for (Map.Entry<MockInternalEngine.AssertingSearcher, RuntimeException> entry : MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
+            for (Map.Entry<AssertingSearcher, RuntimeException> entry : MockEngineSupport.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
                 ex = entry.getValue();
                 builder.append(entry.getKey().shardId()).append(",");
             }
             builder.append("]");
             throw new RuntimeException(builder.toString(), ex);
         } finally {
-            MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.clear();
+            MockEngineSupport.INFLIGHT_ENGINE_SEARCHERS.clear();
         }
     }
 
@@ -754,36 +802,42 @@ public class ElasticsearchAssertions {
     }
 
     private static Predicate<PluginInfo> jvmPluginPredicate = new Predicate<PluginInfo>() {
+        @Override
         public boolean apply(PluginInfo pluginInfo) {
             return pluginInfo.isJvm();
         }
     };
 
     private static Predicate<PluginInfo> sitePluginPredicate = new Predicate<PluginInfo>() {
+        @Override
         public boolean apply(PluginInfo pluginInfo) {
             return pluginInfo.isSite();
         }
     };
 
     private static Function<PluginInfo, String> nameFunction = new Function<PluginInfo, String>() {
+        @Override
         public String apply(PluginInfo pluginInfo) {
             return pluginInfo.getName();
         }
     };
 
     private static Function<PluginInfo, String> descriptionFunction = new Function<PluginInfo, String>() {
+        @Override
         public String apply(PluginInfo pluginInfo) {
             return pluginInfo.getDescription();
         }
     };
 
     private static Function<PluginInfo, String> urlFunction = new Function<PluginInfo, String>() {
+        @Override
         public String apply(PluginInfo pluginInfo) {
             return pluginInfo.getUrl();
         }
     };
 
     private static Function<PluginInfo, String> versionFunction = new Function<PluginInfo, String>() {
+        @Override
         public String apply(PluginInfo pluginInfo) {
             return pluginInfo.getVersion();
         }
@@ -794,6 +848,13 @@ public class ElasticsearchAssertions {
      */
     public static void assertFileExists(Path file) {
         assertThat("file/dir [" + file + "] should exist.", Files.exists(file), is(true));
+    }
+
+    /**
+     * Check if a file does not exist
+     */
+    public static void assertFileNotExists(Path file) {
+        assertThat("file/dir [" + file + "] should not exist.", Files.exists(file), is(false));
     }
 
     /**

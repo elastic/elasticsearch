@@ -31,6 +31,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 
 import java.nio.file.Path;
 
@@ -43,7 +44,6 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
 
     private final NodeEnvironment nodeEnv;
 
-    private final GatewayShardsState shardsState;
     private final GatewayMetaState metaState;
 
     private final TransportNodesListGatewayMetaState listGatewayMetaState;
@@ -52,8 +52,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
     private final ClusterName clusterName;
 
     @Inject
-    public Gateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv,
-                   GatewayShardsState shardsState, GatewayMetaState metaState,
+    public Gateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv, GatewayMetaState metaState,
                    TransportNodesListGatewayMetaState listGatewayMetaState, ClusterName clusterName) {
         super(settings);
         this.clusterService = clusterService;
@@ -61,8 +60,6 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
         this.metaState = metaState;
         this.listGatewayMetaState = listGatewayMetaState;
         this.clusterName = clusterName;
-
-        this.shardsState = shardsState;
 
         clusterService.addLast(this);
 
@@ -180,7 +177,6 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
         // order is important, first metaState, and then shardsState
         // so dangling indices will be recorded
         metaState.clusterChanged(event);
-        shardsState.clusterChanged(event);
     }
 
     public interface GatewayStateRecoveredListener {

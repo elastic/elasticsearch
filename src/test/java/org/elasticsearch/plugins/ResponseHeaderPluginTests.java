@@ -59,8 +59,5 @@ public class ResponseHeaderPluginTests extends ElasticsearchIntegrationTest {
         assertThat(authResponse.getStatusCode(), equalTo(RestStatus.OK.getStatus()));
         assertThat(authResponse.getHeaders().get("Secret"), equalTo("granted"));
     }
-
-    private HttpRequestBuilder httpClient() {
-        return new HttpRequestBuilder(HttpClients.createDefault()).httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class));
-    }
+    
 }

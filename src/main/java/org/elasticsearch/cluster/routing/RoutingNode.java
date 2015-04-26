@@ -175,6 +175,22 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
         return sb.toString();
     }
 
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("routingNode ([");
+        sb.append(node.getName());
+        sb.append("][");
+        sb.append(node.getId());
+        sb.append("][");
+        sb.append(node.getHostName());
+        sb.append("][");
+        sb.append(node.getHostAddress());
+        sb.append("], [");
+        sb.append(shards.size());
+        sb.append(" assigned shards])");
+        return sb.toString();
+    }
+
     public MutableShardRouting get(int i) {
         return shards.get(i) ;
     }

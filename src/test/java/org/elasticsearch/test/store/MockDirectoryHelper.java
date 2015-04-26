@@ -19,28 +19,32 @@
 
 package org.elasticsearch.test.store;
 
-import com.carrotsearch.randomizedtesting.SeedUtils;
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.MMapDirectory;
-import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper.Throttling;
-import org.apache.lucene.util.Constants;
+import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.store.NRTCachingDirectory;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.DirectoryService;
+import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.store.fs.*;
+import org.elasticsearch.index.store.IndexStoreModule;
+import com.carrotsearch.randomizedtesting.SeedUtils;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.util.Collection;
 import java.util.Random;
 import java.util.Set;
 
 public class MockDirectoryHelper {
     public static final String RANDOM_IO_EXCEPTION_RATE = "index.store.mock.random.io_exception_rate";
     public static final String RANDOM_IO_EXCEPTION_RATE_ON_OPEN = "index.store.mock.random.io_exception_rate_on_open";
-    public static final String RANDOM_THROTTLE = "index.store.mock.random.throttle";
     public static final String RANDOM_PREVENT_DOUBLE_WRITE = "index.store.mock.random.prevent_double_write";
     public static final String RANDOM_NO_DELETE_OPEN_FILE = "index.store.mock.random.no_delete_open_file";
     public static final String CRASH_INDEX = "index.store.mock.random.crash_index";
@@ -65,7 +69,7 @@ public class MockDirectoryHelper {
         preventDoubleWrite = indexSettings.getAsBoolean(RANDOM_PREVENT_DOUBLE_WRITE, true); // true is default in MDW
         noDeleteOpenFile = indexSettings.getAsBoolean(RANDOM_NO_DELETE_OPEN_FILE, random.nextBoolean()); // true is default in MDW
         random.nextInt(shardId.getId() + 1); // some randomness per shard
-        throttle = Throttling.valueOf(indexSettings.get(RANDOM_THROTTLE, random.nextDouble() < 0.1 ? "SOMETIMES" : "NEVER"));
+        throttle = Throttling.NEVER;
         crashIndex = indexSettings.getAsBoolean(CRASH_INDEX, true);
 
         if (logger.isDebugEnabled()) {
@@ -87,33 +91,16 @@ public class MockDirectoryHelper {
         // TODO: make this test robust to virus scanner
         w.setEnableVirusScanner(false);
         w.setNoDeleteOpenFile(noDeleteOpenFile);
+        w.setUseSlowOpenClosers(false);
         wrappers.add(w);
         return w;
     }
 
-    public Directory[] wrapAllInplace(Directory[] dirs) {
-        for (int i = 0; i < dirs.length; i++) {
-            dirs[i] = wrap(dirs[i]);
-        }
-        return dirs;
-    }
-
-    public FsDirectoryService randomDirectorService(IndexStore indexStore) {
-        if ((Constants.WINDOWS || Constants.SUN_OS) && Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
-            return new MmapFsDirectoryService(shardId, indexSettings, indexStore);
-        } else if (Constants.WINDOWS) {
-            return new SimpleFsDirectoryService(shardId, indexSettings, indexStore);
-        }
-        switch (random.nextInt(4)) {
-            case 2:
-                return new DefaultFsDirectoryService(shardId, indexSettings, indexStore);
-            case 1:
-                return new MmapFsDirectoryService(shardId, indexSettings, indexStore);
-            case 0:
-                return new SimpleFsDirectoryService(shardId, indexSettings, indexStore);
-            default:
-                return new NioFsDirectoryService(shardId, indexSettings, indexStore);
-        }
+    public FsDirectoryService randomDirectorService(IndexStore indexStore, ShardPath path) {
+        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder();
+        builder.put(indexSettings);
+        builder.put(IndexStoreModule.STORE_TYPE, RandomPicks.randomFrom(random, IndexStoreModule.Type.values()));
+        return new FsDirectoryService(builder.build(), indexStore, path);
     }
 
     public static final class ElasticsearchMockDirectoryWrapper extends MockDirectoryWrapper {
@@ -122,11 +109,26 @@ public class MockDirectoryHelper {
         private final boolean crash;
         private volatile RuntimeException closeException;
         private final Object lock = new Object();
+        private final Set<String> superUnSyncedFiles;
+        private final Random superRandomState;
 
         public ElasticsearchMockDirectoryWrapper(Random random, Directory delegate, ESLogger logger, boolean crash) {
             super(random, delegate);
             this.crash = crash;
             this.logger = logger;
+
+            // TODO: remove all this and cutover to MockFS (DisableFsyncFS) instead
+            try {
+                Field field = MockDirectoryWrapper.class.getDeclaredField("unSyncedFiles");
+                field.setAccessible(true);
+                superUnSyncedFiles = (Set<String>) field.get(this);
+
+                field = MockDirectoryWrapper.class.getDeclaredField("randomState");
+                field.setAccessible(true);
+                superRandomState = (Random) field.get(this);
+            } catch (ReflectiveOperationException roe) {
+                throw new RuntimeException(roe);
+            }
         }
 
         @Override
@@ -144,7 +146,32 @@ public class MockDirectoryHelper {
             }
         }
 
+        /**
+         * Returns true if {@link #in} must sync its files.
+         * Currently, only {@link NRTCachingDirectory} requires sync'ing its files
+         * because otherwise they are cached in an internal {@link org.apache.lucene.store.RAMDirectory}. If
+         * other directories require that too, they should be added to this method.
+         */
+        private boolean mustSync() {
+            Directory delegate = in;
+            while (delegate instanceof FilterDirectory) {
+                if (delegate instanceof NRTCachingDirectory) {
+                    return true;
+                }
+                delegate = ((FilterDirectory) delegate).getDelegate();
+            }
+            return delegate instanceof NRTCachingDirectory;
+        }
 
+        @Override
+        public synchronized void sync(Collection<String> names) throws IOException {
+            // don't wear out our hardware so much in tests.
+            if (superRandomState.nextInt(100) == 0 || mustSync()) {
+                super.sync(names);
+            } else {
+                superUnSyncedFiles.removeAll(names);
+            }
+        }
 
         public void awaitClosed(long timeout) throws InterruptedException {
             synchronized (lock) {

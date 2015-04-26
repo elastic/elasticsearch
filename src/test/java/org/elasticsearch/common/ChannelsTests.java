@@ -49,15 +49,17 @@ public class ChannelsTests extends ElasticsearchTestCase {
     byte[] randomBytes;
     FileChannel fileChannel;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        Path tmpFile = newTempFilePath();
+        Path tmpFile = createTempFile();
         FileChannel randomAccessFile = FileChannel.open(tmpFile, StandardOpenOption.READ, StandardOpenOption.WRITE);
         fileChannel = new MockFileChannel(randomAccessFile);
         randomBytes = randomUnicodeOfLength(scaledRandomIntBetween(10, 100000)).getBytes("UTF-8");
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         fileChannel.close();

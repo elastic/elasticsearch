@@ -28,7 +28,7 @@ import org.apache.lucene.util.Sorter;
  */
 public abstract class SortingNumericDoubleValues extends SortedNumericDoubleValues {
 
-    protected int count;
+    private int count;
     protected double[] values;
     private final Sorter sorter;
 
@@ -51,9 +51,11 @@ public abstract class SortingNumericDoubleValues extends SortedNumericDoubleValu
     }
 
     /**
-     * Make sure the {@link #values} array can store at least {@link #count} entries.
+     * Set the {@link #count()} and ensure that the {@link #values} array can
+     * store at least that many entries.
      */
-    protected final void grow() {
+    protected final void resize(int newSize) {
+        count = newSize;
         values = ArrayUtil.grow(values, count);
     }
 
@@ -65,10 +67,12 @@ public abstract class SortingNumericDoubleValues extends SortedNumericDoubleValu
         sorter.sort(0, count);
     }
 
+    @Override
     public final int count() {
         return count;
     }
 
+    @Override
     public final double valueAt(int index) {
         return values[index];
     }

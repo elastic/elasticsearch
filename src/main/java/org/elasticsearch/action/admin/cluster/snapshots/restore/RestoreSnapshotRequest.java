@@ -504,11 +504,6 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
      * @return this request
      */
     public RestoreSnapshotRequest source(Map source) {
-        boolean ignoreUnavailable = IndicesOptions.lenientExpandOpen().ignoreUnavailable();
-        boolean allowNoIndices = IndicesOptions.lenientExpandOpen().allowNoIndices();
-        boolean expandWildcardsOpen = IndicesOptions.lenientExpandOpen().expandWildcardsOpen();
-        boolean expandWildcardsClosed = IndicesOptions.lenientExpandOpen().expandWildcardsClosed();
-
         for (Map.Entry<String, Object> entry : ((Map<String, Object>) source).entrySet()) {
             String name = entry.getKey();
             if (name.equals("indices")) {
@@ -519,14 +514,6 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
                 } else {
                     throw new ElasticsearchIllegalArgumentException("malformed indices section, should be an array of strings");
                 }
-            } else if (name.equals("ignore_unavailable") || name.equals("ignoreUnavailable")) {
-                ignoreUnavailable = nodeBooleanValue(entry.getValue());
-            } else if (name.equals("allow_no_indices") || name.equals("allowNoIndices")) {
-                allowNoIndices = nodeBooleanValue(entry.getValue());
-            } else if (name.equals("expand_wildcards_open") || name.equals("expandWildcardsOpen")) {
-                expandWildcardsOpen = nodeBooleanValue(entry.getValue());
-            } else if (name.equals("expand_wildcards_closed") || name.equals("expandWildcardsClosed")) {
-                expandWildcardsClosed = nodeBooleanValue(entry.getValue());
             } else if (name.equals("partial")) {
                 partial(nodeBooleanValue(entry.getValue()));
             } else if (name.equals("settings")) {
@@ -567,7 +554,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
                 throw new ElasticsearchIllegalArgumentException("Unknown parameter " + name);
             }
         }
-        indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
+        indicesOptions(IndicesOptions.fromMap((Map<String, Object>) source, IndicesOptions.lenientExpandOpen()));
         return this;
     }
 

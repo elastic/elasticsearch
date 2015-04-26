@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Nullable;
@@ -45,8 +46,8 @@ public class DoubleTermsAggregator extends LongTermsAggregator {
     }
 
     @Override
-    protected SortedNumericDocValues getValues(Numeric valuesSource) {
-        return FieldData.toSortableLongBits(valuesSource.doubleValues());
+    protected SortedNumericDocValues getValues(Numeric valuesSource, LeafReaderContext ctx) throws IOException {
+        return FieldData.toSortableLongBits(valuesSource.doubleValues(ctx));
     }
 
     @Override
@@ -62,7 +63,7 @@ public class DoubleTermsAggregator extends LongTermsAggregator {
     }
 
     private static DoubleTerms.Bucket convertToDouble(InternalTerms.Bucket bucket) {
-        final long term = bucket.getKeyAsNumber().longValue();
+        final long term = ((Number) bucket.getKey()).longValue();
         final double value = NumericUtils.sortableLongToDouble(term);
         return new DoubleTerms.Bucket(value, bucket.docCount, bucket.aggregations, bucket.showDocCountError, bucket.docCountError, bucket.formatter);
     }

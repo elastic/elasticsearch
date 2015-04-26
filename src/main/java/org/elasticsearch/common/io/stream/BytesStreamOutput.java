@@ -61,11 +61,6 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
     }
 
     @Override
-    public boolean seekPositionSupported() {
-        return true;
-    }
-
-    @Override
     public long position() throws IOException {
         return count;
     }
@@ -99,6 +94,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
         count += length;
     }
 
+    @Override
     public void reset() {
         // shrink list of pages
         if (bytes.size() > BigArrays.PAGE_SIZE_IN_BYTES) {
@@ -148,6 +144,14 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
     @Override
     public BytesReference bytes() {
         return new PagedBytesReference(bigarrays, bytes, count);
+    }
+
+    /**
+     * Returns the number of bytes used by the underlying {@link org.elasticsearch.common.util.ByteArray}
+     * @see org.elasticsearch.common.util.ByteArray#ramBytesUsed()
+     */
+    public long ramBytesUsed() {
+        return bytes.ramBytesUsed();
     }
 
     private void ensureCapacity(int offset) {

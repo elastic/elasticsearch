@@ -25,8 +25,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.transport.TransportService;
@@ -55,14 +55,14 @@ public class TransportClientTests extends ElasticsearchIntegrationTest {
         TransportClientNodesService nodeService = client.nodeService();
         Node node = nodeBuilder().data(false).settings(ImmutableSettings.builder()
                 .put(internalCluster().getDefaultSettings())
+                .put("path.home", createTempDir())
                 .put("node.name", "testNodeVersionIsUpdated")
                 .put("http.enabled", false)
-                .put("index.store.type", "ram")
                 .put("config.ignore_system_properties", true) // make sure we get what we set :)
                 .build()).clusterName("foobar").build();
         node.start();
         try {
-            TransportAddress transportAddress = ((InternalNode) node).injector().getInstance(TransportService.class).boundAddress().publishAddress();
+            TransportAddress transportAddress = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();
             client.addTransportAddress(transportAddress);
             assertThat(nodeService.connectedNodes().size(), greaterThanOrEqualTo(1)); // since we force transport clients there has to be one node started that we connect to.
             for (DiscoveryNode discoveryNode : nodeService.connectedNodes()) {  // connected nodes have updated version

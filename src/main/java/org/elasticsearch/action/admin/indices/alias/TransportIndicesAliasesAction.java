@@ -38,10 +38,7 @@ import org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesMissingEx
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Add/remove aliases action
@@ -53,7 +50,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
     @Inject
     public TransportIndicesAliasesAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, MetaDataIndexAliasesService indexAliasesService, ActionFilters actionFilters) {
-        super(settings, IndicesAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, IndicesAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, IndicesAliasesRequest.class);
         this.indexAliasesService = indexAliasesService;
     }
 
@@ -61,11 +58,6 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
     protected String executor() {
         // we go async right away...
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected IndicesAliasesRequest newRequest() {
-        return new IndicesAliasesRequest();
     }
 
     @Override
@@ -81,7 +73,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
                 indices.add(index);
             }
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, indices.toArray(new String[indices.size()]));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices.toArray(new String[indices.size()]));
     }
 
     @Override
@@ -96,9 +88,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
             //expand indices
             String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), action.indices());
             //collect the aliases
-            for (String alias : action.aliases()) {
-                aliases.add(alias);
-            }
+            Collections.addAll(aliases, action.aliases());
             for (String index : concreteIndices) {
                 for (String alias : action.concreteAliases(state.metaData(), index)) { 
                     AliasAction finalAction = new AliasAction(action.aliasAction());

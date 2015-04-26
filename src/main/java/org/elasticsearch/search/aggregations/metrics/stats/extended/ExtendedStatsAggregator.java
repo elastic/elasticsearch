@@ -28,6 +28,8 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -43,22 +45,25 @@ import java.util.Map;
  */
 public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
 
-    private final ValuesSource.Numeric valuesSource;
-    private SortedNumericDoubleValues values;
+    final ValuesSource.Numeric valuesSource;
+    final ValueFormatter formatter;
+    final double sigma;
 
-    private LongArray counts;
-    private DoubleArray sums;
-    private DoubleArray mins;
-    private DoubleArray maxes;
-    private DoubleArray sumOfSqrs;
-    private ValueFormatter formatter;
+    LongArray counts;
+    DoubleArray sums;
+    DoubleArray mins;
+    DoubleArray maxes;
+    DoubleArray sumOfSqrs;
 
     public ExtendedStatsAggregator(String name, ValuesSource.Numeric valuesSource,
-            @Nullable ValueFormatter formatter, AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
+                                   @Nullable ValueFormatter formatter, AggregationContext context,
+                                   Aggregator parent, double sigma, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, metaData);
         this.valuesSource = valuesSource;
         this.formatter = formatter;
+        this.sigma = sigma;
         if (valuesSource != null) {
+            final BigArrays bigArrays = context.bigArrays();
             counts = bigArrays.newLongArray(1, true);
             sums = bigArrays.newDoubleArray(1, true);
             mins = bigArrays.newDoubleArray(1, false);
@@ -70,47 +75,55 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
     }
 
     @Override
-    public boolean shouldCollect() {
-        return valuesSource != null;
+    public boolean needsScores() {
+        return valuesSource != null && valuesSource.needsScores();
     }
 
     @Override
-    public void setNextReader(LeafReaderContext reader) {
-        values = valuesSource.doubleValues();
-    }
-
-    @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        if (owningBucketOrdinal >= counts.size()) {
-            final long from = counts.size();
-            final long overSize = BigArrays.overSize(owningBucketOrdinal + 1);
-            counts = bigArrays.resize(counts, overSize);
-            sums = bigArrays.resize(sums, overSize);
-            mins = bigArrays.resize(mins, overSize);
-            maxes = bigArrays.resize(maxes, overSize);
-            sumOfSqrs = bigArrays.resize(sumOfSqrs, overSize);
-            mins.fill(from, overSize, Double.POSITIVE_INFINITY);
-            maxes.fill(from, overSize, Double.NEGATIVE_INFINITY);
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        if (valuesSource == null) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         }
+        final BigArrays bigArrays = context.bigArrays();
+        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+        return new LeafBucketCollectorBase(sub, values) {
 
-        values.setDocument(doc);
-        final int valuesCount = values.count();
-        counts.increment(owningBucketOrdinal, valuesCount);
-        double sum = 0;
-        double sumOfSqr = 0;
-        double min = mins.get(owningBucketOrdinal);
-        double max = maxes.get(owningBucketOrdinal);
-        for (int i = 0; i < valuesCount; i++) {
-            double value = values.valueAt(i);
-            sum += value;
-            sumOfSqr += value * value;
-            min = Math.min(min, value);
-            max = Math.max(max, value);
-        }
-        sums.increment(owningBucketOrdinal, sum);
-        sumOfSqrs.increment(owningBucketOrdinal, sumOfSqr);
-        mins.set(owningBucketOrdinal, min);
-        maxes.set(owningBucketOrdinal, max);
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (bucket >= counts.size()) {
+                    final long from = counts.size();
+                    final long overSize = BigArrays.overSize(bucket + 1);
+                    counts = bigArrays.resize(counts, overSize);
+                    sums = bigArrays.resize(sums, overSize);
+                    mins = bigArrays.resize(mins, overSize);
+                    maxes = bigArrays.resize(maxes, overSize);
+                    sumOfSqrs = bigArrays.resize(sumOfSqrs, overSize);
+                    mins.fill(from, overSize, Double.POSITIVE_INFINITY);
+                    maxes.fill(from, overSize, Double.NEGATIVE_INFINITY);
+                }
+
+                values.setDocument(doc);
+                final int valuesCount = values.count();
+                counts.increment(bucket, valuesCount);
+                double sum = 0;
+                double sumOfSqr = 0;
+                double min = mins.get(bucket);
+                double max = maxes.get(bucket);
+                for (int i = 0; i < valuesCount; i++) {
+                    double value = values.valueAt(i);
+                    sum += value;
+                    sumOfSqr += value * value;
+                    min = Math.min(min, value);
+                    max = Math.max(max, value);
+                }
+                sums.increment(bucket, sum);
+                sumOfSqrs.increment(bucket, sumOfSqr);
+                mins.set(bucket, min);
+                maxes.set(bucket, max);
+            }
+
+        };
     }
 
     @Override
@@ -134,6 +147,12 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
             case sum_of_squares: return valuesSource == null ? 0 : sumOfSqrs.get(owningBucketOrd);
             case variance: return valuesSource == null ? Double.NaN : variance(owningBucketOrd);
             case std_deviation: return valuesSource == null ? Double.NaN : Math.sqrt(variance(owningBucketOrd));
+            case std_upper:
+                if (valuesSource == null) { return Double.NaN; }
+                return (sums.get(owningBucketOrd) / counts.get(owningBucketOrd)) + (Math.sqrt(variance(owningBucketOrd)) * this.sigma);
+            case std_lower:
+                if (valuesSource == null) { return Double.NaN; }
+                return (sums.get(owningBucketOrd) / counts.get(owningBucketOrd)) - (Math.sqrt(variance(owningBucketOrd)) * this.sigma);
             default:
                 throw new ElasticsearchIllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
         }
@@ -148,16 +167,16 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
-            return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, formatter, metaData());
+            return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, 0d, formatter, metaData());
         }
         assert owningBucketOrdinal < counts.size();
         return new InternalExtendedStats(name, counts.get(owningBucketOrdinal), sums.get(owningBucketOrdinal),
-                mins.get(owningBucketOrdinal), maxes.get(owningBucketOrdinal), sumOfSqrs.get(owningBucketOrdinal), formatter, metaData());
+                mins.get(owningBucketOrdinal), maxes.get(owningBucketOrdinal), sumOfSqrs.get(owningBucketOrdinal), sigma, formatter, metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, formatter, metaData());
+        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, 0d, formatter, metaData());
     }
 
     @Override
@@ -167,19 +186,22 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
 
-        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig) {
+        private final double sigma;
+
+        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig, double sigma) {
             super(name, InternalExtendedStats.TYPE.name(), valuesSourceConfig);
+
+            this.sigma = sigma;
         }
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
-            return new ExtendedStatsAggregator(name, null, config.formatter(), aggregationContext, parent, metaData);
+            return new ExtendedStatsAggregator(name, null, config.formatter(), aggregationContext, parent, sigma, metaData);
         }
 
         @Override
         protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
-            return new ExtendedStatsAggregator(name, valuesSource, config.formatter(), aggregationContext, parent,
-                    metaData);
+            return new ExtendedStatsAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, sigma, metaData);
         }
     }
 }

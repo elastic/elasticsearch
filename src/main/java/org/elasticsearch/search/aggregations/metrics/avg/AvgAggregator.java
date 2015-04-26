@@ -21,11 +21,14 @@ package org.elasticsearch.search.aggregations.metrics.avg;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -41,12 +44,11 @@ import java.util.Map;
  */
 public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
-    private final ValuesSource.Numeric valuesSource;
-    private SortedNumericDoubleValues values;
+    final ValuesSource.Numeric valuesSource;
 
-    private LongArray counts;
-    private DoubleArray sums;
-    private ValueFormatter formatter;
+    LongArray counts;
+    DoubleArray sums;
+    ValueFormatter formatter;
 
     public AvgAggregator(String name, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
             AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
@@ -54,34 +56,41 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         this.valuesSource = valuesSource;
         this.formatter = formatter;
         if (valuesSource != null) {
+            final BigArrays bigArrays = context.bigArrays();
             counts = bigArrays.newLongArray(1, true);
             sums = bigArrays.newDoubleArray(1, true);
         }
     }
 
     @Override
-    public boolean shouldCollect() {
-        return valuesSource != null;
+    public boolean needsScores() {
+        return valuesSource != null && valuesSource.needsScores();
     }
 
     @Override
-    public void setNextReader(LeafReaderContext reader) {
-        values = valuesSource.doubleValues();
-    }
-
-    @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        counts = bigArrays.grow(counts, owningBucketOrdinal + 1);
-        sums = bigArrays.grow(sums, owningBucketOrdinal + 1);
-
-        values.setDocument(doc);
-        final int valueCount = values.count();
-        counts.increment(owningBucketOrdinal, valueCount);
-        double sum = 0;
-        for (int i = 0; i < valueCount; i++) {
-            sum += values.valueAt(i);
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        if (valuesSource == null) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        sums.increment(owningBucketOrdinal, sum);
+        final BigArrays bigArrays = context.bigArrays();
+        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                counts = bigArrays.grow(counts, bucket + 1);
+                sums = bigArrays.grow(sums, bucket + 1);
+
+                values.setDocument(doc);
+                final int valueCount = values.count();
+                counts.increment(bucket, valueCount);
+                double sum = 0;
+                for (int i = 0; i < valueCount; i++) {
+                    sum += values.valueAt(i);
+                }
+                sums.increment(bucket, sum);
+            }
+        };
     }
 
     @Override
@@ -90,11 +99,11 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        if (valuesSource == null || owningBucketOrdinal >= counts.size()) {
-            return new InternalAvg(name, 0l, 0, formatter, metaData());
+    public InternalAggregation buildAggregation(long bucket) {
+        if (valuesSource == null || bucket >= sums.size()) {
+            return buildEmptyAggregation();
         }
-        return new InternalAvg(name, sums.get(owningBucketOrdinal), counts.get(owningBucketOrdinal), formatter, metaData());
+        return new InternalAvg(name, sums.get(bucket), counts.get(bucket), formatter, metaData());
     }
 
     @Override

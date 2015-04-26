@@ -28,8 +28,7 @@
                         "properties":{
                             "location":{
                                 "type":"string",
-                                "store":"yes",
-                                "index_name":"firstLocation"
+                                "store":"yes"
                             }
                         }
                     },

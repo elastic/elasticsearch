@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class OriginalIndicesTests extends ElasticsearchTestCase {
@@ -42,7 +43,7 @@ public class OriginalIndicesTests extends ElasticsearchTestCase {
             OriginalIndices originalIndices = randomOriginalIndices();
 
             BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(randomVersion());
+            out.setVersion(randomVersion(random()));
             OriginalIndices.writeOriginalIndices(originalIndices, out);
 
             BytesStreamInput in = new BytesStreamInput(out.bytes());

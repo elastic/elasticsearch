@@ -30,20 +30,20 @@ Import Aggregation definition classes:
 
 [source,java]
 --------------------------------------------------
-import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistance;
+import org.elasticsearch.search.aggregations.bucket.range.Range;
 --------------------------------------------------
 
 [source,java]
 --------------------------------------------------
 // sr is here your SearchResponse object
-GeoDistance agg = sr.getAggregations().get("agg");
+Range agg = sr.getAggregations().get("agg");
 
 // For each entry
-for (GeoDistance.Bucket entry : agg.getBuckets()) {
-    String key = entry.getKey();            // key as String
-    Number from = entry.getFrom();          // bucket from value
-    Number to = entry.getTo();              // bucket to value
-    long docCount = entry.getDocCount();    // Doc count
+for (Range.Bucket entry : agg.getBuckets()) {
+    String key = entry.getKey();                     // key as String
+    Number from = (Number) entry.getFrom();          // bucket from value
+    Number to = (Number) entry.getTo();              // bucket to value
+    long docCount = entry.getDocCount();             // Doc count
 
     logger.info("key [{}], from [{}], to [{}], doc_count [{}]", key, from, to, docCount);
 }

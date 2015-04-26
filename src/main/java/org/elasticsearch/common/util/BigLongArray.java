@@ -75,6 +75,7 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
     }
 
     /** Change the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */
+    @Override
     public void resize(long newSize) {
         final int numPages = numPages(newSize);
         if (numPages > pages.length) {
@@ -93,6 +94,9 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
     @Override
     public void fill(long fromIndex, long toIndex, long value) {
         Preconditions.checkArgument(fromIndex <= toIndex);
+        if (fromIndex == toIndex) {
+            return; // empty range
+        }
         final int fromPage = pageIndex(fromIndex);
         final int toPage = pageIndex(toIndex - 1);
         if (fromPage == toPage) {

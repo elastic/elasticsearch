@@ -43,6 +43,7 @@ public class OpenChannelsHandler implements ChannelUpstreamHandler {
     }
 
     final ChannelFutureListener remover = new ChannelFutureListener() {
+        @Override
         public void operationComplete(ChannelFuture future) throws Exception {
             boolean removed = openChannels.remove(future.getChannel());
             if (removed) {

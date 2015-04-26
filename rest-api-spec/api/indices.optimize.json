@@ -1,6 +1,6 @@
 {
   "indices.optimize": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-optimize.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-optimize.html",
     "methods": ["POST", "GET"],
     "url": {
       "path": "/_optimize",
@@ -26,7 +26,7 @@
         },
         "expand_wildcards": {
             "type" : "enum",
-            "options" : ["open","closed"],
+            "options" : ["open","closed","none","all"],
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
         },

@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -47,7 +48,10 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -296,6 +300,9 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
                 if (numNodes == 1) {
                     logger.info("--> one node is closed - start indexing data into the second one");
                     client.prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("field", "value3").endObject()).execute().actionGet();
+                    // TODO: remove once refresh doesn't fail immediately if there a master block:
+                    // https://github.com/elasticsearch/elasticsearch/issues/9997
+                    client.admin().cluster().prepareHealth("test").setWaitForYellowStatus().get();
                     client.admin().indices().prepareRefresh().execute().actionGet();
 
                     for (int i = 0; i < 10; i++) {
@@ -345,6 +352,7 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
                 .put("action.admin.cluster.node.shutdown.delay", "10ms")
                 .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
                 .put("gateway.recover_after_nodes", 4)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CONCURRENT_RECOVERIES, 4)
                 .put(MockDirectoryHelper.CRASH_INDEX, false).build();
 
         internalCluster().startNodesAsync(4, settings).get();
@@ -367,7 +375,7 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
         }
         logger.info("Running Cluster Health");
         ensureGreen();
-        client().admin().indices().prepareOptimize("test").setWaitForMerge(true).setMaxNumSegments(100).get(); // just wait for merges
+        client().admin().indices().prepareOptimize("test").setMaxNumSegments(100).get(); // just wait for merges
         client().admin().indices().prepareFlush().setWaitIfOngoing(true).setForce(true).get();
 
         logger.info("--> disabling allocation while the cluster is shut down");
@@ -398,21 +406,28 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
         for (ShardRecoveryResponse response : recoveryResponse.shardResponses().get("test")) {
             RecoveryState recoveryState = response.recoveryState();
+            long recovered = 0;
+            for (RecoveryState.File file : recoveryState.getIndex().fileDetails()) {
+               if (file.name().startsWith("segments")) {
+                   recovered += file.length();
+               }
+            }
             if (!recoveryState.getPrimary()) {
                 logger.info("--> replica shard {} recovered from {} to {}, recovered {}, reuse {}",
                         response.getShardId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
-                        recoveryState.getIndex().recoveredTotalSize(), recoveryState.getIndex().reusedByteCount());
-                assertThat("no bytes should be recovered", recoveryState.getIndex().recoveredByteCount(), equalTo(0l));
-                assertThat("data should have been reused", recoveryState.getIndex().reusedByteCount(), greaterThan(0l));
-                assertThat("all bytes should be reused", recoveryState.getIndex().reusedByteCount(), equalTo(recoveryState.getIndex().totalByteCount()));
-                assertThat("no files should be recovered", recoveryState.getIndex().recoveredFileCount(), equalTo(0));
-                assertThat("all files should be reused", recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()));
+                        recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
+                assertThat("no bytes should be recovered", recoveryState.getIndex().recoveredBytes(), equalTo(recovered));
+                assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), greaterThan(0l));
+                // we have to recover the segments file since we commit the translog ID on engine startup
+                assertThat("all bytes should be reused except of the segments file", recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes()-recovered));
+                assertThat("no files should be recovered except of the segments file", recoveryState.getIndex().recoveredFileCount(), equalTo(1));
+                assertThat("all files should be reused except of the segments file", recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()-1));
                 assertThat("> 0 files should be reused", recoveryState.getIndex().reusedFileCount(), greaterThan(0));
-                assertThat("all bytes should be reused bytes",
-                        recoveryState.getIndex().reusedByteCount(), greaterThan(recoveryState.getIndex().numberOfRecoveredBytes()));
             } else {
-                assertThat(recoveryState.getIndex().recoveredByteCount(), equalTo(recoveryState.getIndex().reusedByteCount()));
-                assertThat(recoveryState.getIndex().recoveredFileCount(), equalTo(recoveryState.getIndex().reusedFileCount()));
+                assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(0l));
+                assertThat(recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes()));
+                assertThat(recoveryState.getIndex().recoveredFileCount(), equalTo(0));
+                assertThat(recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()));
             }
         }
 
@@ -423,11 +438,11 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
     public void testRecoveryDifferentNodeOrderStartup() throws Exception {
         // we need different data paths so we make sure we start the second node fresh
 
-        final String node_1 = internalCluster().startNode(settingsBuilder().put("path.data", "data/data1").build());
+        final String node_1 = internalCluster().startNode(settingsBuilder().put("path.data", createTempDir()).build());
 
         client().prepareIndex("test", "type1", "1").setSource("field", "value").execute().actionGet();
 
-        internalCluster().startNode(settingsBuilder().put("path.data", "data/data2").build());
+        internalCluster().startNode(settingsBuilder().put("path.data", createTempDir()).build());
 
         ensureGreen();
 

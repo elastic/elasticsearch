@@ -22,7 +22,6 @@ package org.elasticsearch.action.mlt;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
@@ -33,7 +32,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.Scroll;
@@ -86,7 +84,6 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
     private Scroll searchScroll;
 
     private BytesReference searchSource;
-    private boolean searchSourceUnsafe;
 
     MoreLikeThisRequest() {
     }
@@ -401,20 +398,12 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
         return this.include;
     }
 
-    void beforeLocalFork() {
-        if (searchSourceUnsafe) {
-            searchSource = searchSource.copyBytesArray();
-            searchSourceUnsafe = false;
-        }
-    }
-
     /**
      * An optional search source request allowing to control the search request for the
      * more like this documents.
      */
     public MoreLikeThisRequest searchSource(SearchSourceBuilder sourceBuilder) {
         this.searchSource = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
-        this.searchSourceUnsafe = false;
         return this;
     }
 
@@ -424,7 +413,6 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
      */
     public MoreLikeThisRequest searchSource(String searchSource) {
         this.searchSource = new BytesArray(searchSource);
-        this.searchSourceUnsafe = false;
         return this;
     }
 
@@ -440,7 +428,6 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
 
     public MoreLikeThisRequest searchSource(XContentBuilder builder) {
         this.searchSource = builder.bytes();
-        this.searchSourceUnsafe = false;
         return this;
     }
 
@@ -449,24 +436,23 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
      * more like this documents.
      */
     public MoreLikeThisRequest searchSource(byte[] searchSource) {
-        return searchSource(searchSource, 0, searchSource.length, false);
+        return searchSource(searchSource, 0, searchSource.length);
     }
 
     /**
      * An optional search source request allowing to control the search request for the
      * more like this documents.
      */
-    public MoreLikeThisRequest searchSource(byte[] searchSource, int offset, int length, boolean unsafe) {
-        return searchSource(new BytesArray(searchSource, offset, length), unsafe);
+    public MoreLikeThisRequest searchSource(byte[] searchSource, int offset, int length) {
+        return searchSource(new BytesArray(searchSource, offset, length));
     }
 
     /**
      * An optional search source request allowing to control the search request for the
      * more like this documents.
      */
-    public MoreLikeThisRequest searchSource(BytesReference searchSource, boolean unsafe) {
+    public MoreLikeThisRequest searchSource(BytesReference searchSource) {
         this.searchSource = searchSource;
-        this.searchSourceUnsafe = unsafe;
         return this;
     }
 
@@ -476,10 +462,6 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
      */
     public BytesReference searchSource() {
         return this.searchSource;
-    }
-
-    public boolean searchSourceUnsafe() {
-        return searchSourceUnsafe;
     }
 
     /**
@@ -656,7 +638,6 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
             searchScroll = readScroll(in);
         }
 
-        searchSourceUnsafe = false;
         searchSource = in.readBytesReference();
 
         searchSize = in.readVInt();

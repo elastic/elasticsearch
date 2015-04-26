@@ -20,6 +20,7 @@ package org.elasticsearch.http.netty;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -75,7 +76,7 @@ public class NettyHttpServerPipeliningTest extends ElasticsearchTestCase {
         networkService = new NetworkService(ImmutableSettings.EMPTY);
         threadPool = new ThreadPool("test");
         mockPageCacheRecycler = new MockPageCacheRecycler(ImmutableSettings.EMPTY, threadPool);
-        bigArrays = new MockBigArrays(ImmutableSettings.EMPTY, mockPageCacheRecycler, new NoneCircuitBreakerService());
+        bigArrays = new MockBigArrays(mockPageCacheRecycler, new NoneCircuitBreakerService());
     }
 
     @After
@@ -147,7 +148,7 @@ public class NettyHttpServerPipeliningTest extends ElasticsearchTestCase {
         private final ExecutorService executorService;
 
         public CustomHttpChannelPipelineFactory(NettyHttpServerTransport transport, ExecutorService executorService) {
-            super(transport);
+            super(transport, randomBoolean());
             this.executorService = executorService;
         }
 
@@ -210,7 +211,12 @@ public class NettyHttpServerPipeliningTest extends ElasticsearchTestCase {
 
             final int timeout = request.getUri().startsWith("/slow") && decoder.getParameters().containsKey("sleep") ? Integer.valueOf(decoder.getParameters().get("sleep").get(0)) : 0;
             if (timeout > 0) {
-                sleep(timeout);
+                try {
+                    Thread.sleep(timeout);
+                } catch (InterruptedException e1) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException();
+                }
             }
 
             if (oue != null) {

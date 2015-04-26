@@ -20,11 +20,18 @@
 package org.elasticsearch.action.search.type;
 
 import com.carrotsearch.hppc.IntArrayList;
+
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.search.ReduceSearchPhaseException;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
@@ -41,7 +48,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
@@ -130,7 +136,6 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                 listener.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, buildTookInMillis(), ShardSearchFailure.EMPTY_ARRAY));
                 return;
             }
-            request.beforeStart();
             int shardIndex = -1;
             for (final ShardIterator shardIt : shardsIts) {
                 shardIndex++;
@@ -154,9 +159,9 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                     onFirstPhaseResult(shardIndex, shard, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
                 } else {
                     String[] filteringAliases = clusterState.metaData().filteringAliases(shard.index(), request.indices());
-                    sendExecuteFirstPhase(node, internalSearchRequest(shard, shardsIts.size(), request, filteringAliases, startTime()), new SearchServiceListener<FirstResult>() {
+                    sendExecuteFirstPhase(node, internalSearchRequest(shard, shardsIts.size(), request, filteringAliases, startTime()), new ActionListener<FirstResult>() {
                         @Override
-                        public void onResult(FirstResult result) {
+                        public void onResponse(FirstResult result) {
                             onFirstPhaseResult(shardIndex, shard, result, shardIt);
                         }
 
@@ -213,7 +218,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                 }
                 if (successfulOps.get() == 0) {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("All shards failed for phase: [{}]", firstPhaseName(), t);
+                        logger.debug("All shards failed for phase: [{}]", t, firstPhaseName());
                     }
                     // no successful ops, raise an exception
                     raiseEarlyFailure(new SearchPhaseExecutionException(firstPhaseName(), "all shards failed", buildShardFailures()));
@@ -320,7 +325,9 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             // we only release search context that we did not fetch from if we are not scrolling
             if (request.scroll() == null) {
                 for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults.asList()) {
-                    if (docIdsToLoad.get(entry.index) == null) {
+                    final TopDocs topDocs = entry.value.queryResult().queryResult().topDocs();
+                    if (topDocs != null && topDocs.scoreDocs.length > 0 // the shard had matches
+                            && docIdsToLoad.get(entry.index) == null) { // but none of them made it to the global top docs
                         try {
                             DiscoveryNode node = nodes.get(entry.value.queryResult().shardTarget().nodeId());
                             if (node != null) { // should not happen (==null) but safeguard anyhow
@@ -343,7 +350,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             }
         }
 
-        protected abstract void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request, SearchServiceListener<FirstResult> listener);
+        protected abstract void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request, ActionListener<FirstResult> listener);
 
         protected final void processFirstPhaseResult(int shardIndex, ShardRouting shard, FirstResult result) {
             firstResults.set(shardIndex, result);

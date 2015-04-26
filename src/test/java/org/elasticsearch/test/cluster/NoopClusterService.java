@@ -132,6 +132,11 @@ public class NoopClusterService implements ClusterService {
     }
 
     @Override
+    public int numberOfPendingTasks() {
+        return 0;
+    }
+
+    @Override
     public Lifecycle.State lifecycleState() {
         return null;
     }

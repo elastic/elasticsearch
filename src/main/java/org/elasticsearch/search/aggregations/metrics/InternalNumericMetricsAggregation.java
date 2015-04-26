@@ -39,6 +39,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
             super(name, metaData);
         }
 
+        @Override
         public String getValueAsString() {
             if (valueFormatter == null) {
                 return ValueFormatter.RAW.format(value());

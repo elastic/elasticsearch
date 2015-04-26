@@ -261,6 +261,7 @@ public abstract class MapBinder<K, V> {
             return binder.bind(valueKey);
         }
 
+        @Override
         public void configure(Binder binder) {
             Multibinder.checkConfiguration(!isInitialized(), "MapBinder was already initialized");
 
@@ -287,10 +288,12 @@ public abstract class MapBinder<K, V> {
                     providerMap = Collections.unmodifiableMap(providerMapMutable);
                 }
 
+                @Override
                 public Map<K, Provider<V>> get() {
                     return providerMap;
                 }
 
+                @Override
                 public Set<Dependency<?>> getDependencies() {
                     return dependencies;
                 }
@@ -298,6 +301,7 @@ public abstract class MapBinder<K, V> {
 
             final Provider<Map<K, Provider<V>>> mapProvider = binder.getProvider(providerMapKey);
             binder.bind(mapKey).toProvider(new ProviderWithDependencies<Map<K, V>>() {
+                @Override
                 public Map<K, V> get() {
                     Map<K, V> map = new LinkedHashMap<>();
                     for (Entry<K, Provider<V>> entry : mapProvider.get().entrySet()) {
@@ -310,6 +314,7 @@ public abstract class MapBinder<K, V> {
                     return Collections.unmodifiableMap(map);
                 }
 
+                @Override
                 public Set<Dependency<?>> getDependencies() {
                     return dependencies;
                 }
@@ -340,14 +345,17 @@ public abstract class MapBinder<K, V> {
                 this.value = value;
             }
 
+            @Override
             public K getKey() {
                 return key;
             }
 
+            @Override
             public V getValue() {
                 return value;
             }
 
+            @Override
             public V setValue(V value) {
                 throw new UnsupportedOperationException();
             }

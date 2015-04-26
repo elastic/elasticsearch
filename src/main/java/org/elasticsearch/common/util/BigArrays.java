@@ -39,9 +39,9 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import java.util.Arrays;
 
 /** Utility class to work with arrays. */
-public class BigArrays extends AbstractComponent {
+public class BigArrays {
 
-    public static final BigArrays NON_RECYCLING_INSTANCE = new BigArrays(ImmutableSettings.EMPTY, null, null);
+    public static final BigArrays NON_RECYCLING_INSTANCE = new BigArrays(null, null);
 
     /** Page size in bytes: 16KB */
     public static final int PAGE_SIZE_IN_BYTES = 1 << 14;
@@ -95,6 +95,7 @@ public class BigArrays extends AbstractComponent {
             this.size = size;
         }
 
+        @Override
         public final long size() {
             return size;
         }
@@ -365,13 +366,12 @@ public class BigArrays extends AbstractComponent {
     final boolean checkBreaker;
 
     @Inject
-    public BigArrays(Settings settings, PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService) {
+    public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService) {
         // Checking the breaker is disabled if not specified
-        this(settings, recycler, breakerService, false);
+        this(recycler, breakerService, false);
     }
 
-    public BigArrays(Settings settings, PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, boolean checkBreaker) {
-        super(settings);
+    public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, boolean checkBreaker) {
         this.checkBreaker = checkBreaker;
         this.recycler = recycler;
         this.breakerService = breakerService;
@@ -384,7 +384,7 @@ public class BigArrays extends AbstractComponent {
      */
     void adjustBreaker(long delta) {
         if (this.breakerService != null) {
-            CircuitBreaker breaker = this.breakerService.getBreaker(CircuitBreaker.Name.REQUEST);
+            CircuitBreaker breaker = this.breakerService.getBreaker(CircuitBreaker.REQUEST);
             if (this.checkBreaker == true) {
                 // checking breaker means potentially tripping, but it doesn't
                 // have to if the delta is negative
@@ -414,7 +414,7 @@ public class BigArrays extends AbstractComponent {
      * explicitly enabled, instead of only accounting enabled
      */
     public BigArrays withCircuitBreaking() {
-        return new BigArrays(this.settings, this.recycler, this.breakerService, true);
+        return new BigArrays(this.recycler, this.breakerService, true);
     }
 
     private <T extends AbstractBigArray> T resizeInPlace(T array, long newSize) {

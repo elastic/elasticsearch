@@ -21,6 +21,7 @@ package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 
@@ -92,6 +93,7 @@ abstract class CustomBoostFactorScorer extends Scorer {
     public class MinScoreNextDoc implements NextDoc {
         float currentScore = Float.MAX_VALUE * -1.0f;
 
+        @Override
         public int nextDoc() throws IOException {
             int doc;
             do {
@@ -109,6 +111,7 @@ abstract class CustomBoostFactorScorer extends Scorer {
             return currentScore;
         }
 
+        @Override
         public int advance(int target) throws IOException {
             int doc = scorer.advance(target);
             if (doc == NO_MORE_DOCS) {
@@ -124,6 +127,7 @@ abstract class CustomBoostFactorScorer extends Scorer {
 
     public class AnyNextDoc implements NextDoc {
 
+        @Override
         public int nextDoc() throws IOException {
             return scorer.nextDoc();
         }
@@ -133,6 +137,7 @@ abstract class CustomBoostFactorScorer extends Scorer {
             return innerScore();
         }
 
+        @Override
         public int advance(int target) throws IOException {
             return scorer.advance(target);
         }

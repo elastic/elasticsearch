@@ -25,7 +25,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 import org.joda.time.format.DateTimeFormat;
@@ -76,6 +79,7 @@ public class RestHealthAction extends AbstractCatAction {
         t.addCell("relo", "alias:r,shards.relocating,shardsRelocating;text-align:right;desc:number of relocating nodes");
         t.addCell("init", "alias:i,shards.initializing,shardsInitializing;text-align:right;desc:number of initializing nodes");
         t.addCell("unassign", "alias:u,shards.unassigned,shardsUnassigned;text-align:right;desc:number of unassigned shards");
+        t.addCell("pending_tasks", "alias:pt,pendingTasks;text-align:right;desc:number of pending tasks");
         t.endHeaders();
 
         return t;
@@ -98,6 +102,7 @@ public class RestHealthAction extends AbstractCatAction {
         t.addCell(health.getRelocatingShards());
         t.addCell(health.getInitializingShards());
         t.addCell(health.getUnassignedShards());
+        t.addCell(health.getNumberOfPendingTasks());
         t.endRow();
         return t;
     }

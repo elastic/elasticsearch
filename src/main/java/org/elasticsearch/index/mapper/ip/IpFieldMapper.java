@@ -20,12 +20,12 @@
 package org.elasticsearch.index.mapper.ip;
 
 import com.google.common.net.InetAddresses;
+
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -36,6 +36,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,11 +44,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericAnalyzer;
 import org.elasticsearch.index.analysis.NumericTokenizer;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.LongFieldMapper.CustomLongNumericField;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -128,8 +131,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             IpFieldMapper fieldMapper = new IpFieldMapper(buildNames(context),
                     fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue, ignoreMalformed(context), coerce(context),
-                    postingsProvider, docValuesProvider, similarity,
-                    normsLoading, fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    similarity, normsLoading, fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -160,12 +162,11 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     protected IpFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                             String nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                            PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
                             SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings, 
                             Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(names, precisionStep, boost, fieldType, docValues,
                 ignoreMalformed, coerce, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
-                new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)), postingsProvider, docValuesProvider,
+                new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)),
                 similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
     }
@@ -253,10 +254,10 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
+        return Queries.wrap(NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseValue(lowerTerm),
                 upperTerm == null ? null : parseValue(upperTerm),
-                includeLower, includeUpper);
+                includeLower, includeUpper));
     }
 
     @Override
@@ -273,10 +274,10 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
             return null;
         }
         final long value = ipToLong(nullValue);
-        return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
+        return Queries.wrap(NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 value,
                 value,
-                true, true);
+                true, true));
     }
 
     @Override
@@ -319,12 +320,12 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        super.merge(mergeWith, mergeContext);
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+        super.merge(mergeWith, mergeResult);
         if (!this.getClass().equals(mergeWith.getClass())) {
             return;
         }
-        if (!mergeContext.mergeFlags().simulate()) {
+        if (!mergeResult.simulate()) {
             this.nullValue = ((IpFieldMapper) mergeWith).nullValue;
         }
     }

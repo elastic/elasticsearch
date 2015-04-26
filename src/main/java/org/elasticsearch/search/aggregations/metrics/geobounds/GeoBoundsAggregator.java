@@ -22,10 +22,13 @@ package org.elasticsearch.search.aggregations.metrics.geobounds;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -39,13 +42,12 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
 
     private final ValuesSource.GeoPoint valuesSource;
     private final boolean wrapLongitude;
-    private DoubleArray tops;
-    private DoubleArray bottoms;
-    private DoubleArray posLefts;
-    private DoubleArray posRights;
-    private DoubleArray negLefts;
-    private DoubleArray negRights;
-    private MultiGeoPointValues values;
+    DoubleArray tops;
+    DoubleArray bottoms;
+    DoubleArray posLefts;
+    DoubleArray posRights;
+    DoubleArray negLefts;
+    DoubleArray negRights;
 
     protected GeoBoundsAggregator(String name, AggregationContext aggregationContext,
             Aggregator parent, ValuesSource.GeoPoint valuesSource, boolean wrapLongitude, Map<String, Object> metaData) throws IOException {
@@ -53,6 +55,7 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
         this.valuesSource = valuesSource;
         this.wrapLongitude = wrapLongitude;
         if (valuesSource != null) {
+            final BigArrays bigArrays = context.bigArrays();
             tops = bigArrays.newDoubleArray(1, false);
             tops.fill(0, tops.size(), Double.NEGATIVE_INFINITY);
             bottoms = bigArrays.newDoubleArray(1, false);
@@ -69,13 +72,70 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
     }
 
     @Override
-    public boolean shouldCollect() {
-        return valuesSource != null;
-    }
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            LeafBucketCollector sub) {
+        if (valuesSource == null) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
+        }
+        final BigArrays bigArrays = context.bigArrays();
+        final MultiGeoPointValues values = valuesSource.geoPointValues(ctx);
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (bucket >= tops.size()) {
+                    long from = tops.size();
+                    tops = bigArrays.grow(tops, bucket + 1);
+                    tops.fill(from, tops.size(), Double.NEGATIVE_INFINITY);
+                    bottoms = bigArrays.resize(bottoms, tops.size());
+                    bottoms.fill(from, bottoms.size(), Double.NEGATIVE_INFINITY);
+                    posLefts = bigArrays.resize(posLefts, tops.size());
+                    posLefts.fill(from, posLefts.size(), Double.NEGATIVE_INFINITY);
+                    posRights = bigArrays.resize(posRights, tops.size());
+                    posRights.fill(from, posRights.size(), Double.NEGATIVE_INFINITY);
+                    negLefts = bigArrays.resize(negLefts, tops.size());
+                    negLefts.fill(from, negLefts.size(), Double.NEGATIVE_INFINITY);
+                    negRights = bigArrays.resize(negRights, tops.size());
+                    negRights.fill(from, negRights.size(), Double.NEGATIVE_INFINITY);
+                }
 
-    @Override
-    public void setNextReader(LeafReaderContext reader) {
-        this.values = this.valuesSource.geoPointValues();
+                values.setDocument(doc);
+                final int valuesCount = values.count();
+
+                for (int i = 0; i < valuesCount; ++i) {
+                    GeoPoint value = values.valueAt(i);
+                    double top = tops.get(bucket);
+                    if (value.lat() > top) {
+                        top = value.lat();
+                    }
+                    double bottom = bottoms.get(bucket);
+                    if (value.lat() < bottom) {
+                        bottom = value.lat();
+                    }
+                    double posLeft = posLefts.get(bucket);
+                    if (value.lon() > 0 && value.lon() < posLeft) {
+                        posLeft = value.lon();
+                    }
+                    double posRight = posRights.get(bucket);
+                    if (value.lon() > 0 && value.lon() > posRight) {
+                        posRight = value.lon();
+                    }
+                    double negLeft = negLefts.get(bucket);
+                    if (value.lon() < 0 && value.lon() < negLeft) {
+                        negLeft = value.lon();
+                    }
+                    double negRight = negRights.get(bucket);
+                    if (value.lon() < 0 && value.lon() > negRight) {
+                        negRight = value.lon();
+                    }
+                    tops.set(bucket, top);
+                    bottoms.set(bucket, bottom);
+                    posLefts.set(bucket, posLeft);
+                    posRights.set(bucket, posRight);
+                    negLefts.set(bucket, negLeft);
+                    negRights.set(bucket, negRight);
+                }
+            }
+        };
     }
 
     @Override
@@ -96,62 +156,6 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
     public InternalAggregation buildEmptyAggregation() {
         return new InternalGeoBounds(name, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
                 Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, wrapLongitude, metaData());
-    }
-
-    @Override
-    public void collect(int docId, long owningBucketOrdinal) throws IOException {
-        if (owningBucketOrdinal >= tops.size()) {
-            long from = tops.size();
-            tops = bigArrays.grow(tops, owningBucketOrdinal + 1);
-            tops.fill(from, tops.size(), Double.NEGATIVE_INFINITY);
-            bottoms = bigArrays.resize(bottoms, tops.size());
-            bottoms.fill(from, bottoms.size(), Double.NEGATIVE_INFINITY);
-            posLefts = bigArrays.resize(posLefts, tops.size());
-            posLefts.fill(from, posLefts.size(), Double.NEGATIVE_INFINITY);
-            posRights = bigArrays.resize(posRights, tops.size());
-            posRights.fill(from, posRights.size(), Double.NEGATIVE_INFINITY);
-            negLefts = bigArrays.resize(negLefts, tops.size());
-            negLefts.fill(from, negLefts.size(), Double.NEGATIVE_INFINITY);
-            negRights = bigArrays.resize(negRights, tops.size());
-            negRights.fill(from, negRights.size(), Double.NEGATIVE_INFINITY);
-        }
-
-        values.setDocument(docId);
-        final int valuesCount = values.count();
-
-        for (int i = 0; i < valuesCount; ++i) {
-            GeoPoint value = values.valueAt(i);
-            double top = tops.get(owningBucketOrdinal);
-            if (value.lat() > top) {
-                top = value.lat();
-            }
-            double bottom = bottoms.get(owningBucketOrdinal);
-            if (value.lat() < bottom) {
-                bottom = value.lat();
-            }
-            double posLeft = posLefts.get(owningBucketOrdinal);
-            if (value.lon() > 0 && value.lon() < posLeft) {
-                posLeft = value.lon();
-            }
-            double posRight = posRights.get(owningBucketOrdinal);
-            if (value.lon() > 0 && value.lon() > posRight) {
-                posRight = value.lon();
-            }
-            double negLeft = negLefts.get(owningBucketOrdinal);
-            if (value.lon() < 0 && value.lon() < negLeft) {
-                negLeft = value.lon();
-            }
-            double negRight = negRights.get(owningBucketOrdinal);
-            if (value.lon() < 0 && value.lon() > negRight) {
-                negRight = value.lon();
-            }
-            tops.set(owningBucketOrdinal, top);
-            bottoms.set(owningBucketOrdinal, bottom);
-            posLefts.set(owningBucketOrdinal, posLeft);
-            posRights.set(owningBucketOrdinal, posRight);
-            negLefts.set(owningBucketOrdinal, negLeft);
-            negRights.set(owningBucketOrdinal, negRight);
-        }
     }
     
     @Override

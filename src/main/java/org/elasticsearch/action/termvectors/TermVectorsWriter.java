@@ -20,6 +20,7 @@ package org.elasticsearch.action.termvectors;
 
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
@@ -49,12 +50,13 @@ final class TermVectorsWriter {
         response = termVectorsResponse;
     }
 
-    void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<Flag> flags, Fields topLevelFields, @Nullable AggregatedDfs dfs) throws IOException {
+    void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<Flag> flags, Fields topLevelFields,
+                   @Nullable AggregatedDfs dfs, @Nullable TermVectorsFilter termVectorsFilter) throws IOException {
         int numFieldsWritten = 0;
-        TermsEnum iterator = null;
-        DocsAndPositionsEnum docsAndPosEnum = null;
-        DocsEnum docsEnum = null;
-        TermsEnum topLevelIterator = null;
+        PostingsEnum docsAndPosEnum = null;
+        PostingsEnum docsEnum = null;
+        boolean hasScores = termVectorsFilter != null;
+
         for (String field : termVectorsByField) {
             if ((selectedFields != null) && (!selectedFields.contains(field))) {
                 continue;
@@ -68,11 +70,17 @@ final class TermVectorsWriter {
                 topLevelTerms = fieldTermVector;
             }
 
-            topLevelIterator = topLevelTerms.iterator(topLevelIterator);
+            TermsEnum topLevelIterator = topLevelTerms.iterator();
             boolean positions = flags.contains(Flag.Positions) && fieldTermVector.hasPositions();
             boolean offsets = flags.contains(Flag.Offsets) && fieldTermVector.hasOffsets();
             boolean payloads = flags.contains(Flag.Payloads) && fieldTermVector.hasPayloads();
-            startField(field, fieldTermVector.size(), positions, offsets, payloads);
+
+            long termsSize = fieldTermVector.size();
+            if (hasScores) {
+                termsSize = Math.min(termsSize, termVectorsFilter.size(field));
+            }
+            startField(field, termsSize, positions, offsets, payloads);
+
             if (flags.contains(Flag.FieldStatistics)) {
                 if (dfs != null) {
                     writeFieldStatistics(dfs.fieldStatistics().get(field));
@@ -80,19 +88,30 @@ final class TermVectorsWriter {
                     writeFieldStatistics(topLevelTerms);
                 }
             }
-            iterator = fieldTermVector.iterator(iterator);
+            TermsEnum iterator = fieldTermVector.iterator();
             final boolean useDocsAndPos = positions || offsets || payloads;
-            while (iterator.next() != null) { // iterate all terms of the
-                // current field
-                // get the doc frequency
-                BytesRef term = iterator.term();
-                boolean foundTerm = topLevelIterator.seekExact(term);
-                startTerm(term);
+            while (iterator.next() != null) { // iterate all terms of the current field
+                BytesRef termBytesRef = iterator.term();
+                boolean foundTerm = topLevelIterator.seekExact(termBytesRef);
+                Term term = new Term(field, termBytesRef);
+
+                // with filtering we only keep the best terms
+                if (hasScores && !termVectorsFilter.hasScoreTerm(term)) {
+                    continue;
+                }
+
+                startTerm(termBytesRef);
                 if (flags.contains(Flag.TermStatistics)) {
+                    // get the doc frequency
                     if (dfs != null) {
-                        writeTermStatistics(dfs.termStatistics().get(new Term(field, term.utf8ToString())));
+                        final TermStatistics statistics = dfs.termStatistics().get(term);
+                        writeTermStatistics(statistics == null ? new TermStatistics(termBytesRef, 0, 0) : statistics);
                     } else {
-                        writeTermStatistics(topLevelIterator);
+                        if (foundTerm) {
+                            writeTermStatistics(topLevelIterator);
+                        } else {
+                            writeTermStatistics(new TermStatistics(termBytesRef, 0, 0));
+                        }
                     }
                 }
                 if (useDocsAndPos) {
@@ -100,17 +119,20 @@ final class TermVectorsWriter {
                     docsAndPosEnum = writeTermWithDocsAndPos(iterator, docsAndPosEnum, positions, offsets, payloads);
                 } else {
                     // if we do not have the positions stored, we need to
-                    // get the frequency from a DocsEnum.
+                    // get the frequency from a PostingsEnum.
                     docsEnum = writeTermWithDocsOnly(iterator, docsEnum);
+                }
+                if (hasScores) {
+                    writeScoreTerm(termVectorsFilter.getScoreTerm(term));
                 }
             }
             numFieldsWritten++;
         }
         response.setTermVectorsField(output);
-        response.setHeader(writeHeader(numFieldsWritten, flags.contains(Flag.TermStatistics), flags.contains(Flag.FieldStatistics)));
+        response.setHeader(writeHeader(numFieldsWritten, flags.contains(Flag.TermStatistics), flags.contains(Flag.FieldStatistics), hasScores));
     }
 
-    private BytesReference writeHeader(int numFieldsWritten, boolean getTermStatistics, boolean getFieldStatistics) throws IOException {
+    private BytesReference writeHeader(int numFieldsWritten, boolean getTermStatistics, boolean getFieldStatistics, boolean scores) throws IOException {
         // now, write the information about offset of the terms in the
         // termVectors field
         BytesStreamOutput header = new BytesStreamOutput();
@@ -118,6 +140,7 @@ final class TermVectorsWriter {
         header.writeInt(CURRENT_VERSION);
         header.writeBoolean(getTermStatistics);
         header.writeBoolean(getFieldStatistics);
+        header.writeBoolean(scores);
         header.writeVInt(numFieldsWritten);
         for (int i = 0; i < fields.size(); i++) {
             header.writeString(fields.get(i));
@@ -127,23 +150,23 @@ final class TermVectorsWriter {
         return header.bytes();
     }
 
-    private DocsEnum writeTermWithDocsOnly(TermsEnum iterator, DocsEnum docsEnum) throws IOException {
-        docsEnum = iterator.docs(null, docsEnum);
+    private PostingsEnum writeTermWithDocsOnly(TermsEnum iterator, PostingsEnum docsEnum) throws IOException {
+        docsEnum = iterator.postings(null, docsEnum);
         int nextDoc = docsEnum.nextDoc();
-        assert nextDoc != DocsEnum.NO_MORE_DOCS;
+        assert nextDoc != DocIdSetIterator.NO_MORE_DOCS;
         writeFreq(docsEnum.freq());
         nextDoc = docsEnum.nextDoc();
-        assert nextDoc == DocsEnum.NO_MORE_DOCS;
+        assert nextDoc == DocIdSetIterator.NO_MORE_DOCS;
         return docsEnum;
     }
 
-    private DocsAndPositionsEnum writeTermWithDocsAndPos(TermsEnum iterator, DocsAndPositionsEnum docsAndPosEnum, boolean positions,
+    private PostingsEnum writeTermWithDocsAndPos(TermsEnum iterator, PostingsEnum docsAndPosEnum, boolean positions,
                                                          boolean offsets, boolean payloads) throws IOException {
-        docsAndPosEnum = iterator.docsAndPositions(null, docsAndPosEnum);
+        docsAndPosEnum = iterator.postings(null, docsAndPosEnum, PostingsEnum.ALL);
         // for each term (iterator next) in this field (field)
         // iterate over the docs (should only be one)
         int nextDoc = docsAndPosEnum.nextDoc();
-        assert nextDoc != DocsEnum.NO_MORE_DOCS;
+        assert nextDoc != DocIdSetIterator.NO_MORE_DOCS;
         final int freq = docsAndPosEnum.freq();
         writeFreq(freq);
         for (int j = 0; j < freq; j++) {
@@ -159,7 +182,7 @@ final class TermVectorsWriter {
             }
         }
         nextDoc = docsAndPosEnum.nextDoc();
-        assert nextDoc == DocsEnum.NO_MORE_DOCS;
+        assert nextDoc == DocIdSetIterator.NO_MORE_DOCS;
         return docsAndPosEnum;
     }
 
@@ -206,7 +229,6 @@ final class TermVectorsWriter {
     private void startTerm(BytesRef term) throws IOException {
         output.writeVInt(term.length);
         output.writeBytes(term.bytes, term.offset, term.length);
-
     }
 
     private void writeTermStatistics(TermsEnum topLevelIterator) throws IOException {
@@ -251,6 +273,10 @@ final class TermVectorsWriter {
         writePotentiallyNegativeVInt(dc);
     }
 
+    private void writeScoreTerm(TermVectorsFilter.ScoreTerm scoreTerm) throws IOException {
+        output.writeFloat(Math.max(0, scoreTerm.score));
+    }
+
     private void writePotentiallyNegativeVInt(int value) throws IOException {
         // term freq etc. can be negative if not present... we transport that
         // further...
@@ -262,5 +288,4 @@ final class TermVectorsWriter {
         // further...
         output.writeVLong(Math.max(0, value + 1));
     }
-
 }

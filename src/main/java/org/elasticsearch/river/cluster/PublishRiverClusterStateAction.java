@@ -38,7 +38,7 @@ public class PublishRiverClusterStateAction extends AbstractComponent {
 
     public static final String ACTION_NAME = "internal:river/state/publish";
 
-    public static interface NewClusterStateListener {
+    public interface NewClusterStateListener {
         void onNewClusterState(RiverClusterState clusterState);
     }
 
@@ -54,7 +54,7 @@ public class PublishRiverClusterStateAction extends AbstractComponent {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.listener = listener;
-        transportService.registerHandler(ACTION_NAME, new PublishClusterStateRequestHandler());
+        transportService.registerRequestHandler(ACTION_NAME, PublishClusterStateRequest.class, ThreadPool.Names.SAME, new PublishClusterStateRequestHandler());
     }
 
     public void close() {
@@ -87,11 +87,11 @@ public class PublishRiverClusterStateAction extends AbstractComponent {
         }
     }
 
-    private class PublishClusterStateRequest extends TransportRequest {
+    static class PublishClusterStateRequest extends TransportRequest {
 
         private RiverClusterState clusterState;
 
-        private PublishClusterStateRequest() {
+        PublishClusterStateRequest() {
         }
 
         private PublishClusterStateRequest(RiverClusterState clusterState) {
@@ -111,18 +111,7 @@ public class PublishRiverClusterStateAction extends AbstractComponent {
         }
     }
 
-    private class PublishClusterStateRequestHandler extends BaseTransportRequestHandler<PublishClusterStateRequest> {
-
-        @Override
-        public PublishClusterStateRequest newInstance() {
-            return new PublishClusterStateRequest();
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
+    private class PublishClusterStateRequestHandler implements TransportRequestHandler<PublishClusterStateRequest> {
         @Override
         public void messageReceived(PublishClusterStateRequest request, TransportChannel channel) throws Exception {
             listener.onNewClusterState(request.clusterState);

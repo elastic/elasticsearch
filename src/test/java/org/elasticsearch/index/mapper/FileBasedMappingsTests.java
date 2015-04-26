@@ -45,7 +45,7 @@ public class FileBasedMappingsTests extends ElasticsearchTestCase {
     private static final String NAME = FileBasedMappingsTests.class.getSimpleName();
 
     public void testFileBasedMappings() throws Exception {
-        Path configDir = newTempDirPath();
+        Path configDir = createTempDir();
         Path mappingsDir = configDir.resolve("mappings");
         Path indexMappings = mappingsDir.resolve("index").resolve("type.json");
         Path defaultMappings = mappingsDir.resolve("_default").resolve("type.json");
@@ -82,6 +82,7 @@ public class FileBasedMappingsTests extends ElasticsearchTestCase {
             Settings settings = ImmutableSettings.builder()
                     .put(ClusterName.SETTING, NAME)
                     .put("node.name", NAME)
+                    .put("path.home", createTempDir())
                     .put("path.conf", configDir.toAbsolutePath())
                     .put("http.enabled", false)
                     .build();

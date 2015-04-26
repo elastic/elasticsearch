@@ -20,6 +20,7 @@ package org.elasticsearch.test.rest.json;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.rest.Stash;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,10 +47,17 @@ public class JsonPath {
      * Returns the object corresponding to the provided path if present, null otherwise
      */
     public Object evaluate(String path) {
+        return evaluate(path, Stash.EMPTY);
+    }
+
+    /**
+     * Returns the object corresponding to the provided path if present, null otherwise
+     */
+    public Object evaluate(String path, Stash stash) {
         String[] parts = parsePath(path);
         Object object = jsonMap;
         for (String part : parts) {
-            object = evaluate(part, object);
+            object = evaluate(part, object, stash);
             if (object == null) {
                 return null;
             }
@@ -58,7 +66,11 @@ public class JsonPath {
     }
 
     @SuppressWarnings("unchecked")
-    private Object evaluate(String key, Object object) {
+    private Object evaluate(String key, Object object, Stash stash) {
+        if (stash.isStashedValue(key)) {
+            key = stash.unstashValue(key).toString();
+        }
+
         if (object instanceof Map) {
             return ((Map<String, Object>) object).get(key);
         }

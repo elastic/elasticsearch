@@ -20,15 +20,18 @@
 package org.elasticsearch.action.termvectors;
 
 import com.carrotsearch.hppc.ObjectIntOpenHashMap;
+
 import org.apache.lucene.analysis.payloads.PayloadHelper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -48,6 +51,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.*;
 
+@Slow
 public class GetTermVectorsTests extends AbstractTermVectorsTests {
 
     @Test
@@ -73,7 +77,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
             assertThat(actionGet.getIndex(), equalTo("test"));
             assertThat(actionGet.isExists(), equalTo(false));
             // check response is nevertheless serializable to json
-            actionGet.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
+            actionGet.toXContent(jsonBuilder().startObject(), ToXContent.EMPTY_PARAMS);
         }
     }
 
@@ -312,7 +316,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
             if (ft.storeTermVectors()) {
                 Terms terms = fields.terms("field");
                 assertThat(terms.size(), equalTo(8l));
-                TermsEnum iterator = terms.iterator(null);
+                TermsEnum iterator = terms.iterator();
                 for (int j = 0; j < values.length; j++) {
                     String string = values[j];
                     BytesRef next = iterator.next();
@@ -321,7 +325,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
                     assertThat(infoString, next, notNullValue());
                     // do not test ttf or doc frequency, because here we have
                     // many shards and do not know how documents are distributed
-                    DocsAndPositionsEnum docsAndPositions = iterator.docsAndPositions(null, null);
+                    PostingsEnum docsAndPositions = iterator.postings(null, null, PostingsEnum.ALL);
                     // docs and pos only returns something if positions or
                     // payloads or offsets are stored / requestd Otherwise use
                     // DocsEnum?
@@ -447,10 +451,10 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         Fields fields = response.getFields();
         assertThat(fields.size(), equalTo(1));
         Terms terms = fields.terms("field");
-        TermsEnum iterator = terms.iterator(null);
+        TermsEnum iterator = terms.iterator();
         while (iterator.next() != null) {
             String term = iterator.term().utf8ToString();
-            DocsAndPositionsEnum docsAndPositions = iterator.docsAndPositions(null, null);
+            PostingsEnum docsAndPositions = iterator.postings(null, null, PostingsEnum.ALL);
             assertThat(docsAndPositions.nextDoc(), equalTo(0));
             List<BytesRef> curPayloads = payloads.get(term);
             assertThat(term, curPayloads, notNullValue());
@@ -635,7 +639,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
 
         Terms terms = fields.terms(fieldName);
         assertThat(terms.size(), equalTo(8l));
-        TermsEnum iterator = terms.iterator(null);
+        TermsEnum iterator = terms.iterator();
         for (int j = 0; j < values.length; j++) {
             String string = values[j];
             BytesRef next = iterator.next();
@@ -644,7 +648,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
             assertThat(next, notNullValue());
             // do not test ttf or doc frequency, because here we have many
             // shards and do not know how documents are distributed
-            DocsAndPositionsEnum docsAndPositions = iterator.docsAndPositions(null, null);
+            PostingsEnum docsAndPositions = iterator.postings(null, null, PostingsEnum.ALL);
             assertThat(docsAndPositions.nextDoc(), equalTo(0));
             assertThat(freq[j], equalTo(docsAndPositions.freq()));
             int[] termPos = pos[j];
@@ -721,8 +725,8 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         assertThat(terms1, notNullValue());
         assertThat(terms0.size(), equalTo(terms1.size()));
 
-        TermsEnum iter0 = terms0.iterator(null);
-        TermsEnum iter1 = terms1.iterator(null);
+        TermsEnum iter0 = terms0.iterator();
+        TermsEnum iter1 = terms1.iterator();
         for (int i = 0; i < terms0.size(); i++) {
             BytesRef next0 = iter0.next();
             assertThat(next0, notNullValue());
@@ -739,8 +743,8 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
             assertThat("term: " + string0, iter0.totalTermFreq(), equalTo(iter1.totalTermFreq()));
 
             // compare freq and docs
-            DocsAndPositionsEnum docsAndPositions0 = iter0.docsAndPositions(null, null);
-            DocsAndPositionsEnum docsAndPositions1 = iter1.docsAndPositions(null, null);
+            PostingsEnum docsAndPositions0 = iter0.postings(null, null, PostingsEnum.ALL);
+            PostingsEnum docsAndPositions1 = iter1.postings(null, null, PostingsEnum.ALL);
             assertThat("term: " + string0, docsAndPositions0.nextDoc(), equalTo(docsAndPositions1.nextDoc()));
             assertThat("term: " + string0, docsAndPositions0.freq(), equalTo(docsAndPositions1.freq()));
 
@@ -1002,7 +1006,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
             assertThat("Existing field " + fieldName + "should have been returned", terms, notNullValue());
             // check overridden by keyword analyzer ...
             if (perFieldAnalyzer.containsKey(fieldName)) {
-                TermsEnum iterator = terms.iterator(null);
+                TermsEnum iterator = terms.iterator();
                 assertThat("Analyzer for " + fieldName + " should have been overridden!", iterator.next().utf8ToString(), equalTo("some text here"));
                 assertThat(iterator.next(), nullValue());
             }
@@ -1089,7 +1093,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
                     (int) terms.getSumTotalTermFreq(),
                     equalOrLessThanTo(fieldStatistics.get("sum_ttf"), isEqual));
 
-            final TermsEnum termsEnum = terms.iterator(null);
+            final TermsEnum termsEnum = terms.iterator();
             BytesRef text;
             while((text = termsEnum.next()) != null) {
                 String term = text.utf8ToString();
@@ -1136,7 +1140,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         // From translog:
 
         // version 0 means ignore version, which is the default
-        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(0).get();
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getVersion(), equalTo(1l));
@@ -1157,7 +1161,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         refresh();
 
         // version 0 means ignore version, which is the default
-        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(0).setRealtime(false).get();
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
@@ -1182,7 +1186,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         // From translog:
 
         // version 0 means ignore version, which is the default
-        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(0).get();
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
@@ -1205,7 +1209,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         refresh();
 
         // version 0 means ignore version, which is the default
-        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(0).setRealtime(false).get();
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
@@ -1223,5 +1227,134 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getVersion(), equalTo(2l));
+    }
+
+    @Test
+    public void testFilterLength() throws ExecutionException, InterruptedException, IOException {
+        logger.info("Setting up the index ...");
+        ImmutableSettings.Builder settings = settingsBuilder()
+                .put(indexSettings())
+                .put("index.analysis.analyzer", "keyword");
+        assertAcked(prepareCreate("test")
+                .setSettings(settings)
+                .addMapping("type1", "tags", "type=string"));
+        ensureYellow();
+
+        int numTerms = scaledRandomIntBetween(10, 50);
+        logger.info("Indexing one document with tags of increasing length ...");
+        List<String> tags = new ArrayList<>();
+        for (int i = 0; i < numTerms; i++) {
+            String tag = "a";
+            for (int j = 0; j < i; j++) {
+                tag += "a";
+            }
+            tags.add(tag);
+        }
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("tags", tags));
+
+        logger.info("Checking best tags by longest to shortest size ...");
+        TermVectorsRequest.FilterSettings filterSettings = new TermVectorsRequest.FilterSettings();
+        filterSettings.maxNumTerms = numTerms;
+        TermVectorsResponse response;
+        for (int i = 0; i < numTerms; i++) {
+            filterSettings.minWordLength = numTerms - i;
+            response = client().prepareTermVectors("test", "type1", "1")
+                    .setSelectedFields("tags")
+                    .setFieldStatistics(true)
+                    .setTermStatistics(true)
+                    .setFilterSettings(filterSettings)
+                    .get();
+            checkBestTerms(response.getFields().terms("tags"), tags.subList((numTerms - i - 1), numTerms));
+        }
+    }
+
+    @Test
+    public void testFilterTermFreq() throws ExecutionException, InterruptedException, IOException {
+        logger.info("Setting up the index ...");
+        ImmutableSettings.Builder settings = settingsBuilder()
+                .put(indexSettings())
+                .put("index.analysis.analyzer", "keyword");
+        assertAcked(prepareCreate("test")
+                .setSettings(settings)
+                .addMapping("type1", "tags", "type=string"));
+        ensureYellow();
+
+        logger.info("Indexing one document with tags of increasing frequencies ...");
+        int numTerms = scaledRandomIntBetween(10, 50);
+        List<String> tags = new ArrayList<>();
+        List<String> uniqueTags = new ArrayList<>();
+        String tag;
+        for (int i = 0; i < numTerms; i++) {
+            tag = "tag_" + i;
+            tags.add(tag);
+            for (int j = 0; j < i; j++) {
+                tags.add(tag);
+            }
+            uniqueTags.add(tag);
+        }
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("tags", tags));
+
+        logger.info("Checking best tags by highest to lowest term freq ...");
+        TermVectorsRequest.FilterSettings filterSettings = new TermVectorsRequest.FilterSettings();
+        TermVectorsResponse response;
+        for (int i = 0; i < numTerms; i++) {
+            filterSettings.maxNumTerms = i + 1;
+            response = client().prepareTermVectors("test", "type1", "1")
+                    .setSelectedFields("tags")
+                    .setFieldStatistics(true)
+                    .setTermStatistics(true)
+                    .setFilterSettings(filterSettings)
+                    .get();
+            checkBestTerms(response.getFields().terms("tags"), uniqueTags.subList((numTerms - i - 1), numTerms));
+        }
+    }
+
+    @Test
+    public void testFilterDocFreq() throws ExecutionException, InterruptedException, IOException {
+        logger.info("Setting up the index ...");
+        ImmutableSettings.Builder settings = settingsBuilder()
+                .put(indexSettings())
+                .put("index.analysis.analyzer", "keyword")
+                .put("index.number_of_shards", 1); // no dfs
+        assertAcked(prepareCreate("test")
+                .setSettings(settings)
+                .addMapping("type1", "tags", "type=string"));
+        ensureYellow();
+
+        int numDocs = scaledRandomIntBetween(10, 50); // as many terms as there are docs
+        logger.info("Indexing {} documents with tags of increasing dfs ...", numDocs);
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        List<String> tags = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            tags.add("tag_" + i);
+            builders.add(client().prepareIndex("test", "type1", i + "").setSource("tags", tags));
+        }
+        indexRandom(true, builders);
+
+        logger.info("Checking best terms by highest to lowest idf ...");
+        TermVectorsRequest.FilterSettings filterSettings = new TermVectorsRequest.FilterSettings();
+        TermVectorsResponse response;
+        for (int i = 0; i < numDocs; i++) {
+            filterSettings.maxNumTerms = i + 1;
+            response = client().prepareTermVectors("test", "type1", (numDocs - 1) + "")
+                    .setSelectedFields("tags")
+                    .setFieldStatistics(true)
+                    .setTermStatistics(true)
+                    .setFilterSettings(filterSettings)
+                    .get();
+            checkBestTerms(response.getFields().terms("tags"), tags.subList((numDocs - i - 1), numDocs));
+        }
+    }
+
+    private void checkBestTerms(Terms terms, List<String> expectedTerms) throws IOException {
+        final TermsEnum termsEnum = terms.iterator();
+        List<String> bestTerms = new ArrayList<>();
+        BytesRef text;
+        while((text = termsEnum.next()) != null) {
+            bestTerms.add(text.utf8ToString());
+        }
+        Collections.sort(expectedTerms);
+        Collections.sort(bestTerms);
+        assertArrayEquals(expectedTerms.toArray(), bestTerms.toArray());
     }
 }

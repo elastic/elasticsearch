@@ -128,6 +128,7 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
     /**
      * Set the boost to apply to the query.
      */
+    @Override
     public MatchQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;

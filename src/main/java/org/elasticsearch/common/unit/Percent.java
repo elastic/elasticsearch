@@ -41,6 +41,7 @@ public class Percent implements Streamable, Serializable {
         return value;
     }
 
+    @Override
     public String toString() {
         return format(value);
     }

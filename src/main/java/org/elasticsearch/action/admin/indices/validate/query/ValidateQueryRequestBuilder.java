@@ -61,17 +61,7 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     public ValidateQueryRequestBuilder setSource(BytesReference source) {
-        request().source(source, false);
-        return this;
-    }
-
-    /**
-     * The source to validate.
-     *
-     * @see org.elasticsearch.index.query.QueryBuilders
-     */
-    public ValidateQueryRequestBuilder setSource(BytesReference source, boolean unsafe) {
-        request().source(source, unsafe);
+        request().source(source);
         return this;
     }
 
@@ -92,6 +82,14 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
      */
     public ValidateQueryRequestBuilder setExplain(boolean explain) {
         request.explain(explain);
+        return this;
+    }
+
+    /**
+     * Indicates whether the query should be rewritten into primitive queries
+     */
+    public ValidateQueryRequestBuilder setRewrite(boolean rewrite) {
+        request.rewrite(rewrite);
         return this;
     }
 

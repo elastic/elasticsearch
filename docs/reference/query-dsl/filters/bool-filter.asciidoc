@@ -12,8 +12,8 @@ accept a filter.
 {
     "filtered" : {
         "query" : {
-            "queryString" : { 
-                "default_field" : "message", 
+            "queryString" : {
+                "default_field" : "message",
                 "query" : "elasticsearch"
             }
         },
@@ -24,7 +24,7 @@ accept a filter.
                 },
                 "must_not" : {
                     "range" : {
-                        "age" : { "from" : 10, "to" : 20 }
+                        "age" : { "gte" : 10, "lt" : 20 }
                     }
                 },
                 "should" : [
@@ -38,6 +38,6 @@ accept a filter.
             }
         }
     }
-}    
+}
 --------------------------------------------------
 

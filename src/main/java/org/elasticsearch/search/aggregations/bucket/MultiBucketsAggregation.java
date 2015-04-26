@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -28,7 +27,6 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.HasAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
-import java.util.Collection;
 import java.util.List;
 
 /**
@@ -44,14 +42,14 @@ public interface MultiBucketsAggregation extends Aggregation {
     public interface Bucket extends HasAggregations, ToXContent, Streamable {
 
         /**
-         * @return  The key associated with the bucket as a string
+         * @return The key associated with the bucket
          */
-        String getKey();
+        Object getKey();
 
         /**
-         * @return  The key associated with the bucket as text (ideal for further streaming this instance)
+         * @return The key associated with the bucket as a string
          */
-        Text getKeyAsText();
+        String getKeyAsString();
 
         /**
          * @return The number of documents that fall within this bucket
@@ -61,6 +59,7 @@ public interface MultiBucketsAggregation extends Aggregation {
         /**
          * @return  The sub-aggregations of this bucket
          */
+        @Override
         Aggregations getAggregations();
 
         Object getProperty(String containingAggName, List<String> path);
@@ -96,12 +95,4 @@ public interface MultiBucketsAggregation extends Aggregation {
      * @return  The buckets of this aggregation.
      */
     List<? extends Bucket> getBuckets();
-
-    /**
-     * The bucket that is associated with the given key.
-     *
-     * @param key   The key of the requested bucket.
-     * @return      The bucket
-     */
-    <B extends Bucket> B getBucketByKey(String key);
 }

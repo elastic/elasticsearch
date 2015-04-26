@@ -874,8 +874,8 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                             searchSource().query(query))).actionGet();
             fail("Should fail with SearchPhaseExecutionException");
         } catch (SearchPhaseExecutionException failure) {
-            assertTrue(failure.getMessage().contains("SearchParseException"));
-            assertFalse(failure.getMessage().contains("NullPointerException"));
+            assertTrue(failure.toString().contains("SearchParseException"));
+            assertFalse(failure.toString().contains("NullPointerException"));
         }
 
         query = "{\n" +
@@ -908,26 +908,26 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                             searchSource().query(query))).actionGet();
             fail("Should fail with SearchPhaseExecutionException");
         } catch (SearchPhaseExecutionException failure) {
-            assertTrue(failure.getMessage().contains("SearchParseException"));
-            assertFalse(failure.getMessage().contains("NullPointerException"));
-            assertTrue(failure.getMessage().contains("One entry in functions list is missing a function"));
+            assertTrue(failure.toString().contains("SearchParseException"));
+            assertFalse(failure.toString().contains("NullPointerException"));
+            assertTrue(failure.toString().contains("One entry in functions list is missing a function"));
         }
 
         // next test java client
         try {
             client().prepareSearch("t").setQuery(QueryBuilders.functionScoreQuery(FilterBuilders.matchAllFilter(), null)).get();
         } catch (ElasticsearchIllegalArgumentException failure) {
-            assertTrue(failure.getMessage().contains("function must not be null"));
+            assertTrue(failure.toString().contains("function must not be null"));
         }
         try {
             client().prepareSearch("t").setQuery(QueryBuilders.functionScoreQuery().add(FilterBuilders.matchAllFilter(), null)).get();
         } catch (ElasticsearchIllegalArgumentException failure) {
-            assertTrue(failure.getMessage().contains("function must not be null"));
+            assertTrue(failure.toString().contains("function must not be null"));
         }
         try {
             client().prepareSearch("t").setQuery(QueryBuilders.functionScoreQuery().add(null)).get();
         } catch (ElasticsearchIllegalArgumentException failure) {
-            assertTrue(failure.getMessage().contains("function must not be null"));
+            assertTrue(failure.toString().contains("function must not be null"));
         }
     }
 

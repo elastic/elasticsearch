@@ -34,10 +34,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ActionNotFoundTransportException;
-import org.elasticsearch.transport.TransportModule;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.*;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
@@ -58,6 +55,9 @@ import static org.hamcrest.Matchers.is;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 1)
 public class NettyTransportTests extends ElasticsearchIntegrationTest {
 
+    // static so we can use it in anonymous classes
+    private static String channelProfileName = null;
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
@@ -76,6 +76,7 @@ public class NettyTransportTests extends ElasticsearchIntegrationTest {
             fail("Expected exception, but didnt happen");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("MY MESSAGE"));
+            assertThat(channelProfileName, is(NettyTransport.DEFAULT_PROFILE));
         }
     }
 
@@ -100,31 +101,32 @@ public class NettyTransportTests extends ElasticsearchIntegrationTest {
                 this.logger = exceptionThrowingNettyTransport.logger;
             }
 
+            @Override
             public ChannelPipeline getPipeline() throws Exception {
                 ChannelPipeline pipeline = super.getPipeline();
-                pipeline.replace("dispatcher", "dispatcher", new MessageChannelHandler(nettyTransport, logger) {
+                pipeline.replace("dispatcher", "dispatcher", new MessageChannelHandler(nettyTransport, logger, NettyTransport.DEFAULT_PROFILE) {
 
                     @Override
                     protected String handleRequest(Channel channel, StreamInput buffer, long requestId, Version version) throws IOException {
                         final String action = buffer.readString();
 
-                        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, action, channel, requestId, version);
+                        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, transportServiceAdapter, action, channel, requestId, version, name);
                         try {
-                            final TransportRequestHandler handler = transportServiceAdapter.handler(action);
-                            if (handler == null) {
+                            final RequestHandlerRegistry reg = transportServiceAdapter.getRequestHandler(action);
+                            if (reg == null) {
                                 throw new ActionNotFoundTransportException(action);
                             }
-                            final TransportRequest request = handler.newInstance();
+                            final TransportRequest request = reg.newRequest();
                             request.remoteAddress(new InetSocketTransportAddress((InetSocketAddress) channel.getRemoteAddress()));
                             request.readFrom(buffer);
                             if (request.hasHeader("ERROR")) {
                                 throw new ElasticsearchException((String) request.getHeader("ERROR"));
                             }
-                            if (handler.executor() == ThreadPool.Names.SAME) {
+                            if (reg.getExecutor() == ThreadPool.Names.SAME) {
                                 //noinspection unchecked
-                                handler.messageReceived(request, transportChannel);
+                                reg.getHandler().messageReceived(request, transportChannel);
                             } else {
-                                threadPool.executor(handler.executor()).execute(new RequestHandler(handler, request, transportChannel, action));
+                                threadPool.executor(reg.getExecutor()).execute(new RequestHandler(reg, request, transportChannel));
                             }
                         } catch (Throwable e) {
                             try {
@@ -134,31 +136,30 @@ public class NettyTransportTests extends ElasticsearchIntegrationTest {
                                 logger.warn("Actual Exception", e1);
                             }
                         }
+                        channelProfileName = transportChannel.getProfileName();
                         return action;
                     }
 
                     class RequestHandler extends AbstractRunnable {
-                        private final TransportRequestHandler handler;
+                        private final RequestHandlerRegistry reg;
                         private final TransportRequest request;
                         private final NettyTransportChannel transportChannel;
-                        private final String action;
 
-                        public RequestHandler(TransportRequestHandler handler, TransportRequest request, NettyTransportChannel transportChannel, String action) {
-                            this.handler = handler;
+                        public RequestHandler(RequestHandlerRegistry reg, TransportRequest request, NettyTransportChannel transportChannel) {
+                            this.reg = reg;
                             this.request = request;
                             this.transportChannel = transportChannel;
-                            this.action = action;
                         }
 
                         @SuppressWarnings({"unchecked"})
                         @Override
                         protected void doRun() throws Exception {
-                            handler.messageReceived(request, transportChannel);
+                            reg.getHandler().messageReceived(request, transportChannel);
                         }
 
                         @Override
                         public boolean isForceExecution() {
-                            return handler.isForceExecution();
+                            return reg.isForceExecution();
                         }
 
                         @Override
@@ -168,7 +169,7 @@ public class NettyTransportTests extends ElasticsearchIntegrationTest {
                                 try {
                                     transportChannel.sendResponse(e);
                                 } catch (Throwable e1) {
-                                    logger.warn("Failed to send error message back to client for action [" + action + "]", e1);
+                                    logger.warn("Failed to send error message back to client for action [" + reg.getAction() + "]", e1);
                                     logger.warn("Actual Exception", e);
                                 }
                             }                        }

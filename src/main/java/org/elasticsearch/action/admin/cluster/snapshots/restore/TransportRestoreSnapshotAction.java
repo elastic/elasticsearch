@@ -44,7 +44,7 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeOperation
     @Inject
     public TransportRestoreSnapshotAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                           ThreadPool threadPool, RestoreService restoreService, ActionFilters actionFilters) {
-        super(settings, RestoreSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, RestoreSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters, RestoreSnapshotRequest.class);
         this.restoreService = restoreService;
     }
 
@@ -54,18 +54,19 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeOperation
     }
 
     @Override
-    protected RestoreSnapshotRequest newRequest() {
-        return new RestoreSnapshotRequest();
-    }
-
-    @Override
     protected RestoreSnapshotResponse newResponse() {
         return new RestoreSnapshotResponse();
     }
 
     @Override
     protected ClusterBlockException checkBlock(RestoreSnapshotRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
+        // Restoring a snapshot might change the global state and create/change an index,
+        // so we need to check for METADATA_WRITE and WRITE blocks
+        ClusterBlockException blockException = state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, "");
+        if (blockException != null) {
+            return blockException;
+        }
+        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, "");
     }
 
     @Override

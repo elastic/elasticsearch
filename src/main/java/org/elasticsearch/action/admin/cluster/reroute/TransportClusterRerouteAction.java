@@ -46,7 +46,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
     @Inject
     public TransportClusterRerouteAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                          AllocationService allocationService, ActionFilters actionFilters) {
-        super(settings, ClusterRerouteAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, ClusterRerouteAction.NAME, transportService, clusterService, threadPool, actionFilters, ClusterRerouteRequest.class);
         this.allocationService = allocationService;
     }
 
@@ -58,12 +58,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
 
     @Override
     protected ClusterBlockException checkBlock(ClusterRerouteRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
-    }
-
-    @Override
-    protected ClusterRerouteRequest newRequest() {
-        return new ClusterRerouteRequest();
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override

@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -148,12 +149,12 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     @Override
-    public InternalStats reduce(ReduceContext reduceContext) {
+    public InternalStats reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long count = 0;
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;
         double sum = 0;
-        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+        for (InternalAggregation aggregation : aggregations) {
             InternalStats stats = (InternalStats) aggregation;
             count += stats.getCount();
             min = Math.min(min, stats.getMin());
@@ -208,7 +209,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         builder.field(Fields.MAX, count != 0 ? max : null);
         builder.field(Fields.AVG, count != 0 ? getAvg() : null);
         builder.field(Fields.SUM, count != 0 ? sum : null);
-        if (count != 0 && valueFormatter != null) {
+        if (count != 0 && valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
             builder.field(Fields.MIN_AS_STRING, valueFormatter.format(min));
             builder.field(Fields.MAX_AS_STRING, valueFormatter.format(max));
             builder.field(Fields.AVG_AS_STRING, valueFormatter.format(getAvg()));

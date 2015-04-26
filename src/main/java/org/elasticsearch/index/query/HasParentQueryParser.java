@@ -19,14 +19,15 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.NotFilter;
-import org.elasticsearch.common.lucene.search.XBooleanFilter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -181,14 +182,14 @@ public class HasParentQueryParser implements QueryParser {
                 parentFilter = documentMapper.typeFilter();
             }
         } else {
-            XBooleanFilter parentsFilter = new XBooleanFilter();
+            BooleanQuery parentsFilter = new BooleanQuery();
             for (String parentTypeStr : parentTypes) {
                 DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypeStr);
                 if (documentMapper != null) {
                     parentsFilter.add(documentMapper.typeFilter(), BooleanClause.Occur.SHOULD);
                 }
             }
-            parentFilter = parentsFilter;
+            parentFilter = Queries.wrap(parentsFilter);
         }
 
         if (parentFilter == null) {
@@ -197,7 +198,7 @@ public class HasParentQueryParser implements QueryParser {
 
         // wrap the query with type query
         innerQuery = new FilteredQuery(innerQuery, parseContext.cacheFilter(parentDocMapper.typeFilter(), null, parseContext.autoFilterCachePolicy()));
-        Filter childrenFilter = parseContext.cacheFilter(new NotFilter(parentFilter), null, parseContext.autoFilterCachePolicy());
+        Filter childrenFilter = parseContext.cacheFilter(Queries.wrap(Queries.not(parentFilter)), null, parseContext.autoFilterCachePolicy());
         if (score) {
             return new ParentQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), childrenFilter);
         } else {

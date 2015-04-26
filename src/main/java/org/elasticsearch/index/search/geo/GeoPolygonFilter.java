@@ -61,7 +61,7 @@ public class GeoPolygonFilter extends Filter {
     }
 
     @Override
-    public String toString() {
+    public String toString(String field) {
         StringBuilder sb = new StringBuilder("GeoPolygonFilter(");
         sb.append(indexFieldData.getFieldNames().indexName());
         sb.append(", ").append(Arrays.toString(points)).append(')');

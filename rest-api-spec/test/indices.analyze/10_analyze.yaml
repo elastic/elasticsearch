@@ -48,3 +48,18 @@ setup:
     - length: { tokens: 2 }
     - match:     { tokens.0.token: Foo }
     - match:     { tokens.1.token: Bar! }
+---
+"JSON in Body":
+    - do:
+        indices.analyze:
+          body: { "text": "Foo Bar", "filters": ["lowercase"], "tokenizer": keyword }
+    - length: {tokens: 1 }
+    - match:     { tokens.0.token: foo bar }
+---
+"Body params override query string":
+    - do:
+        indices.analyze:
+          text: Foo Bar
+          body: { "text": "Bar Foo", "filters": ["lowercase"], "tokenizer": keyword }
+    - length: {tokens: 1 }
+    - match:     { tokens.0.token: bar foo }

@@ -65,10 +65,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.indices.IndexAlreadyExistsException;
-import org.elasticsearch.indices.IndexCreationException;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.indices.*;
 import org.elasticsearch.river.RiverIndexName;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -198,13 +195,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener, final Semaphore mdLock) {
 
         ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
-        for (Map.Entry<String, String> entry : request.settings().getAsMap().entrySet()) {
-            if (!entry.getKey().startsWith("index.")) {
-                updatedSettingsBuilder.put("index." + entry.getKey(), entry.getValue());
-            } else {
-                updatedSettingsBuilder.put(entry.getKey(), entry.getValue());
-            }
-        }
+        updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
         request.settings(updatedSettingsBuilder.build());
 
         clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]", Priority.URGENT, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
@@ -453,6 +444,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         throw e;
                     }
 
+                    indexService.indicesLifecycle().beforeIndexAddedToCluster(new Index(request.index()),
+                            indexMetaData.settings());
+
                     MetaData newMetaData = MetaData.builder(currentState.metaData())
                             .put(indexMetaData, false)
                             .build();
@@ -527,7 +521,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         // see if we have templates defined under config
         final Path templatesDir = environment.configFile().resolve("templates");
-        if (Files.exists(templatesDir) && Files.isDirectory(templatesDir)) {
+        if (Files.isDirectory(templatesDir)) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(templatesDir)) {
                 for (Path templatesFile : stream) {
                     if (Files.isRegularFile(templatesFile)) {

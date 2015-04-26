@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.rest.client;
 
+import org.elasticsearch.test.rest.Stash;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.test.rest.json.JsonPath;
 
@@ -70,6 +71,13 @@ public class RestResponse {
      * Parses the response body as json and extracts a specific value from it (identified by the provided path)
      */
     public Object evaluate(String path) throws IOException {
+        return evaluate(path, Stash.EMPTY);
+    }
+
+    /**
+     * Parses the response body as json and extracts a specific value from it (identified by the provided path)
+     */
+    public Object evaluate(String path, Stash stash) throws IOException {
 
         if (response == null) {
             return null;
@@ -87,7 +95,7 @@ public class RestResponse {
             return null;
         }
 
-        return jsonPath.evaluate(path);
+        return jsonPath.evaluate(path, stash);
     }
 
     private boolean isJson() {

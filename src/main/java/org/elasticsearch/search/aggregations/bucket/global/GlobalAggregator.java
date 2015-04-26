@@ -20,7 +20,13 @@ package org.elasticsearch.search.aggregations.bucket.global;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
@@ -37,13 +43,15 @@ public class GlobalAggregator extends SingleBucketAggregator {
     }
 
     @Override
-    public void setNextReader(LeafReaderContext reader) {
-    }
-
-    @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0 : "global aggregator can only be a top level aggregator";
-        collectBucket(doc, owningBucketOrdinal);
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        return new LeafBucketCollectorBase(sub, null) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                assert bucket == 0 : "global aggregator can only be a top level aggregator";
+                collectBucket(sub, doc, bucket);
+            }
+        };
     }
 
     @Override

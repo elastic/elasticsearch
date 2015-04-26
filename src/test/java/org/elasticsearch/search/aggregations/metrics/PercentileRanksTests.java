@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
@@ -98,6 +99,7 @@ public class PercentileRanksTests extends AbstractNumericTests {
         }
     }
 
+    @Override
     @Test
     public void testEmptyAggregation() throws Exception {
 
@@ -111,7 +113,7 @@ public class PercentileRanksTests extends AbstractNumericTests {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
-        Histogram.Bucket bucket = histo.getBucketByKey(1l);
+        Histogram.Bucket bucket = histo.getBuckets().get(1);
         assertThat(bucket, notNullValue());
 
         PercentileRanks reversePercentiles = bucket.getAggregations().get("percentile_ranks");
@@ -121,6 +123,7 @@ public class PercentileRanksTests extends AbstractNumericTests {
         assertThat(reversePercentiles.percent(15), equalTo(Double.NaN));
     }
 
+    @Override
     @Test
     public void testUnmapped() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
@@ -141,6 +144,7 @@ public class PercentileRanksTests extends AbstractNumericTests {
         assertThat(reversePercentiles.percent(100), equalTo(Double.NaN));
     }
 
+    @Override
     @Test
     public void testSingleValuedField() throws Exception {
         final double[] pcts = randomPercents(minValue, maxValue);
@@ -157,6 +161,7 @@ public class PercentileRanksTests extends AbstractNumericTests {
         assertConsistent(pcts, percentiles, minValue, maxValue);
     }
 
+    @Override
     @Test
     public void testSingleValuedField_getProperty() throws Exception {
         final double[] pcts = randomPercents(minValue, maxValue);
@@ -200,6 +205,7 @@ public class PercentileRanksTests extends AbstractNumericTests {
         assertConsistent(pcts, percentiles, minValue, maxValue);
     }
 
+    @Override
     @Test
     public void testSingleValuedField_PartiallyUnmapped() throws Exception {
         final double[] pcts = randomPercents(minValue, maxValue);
@@ -216,6 +222,7 @@ public class PercentileRanksTests extends AbstractNumericTests {
         assertConsistent(pcts, percentiles, minValue, maxValue);
     }
 
+    @Override
     @Test
     public void testSingleValuedField_WithValueScript() throws Exception {
         final double[] pcts = randomPercents(minValue - 1, maxValue - 1);
@@ -232,6 +239,7 @@ public class PercentileRanksTests extends AbstractNumericTests {
         assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1);
     }
 
+    @Override
     @Test
     public void testSingleValuedField_WithValueScript_WithParams() throws Exception {
         final double[] pcts = randomPercents(minValue - 1, maxValue - 1);
@@ -248,6 +256,7 @@ public class PercentileRanksTests extends AbstractNumericTests {
         assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1);
     }
 
+    @Override
     @Test
     public void testMultiValuedField() throws Exception {
         final double[] pcts = randomPercents(minValues, maxValues);
@@ -264,6 +273,7 @@ public class PercentileRanksTests extends AbstractNumericTests {
         assertConsistent(pcts, percentiles, minValues, maxValues);
     }
 
+    @Override
     @Test
     public void testMultiValuedField_WithValueScript() throws Exception {
         final double[] pcts = randomPercents(minValues - 1, maxValues - 1);
@@ -296,6 +306,7 @@ public class PercentileRanksTests extends AbstractNumericTests {
         assertConsistent(pcts, percentiles, -maxValues, -minValues);
     }
 
+    @Override
     @Test
     public void testMultiValuedField_WithValueScript_WithParams() throws Exception {
         final double[] pcts = randomPercents(minValues - 1, maxValues - 1);
@@ -312,6 +323,7 @@ public class PercentileRanksTests extends AbstractNumericTests {
         assertConsistent(pcts, percentiles, minValues - 1, maxValues - 1);
     }
 
+    @Override
     @Test
     public void testScript_SingleValued() throws Exception {
         final double[] pcts = randomPercents(minValue, maxValue);
@@ -328,6 +340,7 @@ public class PercentileRanksTests extends AbstractNumericTests {
         assertConsistent(pcts, percentiles, minValue, maxValue);
     }
 
+    @Override
     @Test
     public void testScript_SingleValued_WithParams() throws Exception {
         final double[] pcts = randomPercents(minValue - 1, maxValue - 1);
@@ -344,6 +357,7 @@ public class PercentileRanksTests extends AbstractNumericTests {
         assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1);
     }
 
+    @Override
     @Test
     public void testScript_ExplicitSingleValued_WithParams() throws Exception {
         final double[] pcts = randomPercents(minValue -1 , maxValue - 1);
@@ -360,6 +374,7 @@ public class PercentileRanksTests extends AbstractNumericTests {
         assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1);
     }
 
+    @Override
     @Test
     public void testScript_MultiValued() throws Exception {
         final double[] pcts = randomPercents(minValues, maxValues);
@@ -376,6 +391,7 @@ public class PercentileRanksTests extends AbstractNumericTests {
         assertConsistent(pcts, percentiles, minValues, maxValues);
     }
 
+    @Override
     @Test
     public void testScript_ExplicitMultiValued() throws Exception {
         final double[] pcts = randomPercents(minValues, maxValues);
@@ -392,6 +408,7 @@ public class PercentileRanksTests extends AbstractNumericTests {
         assertConsistent(pcts, percentiles, minValues, maxValues);
     }
 
+    @Override
     @Test
     public void testScript_MultiValued_WithParams() throws Exception {
         final double[] pcts = randomPercents(minValues - 1, maxValues - 1);

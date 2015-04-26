@@ -234,7 +234,7 @@ public class SimpleSearchTests extends ElasticsearchIntegrationTest {
             client().prepareSearch("idx").setFrom(Integer.MAX_VALUE).get();
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("Result window is too large, from + size must be less than or equal to:"));
+            assertThat(e.toString(), containsString("Result window is too large, from + size must be less than or equal to:"));
         }
     }
 }

@@ -87,6 +87,7 @@ public class ProviderMethod<T> implements ProviderWithDependencies<T> {
         }
     }
 
+    @Override
     public T get() {
         Object[] parameters = new Object[parameterProviders.size()];
         for (int i = 0; i < parameters.length; i++) {
@@ -105,6 +106,7 @@ public class ProviderMethod<T> implements ProviderWithDependencies<T> {
         }
     }
 
+    @Override
     public Set<Dependency<?>> getDependencies() {
         return dependencies;
     }

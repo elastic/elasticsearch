@@ -37,6 +37,11 @@ public class IndicesExistsRequest extends MasterNodeReadOperationRequest<Indices
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
 
+    // for serialization
+    IndicesExistsRequest() {
+
+    }
+
     public IndicesExistsRequest(String... indices) {
         this.indices = indices;
     }

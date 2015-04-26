@@ -21,6 +21,7 @@ package org.elasticsearch.index.codec.postingsformat;
 
 import org.apache.lucene.codecs.*;
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.*;
 import org.elasticsearch.common.util.BloomFilter;
@@ -238,22 +239,8 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
         }
 
         @Override
-        public TermsEnum iterator(TermsEnum reuse) throws IOException {
-            TermsEnum result;
-            if ((reuse != null) && (reuse instanceof BloomFilteredTermsEnum)) {
-                // recycle the existing BloomFilteredTermsEnum by asking the delegate
-                // to recycle its contained TermsEnum
-                BloomFilteredTermsEnum bfte = (BloomFilteredTermsEnum) reuse;
-                if (bfte.filter == filter) {
-                    bfte.reset(this.in);
-                    return bfte;
-                }
-                reuse = bfte.reuse;
-            }
-            // We have been handed something we cannot reuse (either null, wrong
-            // class or wrong filter) so allocate a new object
-            result = new BloomFilteredTermsEnum(this.in, reuse, filter);
-            return result;
+        public TermsEnum iterator() throws IOException {
+            return new BloomFilteredTermsEnum(this.in, filter);
         }
     }
 
@@ -261,17 +248,14 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
 
         private Terms delegateTerms;
         private TermsEnum delegateTermsEnum;
-        private TermsEnum reuse;
         private BloomFilter filter;
 
-        public BloomFilteredTermsEnum(Terms other, TermsEnum reuse, BloomFilter filter) {
+        public BloomFilteredTermsEnum(Terms other, BloomFilter filter) {
             this.delegateTerms = other;
-            this.reuse = reuse;
             this.filter = filter;
         }
 
         void reset(Terms others) {
-            reuse = this.delegateTermsEnum;
             this.delegateTermsEnum = null;
             this.delegateTerms = others;
         }
@@ -282,7 +266,7 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
                  * this can be a relatively heavy operation depending on the 
                  * delegate postings format and they underlying directory
                  * (clone IndexInput) */
-                delegateTermsEnum = delegateTerms.iterator(reuse);
+                delegateTermsEnum = delegateTerms.iterator();
             }
             return delegateTermsEnum;
         }
@@ -339,18 +323,9 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
 
 
         @Override
-        public DocsAndPositionsEnum docsAndPositions(Bits liveDocs,
-                                                     DocsAndPositionsEnum reuse, int flags) throws IOException {
-            return getDelegate().docsAndPositions(liveDocs, reuse, flags);
+        public PostingsEnum postings(Bits liveDocs, PostingsEnum reuse, int flags) throws IOException {
+            return getDelegate().postings(liveDocs, reuse, flags);
         }
-
-        @Override
-        public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags)
-                throws IOException {
-            return getDelegate().docs(liveDocs, reuse, flags);
-        }
-
-
     }
 
     // TODO: would be great to move this out to test code, but the interaction between es090 and bloom is complex
@@ -393,24 +368,24 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
                     continue;
                 }
                 FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
-                TermsEnum termsEnum = terms.iterator(null);
+                TermsEnum termsEnum = terms.iterator();
 
                 BloomFilter bloomFilter = null;
 
-                DocsEnum docsEnum = null;
+                PostingsEnum postings = null;
                 while (true) {
                     BytesRef term = termsEnum.next();
                     if (term == null) {
                         break;
                     }
                     if (bloomFilter == null) {
-                        bloomFilter = bloomFilterFactory.createFilter(state.segmentInfo.getDocCount());
+                        bloomFilter = bloomFilterFactory.createFilter(state.segmentInfo.maxDoc());
                         assert bloomFilters.containsKey(field) == false;
                         bloomFilters.put(fieldInfo, bloomFilter);
                     }
                     // Make sure there's at least one doc for this term:
-                    docsEnum = termsEnum.docs(null, docsEnum, 0);
-                    if (docsEnum.nextDoc() != DocsEnum.NO_MORE_DOCS) {
+                    postings = termsEnum.postings(null, postings, 0);
+                    if (postings.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                         bloomFilter.put(term);
                     }
                 }

@@ -63,6 +63,7 @@ public class SnapshotDeletionPolicy extends AbstractESDeletionPolicy {
     /**
      * Called by Lucene. Same as {@link #onCommit(java.util.List)}.
      */
+    @Override
     public void onInit(List<? extends IndexCommit> commits) throws IOException {
         if (!commits.isEmpty()) { // this might be empty if we create a new index. 
             // the behavior has changed in Lucene 4.4 that calls onInit even with an empty commits list.
@@ -74,6 +75,7 @@ public class SnapshotDeletionPolicy extends AbstractESDeletionPolicy {
      * Called by Lucene.. Wraps the provided commits with {@link SnapshotIndexCommit}
      * and delegates to the wrapped deletion policy.
      */
+    @Override
     public void onCommit(List<? extends IndexCommit> commits) throws IOException {
         assert !commits.isEmpty() : "Commits must not be empty";
         synchronized (mutex) {

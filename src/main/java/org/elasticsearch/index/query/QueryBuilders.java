@@ -459,31 +459,6 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * A fuzzy like this query that finds documents that are "like" the provided {@link FuzzyLikeThisQueryBuilder#likeText(String)}
-     * which is checked against the fields the query is constructed with.
-     *
-     * @param fields The fields to run the query against
-     */
-    public static FuzzyLikeThisQueryBuilder fuzzyLikeThisQuery(String... fields) {
-        return new FuzzyLikeThisQueryBuilder(fields);
-    }
-
-    /**
-     * A fuzzy like this query that finds documents that are "like" the provided {@link FuzzyLikeThisQueryBuilder#likeText(String)}
-     * which is checked against the "_all" field.
-     */
-    public static FuzzyLikeThisQueryBuilder fuzzyLikeThisQuery() {
-        return new FuzzyLikeThisQueryBuilder();
-    }
-
-    /**
-     * A fuzzy like this query that finds documents that are "like" the provided {@link FuzzyLikeThisFieldQueryBuilder#likeText(String)}.
-     */
-    public static FuzzyLikeThisFieldQueryBuilder fuzzyLikeThisFieldQuery(String name) {
-        return new FuzzyLikeThisFieldQueryBuilder(name);
-    }
-
-    /**
      * Constructs a new scoring child query, with the child type and the query to run on the child documents. The
      * results of this query are the parent docs that those child docs matched.
      *

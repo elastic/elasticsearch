@@ -1,9 +1,6 @@
 ---
 "TTL":
 
- - skip:
-      features: gtelte
-
  - do:
       indices.create:
           index:    test_1
@@ -12,7 +9,6 @@
                 test:
                   _ttl:
                     enabled:  1
-                    store:    yes
                     default:  10s
  - do:
       cluster.health:
@@ -85,7 +81,7 @@
 # with timestamp
 
  - do:
-      catch: /AlreadyExpiredException/
+      catch: /already_expired_exception/
       index:
           index:     test_1
           type:      test

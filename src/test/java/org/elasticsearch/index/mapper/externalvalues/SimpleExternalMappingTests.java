@@ -23,7 +23,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.ElasticsearchSingleNodeLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.is;
@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
-public class SimpleExternalMappingTests extends ElasticsearchSingleNodeLuceneTestCase {
+public class SimpleExternalMappingTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testExternalValues() throws Exception {

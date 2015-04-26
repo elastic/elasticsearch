@@ -27,6 +27,7 @@ public class UntargettedBindingImpl<T> extends BindingImpl<T> implements Untarge
 
     public UntargettedBindingImpl(Injector injector, Key<T> key, Object source) {
         super(injector, key, source, new InternalFactory<T>() {
+            @Override
             public T get(Errors errors, InternalContext context, Dependency<?> dependency) {
                 throw new AssertionError();
             }
@@ -37,18 +38,22 @@ public class UntargettedBindingImpl<T> extends BindingImpl<T> implements Untarge
         super(source, key, scoping);
     }
 
+    @Override
     public <V> V acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
         return visitor.visit(this);
     }
 
+    @Override
     public BindingImpl<T> withScoping(Scoping scoping) {
         return new UntargettedBindingImpl<>(getSource(), getKey(), scoping);
     }
 
+    @Override
     public BindingImpl<T> withKey(Key<T> key) {
         return new UntargettedBindingImpl<>(getSource(), key, getScoping());
     }
 
+    @Override
     public void applyTo(Binder binder) {
         getScoping().applyTo(binder.withSource(getSource()).bind(getKey()));
     }

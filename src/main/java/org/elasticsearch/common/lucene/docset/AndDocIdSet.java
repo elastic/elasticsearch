@@ -19,21 +19,18 @@
 
 package org.elasticsearch.common.lucene.docset;
 
-import com.google.common.collect.Iterables;
-
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.lucene.search.XDocIdSetIterator;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -93,7 +90,7 @@ public class AndDocIdSet extends DocIdSet {
                 return DocIdSetIterator.empty();
             }
             Bits bit = set.bits();
-            if (bit != null && DocIdSets.isBroken(it)) {
+            if (bit != null && bit instanceof BitSet == false) {
                 bits.add(bit);
             } else {
                 iterators.add(it);
@@ -138,7 +135,7 @@ public class AndDocIdSet extends DocIdSet {
         }
     }
 
-    static class IteratorBasedIterator extends XDocIdSetIterator {
+    static class IteratorBasedIterator extends DocIdSetIterator {
         private int doc = -1;
         private final DocIdSetIterator lead;
         private final DocIdSetIterator[] otherIterators;
@@ -172,16 +169,6 @@ public class AndDocIdSet extends DocIdSet {
             }.sort(0, sortedIterators.length);
             lead = sortedIterators[0];
             this.otherIterators = Arrays.copyOfRange(sortedIterators, 1, sortedIterators.length);
-        }
-
-        @Override
-        public boolean isBroken() {
-            for (DocIdSetIterator it : Iterables.concat(Collections.singleton(lead), Arrays.asList(otherIterators))) {
-                if (DocIdSets.isBroken(it)) {
-                    return true;
-                }
-            }
-            return false;
         }
 
         @Override

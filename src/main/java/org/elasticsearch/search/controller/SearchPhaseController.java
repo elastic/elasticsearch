@@ -21,8 +21,16 @@ package org.elasticsearch.search.controller;
 
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -46,7 +54,12 @@ import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -65,6 +78,7 @@ public class SearchPhaseController extends AbstractComponent {
     };
 
     public static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
+    public static final String SEARCH_CONTROLLER_OPTIMIZE_SINGLE_SHARD_KEY = "search.controller.optimize_single_shard";
 
     private final BigArrays bigArrays;
     private final boolean optimizeSingleShard;
@@ -76,7 +90,7 @@ public class SearchPhaseController extends AbstractComponent {
         super(settings);
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
-        this.optimizeSingleShard = componentSettings.getAsBoolean("optimize_single_shard", true);
+        this.optimizeSingleShard = settings.getAsBoolean(SEARCH_CONTROLLER_OPTIMIZE_SINGLE_SHARD_KEY, true);
     }
 
     public boolean optimizeSingleShard() {
@@ -199,38 +213,51 @@ public class SearchPhaseController extends AbstractComponent {
         Arrays.sort(sortedResults, QUERY_RESULT_ORDERING);
         QuerySearchResultProvider firstResult = sortedResults[0].value;
 
-        final Sort sort;
-        if (firstResult.queryResult().topDocs() instanceof TopFieldDocs) {
-            TopFieldDocs firstTopDocs = (TopFieldDocs) firstResult.queryResult().topDocs();
-            sort = new Sort(firstTopDocs.fields);
-        } else {
-            sort = null;
-        }
-
         int topN = firstResult.queryResult().size();
-        // Need to use the length of the resultsArr array, since the slots will be based on the position in the resultsArr array
-        TopDocs[] shardTopDocs = new TopDocs[resultsArr.length()];
         if (firstResult.includeFetch()) {
             // if we did both query and fetch on the same go, we have fetched all the docs from each shards already, use them...
             // this is also important since we shortcut and fetch only docs from "from" and up to "size"
             topN *= sortedResults.length;
         }
-        for (AtomicArray.Entry<? extends QuerySearchResultProvider> sortedResult : sortedResults) {
-            TopDocs topDocs = sortedResult.value.queryResult().topDocs();
-            // the 'index' field is the position in the resultsArr atomic array
-            shardTopDocs[sortedResult.index] = topDocs;
-        }
+
         int from = firstResult.queryResult().from();
         if (ignoreFrom) {
             from = 0;
         }
-        // TopDocs#merge can't deal with null shard TopDocs
-        for (int i = 0; i < shardTopDocs.length; i++) {
-            if (shardTopDocs[i] == null) {
-                shardTopDocs[i] = Lucene.EMPTY_TOP_DOCS;
+
+        final TopDocs mergedTopDocs;
+        if (firstResult.queryResult().topDocs() instanceof TopFieldDocs) {
+            TopFieldDocs firstTopDocs = (TopFieldDocs) firstResult.queryResult().topDocs();
+            final Sort sort = new Sort(firstTopDocs.fields);
+
+            final TopFieldDocs[] shardTopDocs = new TopFieldDocs[resultsArr.length()];
+            for (AtomicArray.Entry<? extends QuerySearchResultProvider> sortedResult : sortedResults) {
+                TopDocs topDocs = sortedResult.value.queryResult().topDocs();
+                // the 'index' field is the position in the resultsArr atomic array
+                shardTopDocs[sortedResult.index] = (TopFieldDocs) topDocs;
             }
+            // TopDocs#merge can't deal with null shard TopDocs
+            for (int i = 0; i < shardTopDocs.length; ++i) {
+                if (shardTopDocs[i] == null) {
+                    shardTopDocs[i] = new TopFieldDocs(0, new FieldDoc[0], sort.getSort(), Float.NaN);
+                }
+            }
+            mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
+        } else {
+            final TopDocs[] shardTopDocs = new TopDocs[resultsArr.length()];
+            for (AtomicArray.Entry<? extends QuerySearchResultProvider> sortedResult : sortedResults) {
+                TopDocs topDocs = sortedResult.value.queryResult().topDocs();
+                // the 'index' field is the position in the resultsArr atomic array
+                shardTopDocs[sortedResult.index] = topDocs;
+            }
+            // TopDocs#merge can't deal with null shard TopDocs
+            for (int i = 0; i < shardTopDocs.length; ++i) {
+                if (shardTopDocs[i] == null) {
+                    shardTopDocs[i] = Lucene.EMPTY_TOP_DOCS;
+                }
+            }
+            mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
         }
-        TopDocs mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
         return mergedTopDocs.scoreDocs;
     }
 
@@ -372,7 +399,7 @@ public class SearchPhaseController extends AbstractComponent {
                 for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
                     aggregationsList.add((InternalAggregations) entry.value.queryResult().aggregations());
                 }
-                aggregations = InternalAggregations.reduce(aggregationsList, new ReduceContext(null, bigArrays, scriptService));
+                aggregations = InternalAggregations.reduce(aggregationsList, new ReduceContext(bigArrays, scriptService));
             }
         }
 

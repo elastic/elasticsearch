@@ -20,34 +20,33 @@
 package org.elasticsearch.test.store;
 
 import com.google.common.base.Charsets;
+
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.StoreRateLimiting;
-import org.apache.lucene.util.AbstractRandomizedTest;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.IndexShardException;
-import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.distributor.Distributor;
-import org.elasticsearch.index.store.fs.FsDirectoryService;
+import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Random;
 
@@ -63,14 +62,14 @@ public class MockFSDirectoryService extends FsDirectoryService {
     private final boolean checkIndexOnClose;
 
     @Inject
-    public MockFSDirectoryService(final ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, final IndicesService service) {
-        super(shardId, indexSettings, indexStore);
+    public MockFSDirectoryService(@IndexSettings Settings indexSettings, IndexStore indexStore, final IndicesService service, final ShardPath path) {
+        super(indexSettings, indexStore, path);
         final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.SETTING_INDEX_SEED, 0l);
         Random random = new Random(seed);
         helper = new MockDirectoryHelper(shardId, indexSettings, logger, random, seed);
         checkIndexOnClose = indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, true);
 
-        delegateService = helper.randomDirectorService(indexStore);
+        delegateService = helper.randomDirectorService(indexStore, path);
         if (checkIndexOnClose) {
             final IndicesLifecycle.Listener listener = new IndicesLifecycle.Listener() {
 
@@ -80,14 +79,17 @@ public class MockFSDirectoryService extends FsDirectoryService {
                 public void beforeIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard,
                                                    @IndexSettings Settings indexSettings) {
                     if (indexShard != null && shardId.equals(sid)) {
-                        logger.info("Shard state before potentially flushing is {}", indexShard.state());
-                        if (validCheckIndexStates.contains(indexShard.state())) {
-                            canRun = true;
+                        logger.info("{} shard state before potentially flushing is {}", indexShard.shardId(), indexShard.state());
+                        if (validCheckIndexStates.contains(indexShard.state()) && IndexMetaData.isOnSharedFilesystem(indexSettings) == false) {
                             // When the the internal engine closes we do a rollback, which removes uncommitted segments
                             // By doing a commit flush we perform a Lucene commit, but don't clear the translog,
                             // so that even in tests where don't flush we can check the integrity of the Lucene index
-                            indexShard.engine().flush(Engine.FlushType.COMMIT, false, true); // Keep translog for tests that rely on replaying it
-                            logger.info("flush finished in beforeIndexShardClosed");
+                            if (indexShard.engine().hasUncommittedChanges()) { // only if we have any changes
+                                logger.info("{} flushing in order to run checkindex", indexShard.shardId());
+                                Releasables.close(indexShard.engine().snapshotIndex()); // Keep translog for tests that rely on replaying it
+                            }
+                            logger.info("{} flush finished in beforeIndexShardClosed", indexShard.shardId());
+                            canRun = true;
                         }
                     }
                 }
@@ -106,9 +108,11 @@ public class MockFSDirectoryService extends FsDirectoryService {
         }
     }
 
+
+
     @Override
-    public Directory[] build() throws IOException {
-        return delegateService.build();
+    public Directory newDirectory() throws IOException {
+        return helper.wrap(delegateService.newDirectory());
     }
     
     @Override
@@ -125,7 +129,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
                     return;
                 }
                 if (IndexWriter.isLocked(dir)) {
-                    AbstractRandomizedTest.checkIndexFailed = true;
+                    ElasticsearchTestCase.checkIndexFailed = true;
                     throw new IllegalStateException("IndexWriter is still open on shard " + shardId);
                 }
                 try (CheckIndex checkIndex = new CheckIndex(dir)) {
@@ -135,8 +139,10 @@ public class MockFSDirectoryService extends FsDirectoryService {
                     out.flush();
                     CheckIndex.Status status = checkIndex.checkIndex();
                     if (!status.clean) {
-                        AbstractRandomizedTest.checkIndexFailed = true;
-                        logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+                        ElasticsearchTestCase.checkIndexFailed = true;
+                        logger.warn("check index [failure] index files={}\n{}",
+                                    Arrays.toString(dir.listAll()),
+                                    new String(os.bytes().toBytes(), Charsets.UTF_8));
                         throw new IndexShardException(shardId, "index check failure");
                     } else {
                         if (logger.isDebugEnabled()) {
@@ -166,10 +172,5 @@ public class MockFSDirectoryService extends FsDirectoryService {
     @Override
     public long throttleTimeInNanos() {
         return delegateService.throttleTimeInNanos();
-    }
-
-    @Override
-    public Directory newFromDistributor(Distributor distributor) throws IOException {
-        return helper.wrap(super.newFromDistributor(distributor));
     }
 }

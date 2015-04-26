@@ -168,6 +168,9 @@ due to forced awareness or allocation filtering.
 `indices.recovery.concurrent_streams`::
      See <<modules-indices>>
 
+`indices.recovery.concurrent_small_file_streams`::
+     See <<modules-indices>>
+
 `indices.recovery.file_chunk_size`::
      See <<modules-indices>>
 
@@ -193,9 +196,9 @@ settings will be allowed to be updated.
 [float]
 === Field data circuit breaker
 
-`indices.fielddata.breaker.limit`::
+`indices.breaker.fielddata.limit`::
      See <<index-modules-fielddata>>
 
-`indices.fielddata.breaker.overhead`::
+`indices.breaker.fielddata.overhead`::
      See <<index-modules-fielddata>>
 

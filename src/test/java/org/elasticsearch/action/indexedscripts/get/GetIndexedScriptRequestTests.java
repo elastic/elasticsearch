@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class GetIndexedScriptRequestTests extends ElasticsearchTestCase {
@@ -40,7 +41,7 @@ public class GetIndexedScriptRequestTests extends ElasticsearchTestCase {
         }
 
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(randomVersion());
+        out.setVersion(randomVersion(random()));
         request.writeTo(out);
 
         BytesStreamInput in = new BytesStreamInput(out.bytes());

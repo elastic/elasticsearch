@@ -44,7 +44,7 @@ public class IndexRequestBuilderTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "test").setSource((Object)"test_field", (Object)"foobar"),
                 client().prepareIndex("test", "test").setSource("{\"test_field\" : \"foobar\"}"),
                 client().prepareIndex("test", "test").setSource(new BytesArray("{\"test_field\" : \"foobar\"}")),
-                client().prepareIndex("test", "test").setSource(new BytesArray("{\"test_field\" : \"foobar\"}"), randomBoolean()),
+                client().prepareIndex("test", "test").setSource(new BytesArray("{\"test_field\" : \"foobar\"}")),
                 client().prepareIndex("test", "test").setSource(new BytesArray("{\"test_field\" : \"foobar\"}").toBytes()),
                 client().prepareIndex("test", "test").setSource(map)
         };

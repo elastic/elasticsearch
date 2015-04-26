@@ -42,6 +42,7 @@ public class ESLogRecord extends LogRecord {
         needToInferCaller = true;
     }
 
+    @Override
     public String getSourceClassName() {
         if (needToInferCaller) {
             inferCaller();
@@ -49,11 +50,13 @@ public class ESLogRecord extends LogRecord {
         return sourceClassName;
     }
 
+    @Override
     public void setSourceClassName(String sourceClassName) {
         this.sourceClassName = sourceClassName;
         needToInferCaller = false;
     }
 
+    @Override
     public String getSourceMethodName() {
         if (needToInferCaller) {
             inferCaller();
@@ -61,6 +64,7 @@ public class ESLogRecord extends LogRecord {
         return sourceMethodName;
     }
 
+    @Override
     public void setSourceMethodName(String sourceMethodName) {
         this.sourceMethodName = sourceMethodName;
         needToInferCaller = false;

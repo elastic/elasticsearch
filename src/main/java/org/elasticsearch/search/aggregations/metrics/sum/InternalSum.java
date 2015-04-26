@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -66,6 +67,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
         return sum;
     }
 
+    @Override
     public double getValue() {
         return sum;
     }
@@ -76,9 +78,9 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalSum reduce(ReduceContext reduceContext) {
+    public InternalSum reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double sum = 0;
-        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+        for (InternalAggregation aggregation : aggregations) {
             sum += ((InternalSum) aggregation).sum;
         }
         return new InternalSum(name, sum, valueFormatter, getMetaData());
@@ -99,7 +101,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(CommonFields.VALUE, sum);
-        if (valueFormatter != null) {
+        if (valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
             builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(sum));
         }
         return builder;

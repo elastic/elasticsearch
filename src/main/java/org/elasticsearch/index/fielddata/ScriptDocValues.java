@@ -236,6 +236,7 @@ public interface ScriptDocValues<T> extends List<T> {
             return getValue().lon();
         }
 
+        @Override
         public List<GeoPoint> getValues() {
             return ImmutableList.copyOf(this);
         }

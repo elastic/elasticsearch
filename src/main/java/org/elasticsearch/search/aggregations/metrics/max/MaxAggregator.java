@@ -21,12 +21,15 @@ package org.elasticsearch.search.aggregations.metrics.max;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -42,11 +45,10 @@ import java.util.Map;
  */
 public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
-    private final ValuesSource.Numeric valuesSource;
-    private NumericDoubleValues values;
+    final ValuesSource.Numeric valuesSource;
+    final ValueFormatter formatter;
 
-    private DoubleArray maxes;
-    private ValueFormatter formatter;
+    DoubleArray maxes;
 
     public MaxAggregator(String name, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
             AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
@@ -54,33 +56,41 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
         this.valuesSource = valuesSource;
         this.formatter = formatter;
         if (valuesSource != null) {
-            maxes = bigArrays.newDoubleArray(1, false);
+            maxes = context.bigArrays().newDoubleArray(1, false);
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         }
     }
 
     @Override
-    public boolean shouldCollect() {
-        return valuesSource != null;
+    public boolean needsScores() {
+        return valuesSource != null && valuesSource.needsScores();
     }
 
     @Override
-    public void setNextReader(LeafReaderContext reader) {
-        final SortedNumericDoubleValues values = valuesSource.doubleValues();
-        this.values = MultiValueMode.MAX.select(values, Double.NEGATIVE_INFINITY);
-    }
-
-    @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        if (owningBucketOrdinal >= maxes.size()) {
-            long from = maxes.size();
-            maxes = bigArrays.grow(maxes, owningBucketOrdinal + 1);
-            maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        if (valuesSource == null) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final double value = values.get(doc);
-        double max = maxes.get(owningBucketOrdinal);
-        max = Math.max(max, value);
-        maxes.set(owningBucketOrdinal, max);
+        final BigArrays bigArrays = context.bigArrays();
+        final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
+        final NumericDoubleValues values = MultiValueMode.MAX.select(allValues, Double.NEGATIVE_INFINITY);
+        return new LeafBucketCollectorBase(sub, allValues) {
+
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (bucket >= maxes.size()) {
+                    long from = maxes.size();
+                    maxes = bigArrays.grow(maxes, bucket + 1);
+                    maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
+                }
+                final double value = values.get(doc);
+                double max = maxes.get(bucket);
+                max = Math.max(max, value);
+                maxes.set(bucket, max);
+            }
+
+        };
     }
 
     @Override
@@ -89,12 +99,11 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        if (valuesSource == null) {
-            return new InternalMax(name, Double.NEGATIVE_INFINITY, formatter, metaData());
+    public InternalAggregation buildAggregation(long bucket) {
+        if (valuesSource == null || bucket >= maxes.size()) {
+            return buildEmptyAggregation();
         }
-        assert owningBucketOrdinal < maxes.size();
-        return new InternalMax(name, maxes.get(owningBucketOrdinal), formatter, metaData());
+        return new InternalMax(name, maxes.get(bucket), formatter, metaData());
     }
 
     @Override

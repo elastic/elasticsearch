@@ -31,29 +31,11 @@ import java.io.IOException;
  */
 class ShardRefreshRequest extends BroadcastShardOperationRequest {
 
-    private boolean force = true;
-
     ShardRefreshRequest() {
     }
 
     ShardRefreshRequest(ShardId shardId, RefreshRequest request) {
         super(shardId, request);
-        force = request.force();
     }
 
-    public boolean force() {
-        return force;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        force = in.readBoolean();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(force);
-    }
 }

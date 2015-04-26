@@ -133,6 +133,6 @@ client.search({
 
 == Copyright and License
 
-This software is Copyright (c) 2013 by Elasticsearch BV.
+This software is Copyright (c) 2013-2015 by Elasticsearch BV.
 
 This is free software, licensed under The Apache License Version 2.0.

@@ -1,0 +1,33 @@
+---
+"search_type=count (deprecated) support":
+  - do:
+      indices.create:
+          index:  test
+  - do:
+      index:
+          index:  test
+          type:   test
+          id:     1
+          body:   { foo: bar }
+
+  - do:
+      index:
+          index:  test
+          type:   test
+          id:     2
+          body:   { foo: bar }
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+  - do:
+      search:
+        index: test
+        search_type: count
+        body:
+          query:
+            match:
+              foo: bar
+
+  - match: {hits.total: 2}

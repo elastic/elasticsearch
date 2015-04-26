@@ -549,6 +549,11 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public FieldMapper smartNameFieldMapperFromAnyType(String name) {
+        return in.smartNameFieldMapperFromAnyType(name);
+    }
+
+    @Override
     public MapperService.SmartNameObjectMapper smartNameObjectMapper(String name) {
         return in.smartNameObjectMapper(name);
     }
@@ -557,4 +562,5 @@ public abstract class FilteredSearchContext extends SearchContext {
     public Counter timeEstimateCounter() {
         return in.timeEstimateCounter();
     }
+
 }

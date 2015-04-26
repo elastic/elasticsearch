@@ -24,6 +24,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -81,24 +83,24 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
     }
 
     @Override
-    public InternalAggregation reduce(ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<Object> aggregationObjects = new ArrayList<>();
-        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+        for (InternalAggregation aggregation : aggregations) {
             InternalScriptedMetric mapReduceAggregation = (InternalScriptedMetric) aggregation;
             aggregationObjects.add(mapReduceAggregation.aggregation());
         }
-        InternalScriptedMetric firstAggregation = ((InternalScriptedMetric) reduceContext.aggregations().get(0));
+        InternalScriptedMetric firstAggregation = ((InternalScriptedMetric) aggregations.get(0));
         Object aggregation;
         if (firstAggregation.reduceScript != null) {
             Map<String, Object> params;
             if (firstAggregation.reduceParams != null) {
-                params = new HashMap<String, Object>(firstAggregation.reduceParams);
+                params = new HashMap<>(firstAggregation.reduceParams);
             } else {
-                params = new HashMap<String, Object>();
+                params = new HashMap<>();
             }
             params.put("_aggs", aggregationObjects);
-            ExecutableScript script = reduceContext.scriptService().executable(firstAggregation.scriptLang, firstAggregation.reduceScript,
-                    firstAggregation.scriptType, params);
+            ExecutableScript script = reduceContext.scriptService().executable(new Script(firstAggregation.scriptLang, firstAggregation.reduceScript,
+                    firstAggregation.scriptType, params), ScriptContext.Standard.AGGS);
             aggregation = script.run();
         } else {
             aggregation = aggregationObjects;
@@ -113,6 +115,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
         return TYPE;
     }
 
+    @Override
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
             return this;

@@ -41,6 +41,7 @@ public class CountDownTest extends ElasticsearchTestCase {
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread() {
 
+                @Override
                 public void run() {
                     try {
                         latch.await();

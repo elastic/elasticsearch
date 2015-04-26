@@ -60,4 +60,9 @@ public class MinimumScoreCollector extends SimpleCollector {
     public void doSetNextReader(LeafReaderContext context) throws IOException {
         leafCollector = collector.getLeafCollector(context);
     }
+
+    @Override
+    public boolean needsScores() {
+        return true;
+    }
 }

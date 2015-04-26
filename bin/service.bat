@@ -13,7 +13,7 @@ if not exist "%JAVA_HOME%\bin\java.exe" (
 echo JAVA_HOME points to an invalid Java installation (no java.exe found in "%JAVA_HOME%"^). Exiting...
 goto:eof
 )
-"%JAVA_HOME%\bin\java" -version 2>&1 | find "64-Bit" >nul:
+"%JAVA_HOME%\bin\java" -version 2>&1 | "%windir%\System32\find" "64-Bit" >nul:
 
 if errorlevel 1 goto x86
 set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x64.exe
@@ -118,8 +118,8 @@ goto:eof
 )
 
 :foundJVM
-if "%ES_MIN_MEM%" == "" set ES_MIN_MEM=256m
-if "%ES_MAX_MEM%" == "" set ES_MAX_MEM=1g
+if "%ES_MIN_MEM%" == "" set ES_MIN_MEM=${packaging.elasticsearch.heap.min}
+if "%ES_MAX_MEM%" == "" set ES_MAX_MEM=${packaging.elasticsearch.heap.max}
 
 if NOT "%ES_HEAP_SIZE%" == "" set ES_MIN_MEM=%ES_HEAP_SIZE%
 if NOT "%ES_HEAP_SIZE%" == "" set ES_MAX_MEM=%ES_HEAP_SIZE%
@@ -137,13 +137,11 @@ set JVM_SS=256
 
 if "%DATA_DIR%" == "" set DATA_DIR=%ES_HOME%\data
 
-if "%WORK_DIR%" == "" set WORK_DIR=%ES_HOME%
-
 if "%CONF_DIR%" == "" set CONF_DIR=%ES_HOME%\config
 
 if "%CONF_FILE%" == "" set CONF_FILE=%ES_HOME%\config\elasticsearch.yml
 
-set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.default.config="%CONF_FILE%";-Des.default.path.home="%ES_HOME%";-Des.default.path.logs="%LOG_DIR%";-Des.default.path.data="%DATA_DIR%";-Des.default.path.work="%WORK_DIR%";-Des.default.path.conf="%CONF_DIR%"
+set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.default.config="%CONF_FILE%";-Des.default.path.home="%ES_HOME%";-Des.default.path.logs="%LOG_DIR%";-Des.default.path.data="%DATA_DIR%";-Des.default.path.conf="%CONF_DIR%"
 
 set JVM_OPTS=%JAVA_OPTS: =;%
 

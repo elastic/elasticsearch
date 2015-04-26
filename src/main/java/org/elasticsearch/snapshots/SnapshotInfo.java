@@ -18,7 +18,8 @@
  */
 package org.elasticsearch.snapshots;
 
-import com.google.common.collect.ImmutableList;
+import java.io.IOException;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -28,8 +29,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.RestStatus;
-
-import java.io.IOException;
+import com.google.common.collect.ImmutableList;
 
 /**
  * Information about snapshot
@@ -179,15 +179,7 @@ public class SnapshotInfo implements ToXContent, Streamable {
         if (shardFailures.size() == 0) {
             return RestStatus.OK;
         }
-        RestStatus status = RestStatus.OK;
-        if (successfulShards == 0 && totalShards > 0) {
-            for (SnapshotShardFailure shardFailure : shardFailures)
-                if (shardFailure.status().getStatus() > status().getStatus()) {
-                    status = shardFailure.status();
-                }
-            return status;
-        }
-        return status;
+        return RestStatus.status(successfulShards, totalShards, shardFailures.toArray(new ShardOperationFailedException[shardFailures.size()]));
     }
 
     static final class Fields {

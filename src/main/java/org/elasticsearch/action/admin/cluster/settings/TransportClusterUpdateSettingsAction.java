@@ -59,7 +59,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
     @Inject
     public TransportClusterUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                                 AllocationService allocationService, @ClusterDynamicSettings DynamicSettings dynamicSettings, ActionFilters actionFilters) {
-        super(settings, ClusterUpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, ClusterUpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, ClusterUpdateSettingsRequest.class);
         this.allocationService = allocationService;
         this.dynamicSettings = dynamicSettings;
     }
@@ -76,14 +76,9 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                 request.persistentSettings().getAsMap().isEmpty() && request.transientSettings().getAsMap().size() == 1 && request.transientSettings().get(MetaData.SETTING_READ_ONLY) != null) {
             return null;
         }
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-
-    @Override
-    protected ClusterUpdateSettingsRequest newRequest() {
-        return new ClusterUpdateSettingsRequest();
-    }
 
     @Override
     protected ClusterUpdateSettingsResponse newResponse() {

@@ -56,7 +56,7 @@ public class ClusterSerializationTests extends ElasticsearchAllocationTestCase {
         AllocationService strategy = createAllocationService();
         clusterState = ClusterState.builder(clusterState).routingTable(strategy.reroute(clusterState).routingTable()).build();
 
-        ClusterState serializedClusterState = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), newNode("node1"), new ClusterName("clusterName2"));
+        ClusterState serializedClusterState = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), newNode("node1"));
 
         assertThat(serializedClusterState.getClusterName().value(), equalTo(clusterState.getClusterName().value()));
         assertThat(serializedClusterState.routingTable().prettyPrint(), equalTo(clusterState.routingTable().prettyPrint()));
@@ -82,7 +82,7 @@ public class ClusterSerializationTests extends ElasticsearchAllocationTestCase {
 
         BytesStreamOutput outStream = new BytesStreamOutput();
         RoutingTable.Builder.writeTo(source, outStream);
-        BytesStreamInput inStream = new BytesStreamInput(outStream.bytes().toBytes(), false);
+        BytesStreamInput inStream = new BytesStreamInput(outStream.bytes().toBytes());
         RoutingTable target = RoutingTable.Builder.readFrom(inStream);
 
         assertThat(target.prettyPrint(), equalTo(source.prettyPrint()));

@@ -19,6 +19,9 @@
 
 package org.elasticsearch.rest.action.suggest;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestResponse;
@@ -28,14 +31,16 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.search.suggest.Suggest;
-
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
 
 /**
  *
@@ -56,15 +61,10 @@ public class RestSuggestAction extends BaseRestHandler {
         SuggestRequest suggestRequest = new SuggestRequest(Strings.splitStringByCommaToArray(request.param("index")));
         suggestRequest.indicesOptions(IndicesOptions.fromRequest(request, suggestRequest.indicesOptions()));
         suggestRequest.listenerThreaded(false);
-        if (request.hasContent()) {
-            suggestRequest.suggest(request.content(), request.contentUnsafe());
+        if (RestActions.hasBodyContent(request)) {
+            suggestRequest.suggest(RestActions.getRestContent(request));
         } else {
-            String source = request.param("source");
-            if (source != null) {
-                suggestRequest.suggest(source);
-            } else {
-                throw new ElasticsearchIllegalArgumentException("no content or source provided to execute suggestion");
-            }
+            throw new ElasticsearchIllegalArgumentException("no content or source provided to execute suggestion");
         }
         suggestRequest.routing(request.param("routing"));
         suggestRequest.preference(request.param("preference"));
@@ -72,6 +72,7 @@ public class RestSuggestAction extends BaseRestHandler {
         client.suggest(suggestRequest, new RestBuilderListener<SuggestResponse>(channel) {
             @Override
             public RestResponse buildResponse(SuggestResponse response, XContentBuilder builder) throws Exception {
+                RestStatus restStatus = RestStatus.status(response.getSuccessfulShards(), response.getTotalShards(), response.getShardFailures());
                 builder.startObject();
                 buildBroadcastShardsHeader(builder, response);
                 Suggest suggest = response.getSuggest();
@@ -79,7 +80,7 @@ public class RestSuggestAction extends BaseRestHandler {
                     suggest.toXContent(builder, request);
                 }
                 builder.endObject();
-                return new BytesRestResponse(OK, builder);
+                return new BytesRestResponse(restStatus, builder);
             }
         });
     }

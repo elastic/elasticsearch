@@ -143,6 +143,7 @@ public abstract class MulticastChannel implements Closeable {
     /**
      * Close the channel.
      */
+    @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
             close(listener);
@@ -300,6 +301,7 @@ public abstract class MulticastChannel implements Closeable {
             return this.config;
         }
 
+        @Override
         public void send(BytesReference data) throws Exception {
             synchronized (sendMutex) {
                 datagramPacketSend.setData(data.toBytes());

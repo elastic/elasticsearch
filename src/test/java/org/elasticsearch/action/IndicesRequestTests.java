@@ -30,8 +30,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
@@ -54,6 +52,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -92,15 +91,20 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
+import org.elasticsearch.cluster.settings.DynamicSettings;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -114,6 +118,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.SUITE, numClientNodes = 1)
+@Slow
 public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
     private final List<String> indices = new ArrayList<>();
@@ -175,7 +180,8 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         String analyzeShardAction = AnalyzeAction.NAME + "[s]";
         interceptTransportActions(analyzeShardAction);
 
-        AnalyzeRequest analyzeRequest = new AnalyzeRequest(randomIndexOrAlias(), "text");
+        AnalyzeRequest analyzeRequest = new AnalyzeRequest(randomIndexOrAlias());
+        analyzeRequest.text("text");
         internalCluster().clientNodeClient().admin().indices().analyze(analyzeRequest).actionGet();
 
         clearInterceptedActions();
@@ -607,19 +613,6 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testDeleteMapping() {
-        interceptTransportActions(DeleteMappingAction.NAME);
-
-        String[] indices = randomUniqueIndicesOrAliases();
-        client().admin().indices().putMapping(new PutMappingRequest(indices).type("type").source("field", "type=string")).actionGet();
-        DeleteMappingRequest deleteMappingRequest = new DeleteMappingRequest(indices).types("type");
-        internalCluster().clientNodeClient().admin().indices().deleteMapping(deleteMappingRequest).actionGet();
-
-        clearInterceptedActions();
-        assertSameIndices(deleteMappingRequest, DeleteMappingAction.NAME);
-    }
-
-    @Test
     public void testGetSettings() {
         interceptTransportActions(GetSettingsAction.NAME);
 
@@ -877,7 +870,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
             ((InterceptingTransportService) transportService).clearInterceptedActions();
         }
     }
-    
+
     private static void interceptTransportActions(String... actions) {
         Iterable<TransportService> transportServices = internalCluster().getInstances(TransportService.class);
         for (TransportService transportService : transportServices) {
@@ -921,8 +914,8 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         }
 
         @Override
-        public void registerHandler(String action, TransportRequestHandler handler) {
-            super.registerHandler(action, new InterceptingRequestHandler(action, handler));
+        public <Request extends TransportRequest> void registerRequestHandler(String action, Class<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
+            super.registerRequestHandler(action, request, executor, forceExecution, new InterceptingRequestHandler(action, handler));
         }
 
         private class InterceptingRequestHandler implements TransportRequestHandler {
@@ -933,11 +926,6 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
             InterceptingRequestHandler(String action, TransportRequestHandler requestHandler) {
                 this.requestHandler = requestHandler;
                 this.action = action;
-            }
-
-            @Override
-            public TransportRequest newInstance() {
-                return requestHandler.newInstance();
             }
 
             @Override
@@ -955,16 +943,6 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
                     }
                 }
                 requestHandler.messageReceived(request, channel);
-            }
-
-            @Override
-            public String executor() {
-                return requestHandler.executor();
-            }
-
-            @Override
-            public boolean isForceExecution() {
-                return requestHandler.isForceExecution();
             }
         }
     }

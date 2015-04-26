@@ -20,17 +20,12 @@ package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.SimpleCollector;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.XCollector;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
@@ -40,7 +35,6 @@ import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -81,22 +75,20 @@ public class AggregationPhase implements SearchPhase {
             Aggregator[] aggregators;
             try {
                 aggregators = context.aggregations().factories().createTopLevelAggregators(aggregationContext);
+                for (int i = 0; i < aggregators.length; i++) {
+                    if (aggregators[i] instanceof GlobalAggregator == false) {
+                        collectors.add(aggregators[i]);
+                    }
+                }
+                context.aggregations().aggregators(aggregators);
+                if (!collectors.isEmpty()) {
+                    final BucketCollector collector = BucketCollector.wrap(collectors);
+                    collector.preCollection();
+                    context.searcher().queryCollectors().put(AggregationPhase.class, collector);
+                }
             } catch (IOException e) {
                 throw new AggregationInitializationException("Could not initialize aggregators", e);
             }
-            for (int i = 0; i < aggregators.length; i++) {
-                if (!(aggregators[i] instanceof GlobalAggregator)) {
-                    Aggregator aggregator = aggregators[i];
-                    if (aggregator.shouldCollect()) {
-                        collectors.add(aggregator);
-                    }
-                }
-            }
-            context.aggregations().aggregators(aggregators);
-            if (!collectors.isEmpty()) {
-                context.searcher().addMainQueryCollector(new AggregationsCollector(collectors, aggregationContext));
-            }
-            aggregationContext.setNextReader(context.searcher().getIndexReader().getContext());
         }
     }
 
@@ -122,15 +114,15 @@ public class AggregationPhase implements SearchPhase {
 
         // optimize the global collector based execution
         if (!globals.isEmpty()) {
-            AggregationsCollector collector = new AggregationsCollector(globals, context.aggregations().aggregationContext());
-            Query query = new ConstantScoreQuery(Queries.MATCH_ALL_FILTER);
+            BucketCollector globalsCollector = BucketCollector.wrap(globals);
+            Query query = Queries.newMatchAllQuery();
             Filter searchFilter = context.searchFilter(context.types());
             if (searchFilter != null) {
                 query = new FilteredQuery(query, searchFilter);
             }
             try {
-                context.searcher().search(query, collector);
-                collector.postCollection();
+                globalsCollector.preCollection();
+                context.searcher().search(query, globalsCollector);
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context, "Failed to execute global aggregators", e);
             }
@@ -139,6 +131,7 @@ public class AggregationPhase implements SearchPhase {
         List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
         for (Aggregator aggregator : context.aggregations().aggregators()) {
             try {
+                aggregator.postCollection();
                 aggregations.add(aggregator.buildAggregation(0));
             } catch (IOException e) {
                 throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
@@ -148,41 +141,7 @@ public class AggregationPhase implements SearchPhase {
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);
+        context.searcher().queryCollectors().remove(AggregationPhase.class);
     }
 
-
-    public static class AggregationsCollector extends SimpleCollector implements XCollector {
-
-        private final AggregationContext aggregationContext;
-        private final Aggregator[] collectors;
-
-        public AggregationsCollector(Collection<Aggregator> collectors, AggregationContext aggregationContext) {
-            this.collectors = collectors.toArray(new Aggregator[collectors.size()]);
-            this.aggregationContext = aggregationContext;
-        }
-
-        @Override
-        public void setScorer(Scorer scorer) throws IOException {
-            aggregationContext.setScorer(scorer);
-        }
-
-        @Override
-        public void collect(int doc) throws IOException {
-            for (Aggregator collector : collectors) {
-                collector.collect(doc, 0);
-            }
-        }
-
-        @Override
-        public void doSetNextReader(LeafReaderContext context) throws IOException {
-            aggregationContext.setNextReader(context);
-        }
-
-        @Override
-        public void postCollection() throws IOException {
-            for (Aggregator collector : collectors) {
-                collector.postCollection();
-            }
-        }
-    }
 }

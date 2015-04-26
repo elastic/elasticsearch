@@ -18,10 +18,7 @@
  */
 package org.elasticsearch.index.store;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
-
 import org.apache.lucene.store.*;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -32,18 +29,18 @@ import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.*;
 
-public class DirectoryUtilsTest extends ElasticsearchLuceneTestCase {
+public class DirectoryUtilsTest extends ElasticsearchTestCase {
 
     @Test
     public void testGetLeave() throws IOException {
-        Path file = ElasticsearchTestCase.newTempDirPath(LifecycleScope.TEST);
+        Path file = createTempDir();
         final int iters = scaledRandomIntBetween(10, 100);
         for (int i = 0; i < iters; i++) {
             {
                 BaseDirectoryWrapper dir = newFSDirectory(file);
                 FSDirectory directory = DirectoryUtils.getLeaf(new FilterDirectory(dir) {}, FSDirectory.class, null);
                 assertThat(directory, notNullValue());
-                assertThat(directory, sameInstance(DirectoryUtils.getLeafDirectory(dir)));
+                assertThat(directory, sameInstance(DirectoryUtils.getLeafDirectory(dir, null)));
                 dir.close();
             }
 
@@ -51,7 +48,7 @@ public class DirectoryUtilsTest extends ElasticsearchLuceneTestCase {
                 BaseDirectoryWrapper dir = newFSDirectory(file);
                 FSDirectory directory = DirectoryUtils.getLeaf(dir, FSDirectory.class, null);
                 assertThat(directory, notNullValue());
-                assertThat(directory, sameInstance(DirectoryUtils.getLeafDirectory(dir)));
+                assertThat(directory, sameInstance(DirectoryUtils.getLeafDirectory(dir, null)));
                 dir.close();
             }
 
@@ -60,7 +57,7 @@ public class DirectoryUtilsTest extends ElasticsearchLuceneTestCase {
                 BaseDirectoryWrapper dir = newFSDirectory(file);
                 FSDirectory directory = DirectoryUtils.getLeaf(new FileSwitchDirectory(stringSet, dir, dir, random().nextBoolean()), FSDirectory.class, null);
                 assertThat(directory, notNullValue());
-                assertThat(directory, sameInstance(DirectoryUtils.getLeafDirectory(dir)));
+                assertThat(directory, sameInstance(DirectoryUtils.getLeafDirectory(dir, null)));
                 dir.close();
             }
 
@@ -69,7 +66,7 @@ public class DirectoryUtilsTest extends ElasticsearchLuceneTestCase {
                 BaseDirectoryWrapper dir = newFSDirectory(file);
                 FSDirectory directory = DirectoryUtils.getLeaf(new FilterDirectory(new FileSwitchDirectory(stringSet, dir, dir, random().nextBoolean())) {}, FSDirectory.class, null);
                 assertThat(directory, notNullValue());
-                assertThat(directory, sameInstance(DirectoryUtils.getLeafDirectory(dir)));
+                assertThat(directory, sameInstance(DirectoryUtils.getLeafDirectory(dir, null)));
                 dir.close();
             }
 

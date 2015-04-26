@@ -210,7 +210,7 @@ public class TimeDataHistogramAggregationBenchmark {
 
     private static SearchResponse doTermsAggsSearch(String name, String field, float matchPercentage) {
         SearchResponse response = client.prepareSearch()
-                .setSearchType(SearchType.COUNT)
+                .setSize(0)
                 .setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.scriptFilter("random()<matchP").addParam("matchP", matchPercentage).cache(true)))
                 .addAggregation(AggregationBuilders.histogram(name).field(field).interval(3600 * 1000)).get();
 

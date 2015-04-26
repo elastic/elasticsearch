@@ -28,6 +28,7 @@ import static org.elasticsearch.client.Requests.createIndexRequest;
  */
 public class AliasedIndexDocumentActionsTests extends DocumentActionsTests {
 
+    @Override
     protected void createIndex() {
         logger.info("Creating index [test1] with alias [test]");
         try {

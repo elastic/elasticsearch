@@ -74,20 +74,6 @@ public class BulkShardRequest extends ShardReplicationOperationRequest<BulkShard
         return indices.toArray(new String[indices.size()]);
     }
 
-    /**
-     * Before we fork on a local thread, make sure we copy over the bytes if they are unsafe
-     */
-    @Override
-    public void beforeLocalFork() {
-        for (BulkItemRequest item : items) {
-            if (item.request() instanceof InstanceShardOperationRequest) {
-                ((InstanceShardOperationRequest) item.request()).beforeLocalFork();
-            } else {
-                ((ShardReplicationOperationRequest) item.request()).beforeLocalFork();
-            }
-        }
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

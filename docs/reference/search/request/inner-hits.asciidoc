@@ -1,6 +1,8 @@
 [[search-request-inner-hits]]
 === Inner hits
 
+experimental[]
+
 The <<mapping-parent-field, parent/child>> and <<mapping-nested-type, nested>> features allow the return of documents that
 have matches in a different scope. In the parent/child case, parent document are returned based on matches in child
 documents or child document are returned based on matches in parent documents. In the nested case, documents are returned
@@ -149,6 +151,28 @@ nested level these can also be returned via the `fields` feature.
 An important default is that the `_source` returned in hits inside `inner_hits` is relative to the `_nested` metadata.
 So in the above example only the comment part is returned per nested hit and not the entire source of the top level
 document that contained the the comment.
+
+[[hierarchical-nested-inner-hits]]
+==== Hierarchical levels of nested object fields and inner hits.
+
+If a mapping has multiple levels of hierarchical nested object fields each level can be accessed via dot notated path.
+For example if there is a `comments` nested field that contains a `votes` nested field and votes should directly be returned
+with the the root hits then the following path can be defined:
+
+[source,js]
+--------------------------------------------------
+{
+   "query" : {
+      "nested" : {
+         "path" : "comments.votes",
+         "query" : { ... },
+         "inner_hits" : {}
+      }
+    }
+}
+--------------------------------------------------
+
+This indirect referencing is only supported for nested inner hits.
 
 [[parent-child-inner-hits]]
 ==== Parent/child inner hits

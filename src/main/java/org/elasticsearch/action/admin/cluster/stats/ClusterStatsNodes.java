@@ -548,13 +548,13 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             if (js == null) {
                 return;
             }
-            if (js.threads() != null) {
-                threads += js.threads().count();
+            if (js.getThreads() != null) {
+                threads += js.getThreads().getCount();
             }
-            maxUptime = Math.max(maxUptime, js.uptime().millis());
-            if (js.mem() != null) {
-                heapUsed += js.mem().getHeapUsed().bytes();
-                heapMax += js.mem().getHeapMax().bytes();
+            maxUptime = Math.max(maxUptime, js.getUptime().millis());
+            if (js.getMem() != null) {
+                heapUsed += js.getMem().getHeapUsed().bytes();
+                heapMax += js.getMem().getHeapMax().bytes();
             }
         }
 
@@ -640,9 +640,9 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
 
         JvmVersion(JvmInfo jvmInfo) {
             version = jvmInfo.version();
-            vmName = jvmInfo.vmName();
-            vmVersion = jvmInfo.vmVersion();
-            vmVendor = jvmInfo.vmVendor();
+            vmName = jvmInfo.getVmName();
+            vmVersion = jvmInfo.getVmVersion();
+            vmVendor = jvmInfo.getVmVendor();
         }
 
         JvmVersion() {

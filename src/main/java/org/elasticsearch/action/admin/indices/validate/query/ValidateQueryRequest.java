@@ -47,9 +47,9 @@ import java.util.Map;
 public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQueryRequest> {
 
     private BytesReference source;
-    private boolean sourceUnsafe;
 
     private boolean explain;
+    private boolean rewrite;
 
     private String[] types = Strings.EMPTY_ARRAY;
 
@@ -74,14 +74,6 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
         return validationException;
     }
 
-    @Override
-    protected void beforeStart() {
-        if (sourceUnsafe) {
-            source = source.copyBytesArray();
-            sourceUnsafe = false;
-        }
-    }
-
     /**
      * The source to execute.
      */
@@ -91,7 +83,6 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
 
     public ValidateQueryRequest source(QuerySourceBuilder sourceBuilder) {
         this.source = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
-        this.sourceUnsafe = false;
         return this;
     }
 
@@ -110,7 +101,6 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
 
     public ValidateQueryRequest source(XContentBuilder builder) {
         this.source = builder.bytes();
-        this.sourceUnsafe = false;
         return this;
     }
 
@@ -120,7 +110,6 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
      */
     public ValidateQueryRequest source(String source) {
         this.source = new BytesArray(source);
-        this.sourceUnsafe = false;
         return this;
     }
 
@@ -128,22 +117,21 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
      * The source to validate.
      */
     public ValidateQueryRequest source(byte[] source) {
-        return source(source, 0, source.length, false);
+        return source(source, 0, source.length);
     }
 
     /**
      * The source to validate.
      */
-    public ValidateQueryRequest source(byte[] source, int offset, int length, boolean unsafe) {
-        return source(new BytesArray(source, offset, length), unsafe);
+    public ValidateQueryRequest source(byte[] source, int offset, int length) {
+        return source(new BytesArray(source, offset, length));
     }
 
     /**
      * The source to validate.
      */
-    public ValidateQueryRequest source(BytesReference source, boolean unsafe) {
+    public ValidateQueryRequest source(BytesReference source) {
         this.source = source;
-        this.sourceUnsafe = unsafe;
         return this;
     }
 
@@ -176,11 +164,24 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
         return explain;
     }
 
+    /**
+     * Indicates whether the query should be rewritten into primitive queries
+     */
+    public void rewrite(boolean rewrite) {
+        this.rewrite = rewrite;
+    }
+
+    /**
+     * Indicates whether the query should be rewritten into primitive queries
+     */
+    public boolean rewrite() {
+        return rewrite;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
 
-        sourceUnsafe = false;
         source = in.readBytesReference();
 
         int typesSize = in.readVInt();
@@ -192,7 +193,7 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
         }
 
         explain = in.readBoolean();
-
+        rewrite = in.readBoolean();
     }
 
     @Override
@@ -207,6 +208,7 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
         }
 
         out.writeBoolean(explain);
+        out.writeBoolean(rewrite);
     }
 
     @Override
@@ -217,6 +219,7 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
         } catch (Exception e) {
             // ignore
         }
-        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", source[" + sSource + "], explain:" + explain;
+        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", source[" + sSource + "], explain:" + explain + 
+                ", rewrite:" + rewrite;
     }
 }

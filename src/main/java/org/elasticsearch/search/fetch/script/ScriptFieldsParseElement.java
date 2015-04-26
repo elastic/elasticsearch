@@ -20,10 +20,8 @@
 package org.elasticsearch.search.fetch.script;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.ScriptParameterParser;
+import org.elasticsearch.script.*;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -56,7 +54,6 @@ public class ScriptFieldsParseElement implements SearchParseElement {
                 String fieldName = currentFieldName;
                 ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
                 String script = null;
-                String scriptLang = null;
                 ScriptService.ScriptType scriptType = null;
                 Map<String, Object> params = null;
                 boolean ignoreException = false;
@@ -79,9 +76,7 @@ public class ScriptFieldsParseElement implements SearchParseElement {
                     script = scriptValue.script();
                     scriptType = scriptValue.scriptType();
                 }
-                scriptLang = scriptParameterParser.lang();
-                
-                SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, params);
+                SearchScript searchScript = context.scriptService().search(context.lookup(), new Script(scriptParameterParser.lang(), script, scriptType, params), ScriptContext.Standard.SEARCH);
                 context.scriptFields().add(new ScriptFieldsContext.ScriptField(fieldName, searchScript, ignoreException));
             }
         }

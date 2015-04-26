@@ -20,7 +20,13 @@
 package org.elasticsearch.common.lucene.search;
 
 import com.carrotsearch.hppc.ObjectOpenHashSet;
-import org.apache.lucene.index.*;
+
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -28,7 +34,12 @@ import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
 
 public class MultiPhrasePrefixQuery extends Query {
 
@@ -155,7 +166,6 @@ public class MultiPhrasePrefixQuery extends Query {
     private void getPrefixTerms(ObjectOpenHashSet<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
         // SlowCompositeReaderWrapper could be used... but this would merge all terms from each segment into one terms
         // instance, which is very expensive. Therefore I think it is better to iterate over each leaf individually.
-        TermsEnum termsEnum = null;
         List<LeafReaderContext> leaves = reader.leaves();
         for (LeafReaderContext leaf : leaves) {
             Terms _terms = leaf.reader().terms(field);
@@ -163,7 +173,7 @@ public class MultiPhrasePrefixQuery extends Query {
                 continue;
             }
 
-            termsEnum = _terms.iterator(termsEnum);
+            TermsEnum termsEnum = _terms.iterator();
             TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil(prefix.bytes());
             if (TermsEnum.SeekStatus.END == seekStatus) {
                 continue;

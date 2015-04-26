@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -46,7 +47,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-import static junit.framework.Assert.assertFalse;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 /**
@@ -128,7 +128,7 @@ final class ExternalNode implements Closeable {
             params.add("-Des." + entry.getKey() + "=" + entry.getValue());
         }
 
-        params.add("-Des.path.home=" + Paths.get(".").toAbsolutePath());
+        params.add("-Des.path.home=" + PathUtils.get(".").toAbsolutePath());
         params.add("-Des.path.conf=" + path + "/config");
 
         ProcessBuilder builder = new ProcessBuilder(params);
@@ -136,12 +136,13 @@ final class ExternalNode implements Closeable {
         builder.inheritIO();
         boolean success = false;
         try {
-            logger.debug("starting external node [{}] with: {}", nodeName, builder.command());
+            logger.info("starting external node [{}] with: {}", nodeName, builder.command());
             process = builder.start();
             this.nodeInfo = null;
             if (waitForNode(client, nodeName)) {
                 nodeInfo = nodeInfo(client, nodeName);
                 assert nodeInfo != null;
+                logger.info("external node {} found, version [{}], build {}", nodeInfo.getNode(), nodeInfo.getVersion(), nodeInfo.getBuild());
             } else {
                 throw new IllegalStateException("Node [" + nodeName + "] didn't join the cluster");
             }

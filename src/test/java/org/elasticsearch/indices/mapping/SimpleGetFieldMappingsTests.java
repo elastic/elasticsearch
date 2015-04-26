@@ -21,24 +21,25 @@ package org.elasticsearch.indices.mapping;
 
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.*;
 
-/**
- *
- */
 public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
-
-    @Test
+    
     public void getMappingsWhereThereAreNone() {
         createIndex("index");
         ensureYellow();
@@ -55,8 +56,7 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
                 .startObject("obj").startObject("properties").startObject("subfield").field("type", "string").field("index", "not_analyzed").endObject().endObject().endObject()
                 .endObject().endObject().endObject();
     }
-
-    @Test
+    
     public void simpleGetFieldMappings() throws Exception {
 
         assertAcked(prepareCreate("indexa")
@@ -80,55 +80,54 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
         assertThat(response.fieldMappings("indexb", "typeB", "field1"), nullValue());
 
         // Get mappings by name
-        response = client().admin().indices().prepareGetFieldMappings("indexa").setTypes("typeA").setFields("field1", "subfield").get();
+        response = client().admin().indices().prepareGetFieldMappings("indexa").setTypes("typeA").setFields("field1", "obj.subfield").get();
         assertThat(response.fieldMappings("indexa", "typeA", "field1").fullName(), equalTo("field1"));
         assertThat(response.fieldMappings("indexa", "typeA", "field1").sourceAsMap(), hasKey("field1"));
-        assertThat(response.fieldMappings("indexa", "typeA", "subfield").fullName(), equalTo("obj.subfield"));
-        assertThat(response.fieldMappings("indexa", "typeA", "subfield").sourceAsMap(), hasKey("subfield"));
+        assertThat(response.fieldMappings("indexa", "typeA", "obj.subfield").fullName(), equalTo("obj.subfield"));
+        assertThat(response.fieldMappings("indexa", "typeA", "obj.subfield").sourceAsMap(), hasKey("subfield"));
         assertThat(response.fieldMappings("indexa", "typeB", "field1"), nullValue());
         assertThat(response.fieldMappings("indexb", "typeB", "field1"), nullValue());
 
         // get mappings by name across multiple indices
-        response = client().admin().indices().prepareGetFieldMappings().setTypes("typeA").setFields("subfield").get();
-        assertThat(response.fieldMappings("indexa", "typeA", "subfield").fullName(), equalTo("obj.subfield"));
-        assertThat(response.fieldMappings("indexa", "typeA", "subfield").sourceAsMap(), hasKey("subfield"));
-        assertThat(response.fieldMappings("indexa", "typeB", "subfield"), nullValue());
-        assertThat(response.fieldMappings("indexb", "typeA", "subfield").fullName(), equalTo("obj.subfield"));
-        assertThat(response.fieldMappings("indexb", "typeA", "subfield").sourceAsMap(), hasKey("subfield"));
-        assertThat(response.fieldMappings("indexb", "typeB", "subfield"), nullValue());
+        response = client().admin().indices().prepareGetFieldMappings().setTypes("typeA").setFields("obj.subfield").get();
+        assertThat(response.fieldMappings("indexa", "typeA", "obj.subfield").fullName(), equalTo("obj.subfield"));
+        assertThat(response.fieldMappings("indexa", "typeA", "obj.subfield").sourceAsMap(), hasKey("subfield"));
+        assertThat(response.fieldMappings("indexa", "typeB", "obj.subfield"), nullValue());
+        assertThat(response.fieldMappings("indexb", "typeA", "obj.subfield").fullName(), equalTo("obj.subfield"));
+        assertThat(response.fieldMappings("indexb", "typeA", "obj.subfield").sourceAsMap(), hasKey("subfield"));
+        assertThat(response.fieldMappings("indexb", "typeB", "obj.subfield"), nullValue());
 
         // get mappings by name across multiple types
-        response = client().admin().indices().prepareGetFieldMappings("indexa").setFields("subfield").get();
-        assertThat(response.fieldMappings("indexa", "typeA", "subfield").fullName(), equalTo("obj.subfield"));
-        assertThat(response.fieldMappings("indexa", "typeA", "subfield").sourceAsMap(), hasKey("subfield"));
+        response = client().admin().indices().prepareGetFieldMappings("indexa").setFields("obj.subfield").get();
+        assertThat(response.fieldMappings("indexa", "typeA", "obj.subfield").fullName(), equalTo("obj.subfield"));
+        assertThat(response.fieldMappings("indexa", "typeA", "obj.subfield").sourceAsMap(), hasKey("subfield"));
         assertThat(response.fieldMappings("indexa", "typeA", "field1"), nullValue());
-        assertThat(response.fieldMappings("indexa", "typeB", "subfield").fullName(), equalTo("obj.subfield"));
-        assertThat(response.fieldMappings("indexa", "typeB", "subfield").sourceAsMap(), hasKey("subfield"));
+        assertThat(response.fieldMappings("indexa", "typeB", "obj.subfield").fullName(), equalTo("obj.subfield"));
+        assertThat(response.fieldMappings("indexa", "typeB", "obj.subfield").sourceAsMap(), hasKey("subfield"));
         assertThat(response.fieldMappings("indexa", "typeB", "field1"), nullValue());
-        assertThat(response.fieldMappings("indexb", "typeA", "subfield"), nullValue());
+        assertThat(response.fieldMappings("indexb", "typeA", "obj.subfield"), nullValue());
         assertThat(response.fieldMappings("indexb", "typeA", "field1"), nullValue());
-        assertThat(response.fieldMappings("indexb", "typeB", "subfield"), nullValue());
+        assertThat(response.fieldMappings("indexb", "typeB", "obj.subfield"), nullValue());
         assertThat(response.fieldMappings("indexb", "typeB", "field1"), nullValue());
 
         // get mappings by name across multiple types & indices
-        response = client().admin().indices().prepareGetFieldMappings().setFields("subfield").get();
-        assertThat(response.fieldMappings("indexa", "typeA", "subfield").fullName(), equalTo("obj.subfield"));
-        assertThat(response.fieldMappings("indexa", "typeA", "subfield").sourceAsMap(), hasKey("subfield"));
+        response = client().admin().indices().prepareGetFieldMappings().setFields("obj.subfield").get();
+        assertThat(response.fieldMappings("indexa", "typeA", "obj.subfield").fullName(), equalTo("obj.subfield"));
+        assertThat(response.fieldMappings("indexa", "typeA", "obj.subfield").sourceAsMap(), hasKey("subfield"));
         assertThat(response.fieldMappings("indexa", "typeA", "field1"), nullValue());
-        assertThat(response.fieldMappings("indexa", "typeB", "subfield").fullName(), equalTo("obj.subfield"));
-        assertThat(response.fieldMappings("indexa", "typeB", "subfield").sourceAsMap(), hasKey("subfield"));
+        assertThat(response.fieldMappings("indexa", "typeB", "obj.subfield").fullName(), equalTo("obj.subfield"));
+        assertThat(response.fieldMappings("indexa", "typeB", "obj.subfield").sourceAsMap(), hasKey("subfield"));
         assertThat(response.fieldMappings("indexa", "typeB", "field1"), nullValue());
-        assertThat(response.fieldMappings("indexb", "typeA", "subfield").fullName(), equalTo("obj.subfield"));
-        assertThat(response.fieldMappings("indexb", "typeA", "subfield").sourceAsMap(), hasKey("subfield"));
+        assertThat(response.fieldMappings("indexb", "typeA", "obj.subfield").fullName(), equalTo("obj.subfield"));
+        assertThat(response.fieldMappings("indexb", "typeA", "obj.subfield").sourceAsMap(), hasKey("subfield"));
         assertThat(response.fieldMappings("indexb", "typeB", "field1"), nullValue());
-        assertThat(response.fieldMappings("indexb", "typeB", "subfield").fullName(), equalTo("obj.subfield"));
-        assertThat(response.fieldMappings("indexb", "typeB", "subfield").sourceAsMap(), hasKey("subfield"));
+        assertThat(response.fieldMappings("indexb", "typeB", "obj.subfield").fullName(), equalTo("obj.subfield"));
+        assertThat(response.fieldMappings("indexb", "typeB", "obj.subfield").sourceAsMap(), hasKey("subfield"));
         assertThat(response.fieldMappings("indexb", "typeB", "field1"), nullValue());
 
     }
 
     @SuppressWarnings("unchecked")
-    @Test
     public void simpleGetFieldMappingsWithDefaults() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type", getMappingForType("type")));
 
@@ -136,20 +135,19 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
         ensureYellow();
         waitForConcreteMappingsOnAll("test", "type", "num"); // for num, we need to wait...
 
-        GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings().setFields("num", "field1", "subfield").includeDefaults(true).get();
+        GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings().setFields("num", "field1", "obj.subfield").includeDefaults(true).get();
 
         assertThat((Map<String, Object>) response.fieldMappings("test", "type", "num").sourceAsMap().get("num"), hasEntry("index", (Object) "not_analyzed"));
         assertThat((Map<String, Object>) response.fieldMappings("test", "type", "num").sourceAsMap().get("num"), hasEntry("type", (Object) "long"));
         assertThat((Map<String, Object>) response.fieldMappings("test", "type", "field1").sourceAsMap().get("field1"), hasEntry("index", (Object) "analyzed"));
         assertThat((Map<String, Object>) response.fieldMappings("test", "type", "field1").sourceAsMap().get("field1"), hasEntry("type", (Object) "string"));
-        assertThat((Map<String, Object>) response.fieldMappings("test", "type", "subfield").sourceAsMap().get("subfield"), hasEntry("index", (Object) "not_analyzed"));
-        assertThat((Map<String, Object>) response.fieldMappings("test", "type", "subfield").sourceAsMap().get("subfield"), hasEntry("type", (Object) "string"));
+        assertThat((Map<String, Object>) response.fieldMappings("test", "type", "obj.subfield").sourceAsMap().get("subfield"), hasEntry("index", (Object) "not_analyzed"));
+        assertThat((Map<String, Object>) response.fieldMappings("test", "type", "obj.subfield").sourceAsMap().get("subfield"), hasEntry("type", (Object) "string"));
 
 
     }
 
     //fix #6552
-    @Test
     public void simpleGetFieldMappingsWithPretty() throws Exception {
         assertAcked(prepareCreate("index").addMapping("type", getMappingForType("type")));
         Map<String, String> params = Maps.newHashMap();
@@ -180,5 +178,30 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
         prettyJsonBuilder.copyCurrentStructure(XContentFactory.xContent(responseStrings).createParser(responseStrings));
         assertThat(responseStrings, not(equalTo(prettyJsonBuilder.string())));
 
+    }
+
+    @Test
+    public void testGetFieldMappingsWithBlocks() throws Exception {
+        assertAcked(prepareCreate("test")
+                .addMapping("typeA", getMappingForType("typeA"))
+                .addMapping("typeB", getMappingForType("typeB")));
+        ensureYellow();
+
+        for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {
+            try {
+                enableIndexBlock("test", block);
+                GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("test").setTypes("typeA").setFields("field1", "obj.subfield").get();
+                assertThat(response.fieldMappings("test", "typeA", "field1").fullName(), equalTo("field1"));
+            } finally {
+                disableIndexBlock("test", block);
+            }
+        }
+
+        try {
+            enableIndexBlock("test", SETTING_BLOCKS_METADATA);
+            assertBlocked(client().admin().indices().prepareGetMappings(), INDEX_METADATA_BLOCK);
+        } finally {
+            disableIndexBlock("test", SETTING_BLOCKS_METADATA);
+        }
     }
 }

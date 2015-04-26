@@ -45,6 +45,7 @@ public class Matchers {
     private static final Matcher<Object> ANY = new Any();
 
     private static class Any extends AbstractMatcher<Object> implements Serializable {
+        @Override
         public boolean matches(Object o) {
             return true;
         }
@@ -75,6 +76,7 @@ public class Matchers {
             this.delegate = checkNotNull(delegate, "delegate");
         }
 
+        @Override
         public boolean matches(T t) {
             return !delegate.matches(t);
         }
@@ -123,6 +125,7 @@ public class Matchers {
             checkForRuntimeRetention(annotationType);
         }
 
+        @Override
         public boolean matches(AnnotatedElement element) {
             return element.getAnnotation(annotationType) != null;
         }
@@ -164,6 +167,7 @@ public class Matchers {
             checkForRuntimeRetention(annotation.annotationType());
         }
 
+        @Override
         public boolean matches(AnnotatedElement element) {
             Annotation fromElement = element.getAnnotation(annotation.annotationType());
             return fromElement != null && annotation.equals(fromElement);
@@ -204,6 +208,7 @@ public class Matchers {
             this.superclass = checkNotNull(superclass, "superclass");
         }
 
+        @Override
         public boolean matches(Class subclass) {
             return superclass.isAssignableFrom(subclass);
         }
@@ -242,6 +247,7 @@ public class Matchers {
             this.value = checkNotNull(value, "value");
         }
 
+        @Override
         public boolean matches(Object other) {
             return value.equals(other);
         }
@@ -280,6 +286,7 @@ public class Matchers {
             this.value = checkNotNull(value, "value");
         }
 
+        @Override
         public boolean matches(Object other) {
             return value == other;
         }
@@ -320,6 +327,7 @@ public class Matchers {
             this.packageName = targetPackage.getName();
         }
 
+        @Override
         public boolean matches(Class c) {
             return c.getPackage().equals(targetPackage);
         }
@@ -364,6 +372,7 @@ public class Matchers {
             this.targetPackageName = targetPackageName;
         }
 
+        @Override
         public boolean matches(Class c) {
             String classPackageName = c.getPackage().getName();
             return classPackageName.equals(targetPackageName)
@@ -404,6 +413,7 @@ public class Matchers {
             this.returnType = checkNotNull(returnType, "return type matcher");
         }
 
+        @Override
         public boolean matches(Method m) {
             return returnType.matches(m.getReturnType());
         }

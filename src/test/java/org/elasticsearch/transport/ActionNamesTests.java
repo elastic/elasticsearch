@@ -47,10 +47,9 @@ public class ActionNamesTests extends ElasticsearchIntegrationTest {
     @SuppressWarnings("unchecked")
     public void testActionNamesCategories() throws NoSuchFieldException, IllegalAccessException {
         TransportService transportService = internalCluster().getInstance(TransportService.class);
-        for (String action : transportService.serverHandlers.keySet()) {
+        for (String action : transportService.requestHandlers.keySet()) {
             assertThat("action doesn't belong to known category", action, either(startsWith("indices:admin")).or(startsWith("indices:monitor"))
                     .or(startsWith("indices:data/read")).or(startsWith("indices:data/write"))
-                    .or(startsWith("indices:data/benchmark"))
                     .or(startsWith("cluster:admin")).or(startsWith("cluster:monitor"))
                     .or(startsWith("internal:")));
         }

@@ -20,17 +20,18 @@
 package org.elasticsearch.search.scroll;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.search.ClearScrollResponse;
-import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.search.RestClearScrollAction;
+import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -45,11 +46,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -490,4 +487,94 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
         assertHitCount(response, 1);
         assertThat(response.getHits().getHits().length, equalTo(0));
     }
+
+    @Test
+    public void testParseSearchScrollRequest() throws Exception {
+        BytesReference content = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("scroll_id", "SCROLL_ID")
+            .field("scroll", "1m")
+            .endObject().bytes();
+
+        SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
+        RestSearchScrollAction.buildFromContent(content, searchScrollRequest);
+
+        assertThat(searchScrollRequest.scrollId(), equalTo("SCROLL_ID"));
+        assertThat(searchScrollRequest.scroll().keepAlive(), equalTo(TimeValue.parseTimeValue("1m", null)));
+    }
+
+    @Test
+    public void testParseSearchScrollRequestWithInvalidJsonThrowsException() throws Exception {
+        SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
+        BytesReference invalidContent = XContentFactory.jsonBuilder().startObject()
+            .value("invalid_json").endObject().bytes();
+
+        try {
+            RestSearchScrollAction.buildFromContent(invalidContent, searchScrollRequest);
+            fail("expected parseContent failure");
+        } catch (Exception e) {
+            assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(e.getMessage(), equalTo("Failed to parse request body"));
+        }
+    }
+
+    @Test
+    public void testParseSearchScrollRequestWithUnknownParamThrowsException() throws Exception {
+        SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
+        BytesReference invalidContent = XContentFactory.jsonBuilder().startObject()
+            .field("scroll_id", "value_2")
+            .field("unknown", "keyword")
+            .endObject().bytes();
+
+        try {
+            RestSearchScrollAction.buildFromContent(invalidContent, searchScrollRequest);
+            fail("expected parseContent failure");
+        } catch (Exception e) {
+            assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
+        }
+    }
+
+    @Test
+    public void testParseClearScrollRequest() throws Exception {
+        BytesReference content = XContentFactory.jsonBuilder().startObject()
+            .array("scroll_id", "value_1", "value_2")
+            .endObject().bytes();
+        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+        RestClearScrollAction.buildFromContent(content, clearScrollRequest);
+        assertThat(clearScrollRequest.scrollIds(), contains("value_1", "value_2"));
+    }
+
+    @Test
+    public void testParseClearScrollRequestWithInvalidJsonThrowsException() throws Exception {
+        BytesReference invalidContent = XContentFactory.jsonBuilder().startObject()
+            .value("invalid_json").endObject().bytes();
+        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+
+        try {
+            RestClearScrollAction.buildFromContent(invalidContent, clearScrollRequest);
+            fail("expected parseContent failure");
+        } catch (Exception e) {
+            assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(e.getMessage(), equalTo("Failed to parse request body"));
+        }
+    }
+
+    @Test
+    public void testParseClearScrollRequestWithUnknownParamThrowsException() throws Exception {
+        BytesReference invalidContent = XContentFactory.jsonBuilder().startObject()
+            .array("scroll_id", "value_1", "value_2")
+            .field("unknown", "keyword")
+            .endObject().bytes();
+        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+
+        try {
+            RestClearScrollAction.buildFromContent(invalidContent, clearScrollRequest);
+            fail("expected parseContent failure");
+        } catch (Exception e) {
+            assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
+        }
+    }
+
 }

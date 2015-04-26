@@ -19,6 +19,7 @@
 package org.elasticsearch.index.search;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import com.carrotsearch.hppc.DoubleOpenHashSet;
 import com.carrotsearch.hppc.LongOpenHashSet;
@@ -86,19 +87,19 @@ public abstract class FieldDataTermsFilter extends Filter {
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || !(obj instanceof FieldDataTermsFilter)) return false;
+        if (super.equals(obj) == false) return false;
 
         FieldDataTermsFilter that = (FieldDataTermsFilter) obj;
         if (!fieldData.getFieldNames().indexName().equals(that.fieldData.getFieldNames().indexName())) return false;
-        if (this.hashCode() != obj.hashCode()) return false;
         return true;
     }
 
     @Override
-    public abstract int hashCode();
-
-    @Override
-    public abstract String toString();
+    public int hashCode() {
+        int h = super.hashCode();
+        h = 31 * h + fieldData.getFieldNames().indexName().hashCode();
+        return h;
+    }
 
     /**
      * Filters on non-numeric fields.
@@ -113,14 +114,20 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
-        public int hashCode() {
-            int hashcode = fieldData.getFieldNames().indexName().hashCode();
-            hashcode += terms != null ? terms.hashCode() : 0;
-            return hashcode;
+        public boolean equals(Object obj) {
+            if (super.equals(obj) == false) {
+                return false;
+            }
+            return Objects.equals(terms, ((BytesFieldDataFilter) obj).terms);
         }
 
         @Override
-        public String toString() {
+        public int hashCode() {
+            return 31 * super.hashCode() + Objects.hashCode(terms);
+        }
+
+        @Override
+        public String toString(String field) {
             final StringBuilder sb = new StringBuilder("BytesFieldDataFilter:");
             return sb
                     .append(fieldData.getFieldNames().indexName())
@@ -170,14 +177,20 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
-        public int hashCode() {
-            int hashcode = fieldData.getFieldNames().indexName().hashCode();
-            hashcode += terms != null ? terms.hashCode() : 0;
-            return hashcode;
+        public boolean equals(Object obj) {
+            if (super.equals(obj) == false) {
+                return false;
+            }
+            return Objects.equals(terms, ((BytesFieldDataFilter) obj).terms);
         }
 
         @Override
-        public String toString() {
+        public int hashCode() {
+            return 31 * super.hashCode() + Objects.hashCode(terms);
+        }
+
+        @Override
+        public String toString(String field) {
             final StringBuilder sb = new StringBuilder("LongsFieldDataFilter:");
             return sb
                     .append(fieldData.getFieldNames().indexName())
@@ -229,14 +242,20 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
-        public int hashCode() {
-            int hashcode = fieldData.getFieldNames().indexName().hashCode();
-            hashcode += terms != null ? terms.hashCode() : 0;
-            return hashcode;
+        public boolean equals(Object obj) {
+            if (super.equals(obj) == false) {
+                return false;
+            }
+            return Objects.equals(terms, ((BytesFieldDataFilter) obj).terms);
         }
 
         @Override
-        public String toString() {
+        public int hashCode() {
+            return 31 * super.hashCode() + Objects.hashCode(terms);
+        }
+
+        @Override
+        public String toString(String field) {
             final StringBuilder sb = new StringBuilder("DoublesFieldDataFilter");
             return sb
                     .append(fieldData.getFieldNames().indexName())

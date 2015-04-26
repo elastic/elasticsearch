@@ -20,7 +20,6 @@
 package org.elasticsearch.common.jna;
 
 import com.google.common.collect.ImmutableList;
-import com.sun.jna.Library;
 import com.sun.jna.Native;
 import com.sun.jna.win32.StdCallLibrary;
 import org.elasticsearch.common.logging.ESLogger;
@@ -37,17 +36,18 @@ public class Kernel32Library {
 
     private static ESLogger logger = Loggers.getLogger(Kernel32Library.class);
 
-    private Kernel32 internal;
-
+    // Callbacks must be kept around in order to be able to be called later,
+    // when the Windows ConsoleCtrlHandler sends an event.
     private List<NativeHandlerCallback> callbacks = new ArrayList<>();
 
+    // Native library instance must be kept around for the same reason.
     private final static class Holder {
         private final static Kernel32Library instance = new Kernel32Library();
     }
 
     private Kernel32Library() {
         try {
-            internal = (Kernel32)Native.synchronizedLibrary((Kernel32)Native.loadLibrary("kernel32", Kernel32.class));
+            Native.register("kernel32");
             logger.debug("windows/Kernel32 library loaded");
         } catch (NoClassDefFoundError e) {
             logger.warn("JNA not found. native methods and handlers will be disabled.");
@@ -60,14 +60,19 @@ public class Kernel32Library {
         return Holder.instance;
     }
 
+    /**
+     * Adds a Console Ctrl Handler.
+     *
+     * @param handler
+     * @return true if the handler is correctly set
+     * @throws java.lang.UnsatisfiedLinkError if the Kernel32 library is not loaded or if the native function is not found
+     * @throws java.lang.NoClassDefFoundError if the library for native calls is missing
+     */
     public boolean addConsoleCtrlHandler(ConsoleCtrlHandler handler) {
-        if (internal == null) {
-            throw new UnsupportedOperationException("windows/Kernel32 library not loaded, console ctrl handler cannot be set");
-        }
         boolean result = false;
         if (handler != null) {
             NativeHandlerCallback callback = new NativeHandlerCallback(handler);
-            result = internal.SetConsoleCtrlHandler(callback, true);
+            result = SetConsoleCtrlHandler(callback, true);
             if (result) {
                 callbacks.add(callback);
             }
@@ -79,17 +84,16 @@ public class Kernel32Library {
         return ImmutableList.builder().addAll(callbacks).build();
     }
 
-    interface Kernel32 extends Library {
-
-        /**
-         * Registers a Console Ctrl Handler.
-         *
-         * @param handler
-         * @param add
-         * @return true if the handler is correctly set
-         */
-        public boolean SetConsoleCtrlHandler(StdCallLibrary.StdCallCallback handler, boolean add);
-    }
+    /**
+     * Native call to the Kernel32 API to set a new Console Ctrl Handler.
+     *
+     * @param handler
+     * @param add
+     * @return true if the handler is correctly set
+     * @throws java.lang.UnsatisfiedLinkError if the Kernel32 library is not loaded or if the native function is not found
+     * @throws java.lang.NoClassDefFoundError if the library for native calls is missing
+     */
+    public native boolean SetConsoleCtrlHandler(StdCallLibrary.StdCallCallback handler, boolean add);
 
     /**
      * Handles consoles event with WIN API

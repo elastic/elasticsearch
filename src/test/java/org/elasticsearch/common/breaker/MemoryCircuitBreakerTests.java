@@ -94,7 +94,7 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
         final CircuitBreakerService service = new HierarchyCircuitBreakerService(ImmutableSettings.EMPTY, new NodeSettingsService(ImmutableSettings.EMPTY)) {
 
             @Override
-            public CircuitBreaker getBreaker(CircuitBreaker.Name type) {
+            public CircuitBreaker getBreaker(String name) {
                 return breakerRef.get();
             }
 
@@ -103,9 +103,9 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
                 // never trip
             }
         };
-        final BreakerSettings settings = new BreakerSettings(CircuitBreaker.Name.REQUEST, (BYTES_PER_THREAD * NUM_THREADS) - 1, 1.0);
+        final BreakerSettings settings = new BreakerSettings(CircuitBreaker.REQUEST, (BYTES_PER_THREAD * NUM_THREADS) - 1, 1.0);
         final ChildMemoryCircuitBreaker breaker = new ChildMemoryCircuitBreaker(settings, logger,
-                (HierarchyCircuitBreakerService)service, CircuitBreaker.Name.REQUEST);
+                (HierarchyCircuitBreakerService)service, CircuitBreaker.REQUEST);
         breakerRef.set(breaker);
 
         for (int i = 0; i < NUM_THREADS; i++) {
@@ -155,23 +155,23 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
         final CircuitBreakerService service = new HierarchyCircuitBreakerService(ImmutableSettings.EMPTY, new NodeSettingsService(ImmutableSettings.EMPTY)) {
 
             @Override
-            public CircuitBreaker getBreaker(CircuitBreaker.Name type) {
+            public CircuitBreaker getBreaker(String name) {
                 return breakerRef.get();
             }
 
             @Override
             public void checkParentLimit(String label) throws CircuitBreakingException {
                 // Parent will trip right before regular breaker would trip
-                if (getBreaker(CircuitBreaker.Name.REQUEST).getUsed() > parentLimit) {
+                if (getBreaker(CircuitBreaker.REQUEST).getUsed() > parentLimit) {
                     parentTripped.incrementAndGet();
                     logger.info("--> parent tripped");
                     throw new CircuitBreakingException("parent tripped");
                 }
             }
         };
-        final BreakerSettings settings = new BreakerSettings(CircuitBreaker.Name.REQUEST, childLimit, 1.0);
+        final BreakerSettings settings = new BreakerSettings(CircuitBreaker.REQUEST, childLimit, 1.0);
         final ChildMemoryCircuitBreaker breaker = new ChildMemoryCircuitBreaker(settings, logger,
-                (HierarchyCircuitBreakerService)service, CircuitBreaker.Name.REQUEST);
+                (HierarchyCircuitBreakerService)service, CircuitBreaker.REQUEST);
         breakerRef.set(breaker);
 
         for (int i = 0; i < NUM_THREADS; i++) {

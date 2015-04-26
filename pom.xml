@@ -43,6 +43,8 @@
         <tests.heapdump.path>${basedir}/logs/</tests.heapdump.path>
         <tests.topn>5</tests.topn>
         <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
+        <deb.sign>false</deb.sign>
+        <deb.sign.method>dpkg-sig</deb.sign.method>
     </properties>
 
     <repositories>
@@ -871,6 +873,11 @@
                             <goal>jdeb</goal>
                         </goals>
                         <configuration>
+                            <signPackage>${deb.sign}</signPackage>
+                            <keyring>${gpg.keyring}</keyring>
+                            <key>${gpg.key}</key>
+                            <passphrase>${gpg.passphrase}</passphrase>
+                            <signMethod>${deb.sign.method}</signMethod>
                             <dataSet>
                                 <data>
                                     <src>${project.basedir}/</src>
@@ -1005,6 +1012,11 @@
                     <defaultDirmode>755</defaultDirmode>
                     <defaultUsername>root</defaultUsername>
                     <defaultGroupname>root</defaultGroupname>
+                    <keyname>${gpg.key}</keyname>
+                    <keypath>${gpg.keyring}</keypath>
+                    <keyPassphrase>
+                        <passphrase>${gpg.passphrase}</passphrase>
+                    </keyPassphrase>
                     <mappings>
                         <mapping>
                             <directory>/etc/elasticsearch/</directory>

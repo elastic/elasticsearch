@@ -182,4 +182,9 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
                 ", operationCounter=" + operationCounter +
                 '}';
     }
+
+    public boolean closed() {
+        return this.closed.get();
+    }
+
 }

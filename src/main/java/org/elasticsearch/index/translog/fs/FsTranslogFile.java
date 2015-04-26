@@ -80,4 +80,6 @@ public interface FsTranslogFile {
     boolean syncNeeded();
 
     TranslogStream getStream();
+
+    public boolean closed();
 }

@@ -238,6 +238,11 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
         }
     }
 
+    @Override
+    public boolean closed() {
+        return this.closed.get();
+    }
+
     class WrapperOutputStream extends OutputStream {
 
         @Override

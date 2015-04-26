@@ -182,4 +182,10 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
     public void updateBufferSize(int bufferSize) throws TranslogException {
         // nothing to do here...
     }
+
+    @Override
+    public boolean closed() {
+        return this.closed.get();
+    }
+
 }

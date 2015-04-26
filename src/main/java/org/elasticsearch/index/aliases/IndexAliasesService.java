@@ -132,8 +132,7 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
         for (String alias : aliases) {
             IndexAlias indexAlias = alias(alias);
             if (indexAlias == null) {
-                // This shouldn't happen unless alias disappeared after filteringAliases was called.
-                throw new InvalidAliasNameException(index, aliases[0], "Unknown alias name was passed to alias view");
+                continue;
             }
             AliasFieldsFiltering fieldsFiltering = indexAlias.fieldFiltering();
             if (fieldsFiltering == null) {

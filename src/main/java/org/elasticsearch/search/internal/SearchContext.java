@@ -164,7 +164,7 @@ public abstract class SearchContext implements Releasable {
 
     public abstract InnerHitsContext innerHits();
 
-    public abstract Set<FieldMapper<?>> includeFields();
+    public abstract boolean fieldsViewEnabled();
 
     public abstract SuggestionSearchContext suggest();
 

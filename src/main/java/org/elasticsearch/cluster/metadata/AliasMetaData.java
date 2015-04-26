@@ -84,7 +84,7 @@ public class AliasMetaData {
     }
 
     public boolean filteringRequired() {
-        return filter != null || fieldsFiltering != null;
+        return filter != null || fieldsFiltering.getIncludes().length > 0;
     }
 
     public String getSearchRouting() {
@@ -163,7 +163,7 @@ public class AliasMetaData {
 
         private String searchRouting;
 
-        private AliasFieldsFiltering fieldsFiltering;
+        private AliasFieldsFiltering fieldsFiltering = new AliasFieldsFiltering(Strings.EMPTY_ARRAY);
 
         public Builder(String alias) {
             this.alias = alias;
@@ -269,10 +269,7 @@ public class AliasMetaData {
             if (aliasMetaData.searchRouting() != null) {
                 builder.field("search_routing", aliasMetaData.searchRouting());
             }
-            if (aliasMetaData.getFieldsFiltering() != null) {
-                aliasMetaData.getFieldsFiltering().toXContent(builder, params);
-            }
-
+            aliasMetaData.getFieldsFiltering().toXContent(builder, params);
             builder.endObject();
         }
 
@@ -332,7 +329,7 @@ public class AliasMetaData {
             } else {
                 out.writeBoolean(false);
             }
-            out.writeOptionalStreamable(aliasMetaData.fieldsFiltering);
+            aliasMetaData.fieldsFiltering.writeTo(out);
         }
 
         public static AliasMetaData readFrom(StreamInput in) throws IOException {

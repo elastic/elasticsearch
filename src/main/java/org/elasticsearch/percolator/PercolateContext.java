@@ -69,7 +69,6 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -693,7 +692,7 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public Set<FieldMapper<?>> includeFields() {
-        return null;
+    public boolean fieldsViewEnabled() {
+        return false;
     }
 }

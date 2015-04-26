@@ -35,6 +35,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.fields.FieldsViewService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -52,8 +53,9 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
 
     @Inject
     public TransportRefreshAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                  TransportService transportService, IndicesService indicesService, ActionFilters actionFilters) {
-        super(settings, RefreshAction.NAME, threadPool, clusterService, transportService, actionFilters);
+                                  TransportService transportService, IndicesService indicesService, ActionFilters actionFilters,
+                                  FieldsViewService fieldsViewService) {
+        super(settings, RefreshAction.NAME, threadPool, clusterService, transportService, actionFilters, fieldsViewService);
         this.indicesService = indicesService;
     }
 

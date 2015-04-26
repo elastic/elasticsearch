@@ -38,6 +38,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.index.FieldSubsetReader;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
@@ -50,6 +51,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.search.fields.FieldsViewContext;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -253,7 +255,7 @@ public abstract class Engine implements Closeable {
             *  in the catch block and throw the right exception */
             final IndexSearcher searcher = manager.acquire();
             try {
-                final Searcher retVal = newSearcher(source, searcher, manager);
+                final Searcher retVal = filterSearcher(newSearcher(source, searcher, manager));
                 success = true;
                 return retVal;
             } finally {
@@ -271,6 +273,26 @@ public abstract class Engine implements Closeable {
             if (!success) {  // release the ref in the case of an error...
                 store.decRef();
             }
+        }
+    }
+
+    final Searcher filterSearcher(final Searcher searcher) throws EngineException {
+        FieldsViewContext context = FieldsViewContext.current();
+        if (context == null) {
+            return searcher;
+        }
+
+        try {
+            DirectoryReader filter = FieldSubsetReader.wrap((DirectoryReader) searcher.searcher().getIndexReader(), context.getIndexedFieldNames(), context.getFullFieldNames());
+            return new Engine.Searcher(searcher.source(), new IndexSearcher(filter)) {
+
+                @Override
+                public void close() throws ElasticsearchException {
+                    searcher.close();
+                }
+            };
+        } catch (IOException e) {
+            throw new ElasticsearchException("Couldn't create a view on a subset of fields", e);
         }
     }
 

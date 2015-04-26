@@ -62,7 +62,6 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
-import java.util.Set;
 
 public class TestSearchContext extends SearchContext {
 
@@ -609,7 +608,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public Set<FieldMapper<?>> includeFields() {
-        return null;
+    public boolean fieldsViewEnabled() {
+        return false;
     }
 }

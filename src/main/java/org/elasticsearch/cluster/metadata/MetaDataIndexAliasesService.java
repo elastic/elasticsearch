@@ -116,9 +116,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                     indices.put(indexMetaData.index(), indexService);
                                 }
                                 aliasValidator.validateAliasFilter(aliasAction.alias(), filter, indexService.queryParserService());
-                                if (aliasAction.fieldsFiltering() != null) {
-                                    aliasValidator.validateAliasFieldsFiltering(aliasAction.fieldsFiltering(), indexService.mapperService());
-                                }
+                                aliasValidator.validateAliasFieldsFiltering(aliasAction.fieldsFiltering(), indexService.mapperService());
                             }
                             AliasMetaData newAliasMd = AliasMetaData.newAliasMetaDataBuilder(
                                     aliasAction.alias())

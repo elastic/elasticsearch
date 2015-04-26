@@ -44,6 +44,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.fields.FieldsViewService;
 import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
@@ -75,8 +76,8 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     @Inject
     public TransportCountAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                 IndicesService indicesService, ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
-                                BigArrays bigArrays, ActionFilters actionFilters) {
-        super(settings, CountAction.NAME, threadPool, clusterService, transportService, actionFilters);
+                                BigArrays bigArrays, ActionFilters actionFilters, FieldsViewService fieldsViewService) {
+        super(settings, CountAction.NAME, threadPool, clusterService, transportService, actionFilters, fieldsViewService);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.pageCacheRecycler = pageCacheRecycler;

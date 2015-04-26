@@ -52,10 +52,6 @@ public class AliasFieldsFiltering implements Streamable, ToXContent {
         return includes;
     }
 
-    public void setIncludes(String[] includes) {
-        this.includes = includes;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -82,25 +78,26 @@ public class AliasFieldsFiltering implements Streamable, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.FIELDS);
-        if (includes != null) {
+        if (includes.length != 0) {
+            builder.startObject(Fields.FIELDS);
             builder.startArray(Fields.INCLUDES);
             for (String field : includes) {
                 builder.value(field);
             }
             builder.endArray();
+            builder.endObject();
         }
-        builder.endObject();
         return builder;
     }
 
     public static AliasFieldsFiltering fromXContext(XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("Illegal start");
+            throw new ElasticsearchParseException("could not read alias fields filtering from xcontent. expected an object but found [" + parser.currentToken() + "] instead");
         }
         String[] includes = Strings.EMPTY_ARRAY;
         String fieldName = null;
-        for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
@@ -119,10 +116,10 @@ public class AliasFieldsFiltering implements Streamable, ToXContent {
     private static String[] readArray(XContentParser parser) throws IOException {
         List<String> values = new ArrayList<>();
         while(parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            if(parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+            if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
                 values.add(parser.text());
             } else {
-                throw new ElasticsearchParseException("Numeric value not expected");
+                throw new ElasticsearchParseException("expected an array of strings for field [" + parser.currentName() + "] but found a [" + parser.currentToken() + "] token instead");
             }
         }
         return values.toArray(new String[values.size()]);

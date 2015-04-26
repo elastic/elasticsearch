@@ -20,13 +20,10 @@
 package org.elasticsearch.index.shard;
 
 import com.google.common.base.Charsets;
-import com.google.common.collect.Sets;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -54,7 +51,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.index.FieldSubsetReader;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -119,9 +115,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -710,37 +704,6 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public Engine.Searcher acquireSearcher(String source) {
         return acquireSearcher(source, false);
-    }
-
-    public Engine.Searcher acquireSearcher(String source, String... aliases) {
-        if (aliases == null) {
-            return acquireSearcher(source);
-        }
-
-        Set<FieldMapper<?>> includeFields = indexService.aliasesService().aliasFields(aliases);
-        // We need to include the meta fields, otherwise features will stop working.
-        Set<String> indexedFieldNames = Sets.newHashSet(MapperService.getMetaFields());
-        // We need to exclude the _all field here, because that includes all a copy of all values from all fields.
-        // which would break the filtering by field
-        indexedFieldNames.remove("_all");
-        Set<String> fullFieldNames = new HashSet<>();
-        for (FieldMapper field : includeFields) {
-            indexedFieldNames.add(field.names().indexName());
-            fullFieldNames.add(field.names().fullName());
-        }
-        final Engine.Searcher searcher = acquireSearcher(source);
-        try {
-            DirectoryReader filter = FieldSubsetReader.wrap((DirectoryReader) searcher.searcher().getIndexReader(), indexedFieldNames, fullFieldNames);
-            return new Engine.Searcher(source, new IndexSearcher(filter)) {
-
-                @Override
-                public void close() throws ElasticsearchException {
-                    searcher.close();
-                }
-            };
-        } catch (IOException e) {
-            throw new ElasticsearchException("Couldn't create a view on a subset of fields", e);
-        }
     }
 
     public Engine.Searcher acquireSearcher(String source, boolean searcherForWriteOperation) {

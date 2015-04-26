@@ -34,6 +34,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.fields.FieldsViewService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -47,8 +48,9 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
 
     @Inject
     public TransportShardMultiGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                        IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters);
+                                        IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
+                                        FieldsViewService fieldsViewService) {
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, fieldsViewService);
         this.indicesService = indicesService;
 
         this.realtime = settings.getAsBoolean("action.get.realtime", true);
@@ -105,7 +107,8 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
         for (int i = 0; i < request.locations.size(); i++) {
             MultiGetRequest.Item item = request.items.get(i);
             try {
-                GetResult getResult = indexShard.getService().get(item.type(), item.id(), item.fields(), request.realtime(), item.version(), item.versionType(), item.fetchSourceContext(), request.ignoreErrorsOnGeneratedFields());
+                fieldsViewService.prepareView(shardId.getIndex(), item.index());
+                GetResult getResult = indexShard.getService().get(item.index(), item.type(), item.id(), item.fields(), request.realtime(), item.version(), item.versionType(), item.fetchSourceContext(), request.ignoreErrorsOnGeneratedFields());
                 response.add(request.locations.get(i), new GetResponse(getResult));
             } catch (Throwable t) {
                 if (TransportActions.isShardNotAvailableException(t)) {
@@ -114,6 +117,8 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
                     logger.debug("{} failed to execute multi_get for [{}]/[{}]", t, shardId, item.type(), item.id());
                     response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.type(), item.id(), ExceptionsHelper.detailedMessage(t)));
                 }
+            } finally {
+                fieldsViewService.clearView();
             }
         }
 

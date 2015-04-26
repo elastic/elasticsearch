@@ -57,7 +57,6 @@ import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
-import java.util.Set;
 
 /**
  */
@@ -565,7 +564,7 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public Set<FieldMapper<?>> includeFields() {
-        return in.includeFields();
+    public boolean fieldsViewEnabled() {
+        return in.fieldsViewEnabled();
     }
 }

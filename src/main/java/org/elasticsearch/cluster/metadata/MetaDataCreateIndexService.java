@@ -416,9 +416,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         if (aliasMetaData.filter() != null) {
                             aliasValidator.validateAliasFilter(aliasMetaData.alias(), aliasMetaData.filter().uncompressed(), indexQueryParserService);
                         }
-                        if (aliasMetaData.getFieldsFiltering() != null) {
-                            aliasValidator.validateAliasFieldsFiltering(aliasMetaData.getFieldsFiltering(), mapperService);
-                        }
+                        aliasValidator.validateAliasFieldsFiltering(aliasMetaData.getFieldsFiltering(), mapperService);
                     }
 
                     // now, update the mappings with the actual source

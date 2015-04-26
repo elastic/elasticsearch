@@ -33,6 +33,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.fields.FieldsViewService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -44,8 +45,9 @@ public class TransportShardMultiTermsVectorAction extends TransportShardSingleOp
 
     @Inject
     public TransportShardMultiTermsVectorAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                                IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters);
+                                                IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
+                                                FieldsViewService fieldsViewService) {
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, fieldsViewService);
         this.indicesService = indicesService;
     }
 

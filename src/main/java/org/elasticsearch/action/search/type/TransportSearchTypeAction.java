@@ -203,7 +203,6 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             // we do make sure to clean it on a successful response from a shard
             SearchShardTarget shardTarget = new SearchShardTarget(nodeId, shardIt.shardId().getIndex(), shardIt.shardId().getId());
             addShardFailure(shardIndex, shardTarget, t);
-            t.printStackTrace();
 
             if (totalOps.incrementAndGet() == expectedTotalOps) {
                 if (logger.isDebugEnabled()) {

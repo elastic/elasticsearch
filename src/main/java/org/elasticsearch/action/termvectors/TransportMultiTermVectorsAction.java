@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.termvectors;
 
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -26,6 +27,8 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -82,6 +85,18 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                 shardRequest = new MultiTermVectorsShardRequest(request, shardId.index().name(), shardId.id());
                 shardRequest.preference(request.preference);
                 shardRequests.put(shardId, shardRequest);
+            }
+            if (concreteSingleIndex.equals(termVectorsRequest.index()) == false) {
+                ImmutableOpenMap<String, ImmutableList<AliasMetaData>> result =  clusterState.getMetaData().findAliases(new String[]{termVectorsRequest.index()}, new String[]{concreteSingleIndex});
+                if (result != null) {
+                    ImmutableList<AliasMetaData> aliases = result.get(concreteSingleIndex);
+                    assert aliases != null && aliases.size() == 1;
+                    AliasMetaData alias = aliases.get(0);
+                    String[] filterByFields = alias.getFieldsFiltering().getIncludes();
+                    if (filterByFields.length != 0) {
+                        termVectorsRequest.realtime(false);
+                    }
+                }
             }
             shardRequest.add(i, termVectorsRequest);
         }

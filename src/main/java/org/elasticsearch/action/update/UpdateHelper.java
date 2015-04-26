@@ -74,7 +74,7 @@ public class UpdateHelper extends AbstractComponent {
     @SuppressWarnings("unchecked")
     public Result prepare(UpdateRequest request, IndexShard indexShard) {
         long getDate = System.currentTimeMillis();
-        final GetResult getResult = indexShard.getService().get(request.type(), request.id(),
+        final GetResult getResult = indexShard.getService().get(request.index(), request.type(), request.id(),
                 new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME, TimestampFieldMapper.NAME},
                 true, request.version(), request.versionType(), FetchSourceContext.FETCH_SOURCE, false);
 

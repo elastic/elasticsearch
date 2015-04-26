@@ -57,6 +57,7 @@ import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.fields.FieldsViewContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
@@ -68,7 +69,6 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 /**
  *
@@ -173,8 +173,6 @@ public class DefaultSearchContext extends SearchContext {
 
     private InnerHitsContext innerHitsContext;
 
-    private Set<FieldMapper<?>> includeFields;
-
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
                          ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
@@ -194,7 +192,6 @@ public class DefaultSearchContext extends SearchContext {
         this.indexShard = indexShard;
         this.indexService = indexService;
 
-        includeFields = indexService.aliasesService().aliasFields(request.filteringAliases());
         this.searcher = new ContextIndexSearcher(this, engineSearcher);
         // initialize the filtering alias based on the provided filters
         aliasFilter = indexService.aliasesService().aliasFilter(request.filteringAliases());
@@ -792,7 +789,7 @@ public class DefaultSearchContext extends SearchContext {
         return innerHitsContext;
     }
 
-    public Set<FieldMapper<?>> includeFields() {
-        return includeFields;
+    public boolean fieldsViewEnabled() {
+        return FieldsViewContext.current() != null;
     }
 }

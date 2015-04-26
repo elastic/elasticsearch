@@ -39,6 +39,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.search.fields.FieldsViewService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -59,9 +60,10 @@ public class TransportRecoveryAction extends
 
     @Inject
     public TransportRecoveryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                   TransportService transportService, IndicesService indicesService, ActionFilters actionFilters) {
+                                   TransportService transportService, IndicesService indicesService, ActionFilters actionFilters,
+                                   FieldsViewService fieldsViewService) {
 
-        super(settings, RecoveryAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, RecoveryAction.NAME, threadPool, clusterService, transportService, actionFilters, fieldsViewService);
         this.indicesService = indicesService;
     }
 

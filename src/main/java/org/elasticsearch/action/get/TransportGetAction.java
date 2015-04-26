@@ -19,15 +19,18 @@
 
 package org.elasticsearch.action.get;
 
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -35,6 +38,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.fields.FieldsViewService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -48,8 +52,9 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
 
     @Inject
     public TransportGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                              IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, GetAction.NAME, threadPool, clusterService, transportService, actionFilters);
+                              IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
+                              FieldsViewService fieldsViewService) {
+        super(settings, GetAction.NAME, threadPool, clusterService, transportService, actionFilters, fieldsViewService);
         this.indicesService = indicesService;
 
         this.realtime = settings.getAsBoolean("action.get.realtime", true);
@@ -73,6 +78,19 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
 
     @Override
     protected void resolveRequest(ClusterState state, InternalRequest request) {
+        if (request.concreteIndex().equals(request.request().index()) == false) {
+            ImmutableOpenMap<String, ImmutableList<AliasMetaData>> result =  state.getMetaData().findAliases(new String[]{request.request().index()}, new String[]{request.concreteIndex()});
+            if (result != null) {
+                ImmutableList<AliasMetaData> aliases = result.get(request.concreteIndex());
+                assert aliases != null && aliases.size() == 1;
+                AliasMetaData alias = aliases.get(0);
+                String[] filterByFields = alias.getFieldsFiltering().getIncludes();
+                if (filterByFields.length != 0) {
+                    request.request().realtime = false;
+                }
+            }
+        }
+
         if (request.request().realtime == null) {
             request.request().realtime = this.realtime;
         }
@@ -101,7 +119,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
             indexShard.refresh("refresh_flag_get");
         }
 
-        GetResult result = indexShard.getService().get(request.type(), request.id(), request.fields(),
+        GetResult result = indexShard.getService().get(request.index(), request.type(), request.id(), request.fields(),
                 request.realtime(), request.version(), request.versionType(), request.fetchSourceContext(), request.ignoreErrorsOnGeneratedFields());
         return new GetResponse(result);
     }

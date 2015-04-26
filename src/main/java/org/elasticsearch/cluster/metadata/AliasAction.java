@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -79,8 +80,7 @@ public class AliasAction implements Streamable {
     @Nullable
     private String searchRouting;
 
-    @Nullable
-    private AliasFieldsFiltering fieldsFiltering;
+    private AliasFieldsFiltering fieldsFiltering = new AliasFieldsFiltering(Strings.EMPTY_ARRAY);
 
     private AliasAction() {
 
@@ -225,7 +225,7 @@ public class AliasAction implements Streamable {
         out.writeOptionalString(filter);
         out.writeOptionalString(indexRouting);
         out.writeOptionalString(searchRouting);
-        out.writeOptionalStreamable(fieldsFiltering);
+        fieldsFiltering.writeTo(out);
     }
 
     public static AliasAction newAddAliasAction(String index, String alias) {

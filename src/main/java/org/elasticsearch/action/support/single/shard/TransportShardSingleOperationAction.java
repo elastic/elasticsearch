@@ -20,7 +20,6 @@
 package org.elasticsearch.action.support.single.shard;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
@@ -42,6 +41,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.fields.FieldsViewService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -58,13 +58,16 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
 
     protected final TransportService transportService;
 
+    protected final FieldsViewService fieldsViewService;
+
     final String transportShardAction;
     final String executor;
 
-    protected TransportShardSingleOperationAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+    protected TransportShardSingleOperationAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters, FieldsViewService fieldsViewService) {
         super(settings, actionName, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.transportService = transportService;
+        this.fieldsViewService = fieldsViewService;
 
         this.transportShardAction = actionName + "[s]";
         this.executor = executor();
@@ -192,16 +195,24 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
                             @Override
                             public void run() {
                                 try {
+                                    fieldsViewService.prepareView(internalRequest.request(), internalRequest.concreteIndex());
                                     Response response = shardOperation(internalRequest.request(), shardRouting.shardId());
                                     listener.onResponse(response);
                                 } catch (Throwable e) {
                                     onFailure(shardRouting, e);
+                                } finally {
+                                    fieldsViewService.clearView();
                                 }
                             }
                         });
                     } else {
-                        final Response response = shardOperation(internalRequest.request(), shardRouting.shardId());
-                        listener.onResponse(response);
+                        try {
+                            fieldsViewService.prepareView(internalRequest.request(), internalRequest.concreteIndex());
+                            final Response response = shardOperation(internalRequest.request(), shardRouting.shardId());
+                            listener.onResponse(response);
+                        } finally {
+                            fieldsViewService.clearView();
+                        }
                     }
                 } catch (Throwable e) {
                     onFailure(shardRouting, e);
@@ -295,8 +306,13 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
             if (logger.isTraceEnabled()) {
                 logger.trace("executing [{}] on shard [{}]", request.request(), request.shardId());
             }
-            Response response = shardOperation(request.request(), request.shardId());
-            channel.sendResponse(response);
+            try {
+                fieldsViewService.prepareView(request.request(), request.shardId().getIndex());
+                Response response = shardOperation(request.request(), request.shardId());
+                channel.sendResponse(response);
+            } finally {
+                fieldsViewService.clearView();
+            }
         }
     }
 

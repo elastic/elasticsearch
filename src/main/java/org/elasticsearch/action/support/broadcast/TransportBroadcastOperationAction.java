@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.fields.FieldsViewService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -50,15 +51,17 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
     protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
     protected final TransportService transportService;
+    protected final FieldsViewService fieldsViewService;
 
     final String transportShardAction;
     final String executor;
 
-    protected TransportBroadcastOperationAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+    protected TransportBroadcastOperationAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters, FieldsViewService fieldsViewService) {
         super(settings, actionName, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.threadPool = threadPool;
+        this.fieldsViewService = fieldsViewService;
         this.transportShardAction = actionName + "[s]";
         this.executor = executor();
 
@@ -168,9 +171,12 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                             @Override
                             public void run() {
                                 try {
+                                    fieldsViewService.prepareView(shardRequest);
                                     onOperation(shard, shardIndex, shardOperation(shardRequest));
                                 } catch (Throwable e) {
                                     onOperation(shard, shardIt, shardIndex, e);
+                                } finally {
+                                    fieldsViewService.clearView();
                                 }
                             }
                         });
@@ -336,7 +342,12 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
         @Override
         public void messageReceived(final ShardRequest request, final TransportChannel channel) throws Exception {
-            channel.sendResponse(shardOperation(request));
+            try {
+                fieldsViewService.prepareView(request);
+                channel.sendResponse(shardOperation(request));
+            } finally {
+                fieldsViewService.clearView();
+            }
         }
     }
 }

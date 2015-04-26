@@ -37,7 +37,7 @@ public class IndexAlias {
 
     private AliasFieldsFiltering fieldsFiltering;
 
-    public IndexAlias(String alias, @Nullable CompressedString filter, @Nullable Filter parsedFilter, @Nullable AliasFieldsFiltering fieldsFiltering) {
+    public IndexAlias(String alias, @Nullable CompressedString filter, @Nullable Filter parsedFilter, AliasFieldsFiltering fieldsFiltering) {
         this.alias = alias;
         this.filter = filter;
         this.parsedFilter = parsedFilter;

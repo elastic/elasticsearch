@@ -221,7 +221,7 @@ public class QueryParseContext {
         }
         // TODO: not happy with using SearchContext here, but passing down the alias fields (or the fact that it is being used) makes it messier
         SearchContext sc = SearchContext.current();
-        if (sc != null && sc.includeFields() != null && !sc.includeFields().isEmpty()) {
+        if (sc != null && sc.fieldsViewEnabled()) {
             return filter;
         }
         if (this.disableFilterCaching || this.propagateNoCache || filter instanceof NoCacheFilter) {

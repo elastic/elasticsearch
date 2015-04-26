@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.get;
 
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -26,6 +27,8 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -77,12 +80,26 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                         "routing is required for [" + concreteSingleIndex + "]/[" + item.type() + "]/[" + item.id() + "]")));
                 continue;
             }
+
             ShardId shardId = clusterService.operationRouting()
                     .getShards(clusterState, concreteSingleIndex, item.type(), item.id(), item.routing(), null).shardId();
             MultiGetShardRequest shardRequest = shardRequests.get(shardId);
             if (shardRequest == null) {
                 shardRequest = new MultiGetShardRequest(request, shardId.index().name(), shardId.id());
                 shardRequests.put(shardId, shardRequest);
+            }
+
+            if (concreteSingleIndex.equals(item.index()) == false) {
+                ImmutableOpenMap<String, ImmutableList<AliasMetaData>> result =  clusterState.getMetaData().findAliases(new String[]{item.index()}, new String[]{concreteSingleIndex});
+                if (result != null) {
+                    ImmutableList<AliasMetaData> aliases = result.get(concreteSingleIndex);
+                    assert aliases != null && aliases.size() == 1;
+                    AliasMetaData alias = aliases.get(0);
+                    String[] filterByFields = alias.getFieldsFiltering().getIncludes();
+                    if (filterByFields.length != 0) {
+                        shardRequest.realtime = false;
+                    }
+                }
             }
             shardRequest.add(i, item);
         }

@@ -95,7 +95,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
      */
     private boolean skipFieldInfoCheck(FieldMapper.Names field) {
         SearchContext context = SearchContext.current();
-        if (context != null && context.includeFields() == null) {
+        if (context != null && context.fieldsViewEnabled()) {
             return true;
         } else {
             return MapperService.isMetadataField(field.indexName());

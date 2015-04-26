@@ -77,6 +77,7 @@ import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.*;
+import org.elasticsearch.search.fields.FieldsViewService;
 import org.elasticsearch.search.internal.*;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.query.*;
@@ -137,14 +138,17 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private final ImmutableMap<String, SearchParseElement> elementParsers;
 
+    private final FieldsViewService fieldsViewService;
+
     @Inject
-    public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService,IndicesWarmer indicesWarmer, ThreadPool threadPool,
+    public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService, IndicesWarmer indicesWarmer, ThreadPool threadPool,
                          ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase,
-                         IndicesQueryCache indicesQueryCache) {
+                         IndicesQueryCache indicesQueryCache, FieldsViewService fieldsViewService) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
+        this.fieldsViewService = fieldsViewService;
         indicesService.indicesLifecycle().addListener(new IndicesLifecycle.Listener() {
 
             @Override
@@ -541,10 +545,12 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.index(), request.shardId());
 
-        Engine.Searcher engineSearcher = searcher == null ? indexShard.acquireSearcher("search", request.filteringAliases()) : searcher;
-        SearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter());
-        SearchContext.setCurrent(context);
+        SearchContext context = null;
         try {
+            fieldsViewService.prepareView(request);
+            Engine.Searcher engineSearcher = searcher == null ? indexShard.acquireSearcher("search") : searcher;
+            context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter());
+            SearchContext.setCurrent(context);
             context.scroll(request.scroll());
 
             parseTemplate(request);
@@ -570,12 +576,15 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 keepAlive = request.scroll().keepAlive().millis();
             }
             context.keepAlive(keepAlive);
+            return context;
         } catch (Throwable e) {
-            context.close();
+            if (context != null) {
+                context.close();
+            }
             throw ExceptionsHelper.convertToRuntime(e);
+        } finally {
+            fieldsViewService.clearView();
         }
-
-        return context;
     }
 
     private void freeAllContextForIndex(Index index) {

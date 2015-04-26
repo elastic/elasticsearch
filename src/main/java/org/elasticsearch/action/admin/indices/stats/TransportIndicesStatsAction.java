@@ -42,6 +42,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.fields.FieldsViewService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -59,8 +60,8 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
 
     @Inject
     public TransportIndicesStatsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                       IndicesService indicesService, ActionFilters actionFilters) {
-        super(settings, IndicesStatsAction.NAME, threadPool, clusterService, transportService, actionFilters);
+                                       IndicesService indicesService, ActionFilters actionFilters, FieldsViewService fieldsViewService) {
+        super(settings, IndicesStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, fieldsViewService);
         this.indicesService = indicesService;
     }
 

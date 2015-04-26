@@ -50,6 +50,7 @@ import java.nio.file.*;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
@@ -93,7 +94,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     private final ApplySettings applySettings = new ApplySettings();
 
-
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     @Inject
     public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService,
@@ -140,14 +141,16 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     @Override
     public void close() throws IOException {
-        if (indexSettingsService != null) {
-            indexSettingsService.removeListener(applySettings);
-        }
-        rwl.writeLock().lock();
-        try {
-            IOUtils.close(this.trans, this.current);
-        } finally {
-            rwl.writeLock().unlock();
+        if (closed.compareAndSet(false, true)) {
+            if (indexSettingsService != null) {
+                indexSettingsService.removeListener(applySettings);
+            }
+            rwl.writeLock().lock();
+            try {
+                IOUtils.close(this.trans, this.current);
+            } finally {
+                rwl.writeLock().unlock();
+            }
         }
     }
 
@@ -355,6 +358,9 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     @Override
     public FsChannelSnapshot snapshot() throws TranslogException {
         while (true) {
+            if (closed.get()) {
+                throw new TranslogException(shardId, "translog is already closed");
+            }
             FsChannelSnapshot snapshot = current.snapshot();
             if (snapshot != null) {
                 return snapshot;

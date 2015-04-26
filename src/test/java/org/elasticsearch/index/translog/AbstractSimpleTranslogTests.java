@@ -338,6 +338,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         translog.close();
         try {
             Translog.Snapshot snapshot = translog.snapshot();
+            fail("translog is closed");
         } catch (TranslogException ex) {
             assertEquals(ex.getMessage(), "translog is already closed");
         }

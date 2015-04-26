@@ -967,20 +967,16 @@ public final class InternalTestCluster extends TestCluster {
 
     @Override
     public synchronized void afterTest() throws IOException {
-        assertShardIndexCounter();
         wipeDataDirectories();
         randomlyResetClients(); /* reset all clients - each test gets its own client based on the Random instance created above. */
     }
 
     /**
-     * Wipes any data that a test can leave behind: indices, templates and repositories
+     * Ensures all operation counters on IndexShard instances is at 1 or 0.
+     *
+     * If this fails then either write operations are still in flight or the counter is not working correcty
      */
-    public void wipe() {
-        assertShardIndexCounter();
-        super.wipe();
-    }
-
-    private void assertShardIndexCounter() {
+    private void assertIndexShardCounter() {
         final Collection<NodeAndClient> nodesAndClients = nodes.values();
         for (NodeAndClient nodeAndClient : nodesAndClients) {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
@@ -1754,6 +1750,7 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public void assertAfterTest() throws IOException {
         super.assertAfterTest();
+        assertIndexShardCounter();
         for (NodeEnvironment env : this.getInstances(NodeEnvironment.class)) {
             Set<ShardId> shardIds = env.lockedShards();
             for (ShardId id : shardIds) {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.internal;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.*;
 import org.elasticsearch.common.lease.Releasable;
@@ -59,16 +58,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private Stage currentState = Stage.NA;
 
-    public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher, DirectoryReader filter) {
-        super(filter != null ? filter : searcher.reader());
-        // no push, because we don't have the extra assertions from asserting index searcher if we insert a filtered reader, can we fix this?
-        in = filter != null ? new IndexSearcher(filter) : searcher.searcher();
+    public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
+        super(searcher.reader());
+        in = searcher.searcher();
         this.searchContext = searchContext;
         setSimilarity(searcher.searcher().getSimilarity());
-    }
-
-    public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
-        this(searchContext, searcher, null);
     }
 
     @Override

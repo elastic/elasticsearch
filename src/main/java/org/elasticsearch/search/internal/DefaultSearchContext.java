@@ -21,8 +21,6 @@ package org.elasticsearch.search.internal;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.ElasticsearchException;
@@ -30,7 +28,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.index.FieldSubsetReader;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
@@ -68,8 +65,10 @@ import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
-import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
 
 /**
  *
@@ -174,7 +173,7 @@ public class DefaultSearchContext extends SearchContext {
 
     private InnerHitsContext innerHitsContext;
 
-    private Set<FieldMapper<?>> aliasFields;
+    private Set<FieldMapper<?>> includeFields;
 
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
@@ -195,27 +194,8 @@ public class DefaultSearchContext extends SearchContext {
         this.indexShard = indexShard;
         this.indexService = indexService;
 
-        aliasFields = indexService.aliasesService().aliasFields(request.filteringAliases());
-        if (aliasFields.isEmpty() == false) {
-            // We need to include the meta fields, otherwise features will stop working.
-            Set<String> indexedFieldNames = Sets.newHashSet(MapperService.getMetaFields());
-            // We need to exclude the _all field here, because that includes all a copy of all values from all fields.
-            // which would break the filtering by field
-            indexedFieldNames.remove("_all");
-            Set<String> fullFieldNames = new HashSet<>();
-            for (FieldMapper field : aliasFields) {
-                indexedFieldNames.add(field.names().indexName());
-                fullFieldNames.add(field.names().fullName());
-            }
-            try {
-                DirectoryReader filter = FieldSubsetReader.wrap((DirectoryReader) engineSearcher.searcher().getIndexReader(), indexedFieldNames, fullFieldNames);
-                this.searcher = new ContextIndexSearcher(this, engineSearcher, filter);
-            } catch (IOException e) {
-                throw new ElasticsearchException("Couldn't a view on a subset of fields", e);
-            }
-        } else {
-            this.searcher = new ContextIndexSearcher(this, engineSearcher);
-        }
+        includeFields = indexService.aliasesService().aliasFields(request.filteringAliases());
+        this.searcher = new ContextIndexSearcher(this, engineSearcher);
         // initialize the filtering alias based on the provided filters
         aliasFilter = indexService.aliasesService().aliasFilter(request.filteringAliases());
         this.timeEstimateCounter = timeEstimateCounter;
@@ -812,7 +792,7 @@ public class DefaultSearchContext extends SearchContext {
         return innerHitsContext;
     }
 
-    public Set<FieldMapper<?>> aliasFields() {
-        return aliasFields;
+    public Set<FieldMapper<?>> includeFields() {
+        return includeFields;
     }
 }

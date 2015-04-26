@@ -311,6 +311,17 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         snapshot.close();
     }
 
+    public void testSnapshotOnClosedTranslog() throws IOException {
+        translog.add(new Translog.Create("test", "1", new byte[]{1}));
+        translog.close();
+        try {
+            Translog.Snapshot snapshot = translog.snapshot();
+            fail("translog is closed");
+        } catch (TranslogException ex) {
+            assertEquals(ex.getMessage(), "[index][1] translog is already closed");
+        }
+    }
+
     @Test
     public void testSnapshotWithSeekTo() {
         Translog.Snapshot snapshot = translog.snapshot();

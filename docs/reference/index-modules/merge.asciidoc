@@ -1,7 +1,7 @@
 [[index-modules-merge]]
 == Merge
 
-experimental[]
+experimental[All of the settings exposed in the `merge` module are expert only and may be removed in the future]
 
 A shard in elasticsearch is a Lucene index, and a Lucene index is broken
 down into segments. Segments are internal storage elements in the index
@@ -71,12 +71,6 @@ This policy has the following settings:
 	Controls how aggressively merges that reclaim more deletions are favored.
 	Higher values favor selecting merges that reclaim deletions. A value of
 	`0.0` means deletions don't impact merge selection. Defaults to `2.0`.
-
-`index.compound_format`::
-
-	Should the index be stored in compound format or not. Defaults to `false`.
-	See <<index-compound-format,`index.compound_format`>> in
-	<<index-modules-settings>>.
 
 For normal merging, this policy first computes a "budget" of how many
 segments are allowed to be in the index. If the index is over-budget,

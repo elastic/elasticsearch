@@ -138,7 +138,6 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class IndexShard extends AbstractIndexShardComponent {
 
-    public static final String IN_FLIGHT_OPERATIONS_COUNTER = "in_flight_operations_counter";
     private final ThreadPool threadPool;
     private final IndexSettingsService indexSettingsService;
     private final MapperService mapperService;
@@ -208,9 +207,11 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     @Inject
     public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, MergeSchedulerProvider mergeScheduler, Translog translog,
-                      ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
+                      ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService,
+                      ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
                       ShardFilterCache shardFilterCache, ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService,
-                      ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache,
+                      ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService,
+                      ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache,
                       @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, MergePolicyProvider mergePolicyProvider, EngineFactory factory,
                       ClusterService clusterService, NodeEnvironment nodeEnv,  ShardPath path) {
         super(shardId, indexSettingsService.getSettings());

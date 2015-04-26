@@ -18,7 +18,10 @@
  */
 package org.elasticsearch.action.support.replication;
 
+import com.google.common.base.Predicate;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionWriteResponse;
@@ -43,31 +46,51 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.cache.IndexCache;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
+import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
+import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.get.ShardGetService;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.store.DirectoryService;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.termvectors.ShardTermVectorsService;
+import org.elasticsearch.index.translog.fs.FsTranslog;
+import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.InternalIndicesLifecycle;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.nio.file.Path;
+import java.util.*;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -75,6 +98,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.hamcrest.Matchers.*;
 
 public class ShardReplicationOperationTests extends ElasticsearchTestCase {
@@ -85,7 +109,11 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
     private TransportService transportService;
     private CapturingTransport transport;
     private Action action;
-
+    /* *
+    * TransportShardReplicationOperationAction needs an instance of IndexShard to count operations.
+    * indexShards is reset to null before each test and will be initialized upon request in the tests.
+    */
+    volatile IndexShard testIndexShard;
 
     @BeforeClass
     public static void beforeClass() {
@@ -100,6 +128,11 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         transportService = new TransportService(transport, threadPool);
         transportService.start();
         action = new Action(ImmutableSettings.EMPTY, "testAction", transportService, clusterService, threadPool);
+        testIndexShard = null;
+    }
+
+    @After
+    public void afterTest() {
     }
 
     @AfterClass
@@ -108,7 +141,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         threadPool = null;
     }
 
-
     <T> void assertListenerThrows(String msg, PlainActionFuture<T> listener, Class<?> klass) throws InterruptedException {
         try {
             listener.get();
@@ -116,7 +148,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         } catch (ExecutionException ex) {
             assertThat(ex.getCause(), instanceOf(klass));
         }
-
     }
 
     @Test
@@ -148,7 +179,8 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         block = ClusterBlocks.builder()
                 .addGlobalBlock(new ClusterBlock(1, "non retryable", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
         clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
-        assertListenerThrows("primary phase should fail operation when moving from a retryable block a non-retryable one", listener, ClusterBlockException.class);
+        assertListenerThrows("primary phase should fail operation when moving from a retryable block to a non-retryable one", listener, ClusterBlockException.class);
+        assertNull("index shard should not be initialized because no operations should have been be performed", testIndexShard);
     }
 
     ClusterState stateWithStartedPrimary(String index, boolean primaryLocal, int numberOfReplicas) {
@@ -166,7 +198,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             replicaStates[i] = ShardRoutingState.UNASSIGNED;
         }
         return state(index, primaryLocal, randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING), replicaStates);
-
     }
 
     ClusterState state(String index, boolean primaryLocal, ShardRoutingState primaryState, ShardRoutingState... replicaStates) {
@@ -228,7 +259,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             }
             indexShardRoutingBuilder.addShard(
                     new ImmutableShardRouting(index, shardId.id(), replicaNode, relocatingNode, false, replicaState, 0));
-
         }
 
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
@@ -271,6 +301,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
 
         listener.get();
         assertTrue("request wasn't processed on primary, despite of it being assigned", request.processedOnPrimary.get());
+        assertIndexShardCounter(1);
     }
 
     @Test
@@ -293,17 +324,24 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         if (primaryNodeId.equals(clusterService.localNode().id())) {
             logger.info("--> primary is assigned locally, testing for execution");
             assertTrue("request failed to be processed on a local primary", request.processedOnPrimary.get());
+            if (transport.capturedRequests().length > 0) {
+                assertIndexShardCounter(2);
+            } else {
+                assertIndexShardCounter(1);
+            }
         } else {
             logger.info("--> primary is assigned to [{}], checking request forwarded", primaryNodeId);
             final List<CapturingTransport.CapturedRequest> capturedRequests = transport.capturedRequestsByTargetNode().get(primaryNodeId);
             assertThat(capturedRequests, notNullValue());
             assertThat(capturedRequests.size(), equalTo(1));
             assertThat(capturedRequests.get(0).action, equalTo("testAction"));
+            assertNull("index shard should not be initialized because no operations should have been be performed", testIndexShard);
         }
+
     }
 
     @Test
-    public void testWriteConsistency() {
+    public void testWriteConsistency() throws ExecutionException, InterruptedException {
         action = new ActionWithConsistency(ImmutableSettings.EMPTY, "testActionWithConsistency", transportService, clusterService, threadPool);
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);
@@ -351,17 +389,24 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             assertThat(primaryPhase.checkWriteConsistency(shardRoutingTable.primaryShard()), nullValue());
             primaryPhase.run();
             assertTrue("operations should have been perform, consistency level is met", request.processedOnPrimary.get());
+            if (assignedReplicas > 0) {
+                assertIndexShardCounter(2);
+            } else {
+                assertIndexShardCounter(1);
+            }
         } else {
             assertThat(primaryPhase.checkWriteConsistency(shardRoutingTable.primaryShard()), notNullValue());
             primaryPhase.run();
             assertFalse("operations should not have been perform, consistency level is *NOT* met", request.processedOnPrimary.get());
+            assertNull("index shard should not be initialized because no operations should have been be performed", testIndexShard);
             for (int i = 0; i < replicaStates.length; i++) {
                 replicaStates[i] = ShardRoutingState.STARTED;
             }
+
             clusterService.setState(state(index, true, ShardRoutingState.STARTED, replicaStates));
             assertTrue("once the consistency level met, operation should continue", request.processedOnPrimary.get());
+            assertIndexShardCounter(2);
         }
-
     }
 
     @Test
@@ -386,6 +431,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         }
 
         runReplicateTest(shardRoutingTable, assignedReplicas, totalShards);
+        assertNull("index shard should not be initialized because no operations should have been be performed", testIndexShard);
     }
 
     @Test
@@ -410,7 +456,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
                 totalShards++;
             }
         }
-
         runReplicateTest(shardRoutingTable, assignedReplicas, totalShards);
     }
 
@@ -423,7 +468,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         logger.debug("expecting [{}] assigned replicas, [{}] total shards. using state: \n{}", assignedReplicas, totalShards, clusterService.state().prettyPrint());
-
 
         final TransportShardReplicationOperationAction<Request, Request, Response>.InternalRequest internalRequest = action.new InternalRequest(request);
         internalRequest.concreteIndex(shardId.index().name());
@@ -477,12 +521,173 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         }
     }
 
+    @Test
+    public void testIndexShardRefCounter() throws IOException {
+        IndexShard indexShard = createIndexShard(new ShardId("test", 0), clusterService);
+        assertThat(indexShard.getOperationCounter(), equalTo(1));
+        indexShard.incrementOperationCounter();
+        assertThat(indexShard.getOperationCounter(), equalTo(2));
+        indexShard.decrementOperationCounter();
+        assertThat(indexShard.getOperationCounter(), equalTo(1));
+        indexShard.incrementOperationCounter();
+        assertThat(indexShard.getOperationCounter(), equalTo(2));
+        indexShard.decrementOperationCounter();
+        assertThat(indexShard.getOperationCounter(), equalTo(1));
+    }
+
+    @Test
+    public void testCounterOnPrimary() throws InterruptedException, ExecutionException, IOException {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, 0);
+        // no replica, we only want to test on primary
+        clusterService.setState(state(index, true,
+                ShardRoutingState.STARTED));
+        logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
+        Request request = new Request(shardId).timeout("100ms");
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+
+        /**
+         * TODO: I could also write an action that asserts that the counter is 2 in the shard operation.
+         * However, this failure would only become apparent once listener.get is called. Seems a little implicit.
+         * */
+        action = new ActionWithDelay(ImmutableSettings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
+        final TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
+        Thread t = new Thread() {
+            public void run() {
+                primaryPhase.run();
+            }
+        };
+        t.start();
+        awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(@Nullable Object input) {
+                return testIndexShard != null;
+            }
+        });
+        // shard operation should be ongoing, so the counter is at 1
+        assertIndexShardCounter(2);
+        assertThat(transport.capturedRequests().length, equalTo(0));
+        ((ActionWithDelay) action).countDownLatch.countDown();
+        t.join();
+        listener.get();
+        // operation finished, counter back to 0
+        assertIndexShardCounter(1);
+        assertThat(transport.capturedRequests().length, equalTo(0));
+    }
+
+    @Test
+    public void testCounterIncrementedWhileReplicationOngoing() throws InterruptedException, ExecutionException, IOException {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, 0);
+        // one replica to make sure replication is attempted
+        clusterService.setState(state(index, true,
+                ShardRoutingState.STARTED, ShardRoutingState.STARTED));
+        logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
+        Request request = new Request(shardId).timeout("100ms");
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
+        primaryPhase.run();
+        assertIndexShardCounter(2);
+        assertThat(transport.capturedRequests().length, equalTo(1));
+        // try once with successfull response
+        transport.handleResponse(transport.capturedRequests()[0].requestId, TransportResponse.Empty.INSTANCE);
+        assertIndexShardCounter(1);
+        transport.clear();
+        request = new Request(shardId).timeout("100ms");
+        primaryPhase = action.new PrimaryPhase(request, listener);
+        primaryPhase.run();
+        assertIndexShardCounter(2);
+        assertThat(transport.capturedRequests().length, equalTo(1));
+        // try with failure response
+        transport.handleResponse(transport.capturedRequests()[0].requestId, new CorruptIndexException("simulated", (String) null));
+        assertIndexShardCounter(1);
+    }
+
+    @Test
+    public void testReplicasCounter() throws Exception {
+        final ShardId shardId = new ShardId("test", 0);
+        clusterService.setState(state(shardId.index().getName(), true,
+                ShardRoutingState.STARTED, ShardRoutingState.STARTED));
+        final IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().index(shardId.index().getName()).shard(shardId.id());
+        final ShardRouting primaryShard = shardRoutingTable.primaryShard();
+        final ShardIterator shardIt = shardRoutingTable.shardsIt();
+        final Request request = new Request();
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        action = new ActionWithDelay(ImmutableSettings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
+        final TransportShardReplicationOperationAction<Request, Request, Response>.InternalRequest internalRequest = action.new InternalRequest(request);
+        internalRequest.concreteIndex(shardId.index().name());
+        TransportShardReplicationOperationAction<Request, Request, Response>.ReplicationPhase replicationPhase =
+                action.new ReplicationPhase(shardIt, request,
+                        new Response(), new ClusterStateObserver(clusterService, logger),
+                        primaryShard, internalRequest, listener, new AtomicReference<IndexShard>());
+
+        assertThat(replicationPhase.totalShards(), equalTo(2));
+        assertThat(replicationPhase.pending(), equalTo(1));
+        replicationPhase.run();
+        final CapturingTransport.CapturedRequest[] capturedRequests = transport.capturedRequests();
+        assertThat(capturedRequests.length, equalTo(1));
+        final Action.ReplicaOperationTransportHandler replicaOperationTransportHandler = action.new ReplicaOperationTransportHandler();
+        Thread t = new Thread() {
+            public void run() {
+                try {
+                    replicaOperationTransportHandler.messageReceived(new Request(), createTransportChannel());
+                } catch (Exception e) {
+                }
+            }
+        };
+        t.start();
+        // operation should be ongoing
+        awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(@Nullable Object input) {
+                return testIndexShard != null;
+            }
+        });
+        assertIndexShardCounter(2);
+        ((ActionWithDelay) action).countDownLatch.countDown();
+        t.join();
+        // operation should have finished and counter decreased because no outstanding replica requests
+        assertIndexShardCounter(1);
+        // now check if this also works if operation throws exception
+        action = new ActionWithExceptions(ImmutableSettings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
+        final Action.ReplicaOperationTransportHandler replicaOperationTransportHandlerForException = action.new ReplicaOperationTransportHandler();
+        try {
+            replicaOperationTransportHandlerForException.messageReceived(new Request(shardId), createTransportChannel());
+            fail();
+        } catch (Throwable t2) {
+        }
+        assertIndexShardCounter(1);
+    }
+
+    @Test
+    public void testCounterDecrementedIfShardOperationThrowsException() throws InterruptedException, ExecutionException, IOException {
+        action = new ActionWithExceptions(ImmutableSettings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, 0);
+        // no replicas in oder to skip the replication part
+        clusterService.setState(state(index, true,
+                ShardRoutingState.STARTED, ShardRoutingState.STARTED));
+        logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
+        Request request = new Request(shardId).timeout("100ms");
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        TransportShardReplicationOperationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
+        primaryPhase.run();
+        // no replica request should have been sent yet
+        assertThat(transport.capturedRequests().length, equalTo(0));
+        // no matter if the operation is retried or not, counter must be be back to 1
+        assertIndexShardCounter(1);
+    }
+
+    private void assertIndexShardCounter(int expected) {
+        assertThat(testIndexShard.getOperationCounter(), equalTo(expected));
+    }
 
     static class Request extends ShardReplicationOperationRequest<Request> {
         int shardId;
         public AtomicBoolean processedOnPrimary = new AtomicBoolean();
         public AtomicInteger processedOnReplicas = new AtomicInteger();
 
+        // try with randomBoolean()
         Request() {
             this.operationThreaded(false);
         }
@@ -508,15 +713,14 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
     }
 
     static class Response extends ActionWriteResponse {
-
     }
 
-    static class Action extends TransportShardReplicationOperationAction<Request, Request, Response> {
+    class Action extends TransportShardReplicationOperationAction<Request, Request, Response> {
 
         Action(Settings settings, String actionName, TransportService transportService,
                ClusterService clusterService,
                ThreadPool threadPool) {
-            super(settings, actionName, transportService, clusterService, null, threadPool,
+            super(settings, actionName, transportService, clusterService, new FakeIndicesService(), threadPool,
                     new ShardStateAction(settings, clusterService, transportService, null, null),
                     new ActionFilters(new HashSet<ActionFilter>()), Request.class, Request.class, ThreadPool.Names.SAME);
         }
@@ -552,22 +756,25 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         protected boolean resolveIndex() {
             return false;
         }
-
-        @Override
-        IndexShard resolveIndexShardAndIncrementRefCounter(ShardId shardId) {
-            // do nothing or decrement some other counter,
-            // nocommit: what do we want to test here?
-            return null;
-        }
-
-        @Override
-        void decrementCounter(@Nullable IndexShard indexShard) {
-            // do nothing or decrement some other counter,
-            // nocommit: what do we want to test here?
-        }
     }
 
-    static class ActionWithConsistency extends Action {
+    /*
+    * Returns testIndexShard or initializes it if it was already created in this test run.
+    * */
+    private IndexShard getIndexShard(ShardId shardId) {
+        try {
+            if (testIndexShard == null) {
+                testIndexShard = createIndexShard(shardId, clusterService);
+            } else {
+                assertThat(shardId, equalTo(testIndexShard.shardId()));
+            }
+        } catch (IOException e) {
+            fail("could not create index shard for test");
+        }
+        return testIndexShard;
+    }
+
+    class ActionWithConsistency extends Action {
 
         ActionWithConsistency(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
             super(settings, actionName, transportService, clusterService, threadPool);
@@ -583,5 +790,266 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         return new DiscoveryNode("node_" + nodeId, DummyTransportAddress.INSTANCE, Version.CURRENT);
     }
 
+    /*
+    * Throws exceptions when executed. Used for testing if the counter is correctly decremented in case an operation fails.
+    * */
+    class ActionWithExceptions extends Action {
 
+        ActionWithExceptions(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) throws IOException {
+            super(settings, actionName, transportService, clusterService, threadPool);
+        }
+
+        @Override
+        protected Tuple<Response, Request> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) throws Throwable {
+            return throwException(shardRequest.shardId);
+        }
+
+        private Tuple<Response, Request> throwException(ShardId shardId) {
+            try {
+                if (randomBoolean()) {
+                    // throw a generic exception
+                    throw new ElasticsearchException("simulated");
+                } else {
+                    // throw an exception which will cause retry on primary and be ignored on replica
+                    throw new IndexShardNotStartedException(shardId, IndexShardState.RECOVERING);
+                }
+            } catch (Exception e) {
+                logger.info("throwing ", e);
+                throw e;
+            }
+        }
+
+        @Override
+        protected void shardOperationOnReplica(ShardId shardId, Request shardRequest) {
+            throwException(shardRequest.internalShardId);
+        }
+    }
+
+    /**
+     * Delays the operation until  countDownLatch is counted down
+     */
+    class ActionWithDelay extends Action {
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+
+        ActionWithDelay(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) throws IOException {
+            super(settings, actionName, transportService, clusterService, threadPool);
+        }
+
+        @Override
+        protected Tuple<Response, Request> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) throws Throwable {
+            awaitLatch();
+            return new Tuple<>(new Response(), shardRequest.request);
+        }
+
+        private void awaitLatch() throws InterruptedException {
+            countDownLatch.await();
+            countDownLatch = new CountDownLatch(1);
+        }
+
+        @Override
+        protected void shardOperationOnReplica(ShardId shardId, Request shardRequest) {
+            try {
+                awaitLatch();
+            } catch (InterruptedException e) {
+            }
+        }
+    }
+
+    /*
+    * Transport channel that is needed for replica operation testing.
+    * */
+    public TransportChannel createTransportChannel() {
+        return new TransportChannel() {
+
+            @Override
+            public String action() {
+                return null;
+            }
+
+            @Override
+            public void sendResponse(TransportResponse response) throws IOException {
+            }
+
+            @Override
+            public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
+            }
+
+            @Override
+            public void sendResponse(Throwable error) throws IOException {
+            }
+        };
+    }
+
+    /**
+     * Creates an IndexShard that can do nothing except for counting operations.
+     */
+    static IndexShard createIndexShard(ShardId shardId, ClusterService clusterService) throws IOException {
+        Index index = shardId.index();
+        // pass the minimum of needed objects to pass initialization
+        return new IndexShard(shardId,
+                new IndexSettingsService(index, ImmutableSettings.EMPTY), null,
+                createStore(shardId),
+                null, new FsTranslog(shardId, ImmutableSettings.EMPTY, createTempDir()), null, null, null, null,
+                null, null,
+                new ShardGetService(shardId, ImmutableSettings.EMPTY, null, null, null),
+                null, null, null, null, null, null, null,
+                new ShardTermVectorsService(shardId, ImmutableSettings.EMPTY, null, null),
+                null, null, null, null, null, null,
+                new SnapshotDeletionPolicy(new KeepOnlyLastDeletionPolicy(shardId, EMPTY_SETTINGS)),
+                new SimilarityService(index), null,
+                null, clusterService, null, null);
+    }
+
+    // from ShadowEngineTests
+    static protected Store createStore(ShardId shardId) throws IOException {
+        return createStore(new RAMDirectory(), shardId);
+    }
+
+    // from ShadowEngineTests
+    static protected Store createStore(final Directory directory, ShardId shardId) throws IOException {
+        final DirectoryService directoryService = new DirectoryService(shardId, EMPTY_SETTINGS) {
+            @Override
+            public Directory newDirectory() throws IOException {
+                return directory;
+            }
+
+            @Override
+            public long throttleTimeInNanos() {
+                return 0;
+            }
+        };
+        return new Store(shardId, EMPTY_SETTINGS, directoryService, new DummyShardLock(shardId));
+    }
+
+    @Test
+    public void testFakeIndicesService() {
+        // just to check that init works
+        FakeIndicesService fakeIndicesService = new FakeIndicesService();
+        // make sure we always get the same instance
+        assertTrue(fakeIndicesService.indexService("test").shard(0) == fakeIndicesService.indexService("test").shard(0));
+    }
+
+    /**
+     * IndicesService that has the minimum of functionality just to pass the initialization.
+     * Its only purpose is to provide a fake IndexService which in turn provides the ShardReplicationOperationTests.testIndexShard
+     */
+    class FakeIndicesService extends IndicesService {
+        public FakeIndicesService() {
+            super(ImmutableSettings.EMPTY, new InternalIndicesLifecycle(ImmutableSettings.EMPTY), null, newInjector(), null);
+
+        }
+
+        // creates a new instance of an IndexService that can do nothing except for providing the ShardReplicationOperationTests.indexShard
+        @Nullable
+        @Override
+        public IndexService indexService(String index) {
+            return createIndexService(index);
+        }
+
+        @Override
+        public IndexService indexServiceSafe(String index) throws IndexMissingException {
+            return createIndexService(index);
+        }
+
+
+        public IndexService createIndexService(final String index) {
+            return new IndexService(newInjector(), new Index(index), ImmutableSettings.EMPTY, null, null,
+                    null, null, null, null,
+                    new IndexCache(new Index(index), ImmutableSettings.EMPTY, new NoneFilterCache(new Index(index), ImmutableSettings.EMPTY), null, null),
+                    null, null,
+                    new IndexFieldDataService(new Index(index), ImmutableSettings.EMPTY, new IndicesFieldDataCache(ImmutableSettings.EMPTY, null, threadPool), null),
+                    new BitsetFilterCache(new Index(index), ImmutableSettings.EMPTY) {
+                        // this is used in the ctor. we need to override this, else we would have to provide IndicesWarmer as well.
+                        public void setIndexService(IndexService indexService) {
+                        }
+                    }, null
+            ) {
+                @Override
+                public IndexShard shard(int shardId) {
+                    return getIndexShard(new ShardId(index(), shardId));
+                }
+
+                @Override
+                public IndexShard shardSafe(int shardId) {
+                    return getIndexShard(new ShardId(index(), shardId));
+
+                }
+            };
+        }
+    }
+
+    // we need an injector instance to initialize IndicesService and IndexService. It does not have to do anything but it
+    // cannot be null, else initialization of IndexService and IndicesService fails with NPE
+    public static Injector newInjector() {
+        return new Injector() {
+            @Override
+            public void injectMembers(Object instance) {
+            }
+
+            @Override
+            public <T> MembersInjector<T> getMembersInjector(TypeLiteral<T> typeLiteral) {
+                return null;
+            }
+
+            @Override
+            public <T> MembersInjector<T> getMembersInjector(Class<T> type) {
+                return null;
+            }
+
+            @Override
+            public Map<Key<?>, Binding<?>> getBindings() {
+                return null;
+            }
+
+            @Override
+            public <T> Binding<T> getBinding(Key<T> key) {
+                return null;
+            }
+
+            @Override
+            public <T> Binding<T> getBinding(Class<T> type) {
+                return null;
+            }
+
+            @Override
+            public <T> List<Binding<T>> findBindingsByType(TypeLiteral<T> type) {
+                return null;
+            }
+
+            @Override
+            public <T> Provider<T> getProvider(Key<T> key) {
+                return null;
+            }
+
+            @Override
+            public <T> Provider<T> getProvider(Class<T> type) {
+                return null;
+            }
+
+            @Override
+            public <T> T getInstance(Key<T> key) {
+                return null;
+            }
+
+            @Override
+            public <T> T getInstance(Class<T> type) {
+                return null;
+            }
+
+            @Override
+            public Injector getParent() {
+                return null;
+            }
+
+            @Override
+            public Injector createChildInjector(Iterable<? extends Module> modules) {
+                return null;
+            }
+
+            @Override
+            public Injector createChildInjector(Module... modules) {
+                return null;
+            }
+        };
+    }
 }

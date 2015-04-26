@@ -332,6 +332,17 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         snapshot.close();
     }
 
+    public void testSnapshotOnClosedTranslog() throws IOException {
+        assertTrue(Files.exists(translogDir.resolve("translog-1")));
+        translog.add(new Translog.Create("test", "1", new byte[]{1}));
+        translog.close();
+        try {
+            Translog.Snapshot snapshot = translog.snapshot();
+        } catch (TranslogException ex) {
+            assertEquals(ex.getMessage(), "translog is already closed");
+        }
+    }
+
     @Test
     public void deleteOnRollover() throws IOException {
         translog.add(new Translog.Create("test", "1", new byte[]{1}));

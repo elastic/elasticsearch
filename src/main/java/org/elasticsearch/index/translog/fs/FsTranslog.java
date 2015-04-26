@@ -400,7 +400,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
             rwl.readLock().unlock();
             if (!released && out != null) {
                 Releasables.close(out.bytes());
-
+            }
         }
     }
 

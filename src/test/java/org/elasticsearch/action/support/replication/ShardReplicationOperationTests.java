@@ -131,10 +131,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         testIndexShard = null;
     }
 
-    @After
-    public void afterTest() {
-    }
-
     @AfterClass
     public static void afterClass() {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
@@ -180,7 +176,11 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
                 .addGlobalBlock(new ClusterBlock(1, "non retryable", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
         clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
         assertListenerThrows("primary phase should fail operation when moving from a retryable block to a non-retryable one", listener, ClusterBlockException.class);
-        assertNull("index shard should not be initialized because no operations should have been be performed", testIndexShard);
+        assertIndexShardUninitialized();
+    }
+
+    public void assertIndexShardUninitialized() {
+        assertNull("index shard should not be initialized because no operations should have been performed", testIndexShard);
     }
 
     ClusterState stateWithStartedPrimary(String index, boolean primaryLocal, int numberOfReplicas) {
@@ -335,7 +335,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             assertThat(capturedRequests, notNullValue());
             assertThat(capturedRequests.size(), equalTo(1));
             assertThat(capturedRequests.get(0).action, equalTo("testAction"));
-            assertNull("index shard should not be initialized because no operations should have been be performed", testIndexShard);
+            assertIndexShardUninitialized();
         }
 
     }
@@ -398,7 +398,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             assertThat(primaryPhase.checkWriteConsistency(shardRoutingTable.primaryShard()), notNullValue());
             primaryPhase.run();
             assertFalse("operations should not have been perform, consistency level is *NOT* met", request.processedOnPrimary.get());
-            assertNull("index shard should not be initialized because no operations should have been be performed", testIndexShard);
+            assertIndexShardUninitialized();
             for (int i = 0; i < replicaStates.length; i++) {
                 replicaStates[i] = ShardRoutingState.STARTED;
             }
@@ -431,7 +431,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         }
 
         runReplicateTest(shardRoutingTable, assignedReplicas, totalShards);
-        assertNull("index shard should not be initialized because no operations should have been be performed", testIndexShard);
     }
 
     @Test
@@ -471,10 +470,14 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
 
         final TransportShardReplicationOperationAction<Request, Request, Response>.InternalRequest internalRequest = action.new InternalRequest(request);
         internalRequest.concreteIndex(shardId.index().name());
+        IndexShard indexShard = getIndexShard(shardId);
+        indexShard.incrementOperationCounter();
+        assertIndexShardCounter(2);
+        AtomicReference<IndexShard> indexShardAtomicReference = new AtomicReference<>(indexShard);
         TransportShardReplicationOperationAction<Request, Request, Response>.ReplicationPhase replicationPhase =
                 action.new ReplicationPhase(shardIt, request,
                         new Response(), new ClusterStateObserver(clusterService, logger),
-                        primaryShard, internalRequest, listener, new AtomicReference<IndexShard>());
+                        primaryShard, internalRequest, listener, indexShardAtomicReference);
 
         assertThat(replicationPhase.totalShards(), equalTo(totalShards));
         assertThat(replicationPhase.pending(), equalTo(assignedReplicas));
@@ -519,6 +522,8 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         for (CapturingTransport.CapturedRequest capturedRequest : transport.capturedRequests()) {
             assertThat(capturedRequest.action, equalTo(ShardStateAction.SHARD_FAILED_ACTION_NAME));
         }
+        // all replicas have responded so the counter should be decreased again
+        assertIndexShardCounter(1);
     }
 
     @Test
@@ -547,6 +552,9 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         /**
+         * Execute an action that is stuck in shard operation until a latch is counted down.
+         * That way we can start the operation, check if the counter was incremented and then unblock the operation
+         * again to see if the counter is decremented afterwards.
          * TODO: I could also write an action that asserts that the counter is 2 in the shard operation.
          * However, this failure would only become apparent once listener.get is called. Seems a little implicit.
          * */
@@ -564,7 +572,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
                 return testIndexShard != null;
             }
         });
-        // shard operation should be ongoing, so the counter is at 1
+        // shard operation should be ongoing, so the counter is at 2
         assertIndexShardCounter(2);
         assertThat(transport.capturedRequests().length, equalTo(0));
         ((ActionWithDelay) action).countDownLatch.countDown();
@@ -589,7 +597,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         primaryPhase.run();
         assertIndexShardCounter(2);
         assertThat(transport.capturedRequests().length, equalTo(1));
-        // try once with successfull response
+        // try once with successful response
         transport.handleResponse(transport.capturedRequests()[0].requestId, TransportResponse.Empty.INSTANCE);
         assertIndexShardCounter(1);
         transport.clear();
@@ -664,7 +672,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         action = new ActionWithExceptions(ImmutableSettings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);
-        // no replicas in oder to skip the replication part
         clusterService.setState(state(index, true,
                 ShardRoutingState.STARTED, ShardRoutingState.STARTED));
         logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
@@ -687,9 +694,8 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         public AtomicBoolean processedOnPrimary = new AtomicBoolean();
         public AtomicInteger processedOnReplicas = new AtomicInteger();
 
-        // try with randomBoolean()
         Request() {
-            this.operationThreaded(false);
+            this.operationThreaded(randomBoolean());
         }
 
         Request(ShardId shardId) {

@@ -258,7 +258,7 @@ public class MockTransportService extends TransportService {
         return transport().transports.put(node.getAddress(), transport) == null;
     }
 
-    public LookupTestTransport transport() {
+    private LookupTestTransport transport() {
         return (LookupTestTransport) transport;
     }
 
@@ -266,7 +266,7 @@ public class MockTransportService extends TransportService {
      * A lookup transport that has a list of potential Transport implementations to delegate to for node operations,
      * if none is registered, then the default one is used.
      */
-    public static class LookupTestTransport extends DelegateTransport {
+    private static class LookupTestTransport extends DelegateTransport {
 
         final ConcurrentMap<TransportAddress, Transport> transports = ConcurrentCollections.newConcurrentMap();
 
@@ -274,7 +274,7 @@ public class MockTransportService extends TransportService {
             super(transport);
         }
 
-        public Transport getTransport(DiscoveryNode node) {
+        private Transport getTransport(DiscoveryNode node) {
             Transport transport = transports.get(node.getAddress());
             if (transport != null) {
                 return transport;

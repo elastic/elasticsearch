@@ -152,3 +152,6 @@ however since hashes need to be computed on the fly.
     }
 }
 --------------------------------------------------
+
+TIP: The `script` parameter expects an inline script. Use `script_id` for indexed scripts and `script_file` for scripts in the `config/scripts/` directory.
+

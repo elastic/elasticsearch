@@ -33,8 +33,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -48,8 +46,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.cluster.ClusterState.Builder;
@@ -79,8 +75,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<>();
 
     private static final ConcurrentMap<ClusterName, ClusterGroup> clusterGroups = ConcurrentCollections.newConcurrentMap();
-
-    private volatile ClusterState lastProcessedClusterState;
 
     @Inject
     public LocalDiscovery(Settings settings, ClusterName clusterName, TransportService transportService, ClusterService clusterService,
@@ -280,7 +274,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     }
 
     @Override
-    public void publish(ClusterChangedEvent clusterChangedEvent, final Discovery.AckListener ackListener) {
+    public void publish(ClusterState clusterState, final Discovery.AckListener ackListener) {
         if (!master) {
             throw new ElasticsearchIllegalStateException("Shouldn't publish state when not master");
         }
@@ -293,7 +287,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 }
                 nodesToPublishTo.add(localDiscovery.localNode);
             }
-            publish(members, clusterChangedEvent, new AckClusterStatePublishResponseHandler(nodesToPublishTo, ackListener));
+            publish(members, clusterState, new AckClusterStatePublishResponseHandler(nodesToPublishTo, ackListener));
         }
     }
 
@@ -306,47 +300,17 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         return members.toArray(new LocalDiscovery[members.size()]);
     }
 
-    private void publish(LocalDiscovery[] members, ClusterChangedEvent clusterChangedEvent, final BlockingClusterStatePublishResponseHandler publishResponseHandler) {
+    private void publish(LocalDiscovery[] members, ClusterState clusterState, final BlockingClusterStatePublishResponseHandler publishResponseHandler) {
 
         try {
             // we do the marshaling intentionally, to check it works well...
-            byte[] clusterStateBytes = null;
-            byte[] clusterStateDiffBytes = null;
+            final byte[] clusterStateBytes = Builder.toBytes(clusterState);
 
-            ClusterState clusterState = clusterChangedEvent.state();
             for (final LocalDiscovery discovery : members) {
                 if (discovery.master) {
                     continue;
                 }
-                ClusterState newNodeSpecificClusterState = null;
-                synchronized (this) {
-                    // we do the marshaling intentionally, to check it works well...
-                    // check if we publsihed cluster state at least once and node was in the cluster when we published cluster state the last time
-                    if (discovery.lastProcessedClusterState != null && clusterChangedEvent.previousState().nodes().nodeExists(discovery.localNode.id())) {
-                        // both conditions are true - which means we can try sending cluster state as diffs
-                        if (clusterStateDiffBytes == null) {
-                            Diff diff = clusterState.diff(clusterChangedEvent.previousState());
-                            BytesStreamOutput os = new BytesStreamOutput();
-                            diff.writeTo(os);
-                            clusterStateDiffBytes = os.bytes().toBytes();
-                        }
-                        try {
-                            newNodeSpecificClusterState = discovery.lastProcessedClusterState.readDiffFrom(new BytesStreamInput(clusterStateDiffBytes)).apply(discovery.lastProcessedClusterState);
-                            logger.debug("sending diff cluster state version with size {} to [{}]", clusterStateDiffBytes.length, discovery.localNode.getName());
-                        } catch (IncompatibleClusterStateVersionException ex) {
-                            logger.warn("incompatible cluster state version - resending complete cluster state", ex);
-                        }
-                    }
-                    if (newNodeSpecificClusterState == null) {
-                        if (clusterStateBytes == null) {
-                            clusterStateBytes = Builder.toBytes(clusterState);
-                        }
-                        newNodeSpecificClusterState = ClusterState.Builder.fromBytes(clusterStateBytes, discovery.localNode);
-                    }
-                    discovery.lastProcessedClusterState = newNodeSpecificClusterState;
-                }
-                final ClusterState nodeSpecificClusterState = newNodeSpecificClusterState;
-
+                final ClusterState nodeSpecificClusterState = ClusterState.Builder.fromBytes(clusterStateBytes, discovery.localNode);
                 nodeSpecificClusterState.status(ClusterState.ClusterStateStatus.RECEIVED);
                 // ignore cluster state messages that do not include "me", not in the game yet...
                 if (nodeSpecificClusterState.nodes().localNode() != null) {

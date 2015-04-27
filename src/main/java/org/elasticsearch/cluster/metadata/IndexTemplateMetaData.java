@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.Sets;
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedString;
@@ -42,9 +42,7 @@ import java.util.Set;
 /**
  *
  */
-public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaData> {
-
-    public static final IndexTemplateMetaData PROTO = IndexTemplateMetaData.builder("").build();
+public class IndexTemplateMetaData {
 
     private final String name;
 
@@ -163,57 +161,11 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         return result;
     }
 
-    @Override
-    public IndexTemplateMetaData readFrom(StreamInput in) throws IOException {
-        Builder builder = new Builder(in.readString());
-        builder.order(in.readInt());
-        builder.template(in.readString());
-        builder.settings(ImmutableSettings.readSettingsFromStream(in));
-        int mappingsSize = in.readVInt();
-        for (int i = 0; i < mappingsSize; i++) {
-            builder.putMapping(in.readString(), CompressedString.readCompressedString(in));
-        }
-        int aliasesSize = in.readVInt();
-        for (int i = 0; i < aliasesSize; i++) {
-            AliasMetaData aliasMd = AliasMetaData.Builder.readFrom(in);
-            builder.putAlias(aliasMd);
-        }
-        int customSize = in.readVInt();
-        for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupPrototypeSafe(type).readFrom(in);
-            builder.putCustom(type, customIndexMetaData);
-        }
-        return builder.build();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        out.writeInt(order);
-        out.writeString(template);
-        ImmutableSettings.writeSettingsToStream(settings, out);
-        out.writeVInt(mappings.size());
-        for (ObjectObjectCursor<String, CompressedString> cursor : mappings) {
-            out.writeString(cursor.key);
-            cursor.value.writeTo(out);
-        }
-        out.writeVInt(aliases.size());
-        for (ObjectCursor<AliasMetaData> cursor : aliases.values()) {
-            cursor.value.writeTo(out);
-        }
-        out.writeVInt(customs.size());
-        for (ObjectObjectCursor<String, IndexMetaData.Custom> cursor : customs) {
-            out.writeString(cursor.key);
-            cursor.value.writeTo(out);
-        }
-    }
-
     public static class Builder {
 
         private static final Set<String> VALID_FIELDS = Sets.newHashSet("template", "order", "mappings", "settings");
         static {
-            VALID_FIELDS.addAll(IndexMetaData.customPrototypes.keySet());
+            VALID_FIELDS.addAll(IndexMetaData.customFactories.keySet());
         }
 
         private String name;
@@ -353,7 +305,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
             for (ObjectObjectCursor<String, IndexMetaData.Custom> cursor : indexTemplateMetaData.customs()) {
                 builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
-                cursor.value.toXContent(builder, params);
+                IndexMetaData.lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
                 builder.endObject();
             }
 
@@ -395,13 +347,12 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                         }
                     } else {
                         // check if its a custom index metadata
-                        IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(currentFieldName);
-                        if (proto == null) {
+                        IndexMetaData.Custom.Factory<IndexMetaData.Custom> factory = IndexMetaData.lookupFactory(currentFieldName);
+                        if (factory == null) {
                             //TODO warn
                             parser.skipChildren();
                         } else {
-                            IndexMetaData.Custom custom = proto.fromXContent(parser);
-                            builder.putCustom(custom.type(), custom);
+                            builder.putCustom(factory.type(), factory.fromXContent(parser));
                         }
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
@@ -450,7 +401,47 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         }
 
         public static IndexTemplateMetaData readFrom(StreamInput in) throws IOException {
-            return PROTO.readFrom(in);
+            Builder builder = new Builder(in.readString());
+            builder.order(in.readInt());
+            builder.template(in.readString());
+            builder.settings(ImmutableSettings.readSettingsFromStream(in));
+            int mappingsSize = in.readVInt();
+            for (int i = 0; i < mappingsSize; i++) {
+                builder.putMapping(in.readString(), CompressedString.readCompressedString(in));
+            }
+            int aliasesSize = in.readVInt();
+            for (int i = 0; i < aliasesSize; i++) {
+                AliasMetaData aliasMd = AliasMetaData.Builder.readFrom(in);
+                builder.putAlias(aliasMd);
+            }
+            int customSize = in.readVInt();
+            for (int i = 0; i < customSize; i++) {
+                String type = in.readString();
+                IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupFactorySafe(type).readFrom(in);
+                builder.putCustom(type, customIndexMetaData);
+            }
+            return builder.build();
+        }
+
+        public static void writeTo(IndexTemplateMetaData indexTemplateMetaData, StreamOutput out) throws IOException {
+            out.writeString(indexTemplateMetaData.name());
+            out.writeInt(indexTemplateMetaData.order());
+            out.writeString(indexTemplateMetaData.template());
+            ImmutableSettings.writeSettingsToStream(indexTemplateMetaData.settings(), out);
+            out.writeVInt(indexTemplateMetaData.mappings().size());
+            for (ObjectObjectCursor<String, CompressedString> cursor : indexTemplateMetaData.mappings()) {
+                out.writeString(cursor.key);
+                cursor.value.writeTo(out);
+            }
+            out.writeVInt(indexTemplateMetaData.aliases().size());
+            for (ObjectCursor<AliasMetaData> cursor : indexTemplateMetaData.aliases().values()) {
+                AliasMetaData.Builder.writeTo(cursor.value, out);
+            }
+            out.writeVInt(indexTemplateMetaData.customs().size());
+            for (ObjectObjectCursor<String, IndexMetaData.Custom> cursor : indexTemplateMetaData.customs()) {
+                out.writeString(cursor.key);
+                IndexMetaData.lookupFactorySafe(cursor.key).writeTo(cursor.value, out);
+            }
         }
     }
 

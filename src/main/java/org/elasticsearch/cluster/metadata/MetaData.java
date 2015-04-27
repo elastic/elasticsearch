@@ -26,9 +26,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.cluster.*;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.DiffableUtils.KeyedReader;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.Nullable;
@@ -58,9 +56,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
 /**
  *
  */
-public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
-
-    public static final MetaData PROTO = builder().build();
+public class MetaData implements Iterable<IndexMetaData> {
 
     public static final String ALL = "_all";
 
@@ -72,51 +68,60 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
         GATEWAY,
 
         /* Custom metadata should be stored as part of a snapshot */
-        SNAPSHOT
+        SNAPSHOT;
     }
 
     public static EnumSet<XContentContext> API_ONLY = EnumSet.of(XContentContext.API);
     public static EnumSet<XContentContext> API_AND_GATEWAY = EnumSet.of(XContentContext.API, XContentContext.GATEWAY);
     public static EnumSet<XContentContext> API_AND_SNAPSHOT = EnumSet.of(XContentContext.API, XContentContext.SNAPSHOT);
 
-    public interface Custom extends Diffable<Custom>, ToXContent {
+    public interface Custom {
 
-        String type();
+        abstract class Factory<T extends Custom> {
 
-        Custom fromXContent(XContentParser parser) throws IOException;
+            public abstract String type();
 
-        EnumSet<XContentContext> context();
+            public abstract T readFrom(StreamInput in) throws IOException;
+
+            public abstract void writeTo(T customIndexMetaData, StreamOutput out) throws IOException;
+
+            public abstract T fromXContent(XContentParser parser) throws IOException;
+
+            public abstract void toXContent(T customIndexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException;
+
+            public EnumSet<XContentContext> context() {
+                return API_ONLY;
+            }
+        }
     }
 
-    public static Map<String, Custom> customPrototypes = new HashMap<>();
+    public static Map<String, Custom.Factory> customFactories = new HashMap<>();
 
     static {
         // register non plugin custom metadata
-        registerPrototype(RepositoriesMetaData.TYPE, RepositoriesMetaData.PROTO);
-        registerPrototype(SnapshotMetaData.TYPE, SnapshotMetaData.PROTO);
-        registerPrototype(RestoreMetaData.TYPE, RestoreMetaData.PROTO);
+        registerFactory(RepositoriesMetaData.TYPE, RepositoriesMetaData.FACTORY);
+        registerFactory(SnapshotMetaData.TYPE, SnapshotMetaData.FACTORY);
+        registerFactory(RestoreMetaData.TYPE, RestoreMetaData.FACTORY);
     }
 
     /**
      * Register a custom index meta data factory. Make sure to call it from a static block.
      */
-    public static void registerPrototype(String type, Custom proto) {
-        customPrototypes.put(type, proto);
+    public static void registerFactory(String type, Custom.Factory factory) {
+        customFactories.put(type, factory);
     }
 
     @Nullable
-    public static <T extends Custom> T lookupPrototype(String type) {
-        //noinspection unchecked
-        return (T) customPrototypes.get(type);
+    public static <T extends Custom> Custom.Factory<T> lookupFactory(String type) {
+        return customFactories.get(type);
     }
 
-    public static <T extends Custom> T lookupPrototypeSafe(String type) throws ElasticsearchIllegalArgumentException {
-        //noinspection unchecked
-        T proto = (T) customPrototypes.get(type);
-        if (proto == null) {
-            throw new ElasticsearchIllegalArgumentException("No custom metadata prototype registered for type [" + type + "]");
+    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) throws ElasticsearchIllegalArgumentException {
+        Custom.Factory<T> factory = customFactories.get(type);
+        if (factory == null) {
+            throw new ElasticsearchIllegalArgumentException("No custom index metadata factory registered for type [" + type + "]");
         }
-        return proto;
+        return factory;
     }
 
 
@@ -640,14 +645,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
     /**
      * Translates the provided indices or aliases, eventually containing wildcard expressions, into actual indices.
      *
-     * @param indicesOptions   how the aliases or indices need to be resolved to concrete indices
+     * @param indicesOptions how the aliases or indices need to be resolved to concrete indices
      * @param aliasesOrIndices the aliases or indices to be resolved to concrete indices
      * @return the obtained concrete indices
-     * @throws IndexMissingException                 if one of the aliases or indices is missing and the provided indices options
-     *                                               don't allow such a case, or if the final result of the indices resolution is no indices and the indices options
-     *                                               don't allow such a case.
+     * @throws IndexMissingException if one of the aliases or indices is missing and the provided indices options
+     * don't allow such a case, or if the final result of the indices resolution is no indices and the indices options
+     * don't allow such a case.
      * @throws ElasticsearchIllegalArgumentException if one of the aliases resolve to multiple indices and the provided
-     *                                               indices options don't allow such a case.
+     * indices options don't allow such a case.
      */
     public String[] concreteIndices(IndicesOptions indicesOptions, String... aliasesOrIndices) throws IndexMissingException, ElasticsearchIllegalArgumentException {
         if (indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed()) {
@@ -1135,142 +1140,19 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
         // Check if any persistent metadata needs to be saved
         int customCount1 = 0;
         for (ObjectObjectCursor<String, Custom> cursor : metaData1.customs) {
-            if (customPrototypes.get(cursor.key).context().contains(XContentContext.GATEWAY)) {
+            if (customFactories.get(cursor.key).context().contains(XContentContext.GATEWAY)) {
                 if (!cursor.value.equals(metaData2.custom(cursor.key))) return false;
                 customCount1++;
             }
         }
         int customCount2 = 0;
         for (ObjectObjectCursor<String, Custom> cursor : metaData2.customs) {
-            if (customPrototypes.get(cursor.key).context().contains(XContentContext.GATEWAY)) {
+            if (customFactories.get(cursor.key).context().contains(XContentContext.GATEWAY)) {
                 customCount2++;
             }
         }
         if (customCount1 != customCount2) return false;
         return true;
-    }
-
-    @Override
-    public Diff<MetaData> diff(MetaData previousState) {
-        return new MetaDataDiff(previousState, this);
-    }
-
-    @Override
-    public Diff<MetaData> readDiffFrom(StreamInput in) throws IOException {
-        return new MetaDataDiff(in);
-    }
-
-    private static class MetaDataDiff implements Diff<MetaData> {
-
-        private long version;
-
-        private String uuid;
-
-        private Settings transientSettings;
-        private Settings persistentSettings;
-        private Diff<ImmutableOpenMap<String, IndexMetaData>> indices;
-        private Diff<ImmutableOpenMap<String, IndexTemplateMetaData>> templates;
-        private Diff<ImmutableOpenMap<String, Custom>> customs;
-
-
-        public MetaDataDiff(MetaData before, MetaData after) {
-            uuid = after.uuid;
-            version = after.version;
-            transientSettings = after.transientSettings;
-            persistentSettings = after.persistentSettings;
-            indices = DiffableUtils.diff(before.indices, after.indices);
-            templates = DiffableUtils.diff(before.templates, after.templates);
-            customs = DiffableUtils.diff(before.customs, after.customs);
-        }
-
-        public MetaDataDiff(StreamInput in) throws IOException {
-            uuid = in.readString();
-            version = in.readLong();
-            transientSettings = ImmutableSettings.readSettingsFromStream(in);
-            persistentSettings = ImmutableSettings.readSettingsFromStream(in);
-            indices = DiffableUtils.readImmutableOpenMapDiff(in, IndexMetaData.PROTO);
-            templates = DiffableUtils.readImmutableOpenMapDiff(in, IndexTemplateMetaData.PROTO);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, new KeyedReader<Custom>() {
-                @Override
-                public Custom readFrom(StreamInput in, String key) throws IOException {
-                    return lookupPrototypeSafe(key).readFrom(in);
-                }
-
-                @Override
-                public Diff<Custom> readDiffFrom(StreamInput in, String key) throws IOException {
-                    return lookupPrototypeSafe(key).readDiffFrom(in);
-                }
-            });
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(uuid);
-            out.writeLong(version);
-            ImmutableSettings.writeSettingsToStream(transientSettings, out);
-            ImmutableSettings.writeSettingsToStream(persistentSettings, out);
-            indices.writeTo(out);
-            templates.writeTo(out);
-            customs.writeTo(out);
-        }
-
-        @Override
-        public MetaData apply(MetaData part) {
-            Builder builder = builder();
-            builder.uuid(uuid);
-            builder.version(version);
-            builder.transientSettings(transientSettings);
-            builder.persistentSettings(persistentSettings);
-            builder.indices(indices.apply(part.indices));
-            builder.templates(templates.apply(part.templates));
-            builder.customs(customs.apply(part.customs));
-            return builder.build();
-        }
-    }
-
-    @Override
-    public MetaData readFrom(StreamInput in) throws IOException {
-        Builder builder = new Builder();
-        builder.version = in.readLong();
-        builder.uuid = in.readString();
-        builder.transientSettings(readSettingsFromStream(in));
-        builder.persistentSettings(readSettingsFromStream(in));
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            builder.put(IndexMetaData.Builder.readFrom(in), false);
-        }
-        size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            builder.put(IndexTemplateMetaData.Builder.readFrom(in));
-        }
-        int customSize = in.readVInt();
-        for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            Custom customIndexMetaData = lookupPrototypeSafe(type).readFrom(in);
-            builder.putCustom(type, customIndexMetaData);
-        }
-        return builder.build();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(version);
-        out.writeString(uuid);
-        writeSettingsToStream(transientSettings, out);
-        writeSettingsToStream(persistentSettings, out);
-        out.writeVInt(indices.size());
-        for (IndexMetaData indexMetaData : this) {
-            indexMetaData.writeTo(out);
-        }
-        out.writeVInt(templates.size());
-        for (ObjectCursor<IndexTemplateMetaData> cursor : templates.values()) {
-            cursor.value.writeTo(out);
-        }
-        out.writeVInt(customs.size());
-        for (ObjectObjectCursor<String, Custom> cursor : customs) {
-            out.writeString(cursor.key);
-            cursor.value.writeTo(out);
-        }
     }
 
     public static Builder builder() {
@@ -1344,11 +1226,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
             return this;
         }
 
-        public Builder indices(ImmutableOpenMap<String, IndexMetaData> indices) {
-            this.indices.putAll(indices);
-            return this;
-        }
-
         public Builder put(IndexTemplateMetaData.Builder template) {
             return put(template.build());
         }
@@ -1363,11 +1240,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
             return this;
         }
 
-        public Builder templates(ImmutableOpenMap<String, IndexTemplateMetaData> templates) {
-            this.templates.putAll(templates);
-            return this;
-        }
-
         public Custom getCustom(String type) {
             return customs.get(type);
         }
@@ -1379,11 +1251,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
 
         public Builder removeCustom(String type) {
             customs.remove(type);
-            return this;
-        }
-
-        public Builder customs(ImmutableOpenMap<String, Custom> customs) {
-            this.customs.putAll(customs);
             return this;
         }
 
@@ -1436,11 +1303,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
 
         public Builder version(long version) {
             this.version = version;
-            return this;
-        }
-
-        public Builder uuid(String uuid) {
-            this.uuid = uuid;
             return this;
         }
 
@@ -1502,10 +1364,10 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
             }
 
             for (ObjectObjectCursor<String, Custom> cursor : metaData.customs()) {
-                Custom proto = lookupPrototypeSafe(cursor.key);
-                if (proto.context().contains(context)) {
+                Custom.Factory factory = lookupFactorySafe(cursor.key);
+                if (factory.context().contains(context)) {
                     builder.startObject(cursor.key);
-                    cursor.value.toXContent(builder, params);
+                    factory.toXContent(cursor.value, builder, params);
                     builder.endObject();
                 }
             }
@@ -1549,13 +1411,12 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
                         }
                     } else {
                         // check if its a custom index metadata
-                        Custom proto = lookupPrototype(currentFieldName);
-                        if (proto == null) {
+                        Custom.Factory<Custom> factory = lookupFactory(currentFieldName);
+                        if (factory == null) {
                             //TODO warn
                             parser.skipChildren();
                         } else {
-                            Custom custom = proto.fromXContent(parser);
-                            builder.putCustom(custom.type(), custom);
+                            builder.putCustom(factory.type(), factory.fromXContent(parser));
                         }
                     }
                 } else if (token.isValue()) {
@@ -1570,7 +1431,46 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
         }
 
         public static MetaData readFrom(StreamInput in) throws IOException {
-            return PROTO.readFrom(in);
+            Builder builder = new Builder();
+            builder.version = in.readLong();
+            builder.uuid = in.readString();
+            builder.transientSettings(readSettingsFromStream(in));
+            builder.persistentSettings(readSettingsFromStream(in));
+            int size = in.readVInt();
+            for (int i = 0; i < size; i++) {
+                builder.put(IndexMetaData.Builder.readFrom(in), false);
+            }
+            size = in.readVInt();
+            for (int i = 0; i < size; i++) {
+                builder.put(IndexTemplateMetaData.Builder.readFrom(in));
+            }
+            int customSize = in.readVInt();
+            for (int i = 0; i < customSize; i++) {
+                String type = in.readString();
+                Custom customIndexMetaData = lookupFactorySafe(type).readFrom(in);
+                builder.putCustom(type, customIndexMetaData);
+            }
+            return builder.build();
+        }
+
+        public static void writeTo(MetaData metaData, StreamOutput out) throws IOException {
+            out.writeLong(metaData.version);
+            out.writeString(metaData.uuid);
+            writeSettingsToStream(metaData.transientSettings(), out);
+            writeSettingsToStream(metaData.persistentSettings(), out);
+            out.writeVInt(metaData.indices.size());
+            for (IndexMetaData indexMetaData : metaData) {
+                IndexMetaData.Builder.writeTo(indexMetaData, out);
+            }
+            out.writeVInt(metaData.templates.size());
+            for (ObjectCursor<IndexTemplateMetaData> cursor : metaData.templates.values()) {
+                IndexTemplateMetaData.Builder.writeTo(cursor.value, out);
+            }
+            out.writeVInt(metaData.customs().size());
+            for (ObjectObjectCursor<String, Custom> cursor : metaData.customs()) {
+                out.writeString(cursor.key);
+                lookupFactorySafe(cursor.key).writeTo(cursor.value, out);
+            }
         }
     }
 }

@@ -85,18 +85,26 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
                 .indicesOptions(requestPrototype.indicesOptions())
                 .searchType(requestPrototype.searchType())
                 .indices(requestPrototype.indices());
+
+        Map<String, Object> templateParams = Variables.createCtxModel(ctx, null);
+        templateParams.putAll(requestPrototype.templateParams());
+
         if (Strings.hasLength(requestPrototype.source())) {
-            Map<String, Object> templateParams = Variables.createCtxModel(ctx, null);
             String requestSource = XContentHelper.convertToJson(requestPrototype.source(), false);
             ExecutableScript script = scriptService.executable("mustache", requestSource, ScriptService.ScriptType.INLINE, templateParams);
             request.source((BytesReference) script.unwrap(script.run()), false);
+        } else if (Strings.hasLength(requestPrototype.templateSource())) {
+            String requestSource = XContentHelper.convertToJson(requestPrototype.templateSource(), false);
+            ExecutableScript script = scriptService.executable("mustache", requestSource, ScriptService.ScriptType.INLINE, templateParams);
+            request.source((BytesReference) script.unwrap(script.run()), false);
         } else if (requestPrototype.templateName() != null) {
-            Map<String, Object> templateParams = Variables.createCtxModel(ctx, null);
-            templateParams.putAll(requestPrototype.templateParams());
+            //templateParams = WatcherUtils.flattenModel(templateParams);
             request.templateParams(templateParams);
             request.templateName(requestPrototype.templateName());
             request.templateType(requestPrototype.templateType());
-        }
+        } /*else {
+            request.templateParams(templateParams);
+        }*/
         // falling back to an empty body
         return request;
     }

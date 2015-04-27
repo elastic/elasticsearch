@@ -24,14 +24,14 @@
               }
             },
             "condition": {
-              "always_true": {}
+              "always": {}
             },
             "actions": [
               {
                 "test_index": {
                   "index": {
                     "index": "test",
-                    "type": "test2"
+                    "doc_type": "test2"
                   }
                 }
               }

@@ -49,17 +49,21 @@ import org.junit.Test;
 
 import javax.mail.internet.AddressException;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.CoreMatchers.*;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
 
 /**
  */
@@ -108,7 +112,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
 
         final String account = "account1";
 
-        HttpRequestTemplate httpRequest = getHttpRequestTemplate(method, TEST_HOST, TEST_PORT, testPath, testBody);
+        HttpRequestTemplate httpRequest = getHttpRequestTemplate(method, TEST_HOST, TEST_PORT, testPath, testBody, null);
 
         WebhookAction action = new WebhookAction(httpRequest);
         ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);
@@ -120,7 +124,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         scenario.assertResult(actionResult);
     }
 
-    private HttpRequestTemplate getHttpRequestTemplate(HttpMethod method, String host, int port, Template path, Template body) {
+    private HttpRequestTemplate getHttpRequestTemplate(HttpMethod method, String host, int port, Template path, Template body, Map<String, Template> params) {
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder(host, port);
         if (path != null) {
             builder.path(path);
@@ -131,6 +135,9 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         if (method != null) {
             builder.method(method);
         }
+        if (params != null){
+            builder.putParams(params);
+        }
         return builder.build();
     }
 
@@ -140,7 +147,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         Template path = new Template("_url");
         String host = "test.host";
         HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, null);
-        HttpRequestTemplate request = getHttpRequestTemplate(method, host, TEST_PORT, path, body);
+        HttpRequestTemplate request = getHttpRequestTemplate(method, host, TEST_PORT, path, body, null);
 
         XContentBuilder builder = jsonBuilder();
         request.toXContent(builder, Attachment.XContent.EMPTY_PARAMS);
@@ -165,7 +172,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
 
         HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, null);
 
-        HttpRequestTemplate request = getHttpRequestTemplate(method, host, TEST_PORT, path, body);
+        HttpRequestTemplate request = getHttpRequestTemplate(method, host, TEST_PORT, path, body, null);
         WebhookAction action = new WebhookAction(request);
         ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, ExecuteScenario.Success.client(), templateEngine);
 
@@ -192,7 +199,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         String actionId = randomAsciiOfLength(5);
 
         HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, null);
-        HttpRequestTemplate request = getHttpRequestTemplate(method, host, TEST_PORT, path, body);
+        HttpRequestTemplate request = getHttpRequestTemplate(method, host, TEST_PORT, path, body, null);
 
         WebhookAction action = WebhookAction.builder(request).build();
 
@@ -348,6 +355,42 @@ public class WebhookActionTests extends ElasticsearchTestCase {
                 new HttpRequestTemplate.Parser(authRegistry), templateEngine);
     }
 
+    @Test
+    @Repeat(iterations = 10)
+    public void testTemplatedHttpRequest() throws Exception
+    {
+        HttpClient httpClient = ExecuteScenario.Success.client();
+
+        String body = "{{ctx.watch_id}}";
+        String host = "testhost";
+        String path = randomFrom("{{ctx.execution_time}}", "{{ctx.trigger.scheduled_time}}", "{{ctx.trigger.triggered_time}}");
+
+        Map<String, Template> params = new HashMap<>();
+        params.put("foo", new Template(randomFrom("{{ctx.execution_time}}", "{{ctx.trigger.scheduled_time}}", "{{ctx.trigger.triggered_time}}")));
+        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT);
+
+        HttpRequestTemplate request = getHttpRequestTemplate(method, host, TEST_PORT, new Template(path), new Template(body), params);
+
+        String watchId = "_watch";
+        String actionId = randomAsciiOfLength(5);
+
+        WebhookAction action = WebhookAction.builder(request).build();
+
+        ExecutableWebhookAction webhookAction = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);
+
+        DateTime time = new DateTime(UTC);
+        Watch watch = createWatch(watchId, mock(ClientProxy.class), "account1");
+        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, time, new ScheduleTriggerEvent(watchId, time, time));
+        WebhookAction.Result result = webhookAction.doExecute(actionId, ctx, Payload.EMPTY);
+
+        assertThat(result, Matchers.instanceOf(WebhookAction.Result.Executed.class));
+        WebhookAction.Result.Executed executed = (WebhookAction.Result.Executed) result;
+        assertThat(executed.request().body(), equalTo(watchId));
+        assertThat(executed.request().path(), equalTo(time.toString()));
+        assertThat(executed.request().params().get("foo"), equalTo(time.toString()));
+
+    }
+
     @Test @Repeat(iterations = 100)
     public void testValidUrls() throws Exception {
 
@@ -355,20 +398,20 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         HttpMethod method = HttpMethod.POST;
         Template path = new Template("/test_{{ctx.watch_id}}");
         String host = "test.host";
-        HttpRequestTemplate requestTemplate = getHttpRequestTemplate(method, host, TEST_PORT, path, testBody);
+        HttpRequestTemplate requestTemplate = getHttpRequestTemplate(method, host, TEST_PORT, path, testBody, null);
         WebhookAction action = new WebhookAction(requestTemplate);
 
         ExecutableWebhookAction webhookAction = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);
 
-        String watchName = "test_url_encode" + randomAsciiOfLength(10);
-        Watch watch = createWatch(watchName, mock(ClientProxy.class), "account1");
-        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(), new ScheduleTriggerEvent(watchName, new DateTime(), new DateTime()));
+        String watchId = "test_url_encode" + randomAsciiOfLength(10);
+        Watch watch = createWatch(watchId, mock(ClientProxy.class), "account1");
+        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(UTC), new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)));
         WebhookAction.Result result = webhookAction.execute("_id", ctx, new Payload.Simple());
         assertThat(result, Matchers.instanceOf(WebhookAction.Result.Executed.class));
     }
 
-    private Watch createWatch(String watchName, ClientProxy client, final String account) throws AddressException, IOException {
-        return WatcherTestUtils.createTestWatch(watchName,
+    private Watch createWatch(String watchId, ClientProxy client, final String account) throws AddressException, IOException {
+        return WatcherTestUtils.createTestWatch(watchId,
                 client,
                 scriptService,
                 ExecuteScenario.Success.client(),
@@ -449,7 +492,6 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         public abstract HttpClient client() throws IOException;
 
         public abstract void assertResult(WebhookAction.Result result);
-
     }
 
 }

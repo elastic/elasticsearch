@@ -71,7 +71,7 @@
             "record_execution" : true
           }
   - match: { "watch_id": "my_exe_watch" }
-  - match: { "watch_execution.condition_result.always_true": {} }
+  - match: { "watch_execution.condition_result.always": {} }
   - match: { "state": "executed" }
   - match: { "trigger_event.manual.trigger_data.scheduled_time": "now" } 
   - match: { "watch_execution.input_result.simple.payload.foo": "bar" }

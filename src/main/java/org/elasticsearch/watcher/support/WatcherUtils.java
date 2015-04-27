@@ -254,6 +254,10 @@ public final class WatcherUtils {
     }
 
     private static void flattenModel(String key, Object value, Map<String, Object> result) {
+        if (value == null) {
+            result.put(key, null);
+            return;
+        }
         if (value instanceof Map) {
             for (Map.Entry<String, Object> entry : ((Map<String, Object>) value).entrySet()) {
                 if ("".equals(key)) {

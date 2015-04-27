@@ -9,6 +9,7 @@ import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,8 +37,10 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
+import static org.hamcrest.Matchers.is;
 
 /**
  */
@@ -161,6 +164,37 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
         conditionParser.parseResult("_id", XContentFactory.xContent(builder.bytes()).createParser(builder.bytes()));
         fail("expected a condition exception trying to parse an invalid condition XContent");
     }
+
+    @Test(expected = ScriptConditionException.class)
+    public void testScriptCondition_throwException() throws Exception {
+        ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
+        ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(new Script("assert false")), logger, scriptService);
+        SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
+        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
+        condition.execute(ctx);
+        fail();
+    }
+
+    @Test(expected = ScriptConditionException.class)
+    public void testScriptCondition_returnObject() throws Exception {
+        ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
+        ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(new Script("return new Object()")), logger, scriptService);
+        SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
+        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
+        condition.execute(ctx);
+        fail();
+    }
+
+    @Test
+    public void testScriptCondition_accessCtx() throws Exception {
+        ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
+        ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(new Script("ctx.trigger.scheduled_time.getMillis() < System.currentTimeMillis() ")), logger, scriptService);
+        SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
+        WatchExecutionContext ctx = mockExecutionContext("_name", new DateTime(UTC), new Payload.XContent(response));
+        Thread.sleep(10);
+        assertThat(condition.execute(ctx).met(), is(true));
+    }
+
 
     private static ScriptServiceProxy getScriptServiceProxy(ThreadPool tp) throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()

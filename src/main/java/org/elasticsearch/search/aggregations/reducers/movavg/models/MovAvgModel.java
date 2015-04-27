@@ -63,10 +63,6 @@ public abstract class MovAvgModel {
             return predictions;
         }
 
-        // nocommit
-        // I don't like that it creates a new queue here
-        // The alternative to this is to just use `values` directly, but that would "consume" values
-        // and potentially change state elsewhere.  Maybe ok?
         Collection<Number> predictionBuffer = EvictingQueue.create(values.size());
         predictionBuffer.addAll(values);
 

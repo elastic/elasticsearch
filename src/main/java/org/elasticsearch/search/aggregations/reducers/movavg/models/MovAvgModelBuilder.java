@@ -29,5 +29,4 @@ import java.io.IOException;
  * average models are used by the MovAvg reducer
  */
 public interface MovAvgModelBuilder extends ToXContent {
-    public abstract XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException;
 }

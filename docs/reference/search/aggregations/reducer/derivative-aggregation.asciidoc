@@ -13,7 +13,8 @@ The following snippet calculates the derivative of the total monthly `sales`:
         "sales_per_month" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "month"
+                "interval" : "month",
+                "min_doc_count" : 0
             },
             "aggs": {
                 "sales": {
@@ -64,7 +65,7 @@ And the following may be the response:
             {
                "key_as_string": "2015/03/01 00:00:00",
                "key": 1425168000000,
-               "doc_count": 2,
+               "doc_count": 2, <3>
                "sales": {
                   "value": 375
                },
@@ -81,6 +82,7 @@ And the following may be the response:
 <1> No derivative for the first bucket since we need at least 2 data points to calculate the derivative
 <2> Derivative value units are implicitly defined by the `sales` aggregation and the parent histogram so in this case the units 
 would be $/month assuming the `price` field has units of $.
+<3> The number of documents in the bucket are represented by the `doc_count` value
 
 ==== Second Order Derivative
 
@@ -179,7 +181,7 @@ There are a couple of reasons why the data output by the enclosing histogram may
 on the enclosing histogram or with a query matching only a small number of documents)
 
 Where there is no data available in a bucket for a given metric it presents a problem for calculating the derivative value for both 
-the current bucket and the next bucket. In the derivative reducer aggregation has a `gap policy` parameter to define what the behavior 
+the current bucket and the next bucket. In the derivative reducer aggregation has a `gap_policy` parameter to define what the behavior
 should be when a gap in the data is found. There are currently two options for controlling the gap policy:
 
 _ignore_::

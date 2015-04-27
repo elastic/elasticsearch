@@ -17,9 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.common.xcontent;
+package org.elasticsearch.test;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Lists;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 
 import java.io.IOException;
 import java.util.List;

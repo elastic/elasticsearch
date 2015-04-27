@@ -79,7 +79,8 @@ public class DateRangeParser implements Aggregator.Parser {
                                 } else if ("to".equals(toOrFromOrKey)) {
                                     to = parser.doubleValue();
                                 } else {
-                                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName
+                                            + "]: [" + currentFieldName + "].", parser.getTokenLocation());
                                 }
                             } else if (token == XContentParser.Token.VALUE_STRING) {
                                 if ("from".equals(toOrFromOrKey)) {
@@ -89,7 +90,7 @@ public class DateRangeParser implements Aggregator.Parser {
                                 } else if ("key".equals(toOrFromOrKey)) {
                                     key = parser.text();
                                 } else {
-                                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].", parser.getTokenLocation());
                                 }
                             }
                         }
@@ -100,15 +101,18 @@ public class DateRangeParser implements Aggregator.Parser {
                 if ("keyed".equals(currentFieldName)) {
                     keyed = parser.booleanValue();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                            + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
+                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
+                        parser.getTokenLocation());
             }
         }
 
         if (ranges == null) {
-            throw new SearchParseException(context, "Missing [ranges] in ranges aggregator [" + aggregationName + "]");
+            throw new SearchParseException(context, "Missing [ranges] in ranges aggregator [" + aggregationName + "]",
+                    parser.getTokenLocation());
         }
 
         return new RangeAggregator.Factory(aggregationName, vsParser.config(), InternalDateRange.FACTORY, ranges, keyed);

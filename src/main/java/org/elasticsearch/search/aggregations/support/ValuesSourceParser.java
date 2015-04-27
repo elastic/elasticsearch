@@ -101,7 +101,8 @@ public class ValuesSourceParser<VS extends ValuesSource> {
                     if (targetValueType != null && input.valueType.isNotA(targetValueType)) {
                         throw new SearchParseException(context, aggType.name() + " aggregation [" + aggName +
                                 "] was configured with an incompatible value type [" + input.valueType + "]. [" + aggType +
-                                "] aggregation can only work on value of type [" + targetValueType + "]");
+                                "] aggregation can only work on value of type [" + targetValueType + "]", 
+                                parser.getTokenLocation());
                     }
                 } else if (!scriptParameterParser.token(currentFieldName, token, parser)) {
                     return false;

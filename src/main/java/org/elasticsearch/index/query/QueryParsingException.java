@@ -34,8 +34,8 @@ import java.io.IOException;
 public class QueryParsingException extends IndexException {
 
     public static final int UNKNOWN_POSITION = -1;
-    int lineNumber = UNKNOWN_POSITION;
-    int columnNumber = UNKNOWN_POSITION;
+    private int lineNumber = UNKNOWN_POSITION;
+    private int columnNumber = UNKNOWN_POSITION;
 
     public QueryParsingException(Index index, String msg, @Nullable XContentLocation location) {
         this(index, msg, location, null);

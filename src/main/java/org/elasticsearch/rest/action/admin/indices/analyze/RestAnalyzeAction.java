@@ -22,6 +22,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -55,10 +56,10 @@ public class RestAnalyzeAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
 
-        String text = request.param("text");
+        String[] texts = request.paramAsStringArrayOrEmptyIfAll("text");
 
         AnalyzeRequest analyzeRequest = new AnalyzeRequest(request.param("index"));
-        analyzeRequest.text(text);
+        analyzeRequest.text(texts);
         analyzeRequest.preferLocal(request.paramAsBoolean("prefer_local", analyzeRequest.preferLocalShard()));
         analyzeRequest.analyzer(request.param("analyzer"));
         analyzeRequest.field(request.param("field"));
@@ -69,9 +70,9 @@ public class RestAnalyzeAction extends BaseRestHandler {
         if (RestActions.hasBodyContent(request)) {
             XContentType type = RestActions.guessBodyContentType(request);
             if (type == null) {
-                if (text == null) {
-                    text = RestActions.getRestContent(request).toUtf8();
-                    analyzeRequest.text(text);
+                if (texts == null || texts.length == 0) {
+                    texts = new String[]{ RestActions.getRestContent(request).toUtf8() };
+                    analyzeRequest.text(texts);
                 }
             } else {
                 // NOTE: if rest request with xcontent body has request parameters, the parameters does not override xcontent values
@@ -95,7 +96,16 @@ public class RestAnalyzeAction extends BaseRestHandler {
                     } else if ("prefer_local".equals(currentFieldName) && token == XContentParser.Token.VALUE_BOOLEAN) {
                         analyzeRequest.preferLocal(parser.booleanValue());
                     } else if ("text".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
-                            analyzeRequest.text(parser.text());
+                        analyzeRequest.text(parser.text());
+                    } else if ("text".equals(currentFieldName) && token == XContentParser.Token.START_ARRAY) {
+                        List<String> texts = Lists.newArrayList();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (token.isValue() == false) {
+                                throw new IllegalArgumentException(currentFieldName + " array element should only contain text");
+                            }
+                            texts.add(parser.text());
+                        }
+                        analyzeRequest.text(texts.toArray(Strings.EMPTY_ARRAY));
                     } else if ("analyzer".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
                         analyzeRequest.analyzer(parser.text());
                     } else if ("field".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
@@ -110,7 +120,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
                             }
                             filters.add(parser.text());
                         }
-                        analyzeRequest.tokenFilters(filters.toArray(new String[0]));
+                        analyzeRequest.tokenFilters(filters.toArray(Strings.EMPTY_ARRAY));
                     } else if ("char_filters".equals(currentFieldName) && token == XContentParser.Token.START_ARRAY) {
                         List<String> charFilters = Lists.newArrayList();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -119,7 +129,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
                             }
                             charFilters.add(parser.text());
                         }
-                        analyzeRequest.tokenFilters(charFilters.toArray(new String[0]));
+                        analyzeRequest.tokenFilters(charFilters.toArray(Strings.EMPTY_ARRAY));
                     } else {
                         throw new IllegalArgumentException("Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");
                     }

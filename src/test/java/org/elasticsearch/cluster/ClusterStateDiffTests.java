@@ -48,8 +48,8 @@ import org.junit.Test;
 import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.AliasMetaData.newAliasMetaDataBuilder;
-import static org.elasticsearch.common.xcontent.XContentTestUtils.convertToMap;
-import static org.elasticsearch.common.xcontent.XContentTestUtils.mapsEqualIgnoringArrayOrder;
+import static org.elasticsearch.test.XContentTestUtils.convertToMap;
+import static org.elasticsearch.test.XContentTestUtils.mapsEqualIgnoringArrayOrder;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
 

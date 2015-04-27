@@ -72,14 +72,17 @@ public class ScriptedMetricParser implements Aggregator.Parser {
                 } else if (REDUCE_PARAMS_FIELD.match(currentFieldName)) {
                   reduceParams = parser.map();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                            + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token.isValue()) {
                 if (!scriptParameterParser.token(currentFieldName, token, parser)) {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                            + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
+                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
+                        parser.getTokenLocation());
             }
         }
         
@@ -114,7 +117,7 @@ public class ScriptedMetricParser implements Aggregator.Parser {
         scriptLang = scriptParameterParser.lang();
         
         if (mapScript == null) {
-            throw new SearchParseException(context, "map_script field is required in [" + aggregationName + "].");
+            throw new SearchParseException(context, "map_script field is required in [" + aggregationName + "].", parser.getTokenLocation());
         }
         return new ScriptedMetricAggregator.Factory(aggregationName, scriptLang, initScriptType, initScript, mapScriptType, mapScript,
                 combineScriptType, combineScript, reduceScriptType, reduceScript, params, reduceParams);

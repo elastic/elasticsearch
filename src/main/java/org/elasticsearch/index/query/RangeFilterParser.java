@@ -105,7 +105,7 @@ public class RangeFilterParser implements FilterParser {
                         } else if ("format".equals(currentFieldName)) {
                             forcedDateParser = new DateMathParser(Joda.forPattern(parser.text()), DateFieldMapper.Defaults.TIME_UNIT);
                         } else {
-                            throw new QueryParsingException(parseContext.index(), "[range] filter does not support [" + currentFieldName + "]");
+                            throw new QueryParsingException(parseContext, "[range] filter does not support [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -119,13 +119,13 @@ public class RangeFilterParser implements FilterParser {
                 } else if ("execution".equals(currentFieldName)) {
                     execution = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[range] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[range] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (fieldName == null) {
-            throw new QueryParsingException(parseContext.index(), "[range] filter no field specified for range filter");
+            throw new QueryParsingException(parseContext, "[range] filter no field specified for range filter");
         }
 
         Filter filter = null;
@@ -136,33 +136,39 @@ public class RangeFilterParser implements FilterParser {
                     FieldMapper mapper = smartNameFieldMappers.mapper();
                     if (mapper instanceof DateFieldMapper) {
                         if ((from instanceof Number || to instanceof Number) && timeZone != null) {
-                            throw new QueryParsingException(parseContext.index(), "[range] time_zone when using ms since epoch format as it's UTC based can not be applied to [" + fieldName + "]");
+                            throw new QueryParsingException(parseContext,
+                                    "[range] time_zone when using ms since epoch format as it's UTC based can not be applied to ["
+                                            + fieldName + "]");
                         }
                         filter = ((DateFieldMapper) mapper).rangeFilter(from, to, includeLower, includeUpper, timeZone, forcedDateParser, parseContext);
                     } else  {
                         if (timeZone != null) {
-                            throw new QueryParsingException(parseContext.index(), "[range] time_zone can not be applied to non date field [" + fieldName + "]");
+                            throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non date field ["
+                                    + fieldName + "]");
                         }
                         filter = mapper.rangeFilter(from, to, includeLower, includeUpper, parseContext);
                     }
                 } else if ("fielddata".equals(execution)) {
                     FieldMapper mapper = smartNameFieldMappers.mapper();
                     if (!(mapper instanceof NumberFieldMapper)) {
-                        throw new QueryParsingException(parseContext.index(), "[range] filter field [" + fieldName + "] is not a numeric type");
+                        throw new QueryParsingException(parseContext, "[range] filter field [" + fieldName + "] is not a numeric type");
                     }
                     if (mapper instanceof DateFieldMapper) {
                         if ((from instanceof Number || to instanceof Number) && timeZone != null) {
-                            throw new QueryParsingException(parseContext.index(), "[range] time_zone when using ms since epoch format as it's UTC based can not be applied to [" + fieldName + "]");
+                            throw new QueryParsingException(parseContext,
+                                    "[range] time_zone when using ms since epoch format as it's UTC based can not be applied to ["
+                                            + fieldName + "]");
                         }
                         filter = ((DateFieldMapper) mapper).rangeFilter(parseContext, from, to, includeLower, includeUpper, timeZone, forcedDateParser, parseContext);
                     } else {
                         if (timeZone != null) {
-                            throw new QueryParsingException(parseContext.index(), "[range] time_zone can not be applied to non date field [" + fieldName + "]");
+                            throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non date field ["
+                                    + fieldName + "]");
                         }
                         filter = ((NumberFieldMapper) mapper).rangeFilter(parseContext, from, to, includeLower, includeUpper, parseContext);
                     }
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[range] filter doesn't support [" + execution + "] execution");
+                    throw new QueryParsingException(parseContext, "[range] filter doesn't support [" + execution + "] execution");
                 }
             }
         }

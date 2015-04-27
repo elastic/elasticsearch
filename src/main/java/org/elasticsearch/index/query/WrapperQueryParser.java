@@ -48,11 +48,11 @@ public class WrapperQueryParser implements QueryParser {
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext.index(), "[wrapper] query malformed");
+            throw new QueryParsingException(parseContext, "[wrapper] query malformed");
         }
         String fieldName = parser.currentName();
         if (!fieldName.equals("query")) {
-            throw new QueryParsingException(parseContext.index(), "[wrapper] query malformed");
+            throw new QueryParsingException(parseContext, "[wrapper] query malformed");
         }
         parser.nextToken();
 

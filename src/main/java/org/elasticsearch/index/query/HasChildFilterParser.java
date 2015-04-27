@@ -94,7 +94,7 @@ public class HasChildFilterParser implements FilterParser {
                 } else if ("inner_hits".equals(currentFieldName)) {
                     innerHits = innerHitsQueryParserHelper.parse(parseContext);
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[has_child] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[has_child] filter does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "child_type".equals(currentFieldName) || "childType".equals(currentFieldName)) {
@@ -112,15 +112,15 @@ public class HasChildFilterParser implements FilterParser {
                 } else if ("max_children".equals(currentFieldName) || "maxChildren".equals(currentFieldName)) {
                     maxChildren = parser.intValue(true);
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[has_child] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[has_child] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (!queryFound && !filterFound) {
-            throw new QueryParsingException(parseContext.index(), "[has_child] filter requires 'query' or 'filter' field");
+            throw new QueryParsingException(parseContext, "[has_child] filter requires 'query' or 'filter' field");
         }
         if (childType == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_child] filter requires 'type' field");
+            throw new QueryParsingException(parseContext, "[has_child] filter requires 'type' field");
         }
 
         Query query;
@@ -136,7 +136,7 @@ public class HasChildFilterParser implements FilterParser {
 
         DocumentMapper childDocMapper = parseContext.mapperService().documentMapper(childType);
         if (childDocMapper == null) {
-            throw new QueryParsingException(parseContext.index(), "No mapping for for type [" + childType + "]");
+            throw new QueryParsingException(parseContext, "No mapping for for type [" + childType + "]");
         }
         if (innerHits != null) {
             InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.v2(), query, null, childDocMapper);
@@ -145,7 +145,7 @@ public class HasChildFilterParser implements FilterParser {
         }
         ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
         if (!parentFieldMapper.active()) {
-            throw new QueryParsingException(parseContext.index(), "Type [" + childType + "] does not have parent mapping");
+            throw new QueryParsingException(parseContext, "Type [" + childType + "] does not have parent mapping");
         }
         String parentType = parentFieldMapper.type();
 
@@ -154,11 +154,12 @@ public class HasChildFilterParser implements FilterParser {
 
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_child]  Type [" + childType + "] points to a non existent parent type [" + parentType + "]");
+            throw new QueryParsingException(parseContext, "[has_child]  Type [" + childType + "] points to a non existent parent type ["
+                    + parentType + "]");
         }
 
         if (maxChildren > 0 && maxChildren < minChildren) {
-            throw new QueryParsingException(parseContext.index(), "[has_child] 'max_children' is less than 'min_children'");
+            throw new QueryParsingException(parseContext, "[has_child] 'max_children' is less than 'min_children'");
         }
 
         BitDocIdSetFilter nonNestedDocsFilter = null;

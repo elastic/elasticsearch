@@ -56,10 +56,12 @@ public class GeoBoundsParser implements Aggregator.Parser {
                 if ("wrap_longitude".equals(currentFieldName) || "wrapLongitude".equals(currentFieldName)) {
                     wrapLongitude = parser.booleanValue();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: ["
+                            + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else {
-                throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
+                throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: ["
+                        + currentFieldName + "].", parser.getTokenLocation());
             }
         }
         return new GeoBoundsAggregator.Factory(aggregationName, vsParser.config(), wrapLongitude);

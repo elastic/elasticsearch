@@ -68,17 +68,17 @@ public class SpanNotQueryParser implements QueryParser {
                 if ("include".equals(currentFieldName)) {
                     Query query = parseContext.parseInnerQuery();
                     if (!(query instanceof SpanQuery)) {
-                        throw new QueryParsingException(parseContext.index(), "spanNot [include] must be of type span query");
+                        throw new QueryParsingException(parseContext, "spanNot [include] must be of type span query");
                     }
                     include = (SpanQuery) query;
                 } else if ("exclude".equals(currentFieldName)) {
                     Query query = parseContext.parseInnerQuery();
                     if (!(query instanceof SpanQuery)) {
-                        throw new QueryParsingException(parseContext.index(), "spanNot [exclude] must be of type span query");
+                        throw new QueryParsingException(parseContext, "spanNot [exclude] must be of type span query");
                     }
                     exclude = (SpanQuery) query;
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[span_not] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[span_not] query does not support [" + currentFieldName + "]");
                 }
             } else {
                 if ("dist".equals(currentFieldName)) {
@@ -92,18 +92,18 @@ public class SpanNotQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[span_not] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[span_not] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (include == null) {
-            throw new QueryParsingException(parseContext.index(), "spanNot must have [include] span query clause");
+            throw new QueryParsingException(parseContext, "spanNot must have [include] span query clause");
         }
         if (exclude == null) {
-            throw new QueryParsingException(parseContext.index(), "spanNot must have [exclude] span query clause");
+            throw new QueryParsingException(parseContext, "spanNot must have [exclude] span query clause");
         }
         if (dist != null && (pre != null || post != null)) {
-            throw new QueryParsingException(parseContext.index(), "spanNot can either use [dist] or [pre] & [post] (or none)");
+            throw new QueryParsingException(parseContext, "spanNot can either use [dist] or [pre] & [post] (or none)");
         }
 
         // set appropriate defaults

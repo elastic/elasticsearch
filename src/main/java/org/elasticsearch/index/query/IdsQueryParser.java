@@ -74,12 +74,12 @@ public class IdsQueryParser implements QueryParser {
                                 (token == XContentParser.Token.VALUE_NUMBER)) {
                             BytesRef value = parser.utf8BytesOrNull();
                             if (value == null) {
-                                throw new QueryParsingException(parseContext.index(), "No value specified for term filter");
+                                throw new QueryParsingException(parseContext, "No value specified for term filter");
                             }
                             ids.add(value);
                         } else {
-                            throw new QueryParsingException(parseContext.index(),
-                                    "Illegal value for id, expecting a string or number, got: " + token);
+                            throw new QueryParsingException(parseContext, "Illegal value for id, expecting a string or number, got: "
+                                    + token);
                         }
                     }
                 } else if ("types".equals(currentFieldName) || "type".equals(currentFieldName)) {
@@ -87,12 +87,12 @@ public class IdsQueryParser implements QueryParser {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String value = parser.textOrNull();
                         if (value == null) {
-                            throw new QueryParsingException(parseContext.index(), "No type specified for term filter");
+                            throw new QueryParsingException(parseContext, "No type specified for term filter");
                         }
                         types.add(value);
                     }
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[ids] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[ids] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "_type".equals(currentFieldName)) {
@@ -102,13 +102,13 @@ public class IdsQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[ids] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[ids] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (!idsProvided) {
-            throw new QueryParsingException(parseContext.index(), "[ids] query, no ids values provided");
+            throw new QueryParsingException(parseContext, "[ids] query, no ids values provided");
         }
 
         if (ids.isEmpty()) {

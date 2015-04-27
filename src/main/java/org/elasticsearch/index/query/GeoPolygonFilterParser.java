@@ -96,10 +96,12 @@ public class GeoPolygonFilterParser implements FilterParser {
                                 shell.add(GeoUtils.parseGeoPoint(parser));
                             }
                         } else {
-                            throw new QueryParsingException(parseContext.index(), "[geo_polygon] filter does not support [" + currentFieldName + "]");
+                            throw new QueryParsingException(parseContext, "[geo_polygon] filter does not support [" + currentFieldName
+                                    + "]");
                         }
                     } else {
-                        throw new QueryParsingException(parseContext.index(), "[geo_polygon] filter does not support token type [" + token.name() + "] under [" + currentFieldName + "]");
+                        throw new QueryParsingException(parseContext, "[geo_polygon] filter does not support token type [" + token.name()
+                                + "] under [" + currentFieldName + "]");
                     }
                 }
             } else if (token.isValue()) {
@@ -113,25 +115,25 @@ public class GeoPolygonFilterParser implements FilterParser {
                     normalizeLat = parser.booleanValue();
                     normalizeLon = parser.booleanValue();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[geo_polygon] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[geo_polygon] filter does not support [" + currentFieldName + "]");
                 }
             } else {
-                throw new QueryParsingException(parseContext.index(), "[geo_polygon] unexpected token type [" + token.name() + "]");
+                throw new QueryParsingException(parseContext, "[geo_polygon] unexpected token type [" + token.name() + "]");
             }
         }
 
         if (shell.isEmpty()) {
-            throw new QueryParsingException(parseContext.index(), "no points defined for geo_polygon filter");
+            throw new QueryParsingException(parseContext, "no points defined for geo_polygon filter");
         } else {
             if (shell.size() < 3) {
-                throw new QueryParsingException(parseContext.index(), "too few points defined for geo_polygon filter");
+                throw new QueryParsingException(parseContext, "too few points defined for geo_polygon filter");
             }
             GeoPoint start = shell.get(0);
             if (!start.equals(shell.get(shell.size() - 1))) {
                 shell.add(start);
             }
             if (shell.size() < 4) {
-                throw new QueryParsingException(parseContext.index(), "too few points defined for geo_polygon filter");
+                throw new QueryParsingException(parseContext, "too few points defined for geo_polygon filter");
             }
         }
 
@@ -143,11 +145,11 @@ public class GeoPolygonFilterParser implements FilterParser {
 
         MapperService.SmartNameFieldMappers smartMappers = parseContext.smartFieldMappers(fieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new QueryParsingException(parseContext.index(), "failed to find geo_point field [" + fieldName + "]");
+            throw new QueryParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
         }
         FieldMapper<?> mapper = smartMappers.mapper();
         if (!(mapper instanceof GeoPointFieldMapper)) {
-            throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
+            throw new QueryParsingException(parseContext, "field [" + fieldName + "] is not a geo_point field");
         }
 
         IndexGeoPointFieldData indexFieldData = parseContext.getForField(mapper);

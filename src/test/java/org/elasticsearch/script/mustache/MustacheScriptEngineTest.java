@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.script.mustache;
 
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -38,10 +37,12 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class MustacheScriptEngineTest extends ElasticsearchTestCase {
     private MustacheScriptEngineService qe;
+    private JsonEscapingMustacheFactory escaper;
 
     @Before
     public void setup() {
         qe = new MustacheScriptEngineService(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        escaper = new JsonEscapingMustacheFactory();
     }
 
     @Test
@@ -73,43 +74,98 @@ public class MustacheScriptEngineTest extends ElasticsearchTestCase {
     public void testEscapeJson() throws IOException {
         {
             StringWriter writer = new StringWriter();
-            JsonEscapingMustacheFactory.escape("hello \n world", writer);
-            assertThat(writer.toString(), equalTo("hello \\\n world"));
+            escaper.encode("hello \n world", writer);
+            assertThat(writer.toString(), equalTo("hello \\n world"));
         }
         {
             StringWriter writer = new StringWriter();
-            JsonEscapingMustacheFactory.escape("\n", writer);
-            assertThat(writer.toString(), equalTo("\\\n"));
+            escaper.encode("\n", writer);
+            assertThat(writer.toString(), equalTo("\\n"));
         }
 
-        Character[] specialChars = new Character[]{'\f', '\n', '\r', '"', '\\', (char) 11, '\t', '\b' };
+        Character[] specialChars = new Character[]{
+                '\"', 
+                '\\', 
+                '\u0000', 
+                '\u0001',
+                '\u0002',
+                '\u0003',
+                '\u0004',
+                '\u0005',
+                '\u0006',
+                '\u0007',
+                '\u0008',
+                '\u0009',
+                '\u000B',
+                '\u000C',
+                '\u000E',
+                '\u000F',
+                '\u001F'};
+        String[] escapedChars = new String[]{
+                "\\\"", 
+                "\\\\", 
+                "\\u0000", 
+                "\\u0001",
+                "\\u0002",
+                "\\u0003",
+                "\\u0004",
+                "\\u0005",
+                "\\u0006",
+                "\\u0007",
+                "\\u0008",
+                "\\u0009",
+                "\\u000B",
+                "\\u000C",
+                "\\u000E",
+                "\\u000F",
+                "\\u001F"};
         int iters = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
             int rounds = scaledRandomIntBetween(1, 20);
-            StringWriter escaped = new StringWriter();
+            StringWriter expect = new StringWriter();
             StringWriter writer = new StringWriter();
             for (int j = 0; j < rounds; j++) {
                 String s = getChars();
                 writer.write(s);
-                escaped.write(s);
-                char c = RandomPicks.randomFrom(getRandom(), specialChars);
-                writer.append(c);
-                escaped.append('\\');
-                escaped.append(c);
+                expect.write(s);
+
+                int charIndex = randomInt(7);
+                writer.append(specialChars[charIndex]);
+                expect.append(escapedChars[charIndex]);
             }
             StringWriter target = new StringWriter();
-            assertThat(escaped.toString(), equalTo(JsonEscapingMustacheFactory.escape(writer.toString(), target).toString()));
+            escaper.encode(writer.toString(), target);
+            assertThat(expect.toString(), equalTo(target.toString()));
         }
     }
 
     private String getChars() {
         String string = randomRealisticUnicodeOfCodepointLengthBetween(0, 10);
         for (int i = 0; i < string.length(); i++) {
-            if (JsonEscapingMustacheFactory.isEscapeChar(string.charAt(i))) {
+            if (isEscapeChar(string.charAt(i))) {
                 return string.substring(0, i);
             }
         }
         return string;
     }
-
+    
+    /**
+     * From https://www.ietf.org/rfc/rfc4627.txt:
+     * 
+     * All Unicode characters may be placed within the
+     * quotation marks except for the characters that must be escaped:
+     * quotation mark, reverse solidus, and the control characters (U+0000
+     * through U+001F). 
+     * */
+    private static boolean isEscapeChar(char c) {
+        switch (c) {
+        case '"':
+        case '\\':
+            return true;
+        }
+        
+        if (c < '\u002F')
+            return true;
+        return false;
+    }
 }

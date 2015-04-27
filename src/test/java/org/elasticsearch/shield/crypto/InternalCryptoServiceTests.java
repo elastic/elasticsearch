@@ -216,7 +216,8 @@ public class InternalCryptoServiceTests extends ElasticsearchTestCase {
     @Test
     public void testChangingAByte() {
         InternalCryptoService service = new InternalCryptoService(settings, env, watcherService).start();
-        final byte[] bytes = randomByteArray();
+        // We need at least one byte to test changing a byte, otherwise output is always the same
+        final byte[] bytes = randomByteArray(1);
         final byte[] encrypted = service.encrypt(bytes);
         assertThat(encrypted, notNullValue());
         assertThat(Arrays.equals(encrypted, bytes), is(false));
@@ -262,7 +263,11 @@ public class InternalCryptoServiceTests extends ElasticsearchTestCase {
     }
 
     private static byte[] randomByteArray() {
-        int count = randomIntBetween(0, 1000);
+        return randomByteArray(0);
+    }
+
+    private static byte[] randomByteArray(int min) {
+        int count = randomIntBetween(min, 1000);
         byte[] bytes = new byte[count];
         for (int i = 0; i < count; i++) {
             bytes[i] = randomByte();

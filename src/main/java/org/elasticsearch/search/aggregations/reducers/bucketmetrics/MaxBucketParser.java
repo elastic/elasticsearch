@@ -47,7 +47,7 @@ public class MaxBucketParser implements Reducer.Parser {
         String currentFieldName = null;
         String[] bucketsPaths = null;
         String format = null;
-        GapPolicy gapPolicy = GapPolicy.IGNORE;
+        GapPolicy gapPolicy = GapPolicy.SKIP;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {

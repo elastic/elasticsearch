@@ -64,7 +64,7 @@ public class MovAvgParser implements Reducer.Parser {
         String[] bucketsPaths = null;
         String format = null;
 
-        GapPolicy gapPolicy = GapPolicy.IGNORE;
+        GapPolicy gapPolicy = GapPolicy.SKIP;
         int window = 5;
         Map<String, Object> settings = null;
         String model = "simple";

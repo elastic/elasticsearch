@@ -234,7 +234,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
     }
 
-    public static class Factory<B extends InternalHistogram.Bucket> extends InternalMultiBucketAggregation.Factory<InternalHistogram<B>, B> {
+    public static class Factory<B extends InternalHistogram.Bucket> {
 
         protected Factory() {
         }
@@ -249,13 +249,11 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             return new InternalHistogram<>(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, this, reducers, metaData);
         }
 
-        @Override
         public InternalHistogram<B> create(List<B> buckets, InternalHistogram<B> prototype) {
             return new InternalHistogram<>(prototype.name, buckets, prototype.order, prototype.minDocCount, prototype.emptyBucketInfo,
                     prototype.formatter, prototype.keyed, this, prototype.reducers(), prototype.metaData);
         }
 
-        @Override
         public B createBucket(InternalAggregations aggregations, B prototype) {
             return (B) new Bucket(prototype.key, prototype.docCount, prototype.getKeyed(), prototype.formatter, this, aggregations);
         }

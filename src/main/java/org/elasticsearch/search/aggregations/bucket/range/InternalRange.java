@@ -225,7 +225,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
     }
 
-    public static class Factory<B extends Bucket, R extends InternalRange<B, R>> extends InternalMultiBucketAggregation.Factory<R, B> {
+    public static class Factory<B extends Bucket, R extends InternalRange<B, R>> {
 
         public String type() {
             return TYPE.name();
@@ -236,18 +236,16 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return (R) new InternalRange<>(name, ranges, formatter, keyed, reducers, metaData);
         }
 
-
-        public B createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
+        public B createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed,
+                @Nullable ValueFormatter formatter) {
             return (B) new Bucket(key, from, to, docCount, aggregations, keyed, formatter);
         }
 
-        @Override
         public R create(List<B> ranges, R prototype) {
             return (R) new InternalRange<>(prototype.name, ranges, prototype.formatter, prototype.keyed, prototype.reducers(),
                     prototype.metaData);
-    }
+        }
 
-        @Override
         public B createBucket(InternalAggregations aggregations, B prototype) {
             return (B) new Bucket(prototype.getKey(), prototype.from, prototype.to, prototype.getDocCount(), aggregations, prototype.keyed,
                     prototype.formatter);

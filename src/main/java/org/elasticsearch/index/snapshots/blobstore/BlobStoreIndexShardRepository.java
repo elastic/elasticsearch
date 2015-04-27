@@ -187,7 +187,6 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
     @Override
     public void verify(String seed) {
         BlobContainer testBlobContainer = blobStore.blobContainer(basePath);
-        ;
         DiscoveryNode localNode = clusterService.localNode();
         if (testBlobContainer.blobExists(testBlobPrefix(seed) + "-master")) {
             try (OutputStream outputStream = testBlobContainer.createOutput(testBlobPrefix(seed) + "-" + localNode.getId())) {

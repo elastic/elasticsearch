@@ -56,7 +56,8 @@ public class TermsParametersParser extends AbstractTermsParametersParser {
             if ("order".equals(currentFieldName)) {
                 this.orderElements = Collections.singletonList(parseOrderParam(aggregationName, parser, context));
             } else {
-                throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                        + currentFieldName + "].", parser.getTokenLocation());
             }
         } else if (token == XContentParser.Token.START_ARRAY) {
             if ("order".equals(currentFieldName)) {
@@ -66,18 +67,21 @@ public class TermsParametersParser extends AbstractTermsParametersParser {
                         OrderElement orderParam = parseOrderParam(aggregationName, parser, context);
                         orderElements.add(orderParam);
                     } else {
-                        throw new SearchParseException(context, "Order elements must be of type object in [" + aggregationName + "].");
+                        throw new SearchParseException(context, "Order elements must be of type object in [" + aggregationName + "].",
+                                parser.getTokenLocation());
                     }
                 }
             } else {
-                throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                        + currentFieldName + "].", parser.getTokenLocation());
             }
         } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
             if (SHOW_TERM_DOC_COUNT_ERROR.match(currentFieldName)) {
                 showTermDocCountError = parser.booleanValue();
             }
         } else {
-            throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+            throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName
+                    + "].", parser.getTokenLocation());
         }
     }
 
@@ -96,14 +100,17 @@ public class TermsParametersParser extends AbstractTermsParametersParser {
                 } else if ("desc".equalsIgnoreCase(dir)) {
                     orderAsc = false;
                 } else {
-                    throw new SearchParseException(context, "Unknown terms order direction [" + dir + "] in terms aggregation [" + aggregationName + "]");
+                    throw new SearchParseException(context, "Unknown terms order direction [" + dir + "] in terms aggregation ["
+                            + aggregationName + "]", parser.getTokenLocation());
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " for [order] in [" + aggregationName + "].");
+                throw new SearchParseException(context, "Unexpected token " + token + " for [order] in [" + aggregationName + "].",
+                        parser.getTokenLocation());
             }
         }
         if (orderKey == null) {
-            throw new SearchParseException(context, "Must specify at least one field for [order] in [" + aggregationName + "].");
+            throw new SearchParseException(context, "Must specify at least one field for [order] in [" + aggregationName + "].",
+                    parser.getTokenLocation());
         } else {
             orderParam = new OrderElement(orderKey, orderAsc);
         }

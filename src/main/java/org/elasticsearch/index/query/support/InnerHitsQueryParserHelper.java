@@ -72,7 +72,7 @@ public class InnerHitsQueryParserHelper {
                 }
             }
         } catch (Exception e) {
-            throw new QueryParsingException(parserContext.index(), "Failed to parse [_inner_hits]", e);
+            throw new QueryParsingException(parserContext, "Failed to parse [_inner_hits]", e);
         }
         return new Tuple<>(innerHitName, subSearchContext);
     }

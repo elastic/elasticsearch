@@ -65,7 +65,8 @@ public class FiltersParser implements Aggregator.Parser {
                         }
                     }
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                            + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("filters".equals(currentFieldName)) {
@@ -78,10 +79,12 @@ public class FiltersParser implements Aggregator.Parser {
                         idx++;
                     }
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                            + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else {
-                throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                        + currentFieldName + "].", parser.getTokenLocation());
             }
         }
 

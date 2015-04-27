@@ -22,15 +22,17 @@ package org.elasticsearch.search.aggregations.metrics.scripted;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.*;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -190,7 +192,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
                 clone = original;
             } else {
                 throw new SearchParseException(context, "Can only clone primitives, String, ArrayList, and HashMap. Found: "
-                        + original.getClass().getCanonicalName());
+                        + original.getClass().getCanonicalName(), null);
             }
             return clone;
         }

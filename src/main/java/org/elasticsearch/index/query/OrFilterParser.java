@@ -100,14 +100,14 @@ public class OrFilterParser implements FilterParser {
                     } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                         cacheKey = new HashedBytesRef(parser.text());
                     } else {
-                        throw new QueryParsingException(parseContext.index(), "[or] filter does not support [" + currentFieldName + "]");
+                        throw new QueryParsingException(parseContext, "[or] filter does not support [" + currentFieldName + "]");
                     }
                 }
             }
         }
 
         if (!filtersFound) {
-            throw new QueryParsingException(parseContext.index(), "[or] filter requires 'filters' to be set on it'");
+            throw new QueryParsingException(parseContext, "[or] filter requires 'filters' to be set on it'");
         }
 
         if (filters.isEmpty()) {

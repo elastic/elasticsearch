@@ -50,15 +50,15 @@ public class TypeFilterParser implements FilterParser {
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext.index(), "[type] filter should have a value field, and the type name");
+            throw new QueryParsingException(parseContext, "[type] filter should have a value field, and the type name");
         }
         String fieldName = parser.currentName();
         if (!fieldName.equals("value")) {
-            throw new QueryParsingException(parseContext.index(), "[type] filter should have a value field, and the type name");
+            throw new QueryParsingException(parseContext, "[type] filter should have a value field, and the type name");
         }
         token = parser.nextToken();
         if (token != XContentParser.Token.VALUE_STRING) {
-            throw new QueryParsingException(parseContext.index(), "[type] filter should have a value field, and the type name");
+            throw new QueryParsingException(parseContext, "[type] filter should have a value field, and the type name");
         }
         BytesRef type = parser.utf8Bytes();
         // move to the next token

@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -86,16 +87,19 @@ public class AggregatorParsers {
         XContentParser.Token token = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token != XContentParser.Token.FIELD_NAME) {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [aggs]: aggregations definitions must start with the name of the aggregation.");
+                throw new SearchParseException(context, "Unexpected token " + token
+                        + " in [aggs]: aggregations definitions must start with the name of the aggregation.", parser.getTokenLocation());
             }
             final String aggregationName = parser.currentName();
             if (!validAggMatcher.reset(aggregationName).matches()) {
-                throw new SearchParseException(context, "Invalid aggregation name [" + aggregationName + "]. Aggregation names must be alpha-numeric and can only contain '_' and '-'");
+                throw new SearchParseException(context, "Invalid aggregation name [" + aggregationName
+                        + "]. Aggregation names must be alpha-numeric and can only contain '_' and '-'", parser.getTokenLocation());
             }
 
             token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new SearchParseException(context, "Aggregation definition for [" + aggregationName + " starts with a [" + token + "], expected a [" + XContentParser.Token.START_OBJECT + "].");
+                throw new SearchParseException(context, "Aggregation definition for [" + aggregationName + " starts with a [" + token
+                        + "], expected a [" + XContentParser.Token.START_OBJECT + "].", parser.getTokenLocation());
             }
 
             AggregatorFactory factory = null;
@@ -105,13 +109,16 @@ public class AggregatorParsers {
 
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token != XContentParser.Token.FIELD_NAME) {
-                    throw new SearchParseException(context, "Expected [" + XContentParser.Token.FIELD_NAME + "] under a [" + XContentParser.Token.START_OBJECT + "], but got a [" + token + "] in [" + aggregationName + "]");
+                    throw new SearchParseException(context, "Expected [" + XContentParser.Token.FIELD_NAME + "] under a ["
+                            + XContentParser.Token.START_OBJECT + "], but got a [" + token + "] in [" + aggregationName + "]",
+                            parser.getTokenLocation());
                 }
                 final String fieldName = parser.currentName();
 
                 token = parser.nextToken();
                 if (token != XContentParser.Token.START_OBJECT) {
-                    throw new SearchParseException(context, "Expected [" + XContentParser.Token.START_OBJECT + "] under [" + fieldName + "], but got a [" + token + "] in [" + aggregationName + "]");
+                    throw new SearchParseException(context, "Expected [" + XContentParser.Token.START_OBJECT + "] under [" + fieldName
+                            + "], but got a [" + token + "] in [" + aggregationName + "]", parser.getTokenLocation());
                 }
 
                 switch (fieldName) {
@@ -121,24 +128,28 @@ public class AggregatorParsers {
                     case "aggregations":
                     case "aggs":
                         if (subFactories != null) {
-                            throw new SearchParseException(context, "Found two sub aggregation definitions under [" + aggregationName + "]");
+                        throw new SearchParseException(context, "Found two sub aggregation definitions under [" + aggregationName + "]",
+                                parser.getTokenLocation());
                         }
                         subFactories = parseAggregators(parser, context, level+1);
                         break;
                     default:
                         if (factory != null) {
-                            throw new SearchParseException(context, "Found two aggregation type definitions in [" + aggregationName + "]: [" + factory.type + "] and [" + fieldName + "]");
+                        throw new SearchParseException(context, "Found two aggregation type definitions in [" + aggregationName + "]: ["
+                                + factory.type + "] and [" + fieldName + "]", parser.getTokenLocation());
                         }
                         Aggregator.Parser aggregatorParser = parser(fieldName);
                         if (aggregatorParser == null) {
-                            throw new SearchParseException(context, "Could not find aggregator type [" + fieldName + "] in [" + aggregationName + "]");
+                        throw new SearchParseException(context, "Could not find aggregator type [" + fieldName + "] in [" + aggregationName
+                                + "]", parser.getTokenLocation());
                         }
                         factory = aggregatorParser.parse(aggregationName, parser, context);
                 }
             }
 
             if (factory == null) {
-                throw new SearchParseException(context, "Missing definition for aggregation [" + aggregationName + "]");
+                throw new SearchParseException(context, "Missing definition for aggregation [" + aggregationName + "]",
+                        parser.getTokenLocation());
             }
 
             if (metaData != null) {

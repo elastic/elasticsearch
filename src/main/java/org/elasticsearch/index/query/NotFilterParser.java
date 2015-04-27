@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -80,13 +79,13 @@ public class NotFilterParser implements FilterParser {
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new HashedBytesRef(parser.text());
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[not] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[not] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (!filterFound) {
-            throw new QueryParsingException(parseContext.index(), "filter is required when using `not` filter");
+            throw new QueryParsingException(parseContext, "filter is required when using `not` filter");
         }
 
         if (filter == null) {

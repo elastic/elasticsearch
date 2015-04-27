@@ -21,6 +21,7 @@
 package org.elasticsearch.index.query.functionscore.random;
 
 import com.google.common.primitives.Longs;
+
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
@@ -66,15 +67,17 @@ public class RandomScoreFunctionParser implements ScoreFunctionParser {
                         } else if (parser.numberType() == XContentParser.NumberType.LONG) {
                             seed = Longs.hashCode(parser.longValue());
                         } else {
-                            throw new QueryParsingException(parseContext.index(), "random_score seed must be an int, long or string, not '" + token.toString() + "'");
+                            throw new QueryParsingException(parseContext, "random_score seed must be an int, long or string, not '"
+                                    + token.toString() + "'");
                         }
                     } else if (token == XContentParser.Token.VALUE_STRING) {
                         seed = parser.text().hashCode();
                     } else {
-                        throw new QueryParsingException(parseContext.index(), "random_score seed must be an int/long or string, not '" + token.toString() + "'");
+                        throw new QueryParsingException(parseContext, "random_score seed must be an int/long or string, not '"
+                                + token.toString() + "'");
                     }
                 } else {
-                    throw new QueryParsingException(parseContext.index(), NAMES[0] + " query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
             }
         }

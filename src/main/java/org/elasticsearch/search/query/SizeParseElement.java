@@ -35,7 +35,8 @@ public class SizeParseElement implements SearchParseElement {
         if (token.isValue()) {
             int size = parser.intValue();
             if (size < 0) {
-                throw new SearchParseException(context, "size is set to [" + size + "] and is expected to be higher or equal to 0");
+                throw new SearchParseException(context, "size is set to [" + size + "] and is expected to be higher or equal to 0",
+                        parser.getTokenLocation());
             }
             context.size(size);
         }

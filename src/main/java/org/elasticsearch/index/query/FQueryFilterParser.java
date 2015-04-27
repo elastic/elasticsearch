@@ -66,7 +66,7 @@ public class FQueryFilterParser implements FilterParser {
                     queryFound = true;
                     query = parseContext.parseInnerQuery();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[fquery] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[fquery] filter does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
@@ -76,12 +76,12 @@ public class FQueryFilterParser implements FilterParser {
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new HashedBytesRef(parser.text());
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[fquery] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[fquery] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (!queryFound) {
-            throw new QueryParsingException(parseContext.index(), "[fquery] requires 'query' element");
+            throw new QueryParsingException(parseContext, "[fquery] requires 'query' element");
         }
         if (query == null) {
             return null;

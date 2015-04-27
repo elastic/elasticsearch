@@ -99,21 +99,25 @@ public class IpRangeParser implements Aggregator.Parser {
                         ranges.add(range);
                     }
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                            + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("keyed".equals(currentFieldName)) {
                     keyed = parser.booleanValue();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                            + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
+                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
+                        parser.getTokenLocation());
             }
         }
 
         if (ranges == null) {
-            throw new SearchParseException(context, "Missing [ranges] in ranges aggregator [" + aggregationName + "]");
+            throw new SearchParseException(context, "Missing [ranges] in ranges aggregator [" + aggregationName + "]",
+                    parser.getTokenLocation());
         }
 
         return new RangeAggregator.Factory(aggregationName, vsParser.config(), InternalIPv4Range.FACTORY, ranges, keyed);
@@ -122,7 +126,8 @@ public class IpRangeParser implements Aggregator.Parser {
     private static void parseMaskRange(String cidr, RangeAggregator.Range range, String aggregationName, SearchContext ctx) {
         long[] fromTo = IPv4RangeBuilder.cidrMaskToMinMax(cidr);
         if (fromTo == null) {
-            throw new SearchParseException(ctx, "invalid CIDR mask [" + cidr + "] in aggregation [" + aggregationName + "]");
+            throw new SearchParseException(ctx, "invalid CIDR mask [" + cidr + "] in aggregation [" + aggregationName + "]",
+                    null);
         }
         range.from = fromTo[0] < 0 ? Double.NEGATIVE_INFINITY : fromTo[0];
         range.to = fromTo[1] < 0 ? Double.POSITIVE_INFINITY : fromTo[1];

@@ -56,7 +56,7 @@ public class ExtendedBounds {
         }
         if (min != null && max != null && min.compareTo(max) > 0) {
             throw new SearchParseException(context, "[extended_bounds.min][" + min + "] cannot be greater than " +
-                    "[extended_bounds.max][" + max + "] for histogram aggregation [" + aggName + "]");
+                    "[extended_bounds.max][" + max + "] for histogram aggregation [" + aggName + "]", null);
         }
     }
 

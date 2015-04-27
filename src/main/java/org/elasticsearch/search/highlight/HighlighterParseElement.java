@@ -21,6 +21,7 @@ package org.elasticsearch.search.highlight;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -70,7 +71,7 @@ public class HighlighterParseElement implements SearchParseElement {
         try {
             context.highlight(parse(parser, context.queryParserService()));
         } catch (IllegalArgumentException ex) {
-            throw new SearchParseException(context, "Error while trying to parse Highlighter element in request");
+            throw new SearchParseException(context, "Error while trying to parse Highlighter element in request", parser.getTokenLocation());
         }
     }
 

@@ -347,6 +347,28 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return new PlainShardIterator(shardId, ordered);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        IndexShardRoutingTable that = (IndexShardRoutingTable) o;
+
+        if (primaryAllocatedPostApi != that.primaryAllocatedPostApi) return false;
+        if (!shardId.equals(that.shardId)) return false;
+        if (!shards.equals(that.shards)) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = shardId.hashCode();
+        result = 31 * result + shards.hashCode();
+        result = 31 * result + (primaryAllocatedPostApi ? 1 : 0);
+        return result;
+    }
+
     /**
      * Returns <code>true</code> iff all shards in the routing table are started otherwise <code>false</code>
      */

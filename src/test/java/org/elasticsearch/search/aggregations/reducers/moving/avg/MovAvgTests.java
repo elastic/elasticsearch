@@ -121,7 +121,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         alpha = randomDouble();
         beta = randomDouble();
 
-        gapPolicy = randomBoolean() ? BucketHelpers.GapPolicy.IGNORE : BucketHelpers.GapPolicy.INSERT_ZEROS;
+        gapPolicy = randomBoolean() ? BucketHelpers.GapPolicy.SKIP : BucketHelpers.GapPolicy.INSERT_ZEROS;
         metric = randomMetric("the_metric", VALUE_FIELD);
         mockHisto = ReducerHelperTests.generateHistogram(interval, numBuckets, randomDouble(), randomDouble());
 
@@ -172,7 +172,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             // Gaps only apply to metric values, not doc _counts
             if (mockBucket.count == 0 && target.equals(MetricTarget.VALUE)) {
                 // If there was a gap in doc counts and we are ignoring, just skip this bucket
-                if (gapPolicy.equals(BucketHelpers.GapPolicy.IGNORE)) {
+                if (gapPolicy.equals(BucketHelpers.GapPolicy.SKIP)) {
                     values.add(null);
                     continue;
                 } else if (gapPolicy.equals(BucketHelpers.GapPolicy.INSERT_ZEROS)) {
@@ -726,7 +726,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         assertThat(current, notNullValue());
         currentValue = current.value();
 
-        if (gapPolicy.equals(BucketHelpers.GapPolicy.IGNORE)) {
+        if (gapPolicy.equals(BucketHelpers.GapPolicy.SKIP)) {
             // if we are ignoring, movavg could go up (double_exp) or stay the same (simple, linear, single_exp)
             assertThat(Double.compare(lastValue, currentValue), lessThanOrEqualTo(0));
         } else if (gapPolicy.equals(BucketHelpers.GapPolicy.INSERT_ZEROS)) {
@@ -785,7 +785,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         assertThat(current, notNullValue());
         currentValue = current.value();
 
-        if (gapPolicy.equals(BucketHelpers.GapPolicy.IGNORE)) {
+        if (gapPolicy.equals(BucketHelpers.GapPolicy.SKIP)) {
             // if we are ignoring, movavg could go up (double_exp) or stay the same (simple, linear, single_exp)
             assertThat(Double.compare(lastValue, currentValue), lessThanOrEqualTo(0));
         } else if (gapPolicy.equals(BucketHelpers.GapPolicy.INSERT_ZEROS)) {

@@ -51,7 +51,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
 @ElasticsearchIntegrationTest.SuiteScopeTest
-//@AwaitsFix(bugUrl = "Fix factory selection for serialisation of Internal derivative")
 public class DateDerivativeTests extends ElasticsearchIntegrationTest {
 
     private DateTime date(int month, int day) {

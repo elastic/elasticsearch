@@ -98,13 +98,4 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
             return aggregation.getProperty(path.subList(1, path.size()));
         }
     }
-
-    public static abstract class Factory<A extends InternalMultiBucketAggregation, B extends InternalMultiBucketAggregation.InternalBucket> {
-
-        public abstract String type();
-
-        public abstract A create(List<B> buckets, A prototype);
-
-        public abstract B createBucket(InternalAggregations aggregations, B prototype);
-    }
 }

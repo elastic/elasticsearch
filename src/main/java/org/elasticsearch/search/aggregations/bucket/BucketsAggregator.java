@@ -43,8 +43,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
     private final BigArrays bigArrays;
     private IntArray docCounts;
 
-    public BucketsAggregator(String name, AggregatorFactories factories,
- AggregationContext context, Aggregator parent,
+    public BucketsAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
             List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
         super(name, factories, context, parent, reducers, metaData);
         bigArrays = context.bigArrays();
@@ -113,11 +112,11 @@ public abstract class BucketsAggregator extends AggregatorBase {
      */
     protected final InternalAggregations bucketAggregations(long bucket) throws IOException {
         final InternalAggregation[] aggregations = new InternalAggregation[subAggregators.length];
-            for (int i = 0; i < subAggregators.length; i++) {
+        for (int i = 0; i < subAggregators.length; i++) {
             aggregations[i] = subAggregators[i].buildAggregation(bucket);
-            }
+        }
         return new InternalAggregations(Arrays.asList(aggregations));
-                }
+    }
 
     /**
      * Utility method to build empty aggregations of the sub aggregators.

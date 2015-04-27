@@ -53,7 +53,7 @@ public class BucketHelpers {
      * "ignore": empty buckets will simply be ignored
      */
     public static enum GapPolicy {
-        INSERT_ZEROS((byte) 0, "insert_zeros"), IGNORE((byte) 1, "ignore");
+        INSERT_ZEROS((byte) 0, "insert_zeros"), SKIP((byte) 1, "skip");
 
         /**
          * Parse a string GapPolicy into the byte enum
@@ -172,7 +172,7 @@ public class BucketHelpers {
                     switch (gapPolicy) {
                     case INSERT_ZEROS:
                         return 0.0;
-                    case IGNORE:
+                    case SKIP:
                     default:
                         return Double.NaN;
                     }

@@ -156,7 +156,8 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 } else if (Fields.INCLUDE.match(currentFieldName, parseContext.parseFlags())) {
                     include = parser.booleanValue();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]",
+                            parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (Fields.STOP_WORDS.match(currentFieldName, parseContext.parseFlags())) {
@@ -193,7 +194,8 @@ public class MoreLikeThisQueryParser implements QueryParser {
                         parseLikeField(parser, ignoreTexts, ignoreItems);
                     }
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]",
+                            parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (Fields.LIKE.match(currentFieldName, parseContext.parseFlags())) {
@@ -202,16 +204,19 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 else if (Fields.IGNORE_LIKE.match(currentFieldName, parseContext.parseFlags())) {
                     parseLikeField(parser, ignoreTexts, ignoreItems);
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]",
+                            parser.getTokenLocation());
                 }
             }
         }
 
         if (likeTexts.isEmpty() && likeItems.isEmpty()) {
-            throw new QueryParsingException(parseContext.index(), "more_like_this requires 'like' to be specified");
+            throw new QueryParsingException(parseContext.index(), "more_like_this requires 'like' to be specified",
+                    parser.getTokenLocation());
         }
         if (moreLikeFields != null && moreLikeFields.isEmpty()) {
-            throw new QueryParsingException(parseContext.index(), "more_like_this requires 'fields' to be non-empty");
+            throw new QueryParsingException(parseContext.index(), "more_like_this requires 'fields' to be non-empty",
+                    parser.getTokenLocation());
         }
 
         // set analyzer
@@ -260,7 +265,8 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 if (item.type() == null) {
                     if (parseContext.queryTypes().size() > 1) {
                         throw new QueryParsingException(parseContext.index(),
-                                "ambiguous type for item with id: " + item.id() + " and index: " + item.index());
+                                    "ambiguous type for item with id: " + item.id()
+                                + " and index: " + item.index(), parser.getTokenLocation());
                     } else {
                         item.type(parseContext.queryTypes().iterator().next());
                     }

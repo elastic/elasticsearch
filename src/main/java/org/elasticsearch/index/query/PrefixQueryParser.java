@@ -53,7 +53,7 @@ public class PrefixQueryParser implements QueryParser {
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext.index(), "[prefix] query malformed, no field");
+            throw new QueryParsingException(parseContext.index(), "[prefix] query malformed, no field", parser.getTokenLocation());
         }
         String fieldName = parser.currentName();
         String rewriteMethod = null;
@@ -80,7 +80,8 @@ public class PrefixQueryParser implements QueryParser {
                         queryName = parser.text();
                     }
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[prefix] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[prefix] query does not support [" + currentFieldName + "]",
+                            parser.getTokenLocation());
                 }
             }
             parser.nextToken();
@@ -90,7 +91,7 @@ public class PrefixQueryParser implements QueryParser {
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext.index(), "No value specified for prefix query");
+            throw new QueryParsingException(parseContext.index(), "No value specified for prefix query", parser.getTokenLocation());
         }
 
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewriteMethod, null);

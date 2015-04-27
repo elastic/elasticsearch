@@ -33,23 +33,38 @@ import java.io.IOException;
  */
 public class QueryParsingException extends IndexException {
 
-    XContentLocation location;
-
-    public QueryParsingException(Index index, String msg) {
-        this(index, msg, null, null);
-    }
+    public static final int UNKNOWN_POSITION = -1;
+    int lineNumber = UNKNOWN_POSITION;
+    int columnNumber = UNKNOWN_POSITION;
 
     public QueryParsingException(Index index, String msg, @Nullable XContentLocation location) {
         this(index, msg, location, null);
     }
 
-    public QueryParsingException(Index index, String msg, Throwable cause) {
-        this(index, msg, null, cause);
-    }
-
     public QueryParsingException(Index index, String msg, @Nullable XContentLocation location, Throwable cause) {
         super(index, msg, cause);
-        this.location = location;
+        if (location != null) {
+            lineNumber = location.getLineNumber();
+            columnNumber = location.getColumnNumber();
+        }
+    }
+
+    /**
+     * Line number of the location of the error
+     * 
+     * @return the line number or -1 if unknown
+     */
+    public int getLineNumber() {
+        return lineNumber;
+    }
+
+    /**
+     * Column number of the location of the error
+     * 
+     * @return the column number or -1 if unknown
+     */
+    public int getColumnNumber() {
+        return columnNumber;
     }
 
     @Override
@@ -59,9 +74,9 @@ public class QueryParsingException extends IndexException {
 
     @Override
     protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        if (location != null) {
-            builder.field("line", location.getLineNumber());
-            builder.field("col", location.getColumnNumber());
+        if (lineNumber != UNKNOWN_POSITION) {
+            builder.field("line", lineNumber);
+            builder.field("col", columnNumber);
         }
         super.innerToXContent(builder, params);
     }

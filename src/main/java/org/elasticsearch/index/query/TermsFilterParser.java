@@ -90,14 +90,16 @@ public class TermsFilterParser implements FilterParser {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if  (fieldName != null) {
-                    throw new QueryParsingException(parseContext.index(), "[terms] filter does not support multiple fields");
+                    throw new QueryParsingException(parseContext.index(), "[terms] filter does not support multiple fields",
+                            parser.getTokenLocation());
                 }
                 fieldName = currentFieldName;
 
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     Object value = parser.objectBytes();
                     if (value == null) {
-                        throw new QueryParsingException(parseContext.index(), "No value specified for terms filter");
+                        throw new QueryParsingException(parseContext.index(), "No value specified for terms filter",
+                                parser.getTokenLocation());
                     }
                     terms.add(value);
                 }
@@ -118,18 +120,22 @@ public class TermsFilterParser implements FilterParser {
                         } else if ("routing".equals(currentFieldName)) {
                             lookupRouting = parser.textOrNull();
                         } else {
-                            throw new QueryParsingException(parseContext.index(), "[terms] filter does not support [" + currentFieldName + "] within lookup element");
+                            throw new QueryParsingException(parseContext.index(), "[terms] filter does not support [" + currentFieldName
+                                    + "] within lookup element", parser.getTokenLocation());
                         }
                     }
                 }
                 if (lookupType == null) {
-                    throw new QueryParsingException(parseContext.index(), "[terms] filter lookup element requires specifying the type");
+                    throw new QueryParsingException(parseContext.index(), "[terms] filter lookup element requires specifying the type",
+                            parser.getTokenLocation());
                 }
                 if (lookupId == null) {
-                    throw new QueryParsingException(parseContext.index(), "[terms] filter lookup element requires specifying the id");
+                    throw new QueryParsingException(parseContext.index(), "[terms] filter lookup element requires specifying the id",
+                            parser.getTokenLocation());
                 }
                 if (lookupPath == null) {
-                    throw new QueryParsingException(parseContext.index(), "[terms] filter lookup element requires specifying the path");
+                    throw new QueryParsingException(parseContext.index(), "[terms] filter lookup element requires specifying the path",
+                            parser.getTokenLocation());
                 }
             } else if (token.isValue()) {
                 if (EXECUTION_KEY.equals(currentFieldName)) {
@@ -141,13 +147,15 @@ public class TermsFilterParser implements FilterParser {
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new HashedBytesRef(parser.text());
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[terms] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[terms] filter does not support [" + currentFieldName + "]",
+                            parser.getTokenLocation());
                 }
             }
         }
 
         if (fieldName == null) {
-            throw new QueryParsingException(parseContext.index(), "terms filter requires a field name, followed by array of terms");
+            throw new QueryParsingException(parseContext.index(), "terms filter requires a field name, followed by array of terms",
+                    parser.getTokenLocation());
         }
 
         FieldMapper<?> fieldMapper = null;

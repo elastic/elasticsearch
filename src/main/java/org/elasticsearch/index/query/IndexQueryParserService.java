@@ -210,7 +210,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         } catch (QueryParsingException e) {
             throw e;
         } catch (Exception e) {
-            throw new QueryParsingException(index, "Failed to parse", e);
+            throw new QueryParsingException(index, "Failed to parse", null, e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -230,7 +230,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         } catch (QueryParsingException e) {
             throw e;
         } catch (Exception e) {
-            throw new QueryParsingException(index, "Failed to parse", e);
+            throw new QueryParsingException(index, "Failed to parse", null, e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -250,7 +250,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         } catch (QueryParsingException e) {
             throw e;
         } catch (Exception e) {
-            throw new QueryParsingException(index, "Failed to parse", e);
+            throw new QueryParsingException(index, "Failed to parse", null, e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -266,7 +266,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         } catch (QueryParsingException e) {
             throw e;
         } catch (Exception e) {
-            throw new QueryParsingException(index, "Failed to parse [" + source + "]", e);
+            throw new QueryParsingException(index, "Failed to parse [" + source + "]", null, e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -282,7 +282,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         try {
             return innerParse(context, parser);
         } catch (IOException e) {
-            throw new QueryParsingException(index, "Failed to parse", e);
+            throw new QueryParsingException(index, "Failed to parse", null, e);
         }
     }
 
@@ -359,7 +359,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
                         XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
                         parsedQuery = parse(qSourceParser);
                     } else {
-                        throw new QueryParsingException(index(), "request does not support [" + fieldName + "]");
+                        throw new QueryParsingException(index(), "request does not support [" + fieldName + "]", parser.getTokenLocation());
                     }
                 }
             }
@@ -369,10 +369,10 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         } catch (QueryParsingException e) {
             throw e;
         } catch (Throwable e) {
-            throw new QueryParsingException(index, "Failed to parse", e);
+            throw new QueryParsingException(index, "Failed to parse", null, e);
         }
 
-        throw new QueryParsingException(index(), "Required query is missing");
+        throw new QueryParsingException(index(), "Required query is missing", null);
     }
 
     private ParsedQuery innerParse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {

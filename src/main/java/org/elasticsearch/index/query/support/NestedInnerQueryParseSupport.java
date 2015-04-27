@@ -106,10 +106,10 @@ public class NestedInnerQueryParseSupport {
             return innerQuery;
         } else {
             if (path == null) {
-                throw new QueryParsingException(parseContext.index(), "[nested] requires 'path' field");
+                throw new QueryParsingException(parseContext.index(), "[nested] requires 'path' field", null);
             }
             if (!queryFound) {
-                throw new QueryParsingException(parseContext.index(), "[nested] requires either 'query' or 'filter' field");
+                throw new QueryParsingException(parseContext.index(), "[nested] requires either 'query' or 'filter' field", null);
             }
 
             XContentParser old = parseContext.parser();
@@ -135,10 +135,10 @@ public class NestedInnerQueryParseSupport {
             return innerFilter;
         } else {
             if (path == null) {
-                throw new QueryParsingException(parseContext.index(), "[nested] requires 'path' field");
+                throw new QueryParsingException(parseContext.index(), "[nested] requires 'path' field", null);
             }
             if (!filterFound) {
-                throw new QueryParsingException(parseContext.index(), "[nested] requires either 'query' or 'filter' field");
+                throw new QueryParsingException(parseContext.index(), "[nested] requires either 'query' or 'filter' field", null);
             }
 
             setPathLevel();
@@ -160,15 +160,16 @@ public class NestedInnerQueryParseSupport {
         this.path = path;
         MapperService.SmartNameObjectMapper smart = parseContext.smartObjectMapper(path);
         if (smart == null) {
-            throw new QueryParsingException(parseContext.index(), "[nested] failed to find nested object under path [" + path + "]");
+            throw new QueryParsingException(parseContext.index(), "[nested] failed to find nested object under path [" + path + "]", null);
         }
         childDocumentMapper = smart.docMapper();
         nestedObjectMapper = smart.mapper();
         if (nestedObjectMapper == null) {
-            throw new QueryParsingException(parseContext.index(), "[nested] failed to find nested object under path [" + path + "]");
+            throw new QueryParsingException(parseContext.index(), "[nested] failed to find nested object under path [" + path + "]", null);
         }
         if (!nestedObjectMapper.nested().isNested()) {
-            throw new QueryParsingException(parseContext.index(), "[nested] nested object under path [" + path + "] is not of nested type");
+            throw new QueryParsingException(parseContext.index(), "[nested] nested object under path [" + path + "] is not of nested type",
+                    null);
         }
     }
 

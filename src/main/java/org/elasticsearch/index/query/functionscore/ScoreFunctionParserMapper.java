@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.Index;
@@ -45,7 +46,7 @@ public class ScoreFunctionParserMapper {
     public ScoreFunctionParser get(Index index, String parserName) {
         ScoreFunctionParser functionParser = get(parserName);
         if (functionParser == null) {
-            throw new QueryParsingException(index, "No function with the name [" + parserName + "] is registered.");
+            throw new QueryParsingException(index, "No function with the name [" + parserName + "] is registered.", null);
         }
         return functionParser;
     }

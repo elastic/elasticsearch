@@ -86,7 +86,8 @@ public class ScriptFilterParser implements FilterParser {
                 if ("params".equals(currentFieldName)) {
                     params = parser.map();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[script] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[script] filter does not support [" + currentFieldName + "]",
+                            parser.getTokenLocation());
                 }
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
@@ -96,7 +97,8 @@ public class ScriptFilterParser implements FilterParser {
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new HashedBytesRef(parser.text());
                 } else if (!scriptParameterParser.token(currentFieldName, token, parser)){
-                    throw new QueryParsingException(parseContext.index(), "[script] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[script] filter does not support [" + currentFieldName + "]",
+                            parser.getTokenLocation());
                 }
             }
         }
@@ -109,7 +111,8 @@ public class ScriptFilterParser implements FilterParser {
         scriptLang = scriptParameterParser.lang();
 
         if (script == null) {
-            throw new QueryParsingException(parseContext.index(), "script must be provided with a [script] filter");
+            throw new QueryParsingException(parseContext.index(), "script must be provided with a [script] filter",
+                    parser.getTokenLocation());
         }
         if (params == null) {
             params = newHashMap();

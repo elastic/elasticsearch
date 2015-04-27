@@ -247,7 +247,10 @@ public abstract class ElasticsearchRestTestCase extends ElasticsearchIntegration
 
     @Override
     protected int maximumNumberOfReplicas() {
-        return 1; // never go crazy in the REST tests
+        // hardcoded 1 since this is what clients also do and our tests must expect that we have only node
+        // with replicas set to 1 ie. the cluster won't be green
+        return 1;
+
     }
 
     /**

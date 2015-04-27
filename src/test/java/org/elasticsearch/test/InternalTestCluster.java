@@ -181,8 +181,8 @@ public final class InternalTestCluster extends TestCluster {
 
     private static final boolean ENABLE_MOCK_MODULES = RandomizedTest.systemPropertyAsBoolean(TESTS_ENABLE_MOCK_MODULES, true);
 
-    static final int DEFAULT_MIN_NUM_DATA_NODES = 2;
-    static final int DEFAULT_MAX_NUM_DATA_NODES = 6;
+    static final int DEFAULT_MIN_NUM_DATA_NODES = 1;
+    static final int DEFAULT_MAX_NUM_DATA_NODES = TEST_NIGHTLY ? 6 : 3;
 
     static final int DEFAULT_NUM_CLIENT_NODES = -1;
     static final int DEFAULT_MIN_NUM_CLIENT_NODES = 0;
@@ -237,7 +237,6 @@ public final class InternalTestCluster extends TestCluster {
         super(clusterSeed);
         this.baseDir = baseDir;
         this.clusterName = clusterName;
-
         if (minNumDataNodes < 0 || maxNumDataNodes < 0) {
             throw new IllegalArgumentException("minimum and maximum number of data nodes must be >= 0");
         }

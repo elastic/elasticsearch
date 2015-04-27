@@ -44,6 +44,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
+@ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 2)
 public class SimpleIndexStateTests extends ElasticsearchIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(SimpleIndexStateTests.class);

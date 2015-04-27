@@ -108,7 +108,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         ExecuteScenario scenario = randomFrom(ExecuteScenario.values());
 
         HttpClient httpClient = scenario.client();
-        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT);
+        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.HEAD);
 
         final String account = "account1";
 
@@ -146,7 +146,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         Template body = randomBoolean() ? new Template("_subject") : null;
         Template path = new Template("_url");
         String host = "test.host";
-        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, null);
+        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.HEAD, null);
         HttpRequestTemplate request = getHttpRequestTemplate(method, host, TEST_PORT, path, body, null);
 
         XContentBuilder builder = jsonBuilder();
@@ -170,7 +170,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         String watchId = "_watch";
         String actionId = randomAsciiOfLength(5);
 
-        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, null);
+        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.HEAD, null);
 
         HttpRequestTemplate request = getHttpRequestTemplate(method, host, TEST_PORT, path, body, null);
         WebhookAction action = new WebhookAction(request);
@@ -198,7 +198,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         String watchId = "_watch";
         String actionId = randomAsciiOfLength(5);
 
-        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, null);
+        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.HEAD,  null);
         HttpRequestTemplate request = getHttpRequestTemplate(method, host, TEST_PORT, path, body, null);
 
         WebhookAction action = WebhookAction.builder(request).build();
@@ -232,7 +232,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         String host = "test.host";
         String path = "/_url";
         String reason = "_reason";
-        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT);
+        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.HEAD);
 
         Wid wid = new Wid("_watch", randomLong(), DateTime.now());
         String actionId = randomAsciiOfLength(5);
@@ -288,7 +288,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         String body = "_body";
         String host = "test.host";
         String path = "/_url";
-        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT);
+        HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.HEAD);
 
         Wid wid = new Wid("_watch", randomLong(), DateTime.now());
         String actionId = randomAsciiOfLength(5);

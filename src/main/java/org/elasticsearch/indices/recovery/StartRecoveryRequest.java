@@ -47,7 +47,7 @@ public class StartRecoveryRequest extends TransportRequest {
 
     private boolean markAsRelocated;
 
-    Store.MetadataSnapshot metadataSnapshot;
+    private Store.MetadataSnapshot metadataSnapshot;
 
     private RecoveryState.Type recoveryType;
 

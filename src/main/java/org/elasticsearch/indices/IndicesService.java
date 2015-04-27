@@ -96,6 +96,8 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
  */
 public class IndicesService extends AbstractLifecycleComponent<IndicesService> implements Iterable<IndexService> {
 
+    public static final String INDICES_SHARDS_CLOSED_TIMEOUT = "indices.shards_closed_timeout";
+
     private final InternalIndicesLifecycle indicesLifecycle;
 
     private final IndicesAnalysisService indicesAnalysisService;
@@ -104,6 +106,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
     private final PluginsService pluginsService;
     private final NodeEnvironment nodeEnv;
+    private final TimeValue shardsClosedTimeout;
 
     private volatile Map<String, Tuple<IndexService, Injector>> indices = ImmutableMap.of();
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
@@ -119,6 +122,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         this.pluginsService = injector.getInstance(PluginsService.class);
         this.indicesLifecycle.addListener(oldShardsStats);
         this.nodeEnv = nodeEnv;
+        this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
     }
 
     @Override
@@ -147,8 +151,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             });
         }
         try {
-            if (latch.await(30, TimeUnit.SECONDS) == false) {
-              logger.warn("Not all shards are closed yet, waited 30sec - stopping service");
+            if (latch.await(shardsClosedTimeout.seconds(), TimeUnit.SECONDS) == false) {
+              logger.warn("Not all shards are closed yet, waited {}sec - stopping service", shardsClosedTimeout.seconds());
             }
         } catch (InterruptedException e) {
             // ignore

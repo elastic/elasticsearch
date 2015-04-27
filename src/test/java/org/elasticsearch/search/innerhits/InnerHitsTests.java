@@ -19,9 +19,11 @@
 
 package org.elasticsearch.search.innerhits;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
@@ -772,7 +774,7 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testNestedInnerHitsWithExcludeSource() throws Exception {
-        assertAcked(prepareCreate("articles")
+        assertAcked(prepareCreate("articles").setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
                         .addMapping("article", jsonBuilder().startObject()
                                         .startObject("_source").field("excludes", new String[]{"comments"}).endObject()
                                         .startObject("properties")
@@ -810,7 +812,7 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testNestedInnerHitsHiglightWithExcludeSource() throws Exception {
-        assertAcked(prepareCreate("articles")
+        assertAcked(prepareCreate("articles").setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
                         .addMapping("article", jsonBuilder().startObject()
                                         .startObject("_source").field("excludes", new String[]{"comments"}).endObject()
                                         .startObject("properties")

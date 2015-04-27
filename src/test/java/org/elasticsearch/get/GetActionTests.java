@@ -21,11 +21,13 @@ package org.elasticsearch.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.*;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -412,7 +414,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
         assertAcked(prepareCreate(index)
                 .addMapping(type, mapping)
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings("index.refresh_interval", -1, IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id));
 
         client().prepareIndex(index, type, "1")
                 .setSource(jsonBuilder().startObject().field("field", "1", "2").field("excluded", "should not be seen").endObject())
@@ -446,7 +448,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
         assertAcked(prepareCreate(index)
                 .addMapping(type, mapping)
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings("index.refresh_interval", -1, IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id));
 
         client().prepareIndex(index, type, "1")
                 .setSource(jsonBuilder().startObject().field("field", "1", "2").field("included", "should be seen").endObject())
@@ -482,7 +484,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
         assertAcked(prepareCreate(index)
                 .addMapping(type, mapping)
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings("index.refresh_interval", -1, IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id));
 
         client().prepareIndex(index, type, "1")
                 .setSource(jsonBuilder().startObject()

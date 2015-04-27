@@ -20,22 +20,3 @@ example:
     }
 }
 --------------------------------------------------
-
-[float]
-[[include-exclude]]
-==== Includes / Excludes
-
-Allow to specify paths in the source that would be included / excluded
-when it's stored, supporting `*` as wildcard annotation. For example:
-
-[source,js]
---------------------------------------------------
-{
-    "my_type" : {
-        "_source" : {
-            "includes" : ["path1.*", "path2.*"],
-            "excludes" : ["path3.*"]
-        }
-    }
-}
---------------------------------------------------

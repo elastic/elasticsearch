@@ -270,7 +270,7 @@ to provide special features.  They now have limited configuration options.
 * `_field_names` configuration is limited to disabling the field.
 * `_size` configuration is limited to enabling the field.
 
-=== Boolean fields
+==== Boolean fields
 
 Boolean fields used to have a string fielddata with `F` meaning `false` and `T`
 meaning `true`. They have been refactored to use numeric fielddata, with `0`
@@ -302,9 +302,13 @@ the user-friendly representation of boolean fields: `false`/`true`:
 ]
 ---------------
 
-=== Murmur3 Fields
+==== Murmur3 Fields
 Fields of type `murmur3` can no longer change `doc_values` or `index` setting.
 They are always stored with doc values, and not indexed.
+
+==== Source field configuration
+The `_source` field no longer supports `includes` and `excludes` paramters. When
+`_source` is enabled, the entire original source will be stored.
 
 === Codecs
 

@@ -15,10 +15,10 @@ import org.elasticsearch.watcher.actions.email.service.support.EmailServer;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.shield.ShieldSecretService;
 import org.elasticsearch.watcher.support.secret.SecretService;
+import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
-import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.WatchStore;
@@ -26,7 +26,6 @@ import org.junit.After;
 import org.junit.Test;
 
 import javax.mail.internet.MimeMessage;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -144,8 +143,9 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
                 .get();
         assertThat(executeResponse, notNullValue());
         contentSource = executeResponse.getSource();
-        value = contentSource.getValue("execution_result.actions.0.email.success");
-        assertThat((Boolean) value, is(true));
+
+        value = contentSource.getValue("execution_result.actions.0.email.status");
+        assertThat((String) value, is("success"));
 
         if (!latch.await(5, TimeUnit.SECONDS)) {
             fail("waiting too long for the email to be sent");

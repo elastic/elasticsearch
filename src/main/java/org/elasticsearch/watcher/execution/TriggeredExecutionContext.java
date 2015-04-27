@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.execution;
 
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
 
@@ -13,17 +14,22 @@ import org.elasticsearch.watcher.watch.Watch;
  */
 public class TriggeredExecutionContext extends WatchExecutionContext {
 
-    public TriggeredExecutionContext(Watch watch, DateTime executionTime, TriggerEvent triggerEvent) {
-        super(watch, executionTime, triggerEvent);
+    public TriggeredExecutionContext(Watch watch, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
+        super(watch, executionTime, triggerEvent, defaultThrottlePeriod);
     }
 
     @Override
-    final public boolean simulateAction(String actionId) {
+    public final boolean simulateAction(String actionId) {
         return false;
     }
 
     @Override
-    final public boolean recordExecution() {
+    public final boolean skipThrottling(String actionId) {
+        return false;
+    }
+
+    @Override
+    public final boolean recordExecution() {
         return true;
     }
 }

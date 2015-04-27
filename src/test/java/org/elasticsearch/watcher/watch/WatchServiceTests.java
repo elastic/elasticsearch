@@ -9,13 +9,19 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.WatcherState;
+import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.execution.ExecutionService;
+import org.elasticsearch.watcher.support.clock.ClockMock;
+import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
 import org.elasticsearch.watcher.trigger.TriggerService;
@@ -25,6 +31,7 @@ import org.junit.Test;
 import java.lang.reflect.Field;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.any;
@@ -40,6 +47,7 @@ public class WatchServiceTests extends ElasticsearchTestCase {
     private WatcherService watcherService;
     private ExecutionService executionService;
     private WatchLockService watchLockService;
+    private ClockMock clock;
 
     @Before
     public void init() throws Exception {
@@ -48,7 +56,8 @@ public class WatchServiceTests extends ElasticsearchTestCase {
         watchParser = mock(Watch.Parser.class);
         executionService =  mock(ExecutionService.class);
         watchLockService = mock(WatchLockService.class);
-        watcherService = new WatcherService(ImmutableSettings.EMPTY, triggerService, watchStore, watchParser, executionService, watchLockService);
+        clock = new ClockMock();
+        watcherService = new WatcherService(ImmutableSettings.EMPTY, clock, triggerService, watchStore, watchParser, executionService, watchLockService);
         Field field = WatcherService.class.getDeclaredField("state");
         field.setAccessible(true);
         AtomicReference<WatcherState> state = (AtomicReference<WatcherState>) field.get(watcherService);
@@ -169,16 +178,18 @@ public class WatchServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testAckWatch() throws Exception {
+        DateTime now = new DateTime(UTC);
+        clock.setTime(now);
         TimeValue timeout = TimeValue.timeValueSeconds(5);
         WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
         when(watchLockService.tryAcquire("_id", timeout)).thenReturn(lock);
         Watch watch = mock(Watch.class);
-        when(watch.ack()).thenReturn(true);
-        Watch.Status status = new Watch.Status();
+        when(watch.ack(now, "_all")).thenReturn(true);
+        WatchStatus status = new WatchStatus(ImmutableMap.<String, ActionStatus>of());
         when(watch.status()).thenReturn(status);
         when(watchStore.get("_id")).thenReturn(watch);
 
-        Watch.Status result = watcherService.ackWatch("_id", timeout);
+        WatchStatus result = watcherService.ackWatch("_id", timeout);
         assertThat(result, not(sameInstance(status)));
 
         verify(watchStore, times(1)).updateStatus(watch);
@@ -193,16 +204,17 @@ public class WatchServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testAckWatch_NotAck() throws Exception {
+        DateTime now = SystemClock.INSTANCE.now();
         TimeValue timeout = TimeValue.timeValueSeconds(5);
         WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
         when(watchLockService.tryAcquire("_id", timeout)).thenReturn(lock);
         Watch watch = mock(Watch.class);
-        when(watch.ack()).thenReturn(false);
-        Watch.Status status = new Watch.Status();
+        when(watch.ack(now)).thenReturn(false);
+        WatchStatus status = new WatchStatus(ImmutableMap.<String, ActionStatus>of());
         when(watch.status()).thenReturn(status);
         when(watchStore.get("_id")).thenReturn(watch);
 
-        Watch.Status result = watcherService.ackWatch("_id", timeout);
+        WatchStatus result = watcherService.ackWatch("_id", timeout);
         assertThat(result, not(sameInstance(status)));
 
         verify(watchStore, never()).updateStatus(watch);

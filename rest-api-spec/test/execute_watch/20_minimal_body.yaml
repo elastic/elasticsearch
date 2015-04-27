@@ -1,5 +1,5 @@
 ---
-"Test execute watch api with empty body":
+"Test execute watch api with minimal body":
   - do:
       cluster.health:
           wait_for_status: green
@@ -47,5 +47,5 @@
   - match: { "execution_result.condition.script.met": true }
   - match: { "state": "executed" }
   - match: { "execution_result.actions.0.id" : "logging" }
-  - match: { "execution_result.actions.0.logging.success" : true }
+  - match: { "execution_result.actions.0.logging.status" : "success" }
   - match: { "execution_result.actions.0.logging.logged_text" : "foobar" }

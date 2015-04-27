@@ -17,6 +17,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.watcher.WatcherException;
+import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.email.service.*;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.execution.Wid;
@@ -28,6 +30,7 @@ import org.elasticsearch.watcher.watch.Payload;
 import org.junit.Test;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
@@ -122,7 +125,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
             when(engine.render(htmlBody, expectedModel)).thenReturn(htmlBody.getTemplate());
         }
 
-        EmailAction.Result result = executable.execute("_id", ctx, payload);
+        Action.Result result = executable.execute("_id", ctx, payload);
 
         assertThat(result, notNullValue());
         assertThat(result, instanceOf(EmailAction.Result.Success.class));
@@ -368,8 +371,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         Wid wid = new Wid(randomAsciiOfLength(3), randomLong(), DateTime.now(UTC));
         String actionId = randomAsciiOfLength(5);
 
-        boolean success = randomBoolean();
-        boolean simulated = randomBoolean();
+        Action.Result.Status status = randomFrom(Action.Result.Status.values());
         Email email = Email.builder().id("_id")
                 .from(new Email.Address("from@domain"))
                 .to(Email.AddressList.parse("to@domain"))
@@ -379,38 +381,56 @@ public class EmailActionTests extends ElasticsearchTestCase {
                 .build();
 
         XContentBuilder builder = jsonBuilder().startObject()
-                .field("success", success);
-        if (simulated) {
-            builder.field("simulated_email", email);
-        }
-        else if (success) {
-            builder.field("email", email);
-            builder.field("account", "_account");
-        } else {
-            builder.field("reason", "_reason");
+                .field("status", status.name().toLowerCase(Locale.ROOT));
+
+        switch (status) {
+            case SUCCESS:
+                builder.field("email", email);
+                builder.field("account", "_account");
+                break;
+            case FAILURE:
+                builder.field("reason", "failure_reason");
+                break;
+            case THROTTLED:
+                builder.field("reason", "throttle_reason");
+                break;
+            case SIMULATED:
+                builder.field("email", email);
+                break;
+            default:
+                throw new WatcherException("unsupported action result status [{}]", status.name().toLowerCase(Locale.ROOT));
         }
         builder.endObject();
+
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
         EmailService service = mock(EmailService.class);
         TemplateEngine engine = mock(TemplateEngine.class);
-        EmailAction.Result result = new EmailActionFactory(ImmutableSettings.EMPTY, service, engine)
+        Action.Result result = new EmailActionFactory(ImmutableSettings.EMPTY, service, engine)
                 .parseResult(wid, actionId, parser);
 
-        if (simulated) {
-            assertThat(result, instanceOf(EmailAction.Result.Simulated.class));
-            assertThat(((EmailAction.Result.Simulated) result).email(), equalTo(email));
-        } else {
-            assertThat(result.success(), is(success));
-            if (success) {
+        assertThat(result.status(), is(status));
+        switch (status) {
+            case SUCCESS:
                 assertThat(result, instanceOf(EmailAction.Result.Success.class));
                 assertThat(((EmailAction.Result.Success) result).email(), equalTo(email));
                 assertThat(((EmailAction.Result.Success) result).account(), is("_account"));
-            } else {
-                assertThat(result, instanceOf(EmailAction.Result.Failure.class));
-                assertThat(((EmailAction.Result.Failure) result).reason(), is("_reason"));
-            }
+                break;
+            case FAILURE:
+                assertThat(result, instanceOf(Action.Result.Failure.class));
+                assertThat(((Action.Result.Failure) result).reason(), equalTo("failure_reason"));
+                break;
+            case THROTTLED:
+                assertThat(result, instanceOf(Action.Result.Throttled.class));
+                assertThat(((Action.Result.Throttled) result).reason(), equalTo("throttle_reason"));
+                break;
+            case SIMULATED:
+                assertThat(result, instanceOf(EmailAction.Result.Simulated.class));
+                assertThat(((EmailAction.Result.Simulated) result).email(), equalTo(email));
+                break;
+            default:
+                throw new WatcherException("unsupported action result status [{}]", status.name().toLowerCase(Locale.ROOT));
         }
     }
 
@@ -435,7 +455,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
-        EmailAction.Result result = new EmailActionFactory(ImmutableSettings.EMPTY, mock(EmailService.class), mock(TemplateEngine.class))
+        Action.Result result = new EmailActionFactory(ImmutableSettings.EMPTY, mock(EmailService.class), mock(TemplateEngine.class))
                 .parseResult(wid, actionId, parser);
 
         assertThat(result, instanceOf(EmailAction.Result.Simulated.class));

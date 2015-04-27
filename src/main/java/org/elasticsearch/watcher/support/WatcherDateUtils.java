@@ -89,6 +89,9 @@ public class WatcherDateUtils {
     }
 
     public static XContentBuilder writeDate(String fieldName, XContentBuilder builder, DateTime date) throws IOException {
+        if (date == null) {
+            return builder.nullField(fieldName);
+        }
         return builder.field(fieldName, formatDate(date));
     }
 

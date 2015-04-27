@@ -261,7 +261,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         WatchSourceBuilder source = watchBuilder()
                 .trigger(schedule(interval("1s")))
                 .input(simpleInput("key", "value"))
-                .throttlePeriod(TimeValue.timeValueSeconds(0))
+                .defaultThrottlePeriod(TimeValue.timeValueSeconds(0))
                 .addAction("_id", loggingAction("hello {{ctx.watcher_id}}!"));
         watcherClient().preparePutWatch("_name")
                 .setSource(source)
@@ -272,7 +272,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
 
         source = watchBuilder()
                 .trigger(schedule(interval("100s")))
-                .throttlePeriod(TimeValue.timeValueSeconds(0))
+                .defaultThrottlePeriod(TimeValue.timeValueSeconds(0))
                 .input(simpleInput("key", "value"))
                 .addAction("_id", loggingAction("hello {{ctx.watcher_id}}!"));
         watcherClient().preparePutWatch("_name")

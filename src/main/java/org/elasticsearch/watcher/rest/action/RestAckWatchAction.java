@@ -38,7 +38,7 @@ public class RestAckWatchAction extends WatcherRestHandler {
             @Override
             public RestResponse buildResponse(AckWatchResponse response, XContentBuilder builder) throws Exception {
                 return new BytesRestResponse(RestStatus.OK, builder.startObject()
-                        .field(Watch.Parser.STATUS_FIELD.getPreferredName(), response.getStatus(), WatcherParams.HIDE_SECRETS)
+                        .field(Watch.Field.STATUS.getPreferredName(), response.getStatus(), WatcherParams.HIDE_SECRETS)
                         .endObject());
 
             }

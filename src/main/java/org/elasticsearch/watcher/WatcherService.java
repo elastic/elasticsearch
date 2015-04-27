@@ -17,16 +17,21 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.watcher.execution.ExecutionService;
+import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.trigger.TriggerService;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchLockService;
+import org.elasticsearch.watcher.watch.WatchStatus;
 import org.elasticsearch.watcher.watch.WatchStore;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
+
 public class WatcherService extends AbstractComponent {
 
+    private final Clock clock;
     private final TriggerService triggerService;
     private final Watch.Parser watchParser;
     private final WatchStore watchStore;
@@ -35,9 +40,10 @@ public class WatcherService extends AbstractComponent {
     private final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STOPPED);
 
     @Inject
-    public WatcherService(Settings settings, TriggerService triggerService, WatchStore watchStore, Watch.Parser watchParser,
-                          ExecutionService executionService, WatchLockService watchLockService) {
+    public WatcherService(Settings settings, Clock clock, TriggerService triggerService, WatchStore watchStore,
+                          Watch.Parser watchParser, ExecutionService executionService, WatchLockService watchLockService) {
         super(settings);
+        this.clock = clock;
         this.triggerService = triggerService;
         this.watchStore = watchStore;
         this.watchParser = watchParser;
@@ -136,7 +142,7 @@ public class WatcherService extends AbstractComponent {
     /**
      * Acks the watch if needed
      */
-    public Watch.Status ackWatch(String id, TimeValue timeout) {
+    public WatchStatus ackWatch(String id, TimeValue timeout) {
         ensureStarted();
         WatchLockService.Lock lock = watchLockService.tryAcquire(id, timeout);
         if (lock == null) {
@@ -147,7 +153,7 @@ public class WatcherService extends AbstractComponent {
             if (watch == null) {
                 throw new WatcherException("watch [{}] does not exist", id);
             }
-            if (watch.ack()) {
+            if (watch.ack(clock.now(UTC), "_all")) {
                 try {
                     watchStore.updateStatus(watch);
                 } catch (IOException ioe) {
@@ -157,7 +163,7 @@ public class WatcherService extends AbstractComponent {
                 }
             }
             // we need to create a safe copy of the status
-            return new Watch.Status(watch.status());
+            return new WatchStatus(watch.status());
         } finally {
             lock.release();
         }

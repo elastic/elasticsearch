@@ -156,7 +156,7 @@ public class WatchStore extends AbstractComponent {
         IndexResponse response = client.index(createIndexRequest(watch.id(), source, watch.version()));
         watch.status().version(response.getVersion());
         watch.version(response.getVersion());
-        watch.status().dirty(false);
+        watch.status().resetDirty();
         // Don't need to update the watches, since we are working on an instance from it.
     }
 

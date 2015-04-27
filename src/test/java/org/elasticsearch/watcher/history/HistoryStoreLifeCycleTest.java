@@ -12,7 +12,6 @@ import org.elasticsearch.watcher.condition.ExecutableCondition;
 import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.input.none.ExecutableNoneInput;
-import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
@@ -31,7 +30,7 @@ public class HistoryStoreLifeCycleTest extends AbstractWatcherIntegrationTests {
     public void testPutLoadUpdate() throws Exception {
         ExecutableCondition condition = new ExecutableAlwaysCondition(logger);
         HistoryStore historyStore = getInstanceFromMaster(HistoryStore.class);
-        Watch watch = new Watch("_name", SystemClock.INSTANCE, licenseService(), null, new ExecutableNoneInput(logger), condition, null, null, null, null, null);
+        Watch watch = new Watch("_name", null, new ExecutableNoneInput(logger), condition, null, null, null, null, null);
 
         // Put watch records and verify that these are stored
         WatchRecord[] watchRecords = new WatchRecord[randomIntBetween(1, 50)];

@@ -10,16 +10,16 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ExecutableAction;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.watch.Payload;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ExecutableIndexAction extends ExecutableAction<IndexAction, IndexAction.Result> {
+public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
 
     private final ClientProxy client;
 
@@ -29,7 +29,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction, IndexAc
     }
 
     @Override
-    protected IndexAction.Result doExecute(String actionId, WatchExecutionContext ctx, Payload payload) throws IOException {
+    public Action.Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws Exception {
         IndexRequest indexRequest = new IndexRequest();
         indexRequest.index(action.index);
         indexRequest.type(action.docType);
@@ -52,12 +52,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction, IndexAc
         data.put("version", response.getVersion());
         data.put("type", response.getType());
         data.put("index", response.getIndex());
-        return new IndexAction.Result.Executed(new Payload.Simple(data), response.isCreated());
-    }
-
-    @Override
-    protected IndexAction.Result failure(String reason) {
-        return new IndexAction.Result.Failure(reason);
+        return new IndexAction.Result.Success(new Payload.Simple(data));
     }
 }
 

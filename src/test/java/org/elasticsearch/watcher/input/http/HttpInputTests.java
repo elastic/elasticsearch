@@ -12,10 +12,12 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
@@ -24,8 +26,6 @@ import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.input.InputBuilders;
 import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
-import org.elasticsearch.watcher.license.LicenseService;
-import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.http.*;
 import org.elasticsearch.watcher.support.http.auth.HttpAuth;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthFactory;
@@ -40,6 +40,7 @@ import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
+import org.elasticsearch.watcher.watch.WatchStatus;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -88,19 +89,18 @@ public class HttpInputTests extends ElasticsearchTestCase {
         when(templateEngine.render(eq(Template.inline("_body").build()), any(Map.class))).thenReturn("_body");
 
         Watch watch = new Watch("test-watch",
-                new ClockMock(),
-                mock(LicenseService.class),
                 new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
                 new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
                 new ExecutableAlwaysCondition(logger),
                 null,
+                null,
                 new ExecutableActions(new ArrayList<ActionWrapper>()),
                 null,
-                null,
-                new Watch.Status());
+                new WatchStatus(ImmutableMap.<String, ActionStatus>of()));
         WatchExecutionContext ctx = new TriggeredExecutionContext(watch,
                 new DateTime(0, UTC),
-                new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)));
+                new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)),
+                TimeValue.timeValueSeconds(5));
         HttpInput.Result result = input.execute(ctx);
         assertThat(result.type(), equalTo(HttpInput.TYPE));
         assertThat(result.payload().data(), equalTo(MapBuilder.<String, Object>newMapBuilder().put("key", "value").map()));

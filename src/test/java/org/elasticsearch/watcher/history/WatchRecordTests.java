@@ -9,6 +9,7 @@ import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.email.EmailAction;
 import org.elasticsearch.watcher.actions.webhook.WebhookAction;
@@ -22,7 +23,6 @@ import org.elasticsearch.watcher.support.http.HttpRequest;
 import org.elasticsearch.watcher.support.http.HttpResponse;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
-import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
@@ -30,6 +30,7 @@ import org.elasticsearch.watcher.execution.WatchExecutionResult;
 import org.junit.Test;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -58,16 +59,15 @@ public class WatchRecordTests extends AbstractWatcherIntegrationTests {
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.id(), DateTime.now(UTC), DateTime.now(UTC));
         Wid wid = new Wid("_record", randomLong(), DateTime.now(UTC));
         WatchRecord watchRecord = new WatchRecord(wid, watch, event);
-        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(), event);
-        ctx.onActionResult(new ActionWrapper.Result("_email", new EmailAction.Result.Failure("failed to send because blah")));
+        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(), event, timeValueSeconds(5));
+        ctx.onActionResult(new ActionWrapper.Result("_email", new Action.Result.Failure(EmailAction.TYPE, "failed to send because blah")));
         HttpRequest request = HttpRequest.builder("localhost", 8000)
                 .path("/watchfoo")
                 .body("{'awesome' : 'us'}")
                 .build();
-        ctx.onActionResult(new ActionWrapper.Result("_webhook", new WebhookAction.Result.Executed(request, new HttpResponse(300))));
+        ctx.onActionResult(new ActionWrapper.Result("_webhook", new WebhookAction.Result.Success(request, new HttpResponse(300))));
         SimpleInput.Result inputResult = new SimpleInput.Result(new Payload.Simple());
         Condition.Result conditionResult = AlwaysCondition.Result.INSTANCE;
-        ctx.onThrottleResult(Throttler.NO_THROTTLE.throttle(ctx));
         ctx.onInputResult(inputResult);
         ctx.onConditionResult(conditionResult);
         watchRecord.seal(new WatchExecutionResult(ctx));
@@ -86,17 +86,16 @@ public class WatchRecordTests extends AbstractWatcherIntegrationTests {
     public void testParser_WithSealedWatchRecord_WithScriptSearchCondition() throws Exception {
         Watch watch = WatcherTestUtils.createTestWatch("fired_test", scriptService(), watcherHttpClient(), noopEmailService(), logger);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.id(), DateTime.now(UTC), DateTime.now(UTC));
-        WatchExecutionContext ctx = new TriggeredExecutionContext( watch, new DateTime(), event);
+        WatchExecutionContext ctx = new TriggeredExecutionContext( watch, new DateTime(), event, timeValueSeconds(5));
         WatchRecord watchRecord = new WatchRecord(ctx.id(), watch, event);
-        ctx.onActionResult(new ActionWrapper.Result("_email", new EmailAction.Result.Failure("failed to send because blah")));
+        ctx.onActionResult(new ActionWrapper.Result("_email", new Action.Result.Failure(EmailAction.TYPE, "failed to send because blah")));
         HttpRequest request = HttpRequest.builder("localhost", 8000)
                 .path("/watchfoo")
                 .body("{'awesome' : 'us'}")
                 .build();
-        ctx.onActionResult(new ActionWrapper.Result("_webhook", new WebhookAction.Result.Executed(request, new HttpResponse(300))));
+        ctx.onActionResult(new ActionWrapper.Result("_webhook", new WebhookAction.Result.Success(request, new HttpResponse(300))));
         SimpleInput.Result inputResult = new SimpleInput.Result(new Payload.Simple());
         Condition.Result conditionResult = AlwaysCondition.Result.INSTANCE;
-        ctx.onThrottleResult(Throttler.NO_THROTTLE.throttle(ctx));
         ctx.onInputResult(inputResult);
         ctx.onConditionResult(conditionResult);
         watchRecord.seal(new WatchExecutionResult(ctx));

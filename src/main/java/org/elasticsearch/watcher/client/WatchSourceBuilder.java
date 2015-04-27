@@ -20,6 +20,7 @@ import org.elasticsearch.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.none.NoneInput;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.watcher.actions.throttler.Throttler;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.watch.Watch;
@@ -40,7 +41,7 @@ public class WatchSourceBuilder implements ToXContent {
     private Condition condition = AlwaysCondition.INSTANCE;
     private Transform transform = null;
     private Map<String, TransformedAction> actions = new HashMap<>();
-    private TimeValue throttlePeriod = null;
+    private TimeValue defaultThrottlePeriod = null;
     private Map<String, Object> metadata;
 
     public WatchSourceBuilder trigger(Trigger.Builder trigger) {
@@ -79,32 +80,29 @@ public class WatchSourceBuilder implements ToXContent {
         return transform(transform.build());
     }
 
-    public WatchSourceBuilder throttlePeriod(TimeValue throttlePeriod) {
-        this.throttlePeriod = throttlePeriod;
-        return this;
-    }
-
-    public WatchSourceBuilder addAction(String id, Transform.Builder transform, Action action) {
-        return addAction(id, transform.build(), action);
-    }
-
-
-    public WatchSourceBuilder addAction(String id, Action action) {
-        actions.put(id, new TransformedAction(id, action));
+    public WatchSourceBuilder defaultThrottlePeriod(TimeValue throttlePeriod) {
+        this.defaultThrottlePeriod = throttlePeriod;
         return this;
     }
 
     public WatchSourceBuilder addAction(String id, Action.Builder action) {
-        return addAction(id, action.build());
+        return addAction(id, null, null, action.build());
+    }
+
+    public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Action.Builder action) {
+        return addAction(id, throttlePeriod, null, action.build());
     }
 
     public WatchSourceBuilder addAction(String id, Transform.Builder transform, Action.Builder action) {
-        actions.put(id, new TransformedAction(id, action.build(), transform.build()));
-        return this;
+        return addAction(id, null, transform.build(), action.build());
     }
 
-    public WatchSourceBuilder addAction(String id, Transform transform, Action action) {
-        actions.put(id, new TransformedAction(id, action, transform));
+    public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Transform.Builder transform, Action.Builder action) {
+        return addAction(id, throttlePeriod, transform.build(), action.build());
+    }
+
+    public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Transform transform, Action action) {
+        actions.put(id, new TransformedAction(id, action, throttlePeriod, transform));
         return this;
     }
 
@@ -124,36 +122,36 @@ public class WatchSourceBuilder implements ToXContent {
         if (trigger == null) {
             throw new BuilderException("failed to build watch source. no trigger defined");
         }
-        builder.startObject(Watch.Parser.TRIGGER_FIELD.getPreferredName())
+        builder.startObject(Watch.Field.TRIGGER.getPreferredName())
                 .field(trigger.type(), trigger, params)
                 .endObject();
 
-        builder.startObject(Watch.Parser.INPUT_FIELD.getPreferredName())
+        builder.startObject(Watch.Field.INPUT.getPreferredName())
                 .field(input.type(), input, params)
                 .endObject();
 
-        builder.startObject(Watch.Parser.CONDITION_FIELD.getPreferredName())
+        builder.startObject(Watch.Field.CONDITION.getPreferredName())
                 .field(condition.type(), condition, params)
                 .endObject();
 
         if (transform != null) {
-            builder.startObject(Watch.Parser.TRANSFORM_FIELD.getPreferredName())
+            builder.startObject(Watch.Field.TRANSFORM.getPreferredName())
                     .field(transform.type(), transform, params)
                     .endObject();
         }
 
-        if (throttlePeriod != null) {
-            builder.field(Watch.Parser.THROTTLE_PERIOD_FIELD.getPreferredName(), throttlePeriod.getMillis());
+        if (defaultThrottlePeriod != null) {
+            builder.field(Watch.Field.THROTTLE_PERIOD.getPreferredName(), defaultThrottlePeriod.getMillis());
         }
 
-        builder.startObject(Watch.Parser.ACTIONS_FIELD.getPreferredName());
+        builder.startObject(Watch.Field.ACTIONS.getPreferredName());
         for (Map.Entry<String, TransformedAction> entry : actions.entrySet()) {
             builder.field(entry.getKey(), entry.getValue(), params);
         }
         builder.endObject();
 
         if (metadata != null) {
-            builder.field(Watch.Parser.META_FIELD.getPreferredName(), metadata);
+            builder.field(Watch.Field.METADATA.getPreferredName(), metadata);
         }
 
         return builder.endObject();
@@ -173,14 +171,12 @@ public class WatchSourceBuilder implements ToXContent {
 
         private final String id;
         private final Action action;
+        private final @Nullable TimeValue throttlePeriod;
         private final @Nullable Transform transform;
 
-        public TransformedAction(String id, Action action) {
-            this(id, action, null);
-        }
-
-        public TransformedAction(String id, Action action, @Nullable Transform transform) {
+        public TransformedAction(String id, Action action, @Nullable TimeValue throttlePeriod, @Nullable Transform transform) {
             this.id = id;
+            this.throttlePeriod = throttlePeriod;
             this.transform = transform;
             this.action = action;
         }
@@ -188,6 +184,9 @@ public class WatchSourceBuilder implements ToXContent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            if (throttlePeriod != null) {
+                builder.field(Throttler.Field.THROTTLE_PERIOD.getPreferredName(), throttlePeriod.getMillis());
+            }
             if (transform != null) {
                 builder.startObject(Transform.Field.TRANSFORM.getPreferredName())
                         .field(transform.type(), transform, params)

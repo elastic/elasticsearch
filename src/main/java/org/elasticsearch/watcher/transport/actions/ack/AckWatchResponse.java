@@ -6,10 +6,10 @@
 package org.elasticsearch.watcher.transport.actions.ack;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.watcher.watch.WatchStatus;
 
 import java.io.IOException;
 
@@ -18,26 +18,26 @@ import java.io.IOException;
  */
 public class AckWatchResponse extends ActionResponse {
 
-    private Watch.Status status;
+    private WatchStatus status;
 
     public AckWatchResponse() {
     }
 
-    public AckWatchResponse(@Nullable Watch.Status status) {
+    public AckWatchResponse(@Nullable WatchStatus status) {
         this.status = status;
     }
 
     /**
      * @return The ack state for the watch
      */
-    public Watch.Status getStatus() {
+    public WatchStatus getStatus() {
         return status;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        status = in.readBoolean() ? Watch.Status.read(in) : null;
+        status = in.readBoolean() ? WatchStatus.read(in) : null;
     }
 
     @Override

@@ -8,19 +8,19 @@ package org.elasticsearch.watcher.actions.logging;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ExecutableAction;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Variables;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.watch.Payload;
 
-import java.io.IOException;
 import java.util.Map;
 
 /**
  *
  */
-public class ExecutableLoggingAction extends ExecutableAction<LoggingAction, LoggingAction.Result> {
+public class ExecutableLoggingAction extends ExecutableAction<LoggingAction> {
 
     private final ESLogger textLogger;
     private final TemplateEngine templateEngine;
@@ -43,7 +43,7 @@ public class ExecutableLoggingAction extends ExecutableAction<LoggingAction, Log
     }
 
     @Override
-    protected LoggingAction.Result doExecute(String actionId, WatchExecutionContext ctx, Payload payload) throws IOException {
+    public  Action.Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws Exception {
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
 
         String loggedText = templateEngine.render(action.text, model);
@@ -53,10 +53,5 @@ public class ExecutableLoggingAction extends ExecutableAction<LoggingAction, Log
 
         action.level.log(textLogger, loggedText);
         return new LoggingAction.Result.Success(loggedText);
-    }
-
-    @Override
-    protected LoggingAction.Result failure(String reason) {
-        return new LoggingAction.Result.Failure(reason);
     }
 }

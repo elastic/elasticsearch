@@ -19,12 +19,12 @@ import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.watcher.WatcherVersion;
+import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.history.HistoryStore;
+import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.transport.actions.service.WatcherServiceResponse;
-import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -94,7 +94,7 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
         assertWatchWithMinimumPerformedActionsCount(watchName, 1, false);
 
         // ack watch API should work
-        assertThat(watcherClient().prepareAckWatch(watchName).get().getStatus().ackStatus().state(), is(Watch.Status.AckStatus.State.ACKED));
+        assertThat(watcherClient().prepareAckWatch(watchName).get().getStatus().actionStatus("_index").ackStatus().state(), is(ActionStatus.AckStatus.State.ACKED));
 
         // get watch API should work
         assertThat(watcherClient().prepareGetWatch(watchName).get().getId(), is(watchName));
@@ -162,8 +162,8 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
 
         // and last... lets verify that we have throttled watches due to license expiration
         long throttledCount = docCount(HistoryStore.INDEX_PREFIX + "*", HistoryStore.DOC_TYPE, filteredQuery(
-                matchQuery("execution_result.throttle_reason", "watcher license expired"),
-                termFilter("execution_result.throttled", true)));
+                matchQuery("execution_result.actions.index.reason", "watcher license expired"),
+                termFilter("execution_result.actions.index.status", "throttled")));
         assertThat(throttledCount, is(1L));
 
         //=====
@@ -184,7 +184,7 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
         }
 
         try {
-            assertThat(watcherClient().prepareAckWatch(watchName).get().getStatus().ackStatus().state(), is(Watch.Status.AckStatus.State.ACKED));
+            watcherClient().prepareAckWatch(watchName).get();
             fail("ack watch APIshould NOT work when license is disabled");
         } catch (LicenseExpiredException lee) {
             assertThat(lee.feature(), is(LicenseService.FEATURE_NAME));
@@ -192,7 +192,7 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
         }
 
         try {
-            assertThat(watcherClient().prepareGetWatch(watchName).get().getId(), is(watchName));
+            watcherClient().prepareGetWatch(watchName).get();
             fail("get watch API should NOT work when license is disabled");
         } catch (LicenseExpiredException lee) {
             assertThat(lee.feature(), is(LicenseService.FEATURE_NAME));
@@ -200,16 +200,16 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
         }
 
         try {
-            assertThat(watcherClient().prepareDeleteWatch(watchName).get().isFound(), is(true));
+            watcherClient().prepareDeleteWatch(watchName).get();
             fail("delete watch API should NOT work when license is disabled");
         } catch (LicenseExpiredException lee) {
             assertThat(lee.feature(), is(LicenseService.FEATURE_NAME));
             assertThat(lee.status(), is(RestStatus.UNAUTHORIZED));
         }
 
-        // watcher stats should work
+        // watcher stats should not work
         try {
-            assertThat(watcherClient().prepareWatcherStats().get().getVersion(), is(WatcherVersion.CURRENT));
+            watcherClient().prepareWatcherStats().get();
             fail("watcher stats API should NOT work when license is disabled");
         } catch (LicenseExpiredException lee) {
             assertThat(lee.feature(), is(LicenseService.FEATURE_NAME));
@@ -217,7 +217,7 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
         }
 
         try {
-            assertThat(watcherClient().prepareWatchService().restart().get().isAcknowledged(), is(true));
+            watcherClient().prepareWatchService().restart().get();
             fail("watcher service API should NOT work when license is disabled");
         } catch (LicenseExpiredException lee) {
             assertThat(lee.feature(), is(LicenseService.FEATURE_NAME));
@@ -246,12 +246,12 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
             @Override
             public void run() {
                 XContentSource source = watcherClient().prepareGetWatch(watchName).get().getSource();
-                assertThat(source.getValue("status.ack.state"), is((Object) "ackable"));
+                assertThat(source.getValue("status.actions._index.ack_status.state"), is((Object) "ackable"));
             }
         });
 
         // ack watch API should work
-        assertThat(watcherClient().prepareAckWatch(watchName).get().getStatus().ackStatus().state(), is(Watch.Status.AckStatus.State.ACKED));
+        assertThat(watcherClient().prepareAckWatch(watchName).get().getStatus().actionStatus("_index").ackStatus().state(), is(ActionStatus.AckStatus.State.ACKED));
 
         // get watch API should work
         assertThat(watcherClient().prepareGetWatch(watchName).get().getId(), is(watchName));

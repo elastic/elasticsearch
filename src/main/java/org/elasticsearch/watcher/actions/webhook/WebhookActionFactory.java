@@ -9,6 +9,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ActionFactory;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.http.HttpClient;
@@ -21,7 +22,7 @@ import java.io.IOException;
 /**
  *
  */
-public class WebhookActionFactory extends ActionFactory<WebhookAction, WebhookAction.Result, ExecutableWebhookAction> {
+public class WebhookActionFactory extends ActionFactory<WebhookAction, ExecutableWebhookAction> {
 
     private final HttpClient httpClient;
     private final HttpRequest.Parser requestParser;
@@ -50,8 +51,8 @@ public class WebhookActionFactory extends ActionFactory<WebhookAction, WebhookAc
     }
 
     @Override
-    public WebhookAction.Result parseResult(Wid wid, String actionId, XContentParser parser) throws IOException {
-        return WebhookAction.Result.parse(wid.watchId(), actionId, parser, requestParser);
+    public Action.Result parseResult(Wid wid, String actionId, XContentParser parser) throws IOException {
+        return WebhookAction.parseResult(wid.watchId(), actionId, parser, requestParser);
     }
 
     @Override

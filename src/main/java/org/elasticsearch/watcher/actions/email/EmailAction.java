@@ -165,8 +165,8 @@ public class EmailAction implements Action {
 
     public static abstract class Result extends Action.Result {
 
-        protected Result(boolean success) {
-            super(TYPE, success);
+        protected Result(Status status) {
+            super(TYPE, status);
         }
 
         public static class Success extends Result {
@@ -175,7 +175,7 @@ public class EmailAction implements Action {
             private final Email email;
 
             Success(String account, Email email) {
-                super(true);
+                super(Status.SUCCESS);
                 this.account = account;
                 this.email = email;
             }
@@ -195,25 +195,6 @@ public class EmailAction implements Action {
             }
         }
 
-        public static class Failure extends Result {
-
-            private final String reason;
-
-            public Failure(String reason) {
-                super(false);
-                this.reason = reason;
-            }
-
-            public String reason() {
-                return reason;
-            }
-
-            @Override
-            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                return builder.field(Action.Field.REASON.getPreferredName(), reason);
-            }
-        }
-
         public static class Simulated extends Result {
 
             private final Email email;
@@ -223,20 +204,19 @@ public class EmailAction implements Action {
             }
 
             Simulated(Email email) {
-                super(true);
+                super(Status.SIMULATED);
                 this.email = email;
             }
 
             @Override
             protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                return builder.field(Field.SIMULATED_EMAIL.getPreferredName(), email, params);
+                return builder.field(Field.EMAIL.getPreferredName(), email, params);
             }
         }
 
-        public static Result parse(String watchId, String actionId, XContentParser parser) throws IOException {
-            Boolean success = null;
+        public static Action.Result parse(String watchId, String actionId, XContentParser parser) throws IOException {
+            Status status = null;
             Email email = null;
-            Email simulatedEmail = null;
             String account = null;
             String reason = null;
 
@@ -251,52 +231,58 @@ public class EmailAction implements Action {
                     } catch (Email.ParseException pe) {
                         throw new EmailActionException("could not parse [{}] action result [{}/{}]. failed parsing [{}] field", pe, TYPE, watchId, actionId, currentFieldName);
                     }
-                } else if (Field.SIMULATED_EMAIL.match(currentFieldName)) {
-                    try {
-                        simulatedEmail = Email.parse(parser);
-                    } catch (Email.ParseException pe) {
-                        throw new EmailActionException("could not parse [{}] action result [{}/{}]. failed parsing [{}] field", pe, TYPE, watchId, actionId, currentFieldName);
-                    }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if (Field.ACCOUNT.match(currentFieldName)) {
                         account = parser.text();
                     } else if (Field.REASON.match(currentFieldName)) {
                         reason = parser.text();
+                    } else if (Field.STATUS.match(currentFieldName)) {
+                        try {
+                            status = Status.valueOf(parser.text().toUpperCase(Locale.ROOT));
+                        } catch (IllegalArgumentException iae) {
+                            throw new EmailActionException("could not parse [{}] action result [{}/{}]. unknown result status value [{}]", TYPE, watchId, actionId, parser.text());
+                        }
                     } else {
                         throw new EmailActionException("could not parse [{}] action result [{}/{}]. unexpected string field [{}]", TYPE, watchId, actionId, currentFieldName);
-                    }
-                } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                    if (Field.SUCCESS.match(currentFieldName)) {
-                        success = parser.booleanValue();
-                    } else {
-                        throw new EmailActionException("could not parse [{}] action result [{}/{}]. unexpected boolean field [{}]", TYPE, watchId, actionId, currentFieldName);
                     }
                 } else {
                     throw new EmailActionException("could not parse [{}] action result [{}/{}]. unexpected token [{}]", TYPE, watchId, actionId, token);
                 }
             }
 
-            if (simulatedEmail != null) {
-                return new Simulated(simulatedEmail);
+            if (status == null) {
+                throw new EmailActionException("could not parse [{}] action result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.STATUS.getPreferredName());
             }
 
-            if (success == null) {
-                throw new EmailActionException("could not parse [{}] action result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.SUCCESS.getPreferredName());
-            }
+            switch (status) {
+                case SUCCESS:
+                    if (account == null) {
+                        throw new EmailActionException("could not parse [{}] action successful result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.ACCOUNT.getPreferredName());
+                    }
+                    if (email == null) {
+                        throw new EmailActionException("could not parse [{}] action successful result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.EMAIL.getPreferredName());
+                    }
+                    return new Success(account, email);
 
-            if (success) {
-                if (account == null) {
-                    throw new EmailActionException("could not parse [{}] action successful result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.ACCOUNT.getPreferredName());
-                }
-                if (email == null) {
-                    throw new EmailActionException("could not parse [{}] action successful result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.EMAIL.getPreferredName());
-                }
-                return new Success(account, email);
+                case SIMULATED:
+                    if (email == null) {
+                        throw new EmailActionException("could not parse [{}] action simulated result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.EMAIL.getPreferredName());
+                    }
+                    return new Simulated(email);
+
+                case THROTTLED:
+                    if (reason == null) {
+                        throw new EmailActionException("could not parse [{}] action throttled result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.REASON.getPreferredName());
+                    }
+                    return new Throttled(TYPE, reason);
+
+                default: // Failure
+                    assert status == Status.FAILURE : "unhandled action result status";
+                    if (reason == null) {
+                        throw new EmailActionException("could not parse [{}] action throttled result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.REASON.getPreferredName());
+                    }
+                    return new Failure(TYPE, reason);
             }
-            if (reason == null) {
-                throw new EmailActionException("could not parse [{}] action failure result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.REASON.getPreferredName());
-            }
-            return new Failure(reason);
         }
     }
 
@@ -350,6 +336,5 @@ public class EmailAction implements Action {
 
         // result fields
         ParseField EMAIL = new ParseField("email");
-        ParseField SIMULATED_EMAIL = new ParseField("simulated_email");
     }
 }

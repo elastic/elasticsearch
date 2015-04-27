@@ -59,17 +59,18 @@
         id: "my_exe_watch"
         body: >
           {
-            "ignore_condition" : true,
-            "ignore_throttle" : true,
-            "simulated_actions" : "_all",
-            "alternative_input" : {
-              "foo" : "bar"
-            },
             "trigger_event" : {
               "schedule" : {
                 "scheduled_time" : "2015-05-05T20:58:02.443Z",
                 "triggered_time" : "2015-05-05T20:58:02.443Z"
               }
+            },
+            "alternative_input" : {
+              "foo" : "bar"
+            },
+            "ignore_condition" : true,
+            "action_modes" : {
+              "_all" : "force_simulate"
             },
             "record_execution" : true
           }
@@ -79,5 +80,5 @@
   - match: { "execution_result.condition.always": {} }
   - match: { "execution_result.input.simple.payload.foo": "bar" }
   - match: { "execution_result.actions.0.id" : "email_admin" }
-  - match: { "execution_result.actions.0.email.success" : true }
-  - match: { "execution_result.actions.0.email.simulated_email.subject" : "404 recently encountered" }
+  - match: { "execution_result.actions.0.email.status" : "simulated" }
+  - match: { "execution_result.actions.0.email.email.subject" : "404 recently encountered" }

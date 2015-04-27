@@ -13,6 +13,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -23,9 +24,6 @@ import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.support.clock.Clock;
-import org.elasticsearch.watcher.throttle.Throttler;
-import org.elasticsearch.watcher.transform.ExecutableTransform;
-import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchLockService;
@@ -47,6 +45,8 @@ public class ExecutionService extends AbstractComponent {
     private final WatchStore watchStore;
     private final WatchLockService watchLockService;
     private final Clock clock;
+    private final TimeValue defaultThrottlePeriod;
+
     private final ConcurrentMap<String, WatchExecution> currentExecutions = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     private final AtomicBoolean started = new AtomicBoolean(false);
@@ -60,6 +60,8 @@ public class ExecutionService extends AbstractComponent {
         this.watchStore = watchStore;
         this.watchLockService = watchLockService;
         this.clock = clock;
+        TimeValue throttlePeriod = componentSettings.getAsTime("default_throttle_period", TimeValue.timeValueSeconds(5));
+        this.defaultThrottlePeriod = throttlePeriod.millis() == 0 ? null : throttlePeriod;
     }
 
     public void start(ClusterState state) {
@@ -96,6 +98,10 @@ public class ExecutionService extends AbstractComponent {
 
     public boolean started() {
         return started.get();
+    }
+
+    public TimeValue defaultThrottlePeriod() {
+        return defaultThrottlePeriod;
     }
 
     public long queueSize() {
@@ -135,7 +141,7 @@ public class ExecutionService extends AbstractComponent {
                 logger.warn("unable to find watch [{}] in the watch store, perhaps it has been deleted", event.jobName());
                 continue;
             }
-            TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, now, event);
+            TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, now, event, defaultThrottlePeriod);
             contexts.add(ctx);
             records.add(new WatchRecord(ctx.id(), watch, event));
         }
@@ -200,7 +206,7 @@ public class ExecutionService extends AbstractComponent {
                 logger.warn("unable to find watch [{}] in the watch store, perhaps it has been deleted", event.jobName());
                 continue;
             }
-            TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, now, event);
+            TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, now, event, defaultThrottlePeriod);
             contexts.add(ctx);
             records.add(new WatchRecord(ctx.id(), watch, event));
         }
@@ -281,24 +287,10 @@ public class ExecutionService extends AbstractComponent {
         }
 
         if (conditionResult.met()) {
-            Throttler.Result throttleResult = ctx.throttleResult();
-            if (throttleResult == null) {
-                throttleResult = watch.throttler().throttle(ctx);
-                ctx.onThrottleResult(throttleResult);
-            }
-
-            if (!throttleResult.throttle()) {
-                ExecutableTransform transform = watch.transform();
-                if (transform != null) {
-                    ctx.beforeWatchTransform();
-                    Transform.Result result = watch.transform().execute(ctx, inputResult.payload());
-                    ctx.onTransformResult(result);
-                }
-                ctx.beforeAction();
-                for (ActionWrapper action : watch.actions()) {
-                    ActionWrapper.Result actionResult = action.execute(ctx);
-                    ctx.onActionResult(actionResult);
-                }
+            ctx.beforeAction();
+            for (ActionWrapper action : watch.actions()) {
+                ActionWrapper.Result actionResult = action.execute(ctx);
+                ctx.onActionResult(actionResult);
             }
         }
         return ctx.finish();
@@ -314,7 +306,7 @@ public class ExecutionService extends AbstractComponent {
                 record.update(WatchRecord.State.DELETED_WHILE_QUEUED, message);
                 historyStore.update(record);
             } else {
-                TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, clock.now(UTC), record.triggerEvent());
+                TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, clock.now(UTC), record.triggerEvent(), defaultThrottlePeriod);
                 executeAsync(ctx, record);
                 counter++;
             }

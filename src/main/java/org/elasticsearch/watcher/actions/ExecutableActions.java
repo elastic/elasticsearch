@@ -80,6 +80,15 @@ public class ExecutableActions implements Iterable<ActionWrapper>, ToXContent {
             return results.get(id);
         }
 
+        public boolean throttled() {
+            for (ActionWrapper.Result result : results.values()) {
+                if (result.action().status() == Action.Result.Status.THROTTLED) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;

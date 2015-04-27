@@ -120,7 +120,7 @@ public class WatchRecord implements ToXContent {
         if (!execution.conditionResult().met()) {
             state = State.EXECUTION_NOT_NEEDED;
         } else {
-            if (execution.throttleResult().throttle()) {
+            if (execution.actionsResults().throttled()) {
                 state = State.THROTTLED;
             } else {
                 state = State.EXECUTED;
@@ -135,10 +135,10 @@ public class WatchRecord implements ToXContent {
         builder.startObject(Field.TRIGGER_EVENT.getPreferredName())
                 .field(triggerEvent.type(), triggerEvent, params)
                 .endObject();
-        builder.startObject(Watch.Parser.INPUT_FIELD.getPreferredName())
+        builder.startObject(Watch.Field.INPUT.getPreferredName())
                 .field(input.type(), input, params)
                 .endObject();
-        builder.startObject(Watch.Parser.CONDITION_FIELD.getPreferredName())
+        builder.startObject(Watch.Field.CONDITION.getPreferredName())
                 .field(condition.type(), condition, params)
                 .endObject();
         builder.field(Field.STATE.getPreferredName(), state.id());
@@ -246,9 +246,9 @@ public class WatchRecord implements ToXContent {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (Watch.Parser.INPUT_FIELD.match(currentFieldName)) {
+                    if (Watch.Field.INPUT.match(currentFieldName)) {
                         record.input = inputRegistry.parse(id, parser);
-                    } else if (Watch.Parser.CONDITION_FIELD.match(currentFieldName)) {
+                    } else if (Watch.Field.CONDITION.match(currentFieldName)) {
                         record.condition = conditionRegistry.parseCondition(id, parser);
                     } else if (Field.METADATA.match(currentFieldName)) {
                         record.metadata = parser.map();

@@ -16,6 +16,7 @@ import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.client.WatcherClient;
+import org.elasticsearch.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.watcher.rest.WatcherRestHandler;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchRequest;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
@@ -28,13 +29,6 @@ import java.io.IOException;
 /**
  */
 public class RestExecuteWatchAction extends WatcherRestHandler {
-
-    static ParseField RECORD_EXECUTION_FIELD = new ParseField("record_execution");
-    static ParseField SIMULATED_ACTIONS_FIELD = new ParseField("simulated_actions");
-    static ParseField ALTERNATIVE_INPUT_FIELD = new ParseField("alternative_input");
-    static ParseField IGNORE_CONDITION_FIELD = new ParseField("ignore_condition");
-    static ParseField IGNORE_THROTTLE_FIELD = new ParseField("ignore_throttle");
-    static ParseField TRIGGER_EVENT_FIELD = new ParseField("trigger_event");
 
     final TriggerService triggerService;
 
@@ -62,82 +56,81 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
     //This tightly binds the REST API to the java API
     private ExecuteWatchRequest parseRequest(RestRequest request, WatcherClient client) throws IOException {
         String watchId = request.param("id");
-
-        ExecuteWatchRequestBuilder executeWatchRequestBuilder = client.prepareExecuteWatch(watchId);
+        ExecuteWatchRequestBuilder builder = client.prepareExecuteWatch(watchId);
         TriggerEvent triggerEvent = null;
 
-        if (request.content() != null && request.content().length() != 0) {
-            XContentParser parser = XContentHelper.createParser(request.content());
-            parser.nextToken();
+        if (request.content() == null || request.content().length() == 0) {
+            throw new WatcherException("could not parse watch execution request for [{}]. missing required [{}] field.", watchId, Field.TRIGGER_EVENT.getPreferredName());
+        }
 
-            String currentFieldName = null;
-            XContentParser.Token token = parser.nextToken();
-            for (; token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
-                switch (token) {
-                    case FIELD_NAME:
-                        currentFieldName = parser.currentName();
-                        break;
-                    case VALUE_BOOLEAN:
-                        if (IGNORE_CONDITION_FIELD.match(currentFieldName)) {
-                            executeWatchRequestBuilder.setIgnoreCondition(parser.booleanValue());
-                        } else if (IGNORE_THROTTLE_FIELD.match(currentFieldName)) {
-                            executeWatchRequestBuilder.setIgnoreThrottle(parser.booleanValue());
-                        } else if (RECORD_EXECUTION_FIELD.match(currentFieldName)) {
-                            executeWatchRequestBuilder.setRecordExecution(parser.booleanValue());
-                        } else {
-                            throw new ParseException("invalid watch execution request, unexpected boolean value field [" + currentFieldName + "]");
-                        }
-                        break;
-                    case START_OBJECT:
-                        if (ALTERNATIVE_INPUT_FIELD.match(currentFieldName)) {
-                            executeWatchRequestBuilder.setAlternativeInput(parser.map());
-                        } else if (TRIGGER_EVENT_FIELD.match(currentFieldName)) {
-                            triggerEvent = triggerService.parseTriggerEvent(watchId, watchId, parser);
-                        } else {
-                            throw new ParseException("invalid watch execution request, unexpected object value field [" + currentFieldName + "]");
-                        }
-                        break;
-                    case START_ARRAY:
-                        if (SIMULATED_ACTIONS_FIELD.match(currentFieldName)) {
-                            for (XContentParser.Token arrayToken = parser.nextToken(); arrayToken != XContentParser.Token.END_ARRAY; arrayToken = parser.nextToken()) {
-                                if (arrayToken == XContentParser.Token.VALUE_STRING) {
-                                    executeWatchRequestBuilder.addSimulatedActions(parser.text());
-                                }
-                            }
-                        } else {
-                            throw new ParseException("invalid watch execution request, unexpected array value field [" + currentFieldName + "]");
-                        }
-                        break;
-                    case VALUE_STRING:
-                        if (SIMULATED_ACTIONS_FIELD.match(currentFieldName)) {
-                            if (parser.text().equals("_all")) {
-                                executeWatchRequestBuilder.addSimulatedActions("_all");
-                            } else {
-                                throw new ParseException("invalid watch execution request, unexpected string value [" + parser.text() + "] for field [" + SIMULATED_ACTIONS_FIELD.getPreferredName() + "]");
-                            }
-                        } else {
-                            throw new ParseException("invalid watch execution request, unexpected string value field [" + currentFieldName + "]");
-                        }
-                        break;
-                    default:
-                        throw new ParseException("invalid watch execution request, unexpected token field [" + token + "]");
+        XContentParser parser = XContentHelper.createParser(request.content());
+        parser.nextToken();
+
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                if (Field.IGNORE_CONDITION.match(currentFieldName)) {
+                    builder.setIgnoreCondition(parser.booleanValue());
+                } else if (Field.RECORD_EXECUTION.match(currentFieldName)) {
+                    builder.setRecordExecution(parser.booleanValue());
+                } else {
+                    throw new ParseException("could not parse watch execution request for [{}]. unexpected boolean field [{}]", watchId, currentFieldName);
                 }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (Field.ALTERNATIVE_INPUT.match(currentFieldName)) {
+                    builder.setAlternativeInput(parser.map());
+                } else if (Field.TRIGGER_EVENT.match(currentFieldName)) {
+                    triggerEvent = triggerService.parseTriggerEvent(watchId, watchId, parser);
+                    builder.setTriggerEvent(triggerEvent);
+                } else if (Field.ACTION_MODES.match(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                        } else if (token == XContentParser.Token.VALUE_STRING) {
+                            try {
+                                ActionExecutionMode mode = ActionExecutionMode.resolve(parser.textOrNull());
+                                builder.setActionMode(currentFieldName, mode);
+                            } catch (WatcherException we) {
+                                throw new ParseException("could not parse watch execution request for [{}].", watchId, we);
+                            }
+                        } else {
+                            throw new ParseException("could not parse watch execution request for [{}]. unexpected array field [{}]", watchId, currentFieldName);
+                        }
+                    }
+                } else {
+                    throw new ParseException("could not parse watch execution request for [{}]. unexpected object field [{}]", watchId, currentFieldName);
+                }
+            } else {
+                throw new ParseException("could not parse watch execution request for [{}]. unexpected token [{}]", watchId, token);
             }
         }
+
         if (triggerEvent == null) {
-            throw new WatcherException("[{}] is a required field.",TRIGGER_EVENT_FIELD.getPreferredName());
+            throw new WatcherException("could not parse watch execution request for [{}]. missing required [{}] field.", watchId, Field.TRIGGER_EVENT.getPreferredName());
         }
-        executeWatchRequestBuilder.setTriggerEvent(triggerEvent);
-        return executeWatchRequestBuilder.request();
+
+        return builder.request();
     }
 
     public static class ParseException extends WatcherException {
-        public ParseException(String msg) {
-            super(msg);
+
+        public ParseException(String msg, Object... args) {
+            super(msg, args);
         }
 
-        public ParseException(String msg, Throwable cause) {
-            super(msg, cause);
+        public ParseException(String msg, Throwable cause, Object... args) {
+            super(msg, cause, args);
         }
+    }
+
+    interface Field {
+        ParseField RECORD_EXECUTION = new ParseField("record_execution");
+        ParseField ACTION_MODES = new ParseField("action_modes");
+        ParseField ALTERNATIVE_INPUT = new ParseField("alternative_input");
+        ParseField IGNORE_CONDITION = new ParseField("ignore_condition");
+        ParseField TRIGGER_EVENT = new ParseField("trigger_event");
     }
 }

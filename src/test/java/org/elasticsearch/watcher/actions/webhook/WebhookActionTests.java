@@ -18,6 +18,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.WatcherException;
+import org.elasticsearch.watcher.actions.Action;
+import org.elasticsearch.watcher.actions.Action.Result.Status;
+import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.email.service.*;
 import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
@@ -44,17 +48,18 @@ import org.junit.Test;
 import javax.mail.internet.AddressException;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 
 /**
@@ -66,7 +71,6 @@ public class WebhookActionTests extends ElasticsearchTestCase {
 
     private ThreadPool tp = null;
     private ScriptServiceProxy scriptService;
-    private SecretService secretService;
     private TemplateEngine templateEngine;
     private HttpAuthRegistry authRegistry;
     private Template testBody;
@@ -82,7 +86,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         Settings settings = ImmutableSettings.EMPTY;
         scriptService = WatcherTestUtils.getScriptServiceProxy(tp);
         templateEngine = new XMustacheTemplateEngine(settings, scriptService);
-        secretService = mock(SecretService.class);
+        SecretService secretService = mock(SecretService.class);
         testBody = Template.inline(TEST_BODY_STRING).build();
         testPath = Template.inline(TEST_PATH_STRING).build();
         authRegistry = new HttpAuthRegistry(ImmutableMap.of("basic", (HttpAuthFactory) new BasicAuthFactory(secretService)));
@@ -96,7 +100,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
     @Test @Repeat(iterations = 30)
     public void testExecute() throws Exception {
         ClientProxy client = mock(ClientProxy.class);
-        ExecuteScenario scenario = randomFrom(ExecuteScenario.values());
+        ExecuteScenario scenario = randomFrom(ExecuteScenario.Success, ExecuteScenario.ErrorCode);
 
         HttpClient httpClient = scenario.client();
         HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.HEAD);
@@ -109,10 +113,10 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);
 
         Watch watch = createWatch("test_watch", client, account);
-        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(), new ScheduleTriggerEvent(watch.id(), new DateTime(), new DateTime()));
+        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(), new ScheduleTriggerEvent(watch.id(), new DateTime(), new DateTime()), timeValueSeconds(5));
 
-        WebhookAction.Result actionResult = executable.execute("_id", ctx, new Payload.Simple());
-        scenario.assertResult(actionResult);
+        Action.Result actionResult = executable.execute("_id", ctx, Payload.EMPTY);
+        scenario.assertResult(httpClient, actionResult);
     }
 
     private HttpRequestTemplate getHttpRequestTemplate(HttpMethod method, String host, int port, Template path, Template body, Map<String, Template> params) {
@@ -143,7 +147,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         XContentBuilder builder = jsonBuilder();
         request.toXContent(builder, Attachment.XContent.EMPTY_PARAMS);
 
-        WebhookActionFactory actionParser = getParser(ExecuteScenario.Success.client());
+        WebhookActionFactory actionParser = webhookFactory(ExecuteScenario.Success.client());
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
@@ -170,7 +174,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         XContentBuilder builder = jsonBuilder();
         executable.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        WebhookActionFactory actionParser = getParser(ExecuteScenario.Success.client());
+        WebhookActionFactory actionParser = webhookFactory(ExecuteScenario.Success.client());
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
@@ -197,7 +201,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         XContentBuilder builder = jsonBuilder();
         action.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        WebhookActionFactory actionParser = getParser(ExecuteScenario.Success.client());
+        WebhookActionFactory actionParser = webhookFactory(ExecuteScenario.Success.client());
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
@@ -219,7 +223,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        WebhookActionFactory actionParser = getParser(ExecuteScenario.Success.client());
+        WebhookActionFactory actionParser = webhookFactory(ExecuteScenario.Success.client());
         //This should fail since we are not supplying a url
         actionParser.parseExecutable("_watch", randomAsciiOfLength(5), parser);
         fail("expected a WebhookActionException since we only provided either a host or a port but not both");
@@ -230,7 +234,6 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         String body = "_body";
         String host = "test.host";
         String path = "/_url";
-        String reason = "_reason";
         HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.HEAD);
 
         Wid wid = new Wid("_watch", randomLong(), DateTime.now());
@@ -244,42 +247,83 @@ public class WebhookActionTests extends ElasticsearchTestCase {
 
         HttpResponse response = new HttpResponse(randomIntBetween(200, 599), randomAsciiOfLength(10).getBytes(UTF8));
 
-        boolean error = randomBoolean();
+        Status status = randomFrom(Status.values());
+        boolean responseError = status == Status.FAILURE && randomBoolean();
 
-        boolean success = !error && response.status() < 400;
+        HttpClient client = status == Status.SUCCESS ? ExecuteScenario.Success.client() :
+                responseError ? ExecuteScenario.ErrorCode.client() :
+                        status == Status.FAILURE ? ExecuteScenario.Error.client() : ExecuteScenario.NoExecute.client();
 
-        HttpClient client = ExecuteScenario.Success.client();
 
-        WebhookActionFactory actionParser = getParser(client);
-
+        WebhookActionFactory actionParser = webhookFactory(client);
 
         XContentBuilder builder = jsonBuilder()
                 .startObject()
-                .field(WebhookAction.Field.SUCCESS.getPreferredName(), success);
-        if (!error) {
-            builder.field(WebhookAction.Field.REQUEST.getPreferredName(), request);
-            builder.field(WebhookAction.Field.RESPONSE.getPreferredName(), response);
-        } else {
-            builder.field(WebhookAction.Field.REASON.getPreferredName(), reason);
+                .field(WebhookAction.Field.STATUS.getPreferredName(), status.name().toLowerCase(Locale.ROOT));
+
+        switch (status) {
+            case SUCCESS:
+                builder.field(WebhookAction.Field.REQUEST.getPreferredName(), request);
+                builder.field(WebhookAction.Field.RESPONSE.getPreferredName(), response);
+                break;
+            case SIMULATED:
+                builder.field(WebhookAction.Field.REQUEST.getPreferredName(), request);
+                break;
+            case FAILURE:
+                if (responseError) {
+                    builder.field(WebhookAction.Field.REASON.getPreferredName(), "status_code_failure_reason");
+                    builder.field(WebhookAction.Field.REQUEST.getPreferredName(), request);
+                    builder.field(WebhookAction.Field.RESPONSE.getPreferredName(), response);
+                } else {
+                    builder.field(WebhookAction.Field.REASON.getPreferredName(), "failure_reason");
+                }
+                break;
+            case THROTTLED:
+                builder.field(WebhookAction.Field.REASON.getPreferredName(), "throttle_reason");
+                break;
+            default:
+                throw new WatcherException("unsupported action result status [{}]", status.name());
         }
         builder.endObject();
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        WebhookAction.Result result = actionParser.parseResult(wid, actionId, parser);
+        Action.Result result = actionParser.parseResult(wid, actionId, parser);
 
-        assertThat(result.success(), equalTo(success));
-        if (!error) {
-            assertThat(result, instanceOf(WebhookAction.Result.Executed.class));
-            WebhookAction.Result.Executed executedResult = (WebhookAction.Result.Executed) result;
-            assertThat(executedResult.request(), equalTo(request));
-            assertThat(executedResult.response(), equalTo(response));
-        } else {
-            assertThat(result, Matchers.instanceOf(WebhookAction.Result.Failure.class));
-            WebhookAction.Result.Failure failedResult = (WebhookAction.Result.Failure) result;
-            assertThat(failedResult.reason(), equalTo(reason));
+        assertThat(result.status(), is(status));
+
+        switch (status) {
+            case SUCCESS:
+                assertThat(result, instanceOf(WebhookAction.Result.Success.class));
+                WebhookAction.Result.Success success = (WebhookAction.Result.Success) result;
+                assertThat(success.request(), equalTo(request));
+                assertThat(success.response(), equalTo(response));
+                break;
+            case SIMULATED:
+                assertThat(result, instanceOf(WebhookAction.Result.Simulated.class));
+                WebhookAction.Result.Simulated simulated = (WebhookAction.Result.Simulated) result;
+                assertThat(simulated.request(), equalTo(request));
+                break;
+            case FAILURE:
+                if (responseError) {
+                    assertThat(result, instanceOf(WebhookAction.Result.Failure.class));
+                    WebhookAction.Result.Failure responseFailure = (WebhookAction.Result.Failure) result;
+                    assertThat(responseFailure.reason(), is("status_code_failure_reason"));
+                    assertThat(responseFailure.request(), equalTo(request));
+                    assertThat(responseFailure.response(), equalTo(response));
+                } else {
+                    assertThat(result, instanceOf(Action.Result.Failure.class));
+                    Action.Result.Failure failure = (Action.Result.Failure) result;
+                    assertThat(failure.reason(), is("failure_reason"));
+                }
+                break;
+            case THROTTLED:
+                assertThat(result, instanceOf(Action.Result.Throttled.class));
+                Action.Result.Throttled throttled = (Action.Result.Throttled) result;
+                assertThat(throttled.reason(), is("throttle_reason"));
         }
+
     }
 
     @Test @Repeat(iterations = 5)
@@ -300,17 +344,17 @@ public class WebhookActionTests extends ElasticsearchTestCase {
 
         XContentBuilder builder = jsonBuilder()
                 .startObject()
-                .field(WebhookAction.Field.SUCCESS.getPreferredName(), true)
-                .field(WebhookAction.Field.SIMULATED_REQUEST.getPreferredName(), request)
+                .field(Action.Field.STATUS.getPreferredName(), Status.SIMULATED.name().toLowerCase(Locale.ROOT))
+                .field(WebhookAction.Field.REQUEST.getPreferredName(), request)
                 .endObject();
 
         HttpClient client = ExecuteScenario.Success.client();
 
-        WebhookActionFactory actionParser = getParser(client);
+        WebhookActionFactory actionParser = webhookFactory(client);
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        WebhookAction.Result result = actionParser.parseResult(wid, actionId, parser);
+        Action.Result result = actionParser.parseResult(wid, actionId, parser);
         assertThat(result, instanceOf(WebhookAction.Result.Simulated.class));
         assertThat(((WebhookAction.Result.Simulated) result).request(), equalTo(request));
     }
@@ -341,7 +385,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
 
-        WebhookAction.Result result = getParser(ExecuteScenario.Success.client())
+        Action.Result result = webhookFactory(ExecuteScenario.Success.client())
                 .parseResult(wid, actionId, parser);
 
         assertThat(result, instanceOf(WebhookAction.Result.Simulated.class));
@@ -349,7 +393,7 @@ public class WebhookActionTests extends ElasticsearchTestCase {
     }
 
 
-    private WebhookActionFactory getParser(HttpClient client) {
+    private WebhookActionFactory webhookFactory(HttpClient client) {
         return new WebhookActionFactory(ImmutableSettings.EMPTY, client, new HttpRequest.Parser(authRegistry),
                 new HttpRequestTemplate.Parser(authRegistry), templateEngine);
     }
@@ -379,14 +423,14 @@ public class WebhookActionTests extends ElasticsearchTestCase {
 
         DateTime time = new DateTime(UTC);
         Watch watch = createWatch(watchId, mock(ClientProxy.class), "account1");
-        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, time, new ScheduleTriggerEvent(watchId, time, time));
-        WebhookAction.Result result = webhookAction.doExecute(actionId, ctx, Payload.EMPTY);
+        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, time, new ScheduleTriggerEvent(watchId, time, time), timeValueSeconds(5));
+        Action.Result result = webhookAction.execute(actionId, ctx, Payload.EMPTY);
 
-        assertThat(result, Matchers.instanceOf(WebhookAction.Result.Executed.class));
-        WebhookAction.Result.Executed executed = (WebhookAction.Result.Executed) result;
-        assertThat(executed.request().body(), equalTo(watchId));
-        assertThat(executed.request().path(), equalTo(time.toString()));
-        assertThat(executed.request().params().get("foo"), equalTo(time.toString()));
+        assertThat(result, Matchers.instanceOf(WebhookAction.Result.Success.class));
+        WebhookAction.Result.Success success = (WebhookAction.Result.Success) result;
+        assertThat(success.request().body(), equalTo(watchId));
+        assertThat(success.request().path(), equalTo(time.toString()));
+        assertThat(success.request().params().get("foo"), equalTo(time.toString()));
 
     }
 
@@ -395,18 +439,18 @@ public class WebhookActionTests extends ElasticsearchTestCase {
 
         HttpClient httpClient = ExecuteScenario.Success.client();
         HttpMethod method = HttpMethod.POST;
-        Template path = Template.inline("/test_{{ctx.watch_id}}").build();
+        Template path = Template.defaultType("/test_{{ctx.watch_id}}").build();
         String host = "test.host";
         HttpRequestTemplate requestTemplate = getHttpRequestTemplate(method, host, TEST_PORT, path, testBody, null);
         WebhookAction action = new WebhookAction(requestTemplate);
 
-        ExecutableWebhookAction webhookAction = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);
+        ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);
 
         String watchId = "test_url_encode" + randomAsciiOfLength(10);
         Watch watch = createWatch(watchId, mock(ClientProxy.class), "account1");
-        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(UTC), new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)));
-        WebhookAction.Result result = webhookAction.execute("_id", ctx, new Payload.Simple());
-        assertThat(result, Matchers.instanceOf(WebhookAction.Result.Executed.class));
+        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(UTC), new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)), timeValueSeconds(5));
+        Action.Result result = executable.execute("_id", ctx, new Payload.Simple());
+        assertThat(result, Matchers.instanceOf(WebhookAction.Result.Success.class));
     }
 
     private Watch createWatch(String watchId, ClientProxy client, final String account) throws AddressException, IOException {
@@ -439,10 +483,10 @@ public class WebhookActionTests extends ElasticsearchTestCase {
             }
 
             @Override
-            public void assertResult(WebhookAction.Result actionResult) {
-                assertThat(actionResult.success(), is(false));
-                assertThat(actionResult, instanceOf(WebhookAction.Result.Executed.class));
-                WebhookAction.Result.Executed executedActionResult = (WebhookAction.Result.Executed) actionResult;
+            public void assertResult(HttpClient client, Action.Result actionResult) throws Exception {
+                assertThat(actionResult.status(), is(Status.FAILURE));
+                assertThat(actionResult, instanceOf(WebhookAction.Result.Failure.class));
+                WebhookAction.Result.Failure executedActionResult = (WebhookAction.Result.Failure) actionResult;
                 assertThat(executedActionResult.response().status(), greaterThanOrEqualTo(400));
                 assertThat(executedActionResult.response().status(), lessThanOrEqualTo(599));
                 assertThat(executedActionResult.request().body(), equalTo(TEST_BODY_STRING));
@@ -460,10 +504,10 @@ public class WebhookActionTests extends ElasticsearchTestCase {
             }
 
             @Override
-            public void assertResult(WebhookAction.Result actionResult) {
+            public void assertResult(HttpClient client, Action.Result actionResult) throws Exception {
                 assertThat(actionResult, instanceOf(WebhookAction.Result.Failure.class));
                 WebhookAction.Result.Failure failResult = (WebhookAction.Result.Failure) actionResult;
-                assertThat(failResult.success(), is(false));
+                assertThat(failResult.status(), is(Status.FAILURE));
             }
         },
 
@@ -472,25 +516,37 @@ public class WebhookActionTests extends ElasticsearchTestCase {
             public HttpClient client() throws IOException{
                 HttpClient client = mock(HttpClient.class);
                 when(client.execute(any(HttpRequest.class)))
-                        .thenReturn(new HttpResponse(randomIntBetween(200,399)));
+                        .thenReturn(new HttpResponse(randomIntBetween(200, 399)));
                 return client;
             }
 
             @Override
-            public void assertResult(WebhookAction.Result actionResult) {
-                assertThat(actionResult, instanceOf(WebhookAction.Result.Executed.class));
-                assertThat(actionResult, instanceOf(WebhookAction.Result.Executed.class));
-                WebhookAction.Result.Executed executedActionResult = (WebhookAction.Result.Executed) actionResult;
+            public void assertResult(HttpClient client, Action.Result actionResult) throws Exception {
+                assertThat(actionResult.status(), is(Status.SUCCESS));
+                assertThat(actionResult, instanceOf(WebhookAction.Result.Success.class));
+                WebhookAction.Result.Success executedActionResult = (WebhookAction.Result.Success) actionResult;
                 assertThat(executedActionResult.response().status(), greaterThanOrEqualTo(200));
                 assertThat(executedActionResult.response().status(), lessThanOrEqualTo(399));
                 assertThat(executedActionResult.request().body(), equalTo(TEST_BODY_STRING));
                 assertThat(executedActionResult.request().path(), equalTo(TEST_PATH_STRING));
             }
+        },
+
+        NoExecute() {
+            @Override
+            public HttpClient client() throws IOException{
+                return mock(HttpClient.class);
+            }
+
+            @Override
+            public void assertResult(HttpClient client, Action.Result actionResult) throws Exception {
+                verify(client, never()).execute(any(HttpRequest.class));
+            }
         };
 
         public abstract HttpClient client() throws IOException;
 
-        public abstract void assertResult(WebhookAction.Result result);
+        public abstract void assertResult(HttpClient client, Action.Result result) throws Exception ;
     }
 
 }

@@ -14,12 +14,6 @@ import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.ConditionFactory;
 import org.elasticsearch.watcher.condition.ExecutableCondition;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
-import org.elasticsearch.watcher.condition.always.AlwaysConditionException;
-import org.elasticsearch.watcher.condition.always.AlwaysConditionFactory;
-import org.elasticsearch.watcher.condition.never.ExecutableNeverCondition;
-import org.elasticsearch.watcher.condition.never.NeverCondition;
-import org.elasticsearch.watcher.condition.never.NeverConditionException;
-import org.elasticsearch.watcher.condition.never.NeverConditionFactory;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;

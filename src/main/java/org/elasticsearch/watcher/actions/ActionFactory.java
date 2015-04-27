@@ -14,7 +14,7 @@ import java.io.IOException;
 /**
  * Parses xcontent to a concrete action of the same type.
  */
-public abstract class ActionFactory<A extends Action, R extends Action.Result, E extends ExecutableAction<A, R>> {
+public abstract class ActionFactory<A extends Action, E extends ExecutableAction<A>> {
 
     protected final ESLogger actionLogger;
 
@@ -29,7 +29,7 @@ public abstract class ActionFactory<A extends Action, R extends Action.Result, E
 
     public abstract A parseAction(String watchId, String actionId, XContentParser parser) throws IOException;
 
-    public abstract R parseResult(Wid wid, String actionId, XContentParser parser) throws IOException;
+    public abstract Action.Result parseResult(Wid wid, String actionId, XContentParser parser) throws IOException;
 
     public abstract E createExecutable(A action);
 

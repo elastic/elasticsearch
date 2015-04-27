@@ -21,6 +21,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
+import org.elasticsearch.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.execution.ManualExecutionContext;
 import org.elasticsearch.watcher.history.WatchRecord;
@@ -28,7 +29,6 @@ import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.support.xcontent.WatcherParams;
-import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.TriggerService;
@@ -36,6 +36,8 @@ import org.elasticsearch.watcher.trigger.manual.ManualTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchStore;
+
+import java.util.Map;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 /**
@@ -83,23 +85,18 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
             }
 
             TriggerEvent triggerEvent = triggerService.parseTriggerEvent(watch.id(), watch.id() + "_manual_execution", request.getTriggerType(), request.getTriggerSource());
-            ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watch, new ManualTriggerEvent(triggerEvent.jobName(), triggerEvent));
+            ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watch, new ManualTriggerEvent(triggerEvent.jobName(), triggerEvent), executionService.defaultThrottlePeriod());
 
             DateTime executionTime = clock.now(UTC);
             ctxBuilder.executionTime(executionTime);
-            if (request.isSimulateAllActions()) {
-                ctxBuilder.simulateAllActions();
-            } else {
-                ctxBuilder.simulateActions(request.getSimulatedActionIds().toArray(new String[request.getSimulatedActionIds().size()]));
+            for (Map.Entry<String, ActionExecutionMode> entry : request.getActionModes().entrySet()) {
+                ctxBuilder.actionMode(entry.getKey(), entry.getValue());
             }
             if (request.getAlternativeInput() != null) {
                 ctxBuilder.withInput(new SimpleInput.Result(new Payload.Simple(request.getAlternativeInput())));
             }
             if (request.isIgnoreCondition()) {
                 ctxBuilder.withCondition(AlwaysCondition.Result.INSTANCE);
-            }
-            if (request.isIgnoreThrottle()) {
-                ctxBuilder.withThrottle(Throttler.Result.NO);
             }
             ctxBuilder.recordExecution(request.isRecordExecution());
 

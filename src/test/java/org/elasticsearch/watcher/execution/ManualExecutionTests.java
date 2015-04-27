@@ -5,14 +5,15 @@
  */
 package org.elasticsearch.watcher.execution;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.util.LuceneTestCase.Slow;
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.WatcherService;
+import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
@@ -22,7 +23,6 @@ import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
-import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchRequest;
@@ -43,6 +43,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -53,6 +54,7 @@ import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
 import static org.hamcrest.Matchers.*;
 
+@Seed("8E31841F5876336B:1A23AE04C0480F1")
 public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
 
     @Override
@@ -60,13 +62,13 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
         return false;
     }
 
-    @Test @Repeat(iterations = 10)
+    @Test //@Repeat(iterations = 10)
     public void testExecuteWatch() throws Exception {
         ensureWatcherStarted();
         boolean ignoreCondition = randomBoolean();
         boolean recordExecution = randomBoolean();
         boolean conditionAlwaysTrue = randomBoolean();
-        String actionIdToSimulate = randomFrom("_all", "log", null);
+        String action = randomFrom("_all", "log");
 
         WatchSourceBuilder watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
@@ -82,10 +84,11 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
             assertThat(putWatchResponse.getVersion(), greaterThan(0L));
             refresh();
             assertThat(watcherClient().getWatch(new GetWatchRequest("_id")).actionGet().isFound(), equalTo(true));
-            ctxBuilder = ManualExecutionContext.builder(watchService().getWatch("_id"), triggerEvent); //If we are persisting the state we need to use the exact watch that is in memory
+            //If we are persisting the state we need to use the exact watch that is in memory
+            ctxBuilder = ManualExecutionContext.builder(watchService().getWatch("_id"), triggerEvent, timeValueSeconds(5));
         } else {
             parsedWatch = watchParser().parse("_id", false, watchBuilder.buildAsBytes(XContentType.JSON));
-            ctxBuilder = ManualExecutionContext.builder(parsedWatch, triggerEvent);
+            ctxBuilder = ManualExecutionContext.builder(parsedWatch, triggerEvent, timeValueSeconds(5));
         }
 
         if (ignoreCondition) {
@@ -94,18 +97,19 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
 
         ctxBuilder.recordExecution(recordExecution);
 
-        if (actionIdToSimulate != null) {
-            if ("_all".equals(actionIdToSimulate)) {
-                ctxBuilder.simulateAllActions();
-            } else {
-                ctxBuilder.simulateActions(actionIdToSimulate);
-            }
+
+        if ("_all".equals(action)) {
+            ctxBuilder.allActionsMode(ActionExecutionMode.SIMULATE);
+        } else {
+            ctxBuilder.actionMode(action, ActionExecutionMode.SIMULATE);
         }
+
+        ManualExecutionContext ctx = ctxBuilder.build();
 
         refresh();
         long oldRecordCount = docCount(HistoryStore.INDEX_PREFIX + "*", HistoryStore.DOC_TYPE, matchAllQuery());
 
-        WatchRecord watchRecord = executionService().execute(ctxBuilder.build());
+        WatchRecord watchRecord = executionService().execute(ctx);
 
         refresh();
 
@@ -120,12 +124,12 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
             assertThat("The action should not have run", watchRecord.execution().actionsResults().count(), equalTo(0));
         }
 
-        if ((ignoreCondition || conditionAlwaysTrue) && actionIdToSimulate == null) {
+        if ((ignoreCondition || conditionAlwaysTrue) && action == null) {
             assertThat("The action should have run non simulated", watchRecord.execution().actionsResults().get("log").action(),
             not(instanceOf(LoggingAction.Result.Simulated.class)) );
         }
 
-        if ((ignoreCondition || conditionAlwaysTrue) && actionIdToSimulate != null ) {
+        if ((ignoreCondition || conditionAlwaysTrue) && action != null ) {
             assertThat("The action should have run simulated", watchRecord.execution().actionsResults().get("log").action(), instanceOf(LoggingAction.Result.Simulated.class));
         }
 
@@ -134,13 +138,13 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
             refresh();
             Watch persistedWatch = watchParser().parse("_id", true, watcherClient().getWatch(new GetWatchRequest("_id")).actionGet().getSource().getBytes());
             if (ignoreCondition || conditionAlwaysTrue) {
-                assertThat(testWatch.status().ackStatus().state(), equalTo(Watch.Status.AckStatus.State.ACKABLE));
-                assertThat(persistedWatch.status().ackStatus().state(), equalTo(Watch.Status.AckStatus.State.ACKABLE));
+                assertThat(testWatch.status().actionStatus("log").ackStatus().state(), equalTo(ActionStatus.AckStatus.State.ACKABLE));
+                assertThat(persistedWatch.status().actionStatus("log").ackStatus().state(), equalTo(ActionStatus.AckStatus.State.ACKABLE));
             } else {
-                assertThat(testWatch.status().ackStatus().state(), equalTo(Watch.Status.AckStatus.State.AWAITS_EXECUTION));
+                assertThat(testWatch.status().actionStatus("log").ackStatus().state(), equalTo(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
             }
         } else {
-            assertThat(parsedWatch.status().ackStatus().state(), equalTo(Watch.Status.AckStatus.State.AWAITS_EXECUTION));
+            assertThat(parsedWatch.status().actionStatus("log").ackStatus().state(), equalTo(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
         }
     }
 
@@ -163,16 +167,17 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
         map2.put("foo", map1);
 
         ManualTriggerEvent triggerEvent = new ManualTriggerEvent("_id", new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC)));
+        ManualExecutionContext.Builder ctxBuilder1 = ManualExecutionContext.builder(watchService().getWatch("_id"), triggerEvent, timeValueSeconds(5));
+        ctxBuilder1.actionMode("_all", ActionExecutionMode.SIMULATE);
 
-        ManualExecutionContext.Builder ctxBuilder1 = ManualExecutionContext.builder(watchService().getWatch("_id"), triggerEvent);
-        ctxBuilder1.simulateActions("_all");
         ctxBuilder1.withInput(new SimpleInput.Result(new Payload.Simple(map1)));
         ctxBuilder1.recordExecution(true);
 
         WatchRecord watchRecord1 = executionService().execute(ctxBuilder1.build());
 
-        ManualExecutionContext.Builder ctxBuilder2 = ManualExecutionContext.builder(watchService().getWatch("_id"), triggerEvent);
-        ctxBuilder2.simulateActions("_all");
+        ManualExecutionContext.Builder ctxBuilder2 = ManualExecutionContext.builder(watchService().getWatch("_id"), triggerEvent, timeValueSeconds(5));
+        ctxBuilder2.actionMode("_all", ActionExecutionMode.SIMULATE);
+
         ctxBuilder2.withInput(new SimpleInput.Result(new Payload.Simple(map2)));
         ctxBuilder2.recordExecution(true);
 
@@ -191,7 +196,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
                 .input(simpleInput("foo", "bar"))
                 .condition(neverCondition())
-                .throttlePeriod(new TimeValue(1, TimeUnit.HOURS))
+                .defaultThrottlePeriod(new TimeValue(1, TimeUnit.HOURS))
                 .addAction("log", loggingAction("foobar"));
         watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
 
@@ -214,7 +219,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
                 .input(simpleInput("foo", "bar"))
                 .condition(alwaysCondition())
-                .throttlePeriod(new TimeValue(1, TimeUnit.HOURS))
+                .defaultThrottlePeriod(new TimeValue(1, TimeUnit.HOURS))
                 .addAction("log", loggingAction("foobar"));
         watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
 
@@ -242,7 +247,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
                 .input(simpleInput("foo", "bar"))
                 .condition(new ScriptCondition((new Script.Builder.Inline("sleep 10000; return true")).build()))
-                .throttlePeriod(new TimeValue(1, TimeUnit.HOURS))
+                .defaultThrottlePeriod(new TimeValue(1, TimeUnit.HOURS))
                 .addAction("log", loggingAction("foobar"));
 
         int numberOfThreads = scaledRandomIntBetween(1, 5);
@@ -293,9 +298,9 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
             this.watchId = watchId;
             this.startLatch = startLatch;
             ManualTriggerEvent triggerEvent = new ManualTriggerEvent(watchId, new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC)));
-            ctxBuilder = ManualExecutionContext.builder(watcherService.getWatch(watchId), triggerEvent);
+            ctxBuilder = ManualExecutionContext.builder(watcherService.getWatch(watchId), triggerEvent, timeValueSeconds(5));
             ctxBuilder.recordExecution(true);
-            ctxBuilder.withThrottle(Throttler.Result.NO);
+            ctxBuilder.actionMode("_all", ActionExecutionMode.FORCE_EXECUTE);
         }
 
         @Override

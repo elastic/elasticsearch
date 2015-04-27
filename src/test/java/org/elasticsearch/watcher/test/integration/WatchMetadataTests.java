@@ -10,6 +10,7 @@ import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.watcher.actions.logging.LoggingLevel;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
+import org.elasticsearch.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.support.template.Template;
@@ -29,6 +30,7 @@ import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
@@ -80,7 +82,9 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTests {
         metadata.put("foo", "bar");
         metadata.put("logtext", "This is a test");
 
-        LoggingAction loggingAction = new LoggingAction(Template.inline("{{ctx.metadata.logtext}}").build(), LoggingLevel.DEBUG, "test");
+        LoggingAction.Builder loggingAction = loggingAction(Template.inline("{{ctx.metadata.logtext}}"))
+                .setLevel(LoggingLevel.DEBUG)
+                .setCategory("test");
 
         watcherClient().preparePutWatch("_name")
                 .setSource(watchBuilder()
@@ -93,7 +97,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTests {
 
         WatchRecord.Parser parser = getInstanceFromMaster(WatchRecord.Parser.class);
         TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC));
-        ExecuteWatchResponse executeWatchResponse = watcherClient().prepareExecuteWatch("_name").setTriggerEvent(triggerEvent).addSimulatedActions("_all").get();
+        ExecuteWatchResponse executeWatchResponse = watcherClient().prepareExecuteWatch("_name").setTriggerEvent(triggerEvent).setActionMode("_all", ActionExecutionMode.SIMULATE).get();
 
         WatchRecord record = parser.parse("test_run", 1, executeWatchResponse.getSource().getBytes());
         assertThat(record.metadata().get("foo").toString(), equalTo("bar"));

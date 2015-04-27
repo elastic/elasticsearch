@@ -10,6 +10,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.Action;
+import org.elasticsearch.watcher.actions.Action.Result.Failure;
+import org.elasticsearch.watcher.actions.Action.Result.Throttled;
 import org.elasticsearch.watcher.support.template.Template;
 
 import java.io.IOException;
@@ -108,22 +110,76 @@ public class LoggingAction implements Action {
         return new LoggingAction(text, level, category);
     }
 
+    public static Action.Result parseResult(String watchId, String actionId, XContentParser parser) throws IOException {
+        Action.Result.Status status = null;
+        String loggedText = null;
+        String reason = null;
+
+        XContentParser.Token token;
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                if (Field.LOGGED_TEXT.match(currentFieldName)) {
+                    loggedText = parser.text();
+                } else if (Field.REASON.match(currentFieldName)) {
+                    reason = parser.text();
+                } else if (Field.STATUS.match(currentFieldName)) {
+                    try {
+                        status = Action.Result.Status.valueOf(parser.text().toUpperCase(Locale.ROOT));
+                    } catch (IllegalArgumentException iae) {
+                        throw new LoggingActionException("could not parse [{}] action result [{}/{}]. unknown result status value [{}]", TYPE, watchId, actionId, parser.text());
+                    }
+                } else {
+                    throw new LoggingActionException("could not parse [{}] action result [{}/{}]. unexpected string field [{}]", TYPE, watchId, actionId, currentFieldName);
+                }
+            } else {
+                throw new LoggingActionException("could not parse [{}] action result [{}/{}]. unexpected token [{}]", TYPE, watchId, actionId, token);
+            }
+        }
+
+        assertNotNull(status, "could not parse [{}] action result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.STATUS.getPreferredName());
+
+        switch (status) {
+
+            case SUCCESS:
+                assertNotNull(loggedText, "could not parse successful [{}] action result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.LOGGED_TEXT.getPreferredName());
+                return new Result.Success(loggedText);
+
+            case SIMULATED:
+                assertNotNull(loggedText, "could not parse simulated [{}] action result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.LOGGED_TEXT.getPreferredName());
+                return new Result.Simulated(loggedText);
+
+            case THROTTLED:
+                assertNotNull(reason, "could not parse throttled [{}] action result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.REASON.getPreferredName());
+                return new Throttled(TYPE, reason);
+
+            default: // FAILURE
+                assert status == Action.Result.Status.FAILURE : "unhandled action result status";
+                assertNotNull(reason, "could not parse failure [{}] action result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.REASON.getPreferredName());
+                return new Failure(TYPE, reason);
+        }
+    }
+
+    private static void assertNotNull(Object value, String message, Object... args) {
+        if (value == null) {
+            throw new LoggingActionException(message, args);
+        }
+    }
+
     public static Builder builder(Template template) {
         return new Builder(template);
     }
 
-    public static abstract class Result extends Action.Result {
+    public interface Result {
 
-        protected Result(boolean success) {
-            super(TYPE, success);
-        }
-
-        public static class Success extends Result {
+        class Success extends Action.Result implements Result {
 
             private final String loggedText;
 
             public Success(String loggedText) {
-                super(true);
+                super(TYPE, Status.SUCCESS);
                 this.loggedText = loggedText;
             }
 
@@ -137,31 +193,12 @@ public class LoggingAction implements Action {
             }
         }
 
-        public static class Failure extends Result {
-
-            private final String reason;
-
-            public Failure(String reason) {
-                super(false);
-                this.reason = reason;
-            }
-
-            public String reason() {
-                return reason;
-            }
-
-            @Override
-            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                return builder.field(Field.REASON.getPreferredName(), reason);
-            }
-        }
-
-        public static class Simulated extends Result {
+        class Simulated extends Action.Result implements Result {
 
             private final String loggedText;
 
             protected Simulated(String loggedText) {
-                super(true);
+                super(TYPE, Status.SIMULATED);
                 this.loggedText = loggedText;
             }
 
@@ -171,61 +208,8 @@ public class LoggingAction implements Action {
 
             @Override
             protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                return builder.field(Field.SIMULATED_LOGGED_TEXT.getPreferredName(), loggedText);
+                return builder.field(Field.LOGGED_TEXT.getPreferredName(), loggedText);
             }
-        }
-
-        public static Result parse(String watchId, String actionId, XContentParser parser) throws IOException {
-            Boolean success = null;
-            String loggedText = null;
-            String simulatedLoggedText = null;
-            String reason = null;
-
-            XContentParser.Token token;
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if (Field.LOGGED_TEXT.match(currentFieldName)) {
-                        loggedText = parser.text();
-                    } else if (Field.SIMULATED_LOGGED_TEXT.match(currentFieldName)) {
-                        simulatedLoggedText = parser.text();
-                    } else if (Field.REASON.match(currentFieldName)) {
-                        reason = parser.text();
-                    } else {
-                        throw new LoggingActionException("could not parse [{}] action result [{}/{}]. unexpected string field [{}]", TYPE, watchId, actionId, currentFieldName);
-                    }
-                } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                    if (Field.SUCCESS.match(currentFieldName)) {
-                        success = parser.booleanValue();
-                    } else {
-                        throw new LoggingActionException("could not parse [{}] action result [{}/{}]. unexpected boolean field [{}]", TYPE, watchId, actionId, currentFieldName);
-                    }
-                } else {
-                    throw new LoggingActionException("could not parse [{}] action result [{}/{}]. unexpected token [{}]", TYPE, watchId, actionId, token);
-                }
-            }
-
-            if (success == null) {
-                throw new LoggingActionException("could not parse [{}] action result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.SUCCESS.getPreferredName());
-            }
-
-            if (simulatedLoggedText != null) {
-                return new LoggingAction.Result.Simulated(simulatedLoggedText);
-            }
-
-            if (success) {
-                if (loggedText == null) {
-                    throw new LoggingActionException("could not parse successful [{}] action result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.LOGGED_TEXT.getPreferredName());
-                }
-                return new LoggingAction.Result.Success(loggedText);
-            }
-
-            if (reason == null) {
-                throw new LoggingActionException("could not parse failed [{}] action result [{}/{}]. missing required [{}] field", TYPE, watchId, actionId, Field.REASON.getPreferredName());
-            }
-            return new LoggingAction.Result.Failure(reason);
         }
     }
 
@@ -260,6 +244,5 @@ public class LoggingAction implements Action {
         ParseField LEVEL = new ParseField("level");
         ParseField TEXT = new ParseField("text");
         ParseField LOGGED_TEXT = new ParseField("logged_text");
-        ParseField SIMULATED_LOGGED_TEXT = new ParseField("simulated_logged_text");
     }
 }

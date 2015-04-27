@@ -11,6 +11,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
+import org.elasticsearch.watcher.execution.ActionExecutionMode;
 
 import java.io.IOException;
 import java.util.Map;
@@ -85,10 +86,13 @@ public class ExecuteWatchRequestBuilder extends MasterNodeOperationRequestBuilde
     }
 
     /**
-     * @param simulatedActionIds a list of action ids to run in simulations for this execution
+     * Sets the mode in which the given action (identified by its id) will be handled.
+     *
+     * @param actionId      The id of the action
+     * @param actionMode    The mode in which the action will be handled in the execution
      */
-    public ExecuteWatchRequestBuilder addSimulatedActions(String ... simulatedActionIds) {
-        request.addSimulatedActions(simulatedActionIds);
+    public ExecuteWatchRequestBuilder setActionMode(String actionId, ActionExecutionMode actionMode) {
+        request.setActionMode(actionId, actionMode);
         return this;
     }
 

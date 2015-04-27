@@ -9,6 +9,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ActionFactory;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
@@ -18,7 +19,7 @@ import java.io.IOException;
 /**
  *
  */
-public class LoggingActionFactory extends ActionFactory<LoggingAction, LoggingAction.Result, ExecutableLoggingAction> {
+public class LoggingActionFactory extends ActionFactory<LoggingAction, ExecutableLoggingAction> {
 
     private final Settings settings;
     private final TemplateEngine templateEngine;
@@ -41,8 +42,8 @@ public class LoggingActionFactory extends ActionFactory<LoggingAction, LoggingAc
     }
 
     @Override
-    public LoggingAction.Result parseResult(Wid wid, String actionId, XContentParser parser) throws IOException {
-        return LoggingAction.Result.parse(wid.watchId(), actionId, parser);
+    public Action.Result parseResult(Wid wid, String actionId, XContentParser parser) throws IOException {
+        return LoggingAction.parseResult(wid.watchId(), actionId, parser);
     }
 
     @Override

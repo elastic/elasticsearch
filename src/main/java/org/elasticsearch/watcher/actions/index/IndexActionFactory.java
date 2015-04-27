@@ -9,6 +9,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ActionFactory;
 import org.elasticsearch.watcher.actions.email.ExecutableEmailAction;
 import org.elasticsearch.watcher.execution.Wid;
@@ -19,7 +20,7 @@ import java.io.IOException;
 /**
  *
  */
-public class IndexActionFactory extends ActionFactory<IndexAction, IndexAction.Result, ExecutableIndexAction> {
+public class IndexActionFactory extends ActionFactory<IndexAction, ExecutableIndexAction> {
 
     private final ClientProxy client;
 
@@ -40,8 +41,8 @@ public class IndexActionFactory extends ActionFactory<IndexAction, IndexAction.R
     }
 
     @Override
-    public IndexAction.Result parseResult(Wid wid, String actionId, XContentParser parser) throws IOException {
-        return IndexAction.Result.parse(wid.watchId(), actionId, parser);
+    public Action.Result parseResult(Wid wid, String actionId, XContentParser parser) throws IOException {
+        return IndexAction.parseResult(wid.watchId(), actionId, parser);
     }
 
     @Override

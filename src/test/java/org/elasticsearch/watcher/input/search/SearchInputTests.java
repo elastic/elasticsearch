@@ -9,6 +9,7 @@ import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
@@ -26,9 +28,7 @@ import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
-import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.WatcherUtils;
-import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
@@ -36,6 +36,7 @@ import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
+import org.elasticsearch.watcher.watch.WatchStatus;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -46,6 +47,7 @@ import java.util.Map;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.rangeFilter;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
@@ -55,8 +57,8 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.areJsonEquivalent;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
 import static org.hamcrest.Matchers.*;
-import static org.mockito.Mockito.mock;
-
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  */
@@ -88,23 +90,22 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null), logger, ClientProxy.of(client()));
         WatchExecutionContext ctx = new TriggeredExecutionContext(
                 new Watch("test-watch",
-                        new ClockMock(),
-                        mock(LicenseService.class),
                         new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
                         new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
                         new ExecutableAlwaysCondition(logger),
                         null,
+                        null,
                         new ExecutableActions(new ArrayList<ActionWrapper>()),
                         null,
-                        null,
-                        new Watch.Status()),
+                        new WatchStatus(ImmutableMap.<String, ActionStatus>of())),
                 new DateTime(0, UTC),
-                new ScheduleTriggerEvent("test-watch", new DateTime(0, UTC), new DateTime(0, UTC)));
+                new ScheduleTriggerEvent("test-watch", new DateTime(0, UTC), new DateTime(0, UTC)),
+                timeValueSeconds(5));
         SearchInput.Result result = searchInput.execute(ctx);
 
         assertThat((Integer) XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
         assertNotNull(result.executedRequest());
-        assertEquals(result.executedRequest().searchType(),request.searchType());
+        assertEquals(result.executedRequest().searchType(), request.searchType());
         assertArrayEquals(result.executedRequest().indices(), request.indices());
         assertEquals(result.executedRequest().indicesOptions(), request.indicesOptions());
     }
@@ -191,18 +192,17 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null), logger, ClientProxy.of(client()));
         WatchExecutionContext ctx = new TriggeredExecutionContext(
                 new Watch("test-watch",
-                        new ClockMock(),
-                        mock(LicenseService.class),
                         new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
                         new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
                         new ExecutableAlwaysCondition(logger),
                         null,
+                        null,
                         new ExecutableActions(new ArrayList<ActionWrapper>()),
                         null,
-                        null,
-                        new Watch.Status()),
+                        new WatchStatus(ImmutableMap.<String, ActionStatus>of())),
                 new DateTime(0, UTC),
-                new ScheduleTriggerEvent("test-watch", new DateTime(0, UTC), new DateTime(0, UTC)));
+                new ScheduleTriggerEvent("test-watch", new DateTime(0, UTC), new DateTime(0, UTC)),
+                timeValueSeconds(5));
         SearchInput.Result result = searchInput.execute(ctx);
 
         assertThat((Integer) XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
@@ -311,18 +311,17 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         ExecutableSearchInput searchInput = new ExecutableSearchInput(si, logger, ClientProxy.of(client()));
         WatchExecutionContext ctx = new TriggeredExecutionContext(
                 new Watch("test-watch",
-                        new ClockMock(),
-                        mock(LicenseService.class),
                         new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
                         new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
                         new ExecutableAlwaysCondition(logger),
                         null,
+                        null,
                         new ExecutableActions(new ArrayList<ActionWrapper>()),
                         null,
-                        null,
-                        new Watch.Status()),
+                        new WatchStatus(ImmutableMap.<String, ActionStatus>of())),
                 new DateTime(60000, UTC),
-                new ScheduleTriggerEvent("test-watch", new DateTime(60000, UTC), new DateTime(60000, UTC)));
+                new ScheduleTriggerEvent("test-watch", new DateTime(60000, UTC), new DateTime(60000, UTC)),
+                timeValueSeconds(5));
         return searchInput.execute(ctx);
     }
 

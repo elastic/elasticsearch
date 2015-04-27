@@ -6,10 +6,12 @@
 package org.elasticsearch.watcher.actions;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  *
@@ -20,36 +22,70 @@ public interface Action extends ToXContent {
 
     abstract class Result implements ToXContent {
 
-        protected final String type;
-        protected final boolean success;
+        public enum Status { SUCCESS, FAILURE, THROTTLED, SIMULATED }
 
-        protected Result(String type, boolean success) {
+        protected final String type;
+        protected final Status status;
+
+        protected Result(String type, Status status) {
             this.type = type;
-            this.success = success;
+            this.status = status;
         }
 
         public String type() {
             return type;
         }
 
-        public boolean success() {
-            return success;
+        public Status status() {
+            return status;
         }
 
         @Override
         public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(Field.SUCCESS.getPreferredName(), success);
+            builder.field(Field.STATUS.getPreferredName(), status.name().toLowerCase(Locale.ROOT));
             xContentBody(builder, params);
             return builder.endObject();
         }
 
         protected abstract XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException;
 
-        public interface Failure extends ToXContent {
+        public static class Failure extends Result {
 
-            String reason();
+            private final String reason;
 
+            public Failure(String type, String reason, Object... args) {
+                super(type, Status.FAILURE);
+                this.reason = LoggerMessageFormat.format(reason, args);
+            }
+
+            public String reason() {
+                return reason;
+            }
+
+            @Override
+            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
+                return builder.field(Field.REASON.getPreferredName(), reason);
+            }
+        }
+
+        public static class Throttled extends Result {
+
+            private final String reason;
+
+            public Throttled(String type, String reason) {
+                super(type, Status.THROTTLED);
+                this.reason = reason;
+            }
+
+            public String reason() {
+                return reason;
+            }
+
+            @Override
+            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
+                return builder.field(Field.REASON.getPreferredName(), reason);
+            }
         }
     }
 
@@ -59,7 +95,7 @@ public interface Action extends ToXContent {
     }
 
     interface Field {
-        ParseField SUCCESS = new ParseField("success");
+        ParseField STATUS = new ParseField("status");
         ParseField REASON = new ParseField("reason");
     }
 }

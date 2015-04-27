@@ -5,17 +5,17 @@
  */
 package org.elasticsearch.watcher.execution;
 
-import org.elasticsearch.common.base.Predicate;
-import org.elasticsearch.common.base.Predicates;
-import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.watcher.actions.Action;
+import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.input.Input;
-import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.trigger.manual.ManualTriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
 
-import java.util.Set;
+import java.util.Map;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 
@@ -23,30 +23,58 @@ import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
  */
 public class ManualExecutionContext extends WatchExecutionContext {
 
-    private final Predicate<String> simulateActionPredicate;
+    private final Map<String, ActionExecutionMode> actionModes;
     private final boolean recordExecution;
 
     ManualExecutionContext(Watch watch, DateTime executionTime, ManualTriggerEvent triggerEvent,
-                           Input.Result inputResult, Condition.Result conditionResult,
-                           Throttler.Result throttlerResult, Predicate<String> simulateActionPredicate,
-                           boolean recordExecution) {
-        super(watch, executionTime, triggerEvent);
+                           TimeValue defaultThrottlePeriod, Input.Result inputResult, Condition.Result conditionResult,
+                           Map<String, ActionExecutionMode> actionModes, boolean recordExecution) {
+
+        super(watch, executionTime, triggerEvent, defaultThrottlePeriod);
+
+        this.actionModes = actionModes;
+        this.recordExecution = recordExecution;
+
         if (inputResult != null) {
             onInputResult(inputResult);
         }
         if (conditionResult != null) {
             onConditionResult(conditionResult);
         }
-        if (throttlerResult != null) {
-            onThrottleResult(throttlerResult);
+        ActionExecutionMode allMode = actionModes.get(Builder.ALL);
+        if (allMode == null || allMode == ActionExecutionMode.SKIP) {
+            boolean throttleAll = allMode == ActionExecutionMode.SKIP;
+            for (ActionWrapper action : watch.actions()) {
+                if (throttleAll) {
+                    onActionResult(new ActionWrapper.Result(action.id(), new Action.Result.Throttled(action.action().type(), "manually skipped")));
+                } else {
+                    ActionExecutionMode mode = actionModes.get(action.id());
+                    if (mode == ActionExecutionMode.SKIP) {
+                        onActionResult(new ActionWrapper.Result(action.id(), new Action.Result.Throttled(action.action().type(), "manually skipped")));
+                    }
+                }
+            }
         }
-        this.simulateActionPredicate = simulateActionPredicate;
-        this.recordExecution = recordExecution;
     }
 
     @Override
     public final boolean simulateAction(String actionId) {
-        return simulateActionPredicate.apply(actionId);
+        ActionExecutionMode mode = actionModes.get(Builder.ALL);
+        if (mode == ActionExecutionMode.SIMULATE || mode == ActionExecutionMode.FORCE_SIMULATE) {
+            return true;
+        }
+        mode = actionModes.get(actionId);
+        return mode == ActionExecutionMode.SIMULATE || mode == ActionExecutionMode.FORCE_SIMULATE;
+    }
+
+    @Override
+    public boolean skipThrottling(String actionId) {
+        ActionExecutionMode mode = actionModes.get(Builder.ALL);
+        if (mode == ActionExecutionMode.FORCE_EXECUTE || mode == ActionExecutionMode.FORCE_SIMULATE) {
+            return true;
+        }
+        mode = actionModes.get(actionId);
+        return mode == ActionExecutionMode.FORCE_EXECUTE || mode == ActionExecutionMode.FORCE_SIMULATE;
     }
 
     @Override
@@ -54,26 +82,28 @@ public class ManualExecutionContext extends WatchExecutionContext {
         return recordExecution;
     }
 
-    public static Builder builder(Watch watch, ManualTriggerEvent event) {
-        return new Builder(watch, event);
+    public static Builder builder(Watch watch, ManualTriggerEvent event, TimeValue defaultThrottlePeriod) {
+        return new Builder(watch, event, defaultThrottlePeriod);
     }
-
 
     public static class Builder {
 
+        static final String ALL = "_all";
+
         private final Watch watch;
         private final ManualTriggerEvent triggerEvent;
+        private final TimeValue defaultThrottlePeriod;
         protected DateTime executionTime;
         private boolean recordExecution = false;
-        private Predicate<String> simulateActionPredicate = Predicates.alwaysFalse();
+        private ImmutableMap.Builder<String, ActionExecutionMode> actionModes = ImmutableMap.builder();
         private Input.Result inputResult;
         private Condition.Result conditionResult;
-        private Throttler.Result throttlerResult;
 
-        private Builder(Watch watch, ManualTriggerEvent triggerEvent) {
+        private Builder(Watch watch, ManualTriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
             this.watch = watch;
             assert triggerEvent != null;
             this.triggerEvent = triggerEvent;
+            this.defaultThrottlePeriod = defaultThrottlePeriod;
         }
 
         public Builder executionTime(DateTime executionTime) {
@@ -86,13 +116,15 @@ public class ManualExecutionContext extends WatchExecutionContext {
             return this;
         }
 
-        public Builder simulateAllActions() {
-            simulateActionPredicate = Predicates.alwaysTrue();
-            return this;
+        public Builder allActionsMode(ActionExecutionMode mode) {
+            return actionMode(ALL, mode);
         }
 
-        public Builder simulateActions(String... ids) {
-            simulateActionPredicate = Predicates.or(simulateActionPredicate, new IdsPredicate(ids));
+        public Builder actionMode(String id, ActionExecutionMode mode) {
+            if (ALL.equals(id)) {
+                actionModes = ImmutableMap.builder();
+            }
+            actionModes.put(id, mode);
             return this;
         }
 
@@ -106,34 +138,11 @@ public class ManualExecutionContext extends WatchExecutionContext {
             return this;
         }
 
-        public Builder withThrottle(Throttler.Result throttlerResult) {
-            this.throttlerResult = throttlerResult;
-            return this;
-        }
-
         public ManualExecutionContext build() {
             if (executionTime == null) {
                 executionTime = DateTime.now(UTC);
             }
-            return new ManualExecutionContext(watch, executionTime, triggerEvent, inputResult, conditionResult, throttlerResult, simulateActionPredicate, recordExecution);
-        }
-    }
-
-    static class IdsPredicate implements Predicate<String> {
-
-        private final Set<String> ids;
-
-        private Set<String> ids() {
-            return ids;
-        }
-
-        IdsPredicate(String... ids) {
-            this.ids = ImmutableSet.copyOf(ids);
-        }
-
-        @Override
-        public boolean apply(String id) {
-            return ids.contains(id);
+            return new ManualExecutionContext(watch, executionTime, triggerEvent, defaultThrottlePeriod, inputResult, conditionResult, actionModes.build(), recordExecution);
         }
     }
 }

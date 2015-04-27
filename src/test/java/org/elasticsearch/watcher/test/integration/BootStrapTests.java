@@ -65,25 +65,37 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
         // valid watch
         client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id0")
                 .setSource(jsonBuilder().startObject()
-                            .startObject(Watch.Parser.TRIGGER_FIELD.getPreferredName())
+                            .startObject(Watch.Field.TRIGGER.getPreferredName())
                                 .startObject("schedule")
                                     .field("interval", "1s")
                                 .endObject()
                             .endObject()
-                            .startObject(Watch.Parser.ACTIONS_FIELD.getPreferredName())
+                            .startObject(Watch.Field.ACTIONS.getPreferredName())
                             .endObject()
                         .endObject())
                 .get();
 
+        // no actions field:
+        client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id1")
+                .setSource(jsonBuilder().startObject()
+                        .startObject(Watch.Field.TRIGGER.getPreferredName())
+                            .startObject("schedule")
+                                .field("interval", "1s")
+                            .endObject()
+                        .endObject()
+                        .endObject())
+                .get();
+
+
         // invalid interval
         client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id2")
                 .setSource(jsonBuilder().startObject()
-                        .startObject(Watch.Parser.TRIGGER_FIELD.getPreferredName())
+                        .startObject(Watch.Field.TRIGGER.getPreferredName())
                             .startObject("schedule")
                                 .field("interval", true)
                             .endObject()
                         .endObject()
-                        .startObject(Watch.Parser.ACTIONS_FIELD.getPreferredName())
+                        .startObject(Watch.Field.ACTIONS.getPreferredName())
                         .endObject()
                         .endObject())
                 .get();
@@ -91,13 +103,13 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
         // illegal top level field
         client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id3")
                 .setSource(jsonBuilder().startObject()
-                        .startObject(Watch.Parser.TRIGGER_FIELD.getPreferredName())
+                        .startObject(Watch.Field.TRIGGER.getPreferredName())
                             .startObject("schedule")
                                 .field("interval", "1s")
                             .endObject()
                             .startObject("illegal_field").endObject()
                         .endObject()
-                        .startObject(Watch.Parser.ACTIONS_FIELD.getPreferredName()).endObject()
+                        .startObject(Watch.Field.ACTIONS.getPreferredName()).endObject()
                         .endObject())
                 .get();
 
@@ -115,12 +127,12 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
     public void testLoadMalformedWatchRecord() throws Exception {
         client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id")
                 .setSource(jsonBuilder().startObject()
-                        .startObject(Watch.Parser.TRIGGER_FIELD.getPreferredName())
+                        .startObject(Watch.Field.TRIGGER.getPreferredName())
                             .startObject("schedule")
                                 .field("cron", "0/5 * * * * ? 2050")
                             .endObject()
                         .endObject()
-                        .startObject(Watch.Parser.ACTIONS_FIELD.getPreferredName())
+                        .startObject(Watch.Field.ACTIONS.getPreferredName())
                         .endObject()
                         .endObject())
                 .get();
@@ -137,10 +149,10 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                         .startObject(WatchRecord.Field.TRIGGER_EVENT.getPreferredName())
                             .field(event.type(), event)
                         .endObject()
-                        .startObject(Watch.Parser.CONDITION_FIELD.getPreferredName())
+                        .startObject(Watch.Field.CONDITION.getPreferredName())
                             .field(condition.type(), condition)
                         .endObject()
-                        .startObject(Watch.Parser.INPUT_FIELD.getPreferredName())
+                        .startObject(Watch.Field.INPUT.getPreferredName())
                             .startObject("none").endObject()
                         .endObject()
                         .field(WatchRecord.Field.STATE.getPreferredName(), WatchRecord.State.AWAITS_EXECUTION)
@@ -157,10 +169,10 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                         .startObject(WatchRecord.Field.TRIGGER_EVENT.getPreferredName())
                             .field(event.type(), event)
                         .endObject()
-                        .startObject(Watch.Parser.CONDITION_FIELD.getPreferredName())
+                        .startObject(Watch.Field.CONDITION.getPreferredName())
                             .startObject("unknown").endObject()
                         .endObject()
-                        .startObject(Watch.Parser.INPUT_FIELD.getPreferredName())
+                        .startObject(Watch.Field.INPUT.getPreferredName())
                             .startObject("none").endObject()
                         .endObject()
                         .field(WatchRecord.Field.STATE.getPreferredName(), WatchRecord.State.AWAITS_EXECUTION)
@@ -177,10 +189,10 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                         .startObject(WatchRecord.Field.TRIGGER_EVENT.getPreferredName())
                             .startObject("unknown").endObject()
                         .endObject()
-                        .startObject(Watch.Parser.CONDITION_FIELD.getPreferredName())
+                        .startObject(Watch.Field.CONDITION.getPreferredName())
                             .field(condition.type(), condition)
                         .endObject()
-                        .startObject(Watch.Parser.INPUT_FIELD.getPreferredName())
+                        .startObject(Watch.Field.INPUT.getPreferredName())
                             .startObject("none").endObject()
                         .endObject()
                         .field(WatchRecord.Field.STATE.getPreferredName(), WatchRecord.State.AWAITS_EXECUTION)
@@ -211,10 +223,10 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                         .startObject(WatchRecord.Field.TRIGGER_EVENT.getPreferredName())
                             .field(event.type(), event)
                         .endObject()
-                        .startObject(Watch.Parser.CONDITION_FIELD.getPreferredName())
+                        .startObject(Watch.Field.CONDITION.getPreferredName())
                             .field(condition.type(), condition)
                         .endObject()
-                        .startObject(Watch.Parser.INPUT_FIELD.getPreferredName())
+                        .startObject(Watch.Field.INPUT.getPreferredName())
                             .startObject("none").endObject()
                         .endObject()
                         .field(WatchRecord.Field.STATE.getPreferredName(), WatchRecord.State.AWAITS_EXECUTION)
@@ -274,7 +286,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                 .input(searchInput(searchRequest))
                 .condition(alwaysCondition())
                 .addAction("_id", indexAction("output", "test"))
-                .throttlePeriod(TimeValue.timeValueMillis(0))
+                .defaultThrottlePeriod(TimeValue.timeValueMillis(0))
         ).get();
 
         DateTime now = DateTime.now(UTC);
@@ -327,7 +339,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                         .input(searchInput(searchRequest))
                         .condition(alwaysCondition())
                         .addAction("_id", indexAction("output", "test"))
-                        .throttlePeriod(TimeValue.timeValueMillis(0))
+                        .defaultThrottlePeriod(TimeValue.timeValueMillis(0))
         ).get();
 
         DateTime now = DateTime.now(UTC);

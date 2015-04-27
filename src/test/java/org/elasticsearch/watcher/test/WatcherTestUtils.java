@@ -28,6 +28,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.actions.email.EmailAction;
@@ -47,7 +48,6 @@ import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.WatcherUtils;
-import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpMethod;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
@@ -65,12 +65,14 @@ import org.elasticsearch.watcher.trigger.schedule.CronSchedule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
+import org.elasticsearch.watcher.watch.WatchStatus;
 
 import javax.mail.internet.AddressException;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.util.*;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ElasticsearchTestCase.randomFrom;
@@ -190,18 +192,20 @@ public final class WatcherTestUtils {
         LicenseService licenseService = mock(LicenseService.class);
         when(licenseService.enabled()).thenReturn(true);
 
+        DateTime now = DateTime.now(UTC);
         return new Watch(
                 watchName,
-                SystemClock.INSTANCE,
-                licenseService,
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
                 new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(inputData)), logger),
                 new ExecutableScriptCondition(new ScriptCondition(Script.inline("return true").build()), logger, scriptService),
                 new ExecutableSearchTransform(new SearchTransform(transformRequest), logger, client),
+                new TimeValue(0),
                 new ExecutableActions(actions),
                 metadata,
-                new TimeValue(0),
-                new Watch.Status());
+                new WatchStatus(ImmutableMap.<String, ActionStatus>builder()
+                        .put("_webhook", new ActionStatus(now))
+                        .put("_email", new ActionStatus(now))
+                        .build()));
     }
 
     public static ScriptServiceProxy getScriptServiceProxy(ThreadPool tp) throws Exception {

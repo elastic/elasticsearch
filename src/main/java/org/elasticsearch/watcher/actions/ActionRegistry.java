@@ -9,6 +9,8 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.execution.Wid;
+import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.transform.TransformRegistry;
 
 import java.io.IOException;
@@ -23,11 +25,15 @@ public class ActionRegistry  {
 
     private final ImmutableMap<String, ActionFactory> parsers;
     private final TransformRegistry transformRegistry;
+    private final Clock clock;
+    private final LicenseService licenseService;
 
     @Inject
-    public ActionRegistry(Map<String, ActionFactory> parsers, TransformRegistry transformRegistry) {
+    public ActionRegistry(Map<String, ActionFactory> parsers, TransformRegistry transformRegistry, Clock clock, LicenseService licenseService) {
         this.parsers = ImmutableMap.copyOf(parsers);
         this.transformRegistry = transformRegistry;
+        this.clock = clock;
+        this.licenseService = licenseService;
     }
 
     ActionFactory factory(String type) {
@@ -35,6 +41,9 @@ public class ActionRegistry  {
     }
 
     public ExecutableActions parseActions(String watchId, XContentParser parser) throws IOException {
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+            throw new ActionException("could not parse actions for watch [{}]. expected an object but found [{}] instead", watchId, parser.currentToken());
+        }
         List<ActionWrapper> actions = new ArrayList<>();
 
         String id = null;
@@ -43,7 +52,7 @@ public class ActionRegistry  {
             if (token == XContentParser.Token.FIELD_NAME) {
                 id = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT && id != null) {
-                ActionWrapper action = ActionWrapper.parse(watchId, id, parser, this, transformRegistry);
+                ActionWrapper action = ActionWrapper.parse(watchId, id, parser, this, transformRegistry, clock, licenseService);
                 actions.add(action);
             }
         }

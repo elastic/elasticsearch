@@ -42,7 +42,7 @@
       watcher.ack_watch:
         id: "my_watch"
 
-  - match: { "status.ack.state" : "awaits_execution" }
+  - match: { "status.actions.test_index.ack_status.state" : "awaits_successful_execution" }
 
   - do:
       watcher.delete_watch:

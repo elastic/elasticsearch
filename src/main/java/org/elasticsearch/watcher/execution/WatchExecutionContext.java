@@ -7,17 +7,19 @@ package org.elasticsearch.watcher.execution;
 
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.input.Input;
-import org.elasticsearch.watcher.throttle.Throttler;
+import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 
 import java.util.concurrent.ConcurrentMap;
+import java.io.IOException;
 
 /**
  *
@@ -28,27 +30,32 @@ public abstract class WatchExecutionContext {
     private final Watch watch;
     private final DateTime executionTime;
     private final TriggerEvent triggerEvent;
+    private final TimeValue defaultThrottlePeriod;
 
     private Input.Result inputResult;
     private Condition.Result conditionResult;
-    private Throttler.Result throttleResult;
     private Transform.Result transformResult;
     private ConcurrentMap<String, ActionWrapper.Result> actionsResults = ConcurrentCollections.newConcurrentMap();
 
     private Payload payload;
+    private Payload transformedPayload;
+
     private volatile ExecutionPhase executionPhase = ExecutionPhase.AWAITS_EXECUTION;
 
-    public WatchExecutionContext(Watch watch, DateTime executionTime, TriggerEvent triggerEvent) {
+    public WatchExecutionContext(Watch watch, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
+        this.id = new Wid(watch.id(), watch.nonce(), executionTime);
         this.watch = watch;
         this.executionTime = executionTime;
         this.triggerEvent = triggerEvent;
-        this.id = new Wid(watch.id(), watch.nonce(), executionTime);
+        this.defaultThrottlePeriod = defaultThrottlePeriod;
     }
 
     /**
      * @return true if this action should be simulated
      */
     public abstract boolean simulateAction(String actionId);
+
+    public abstract boolean skipThrottling(String actionId);
 
     /**
      * @return true if this execution should be recorded in the .watch_history index
@@ -67,12 +74,40 @@ public abstract class WatchExecutionContext {
         return executionTime;
     }
 
+    /**
+     * @return The default throttle period in the system.
+     */
+    public TimeValue defaultThrottlePeriod() {
+        return defaultThrottlePeriod;
+    }
+
     public TriggerEvent triggerEvent() {
         return triggerEvent;
     }
 
     public Payload payload() {
         return payload;
+    }
+
+    /**
+     * If a transform is associated with the watch itself, this method will return the transformed payload,
+     * that is, the payload after the transform was applied to it. note, after calling this method, the payload
+     * will be the same as the transformed payload. Also note, that the transform is only applied once. So calling
+     * this method multiple times will always result in the same payload.
+     */
+    public Payload transformedPayload() throws IOException {
+        if (transformedPayload != null) {
+            return transformedPayload;
+        }
+        ExecutableTransform transform = watch.transform();
+        if (transform == null) {
+            transformedPayload = payload;
+            return transformedPayload;
+        }
+        this.transformResult = watch.transform().execute(this, payload);
+        this.payload = transformResult.payload();
+        this.transformedPayload = this.payload;
+        return transformedPayload;
     }
 
     public ExecutionPhase executionPhase() {
@@ -108,23 +143,8 @@ public abstract class WatchExecutionContext {
         return conditionResult;
     }
 
-    public void onThrottleResult(Throttler.Result throttleResult) {
-        this.throttleResult = throttleResult;
-        if (recordExecution()) {
-            if (throttleResult.throttle()) {
-                watch.status().onThrottle(executionTime, throttleResult.reason());
-            } else {
-                watch.status().onExecution(executionTime);
-            }
-        }
-    }
-
     public void beforeWatchTransform() {
         this.executionPhase = ExecutionPhase.WATCH_TRANSFORM;
-    }
-
-    public Throttler.Result throttleResult() {
-        return throttleResult;
     }
 
     public void onTransformResult(Transform.Result transformResult) {
@@ -142,6 +162,9 @@ public abstract class WatchExecutionContext {
 
     public void onActionResult(ActionWrapper.Result result) {
         actionsResults.put(result.id(), result);
+        if (recordExecution()) {
+            watch.status().onActionResult(result.id(), executionTime, result.action());
+        }
     }
 
     public ExecutableActions.Results actionsResults() {

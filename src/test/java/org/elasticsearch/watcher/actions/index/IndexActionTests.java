@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -19,6 +20,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.watcher.actions.Action;
+import org.elasticsearch.watcher.actions.Action.Result.Status;
 import org.elasticsearch.watcher.actions.email.service.Authentication;
 import org.elasticsearch.watcher.actions.email.service.Email;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
@@ -37,6 +40,7 @@ import org.elasticsearch.watcher.watch.Watch;
 import org.junit.Test;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
@@ -72,14 +76,16 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
                     }
                 },
                 logger);
-        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(), new ScheduleTriggerEvent(watch.id(), new DateTime(), new DateTime()));
+        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(), new ScheduleTriggerEvent(watch.id(), new DateTime(), new DateTime()), TimeValue.timeValueSeconds(5));
 
         Map<String, Object> payloadMap = new HashMap<>();
         payloadMap.put("test", "foo");
-        IndexAction.Result.Executed result = (IndexAction.Result.Executed) executable.execute("_id", ctx, new Payload.Simple(payloadMap));
+        Action.Result result = executable.execute("_id", ctx, new Payload.Simple(payloadMap));
 
-        assertThat(result.success(), equalTo(true));
-        Map<String, Object> responseData = result.response().data();
+        assertThat(result.status(), equalTo(Status.SUCCESS));
+        assertThat(result, instanceOf(IndexAction.Result.Success.class));
+        IndexAction.Result.Success successResult = (IndexAction.Result.Success) result;
+        Map<String, Object> responseData = successResult.response().data();
         assertThat(responseData.get("created"), equalTo((Object)Boolean.TRUE));
         assertThat(responseData.get("version"), equalTo((Object) 1L));
         assertThat(responseData.get("type").toString(), equalTo("test-type"));
@@ -142,38 +148,41 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
 
     @Test @Repeat(iterations = 30)
     public void testParser_Result() throws Exception {
-        boolean success = randomBoolean();
-        boolean simulated = randomBoolean();
+        Status status = randomFrom(Status.SUCCESS, Status.SIMULATED, Status.FAILURE);
 
         XContentBuilder builder = jsonBuilder().startObject()
-                .field("success", success);
+                .field("status", status.name().toLowerCase(Locale.ROOT));
 
         Payload.Simple source = null;
         String index = randomAsciiOfLength(5);
         String docType = randomAsciiOfLength(5);
 
-        if (simulated) {
-            source = new Payload.Simple(ImmutableMap.<String, Object>builder()
-                    .put("data", new HashMap<String, Object>())
-                    .put("timestamp", DateTime.now(UTC).toString())
-                    .build());
-            builder.startObject(IndexAction.Field.SIMULATED_REQUEST.getPreferredName())
-                    .field(IndexAction.Field.INDEX.getPreferredName(), index)
-                    .field(IndexAction.Field.DOC_TYPE.getPreferredName(), docType)
-                    .field(IndexAction.Field.SOURCE.getPreferredName(), source)
-                .endObject();
+        switch (status) {
 
-        } else if (success) {
-            Map<String,Object> data = new HashMap<>();
-            data.put("created", true);
-            data.put("id", "0");
-            data.put("version", 1);
-            data.put("type", "test-type");
-            data.put("index", "test-index");
-            builder.field(IndexAction.Field.RESPONSE.getPreferredName(), data);
+            case SIMULATED:
+                source = new Payload.Simple(ImmutableMap.<String, Object>builder()
+                        .put("data", new HashMap<String, Object>())
+                        .put("timestamp", DateTime.now(UTC).toString())
+                        .build());
+                builder.startObject(IndexAction.Field.REQUEST.getPreferredName())
+                        .field(IndexAction.Field.INDEX.getPreferredName(), index)
+                        .field(IndexAction.Field.DOC_TYPE.getPreferredName(), docType)
+                        .field(IndexAction.Field.SOURCE.getPreferredName(), source)
+                        .endObject();
+                break;
 
-        } else {
-            builder.field("reason", "_reason");
+            case SUCCESS:
+                Map<String,Object> data = new HashMap<>();
+                data.put("created", true);
+                data.put("id", "0");
+                data.put("version", 1);
+                data.put("type", "test-type");
+                data.put("index", "test-index");
+                builder.field(IndexAction.Field.RESPONSE.getPreferredName(), data);
+                break;
+
+            case FAILURE:
+                builder.field("reason", "_reason");
         }
 
         Wid wid = new Wid(randomAsciiOfLength(4), randomLong(), DateTime.now());
@@ -181,28 +190,34 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
-        IndexAction.Result result = new IndexActionFactory(ImmutableSettings.EMPTY, ClientProxy.of(client()))
+        Action.Result result = new IndexActionFactory(ImmutableSettings.EMPTY, ClientProxy.of(client()))
                 .parseResult(wid, actionId, parser);
 
-        if (simulated){
-            assertThat(result, instanceOf(IndexAction.Result.Simulated.class));
-            assertThat(((IndexAction.Result.Simulated) result).source(), equalTo((Payload) source));
-            assertThat(((IndexAction.Result.Simulated) result).index(), equalTo(index));
-            assertThat(((IndexAction.Result.Simulated) result).docType(), equalTo(docType));
 
-        } else {
-            assertThat(result.success(), is(success));
-            if (success) {
-                assertThat(result, instanceOf(IndexAction.Result.Executed.class));
-                Map<String, Object> responseData = ((IndexAction.Result.Executed) result).response().data();
+        assertThat(result.status(), is(status));
+
+        switch (status) {
+
+            case SIMULATED:
+                assertThat(result, instanceOf(IndexAction.Result.Simulated.class));
+                assertThat(((IndexAction.Result.Simulated) result).source(), equalTo((Payload) source));
+                assertThat(((IndexAction.Result.Simulated) result).index(), equalTo(index));
+                assertThat(((IndexAction.Result.Simulated) result).docType(), equalTo(docType));
+                break;
+
+            case SUCCESS:
+                assertThat(result, instanceOf(IndexAction.Result.Success.class));
+                Map<String, Object> responseData = ((IndexAction.Result.Success) result).response().data();
                 assertThat(responseData.get("created"), equalTo((Object) Boolean.TRUE));
                 assertThat(responseData.get("version"), equalTo((Object) 1));
                 assertThat(responseData.get("type").toString(), equalTo("test-type"));
                 assertThat(responseData.get("index").toString(), equalTo("test-index"));
-            } else {
-                assertThat(result, instanceOf(IndexAction.Result.Failure.class));
-                assertThat(((IndexAction.Result.Failure) result).reason(), is("_reason"));
-            }
+                break;
+
+            default: // failure
+                assertThat(result.status(), is(Status.FAILURE));
+                assertThat(result, instanceOf(Action.Result.Failure.class));
+                assertThat(((Action.Result.Failure) result).reason(), is("_reason"));
         }
     }
 
@@ -231,7 +246,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         Wid wid = new Wid(randomAsciiOfLength(4), randomLong(), DateTime.now());
         String actionId = randomAsciiOfLength(5);
 
-        IndexAction.Result result = new IndexActionFactory(ImmutableSettings.EMPTY, ClientProxy.of(client()))
+        Action.Result result = new IndexActionFactory(ImmutableSettings.EMPTY, ClientProxy.of(client()))
                 .parseResult(wid, actionId, parser);
 
         assertThat(result, instanceOf(IndexAction.Result.Simulated.class));

@@ -9,6 +9,7 @@ import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -18,10 +19,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.WatcherException;
-import org.elasticsearch.watcher.actions.ActionFactory;
-import org.elasticsearch.watcher.actions.ActionRegistry;
-import org.elasticsearch.watcher.actions.ActionWrapper;
-import org.elasticsearch.watcher.actions.ExecutableActions;
+import org.elasticsearch.watcher.actions.*;
 import org.elasticsearch.watcher.actions.email.DataAttachment;
 import org.elasticsearch.watcher.actions.email.EmailAction;
 import org.elasticsearch.watcher.actions.email.EmailActionFactory;
@@ -63,6 +61,7 @@ import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.Clock;
+import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpMethod;
@@ -77,6 +76,7 @@ import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
+import org.elasticsearch.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.TransformFactory;
 import org.elasticsearch.watcher.transform.TransformRegistry;
@@ -100,6 +100,7 @@ import org.junit.Test;
 import java.util.Collection;
 import java.util.Map;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.matchAllRequest;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
@@ -115,6 +116,7 @@ public class WatchTests extends ElasticsearchTestCase {
     private TemplateEngine templateEngine;
     private HttpAuthRegistry authRegistry;
     private SecretService secretService;
+    private LicenseService licenseService;
     private ESLogger logger;
     private Settings settings = ImmutableSettings.EMPTY;
 
@@ -126,19 +128,22 @@ public class WatchTests extends ElasticsearchTestCase {
         emailService = mock(EmailService.class);
         templateEngine = mock(TemplateEngine.class);
         secretService = mock(SecretService.class);
+        licenseService = mock(LicenseService.class);
         authRegistry = new HttpAuthRegistry(ImmutableMap.of("basic", (HttpAuthFactory) new BasicAuthFactory(secretService)));
         logger = Loggers.getLogger(WatchTests.class);
     }
 
     @Test //@Repeat(iterations = 20)
     public void testParser_SelfGenerated() throws Exception {
-
+        DateTime now = new DateTime(UTC);
+        ClockMock clock = new ClockMock();
+        clock.setTime(now);
         TransformRegistry transformRegistry = transformRegistry();
         boolean includeStatus = randomBoolean();
         Schedule schedule = randomSchedule();
         Trigger trigger = new ScheduleTrigger(schedule);
         ScheduleRegistry scheduleRegistry = registry(schedule);
-        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(ImmutableSettings.EMPTY, scheduleRegistry, SystemClock.INSTANCE);
+        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(ImmutableSettings.EMPTY, scheduleRegistry, clock);
         TriggerService triggerService = new TriggerService(ImmutableSettings.EMPTY, ImmutableSet.of(triggerEngine));
         SecretService secretService = new SecretService.PlainText();
 
@@ -155,20 +160,24 @@ public class WatchTests extends ElasticsearchTestCase {
 
         Map<String, Object> metadata = ImmutableMap.<String, Object>of("_key", "_val");
 
-        Watch.Status status = new Watch.Status();
+        ImmutableMap.Builder<String, ActionStatus> actionsStatuses = ImmutableMap.builder();
+        for (ActionWrapper action : actions) {
+            actionsStatuses.put(action.id(), new ActionStatus(now));
+        }
+        WatchStatus watchStatus = new WatchStatus(actionsStatuses.build());
 
         TimeValue throttlePeriod = randomBoolean() ? null : TimeValue.timeValueSeconds(randomIntBetween(5, 10));
 
-        Watch watch = new Watch("_name", SystemClock.INSTANCE, mock(LicenseService.class), trigger, input, condition, transform, actions, metadata, throttlePeriod, status);
+        Watch watch = new Watch("_name", trigger, input, condition, transform, throttlePeriod, actions, metadata, watchStatus);
 
         BytesReference bytes = XContentFactory.jsonBuilder().value(watch).bytes();
         logger.info(bytes.toUtf8());
-        Watch.Parser watchParser = new Watch.Parser(settings, mock(LicenseService.class), conditionRegistry, triggerService, transformRegistry, actionRegistry, inputRegistry, SystemClock.INSTANCE, secretService);
+        Watch.Parser watchParser = new Watch.Parser(settings, conditionRegistry, triggerService, transformRegistry, actionRegistry, inputRegistry, secretService, clock);
 
         Watch parsedWatch = watchParser.parse("_name", includeStatus, bytes);
 
         if (includeStatus) {
-            assertThat(parsedWatch.status(), equalTo(status));
+            assertThat(parsedWatch.status(), equalTo(watchStatus));
         }
         assertThat(parsedWatch.trigger(), equalTo(trigger));
         assertThat(parsedWatch.input(), equalTo(input));
@@ -182,8 +191,9 @@ public class WatchTests extends ElasticsearchTestCase {
 
     @Test
     public void testParser_BadActions() throws Exception {
+        ClockMock clock = new ClockMock();
         ScheduleRegistry scheduleRegistry = registry(randomSchedule());
-        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(ImmutableSettings.EMPTY, scheduleRegistry, SystemClock.INSTANCE);
+        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(ImmutableSettings.EMPTY, scheduleRegistry, clock);
         TriggerService triggerService = new TriggerService(ImmutableSettings.EMPTY, ImmutableSet.of(triggerEngine));
         SecretService secretService = new SecretService.PlainText();
         ExecutableCondition condition = randomCondition();
@@ -197,18 +207,16 @@ public class WatchTests extends ElasticsearchTestCase {
         ActionRegistry actionRegistry = registry(actions, transformRegistry);
 
 
-        XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
-        jsonBuilder.startObject();
-        jsonBuilder.field("actions");
-        jsonBuilder.startArray();
-        jsonBuilder.endArray();
-        jsonBuilder.endObject();
-        Watch.Parser watchParser = new Watch.Parser(settings, mock(LicenseService.class), conditionRegistry, triggerService, transformRegistry, actionRegistry, inputRegistry, SystemClock.INSTANCE, secretService);
+        XContentBuilder jsonBuilder = XContentFactory.jsonBuilder()
+                .startObject()
+                    .startArray("actions").endArray()
+                .endObject();
+        Watch.Parser watchParser = new Watch.Parser(settings, conditionRegistry, triggerService, transformRegistry, actionRegistry, inputRegistry, secretService, clock);
         try {
             watchParser.parse("failure", false, jsonBuilder.bytes());
             fail("This watch should fail to parse as actions is an array");
         } catch (WatcherException we) {
-            assertThat(we.getMessage().contains("could not parse watch [failure]. unexpected token"), is(true));
+            assertThat(we.getMessage().contains("could not parse actions for watch [failure]"), is(true));
         }
     }
 
@@ -228,11 +236,11 @@ public class WatchTests extends ElasticsearchTestCase {
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
-        builder.startObject(Watch.Parser.TRIGGER_FIELD.getPreferredName())
+        builder.startObject(Watch.Field.TRIGGER.getPreferredName())
                 .field(ScheduleTrigger.TYPE, schedule(schedule).build())
                 .endObject();
         builder.endObject();
-        Watch.Parser watchParser = new Watch.Parser(settings, mock(LicenseService.class), conditionRegistry, triggerService, transformRegistry, actionRegistry, inputRegistry, SystemClock.INSTANCE, secretService);
+        Watch.Parser watchParser = new Watch.Parser(settings, conditionRegistry, triggerService, transformRegistry, actionRegistry, inputRegistry, secretService, SystemClock.INSTANCE);
         Watch watch = watchParser.parse("failure", false, builder.bytes());
         assertThat(watch, notNullValue());
         assertThat(watch.trigger(), instanceOf(ScheduleTrigger.class));
@@ -376,11 +384,11 @@ public class WatchTests extends ElasticsearchTestCase {
         if (randomBoolean()) {
             ExecutableTransform transform = randomTransform();
             EmailAction action = new EmailAction(EmailTemplate.builder().build(), null, null, Profile.STANDARD, randomFrom(DataAttachment.JSON, DataAttachment.YAML, null));
-            list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), transform, new ExecutableEmailAction(action, logger, emailService, templateEngine)));
+            list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), randomThrottler(), transform, new ExecutableEmailAction(action, logger, emailService, templateEngine)));
         }
         if (randomBoolean()) {
-            IndexAction action = new IndexAction("_index", "_type");
-            list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomTransform(), new ExecutableIndexAction(action, logger, client)));
+            IndexAction aciton = new IndexAction("_index", "_type");
+            list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomThrottler(), randomTransform(), new ExecutableIndexAction(aciton, logger, client)));
         }
         if (randomBoolean()) {
             HttpRequestTemplate httpRequest = HttpRequestTemplate.builder("test.host", randomIntBetween(8000, 9000))
@@ -388,7 +396,7 @@ public class WatchTests extends ElasticsearchTestCase {
                     .path(Template.inline("_url").build())
                     .build();
             WebhookAction action = new WebhookAction(httpRequest);
-            list.add(new ActionWrapper("_webhook_" + randomAsciiOfLength(8), randomTransform(), new ExecutableWebhookAction(action, logger, httpClient, templateEngine)));
+            list.add(new ActionWrapper("_webhook_" + randomAsciiOfLength(8), randomThrottler(), randomTransform(), new ExecutableWebhookAction(action, logger, httpClient, templateEngine)));
         }
         return new ExecutableActions(list.build());
     }
@@ -409,9 +417,12 @@ public class WatchTests extends ElasticsearchTestCase {
                     break;
             }
         }
-        return new ActionRegistry(parsers.build(), transformRegistry);
+        return new ActionRegistry(parsers.build(), transformRegistry, SystemClock.INSTANCE, licenseService);
     }
 
+    private ActionThrottler randomThrottler() {
+        return new ActionThrottler(SystemClock.INSTANCE, randomBoolean() ? null : TimeValue.timeValueMinutes(randomIntBetween(3, 5)), licenseService);
+    }
 
     static class ParseOnlyScheduleTriggerEngine extends ScheduleTriggerEngine {
 

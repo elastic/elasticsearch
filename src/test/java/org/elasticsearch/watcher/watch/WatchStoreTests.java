@@ -250,7 +250,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         when(clientProxy.searchScroll(anyString(), any(TimeValue.class))).thenReturn(searchResponse2, searchResponse3);
 
         Watch watch1 = mock(Watch.class);
-        Watch.Status status = new Watch.Status();
+        WatchStatus status = mock(WatchStatus.class);
         when(watch1.status()).thenReturn(status);
         Watch watch2 = mock(Watch.class);
         when(watch2.status()).thenReturn(status);

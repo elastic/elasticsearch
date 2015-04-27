@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.watcher.actions;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -15,6 +17,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.execution.Wid;
+import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.support.clock.Clock;
+import org.elasticsearch.watcher.actions.throttler.ActionThrottler;
+import org.elasticsearch.watcher.actions.throttler.Throttler;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.transform.TransformRegistry;
@@ -31,14 +37,16 @@ public class ActionWrapper implements ToXContent {
 
     private String id;
     private final @Nullable ExecutableTransform transform;
+    private final ActionThrottler throttler;
     private final ExecutableAction action;
 
     public ActionWrapper(String id, ExecutableAction action) {
-        this(id, null, action);
+        this(id, null, null, action);
     }
 
-    public ActionWrapper(String id, @Nullable ExecutableTransform transform, ExecutableAction action) {
+    public ActionWrapper(String id, ActionThrottler throttler, @Nullable ExecutableTransform transform, ExecutableAction action) {
         this.id = id;
+        this.throttler = throttler;
         this.transform = transform;
         this.action = action;
     }
@@ -51,20 +59,43 @@ public class ActionWrapper implements ToXContent {
         return transform;
     }
 
+    public Throttler throttler() {
+        return throttler;
+    }
+
     public ExecutableAction action() {
         return action;
     }
 
     public ActionWrapper.Result execute(WatchExecutionContext ctx) throws IOException {
-        Payload payload = ctx.payload();
+        ActionWrapper.Result result = ctx.actionsResults().get(id);
+        if (result != null) {
+            return result;
+        }
+        if (!ctx.skipThrottling(id)) {
+            Throttler.Result throttleResult = throttler.throttle(id, ctx);
+            if (throttleResult.throttle()) {
+                return new ActionWrapper.Result(id, new Action.Result.Throttled(action.type(), throttleResult.reason()));
+            }
+        }
+        Payload payload = ctx.transformedPayload();
         Transform.Result transformResult = null;
         if (transform != null) {
-            transformResult = transform.execute(ctx, payload);
-            payload = transformResult.payload();
-
+            try {
+                transformResult = transform.execute(ctx, payload);
+                payload = transformResult.payload();
+            } catch (Exception e) {
+                action.logger.error("failed to execute action [{}/{}]. failed to transform payload.", e, ctx.watch().id(), id);
+                return new ActionWrapper.Result(id, new Action.Result.Failure(action.type(), "Failed to transform payload. error: " + ExceptionsHelper.detailedMessage(e)));
+            }
         }
-        Action.Result actionResult = action.execute(id, ctx, payload);
-        return new ActionWrapper.Result(id, transformResult, actionResult);
+        try {
+            Action.Result actionResult = action.execute(id, ctx, payload);
+            return new ActionWrapper.Result(id, transformResult, actionResult);
+        } catch (Exception e) {
+            action.logger.error("failed to execute action [{}/{}]", e, ctx.watch().id(), id);
+            return new ActionWrapper.Result(id, new Action.Result.Failure(action.type(), ExceptionsHelper.detailedMessage(e)));
+        }
     }
 
     @Override
@@ -90,6 +121,10 @@ public class ActionWrapper implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        TimeValue throttlePeriod = throttler.throttlePeriod();
+        if (throttlePeriod != null) {
+            builder.field(Throttler.Field.THROTTLE_PERIOD.getPreferredName(), throttlePeriod.getMillis());
+        }
         if (transform != null) {
             builder.startObject(Transform.Field.TRANSFORM.getPreferredName())
                     .field(transform.type(), transform, params)
@@ -99,10 +134,14 @@ public class ActionWrapper implements ToXContent {
         return builder.endObject();
     }
 
-    static ActionWrapper parse(String watchId, String actionId, XContentParser parser, ActionRegistry actionRegistry, TransformRegistry transformRegistry) throws IOException {
+    static ActionWrapper parse(String watchId, String actionId, XContentParser parser,
+                               ActionRegistry actionRegistry, TransformRegistry transformRegistry,
+                               Clock clock, LicenseService licenseService) throws IOException {
+
         assert parser.currentToken() == XContentParser.Token.START_OBJECT;
 
         ExecutableTransform transform = null;
+        TimeValue throttlePeriod = null;
         ExecutableAction action = null;
 
         String currentFieldName = null;
@@ -113,6 +152,12 @@ public class ActionWrapper implements ToXContent {
             } else {
                 if (Transform.Field.TRANSFORM.match(currentFieldName)) {
                     transform = transformRegistry.parse(watchId, parser);
+                } else if (Throttler.Field.THROTTLE_PERIOD.match(currentFieldName)) {
+                    if (token == XContentParser.Token.VALUE_NUMBER) {
+                        throttlePeriod = new TimeValue(parser.longValue());
+                    } else {
+                        throw new ActionException("could not parse action [{}/{}]. expected field [{}] to hold a numeric value, but instead found", watchId, actionId, currentFieldName, token);
+                    }
                 } else {
                     // it's the type of the action
                     ActionFactory actionFactory = actionRegistry.factory(currentFieldName);
@@ -126,7 +171,9 @@ public class ActionWrapper implements ToXContent {
         if (action == null) {
             throw new ActionException("could not parse watch action [{}/{}]. missing action type", watchId, actionId);
         }
-        return new ActionWrapper(actionId, transform, action);
+
+        ActionThrottler throttler = new ActionThrottler(clock, throttlePeriod, licenseService);
+        return new ActionWrapper(actionId, throttler, transform, action);
     }
 
     public static class Result implements ToXContent {

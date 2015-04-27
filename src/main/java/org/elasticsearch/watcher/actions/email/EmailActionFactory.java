@@ -9,6 +9,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ActionFactory;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.execution.Wid;
@@ -19,7 +20,7 @@ import java.io.IOException;
 /**
  *
  */
-public class EmailActionFactory extends ActionFactory<EmailAction, EmailAction.Result, ExecutableEmailAction> {
+public class EmailActionFactory extends ActionFactory<EmailAction, ExecutableEmailAction> {
 
     private final EmailService emailService;
     private final TemplateEngine templateEngine;
@@ -46,7 +47,7 @@ public class EmailActionFactory extends ActionFactory<EmailAction, EmailAction.R
     }
 
     @Override
-    public EmailAction.Result parseResult(Wid wid, String actionId, XContentParser parser) throws IOException {
+    public Action.Result parseResult(Wid wid, String actionId, XContentParser parser) throws IOException {
         return EmailAction.Result.parse(wid.watchId(), actionId, parser);
     }
 

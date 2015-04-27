@@ -975,7 +975,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             for (int i = 0; i < size; i++) {
                 StoreFileMetaData meta = StoreFileMetaData.readStoreFileMetaData(in);
                 builder.put(meta.name(), meta);
-                logger.info("read {} {}", meta.name(), meta);
             }
             this.metadata = builder.build();
             assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();

@@ -9,7 +9,11 @@ randomization:
       branch: tags/v1.5.1
       lucene.version: 4.10.4
     es152:
-      version: 1.5.2-SNAPSHOT
+      version: 1.5.2
+      branch: tags/v1.5.2
+      lucene.version: 4.10.4
+    es153:
+      version: 1.5.3-SNAPSHOT
       branch: origin/1.5
       lucene.version: 4.10.4
     es160:

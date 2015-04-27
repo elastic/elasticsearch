@@ -97,6 +97,10 @@ public class StartRecoveryRequest extends TransportRequest {
         return recoveryType;
     }
 
+    public Store.MetadataSnapshot metadataSnapshot() {
+        return metadataSnapshot;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -122,7 +126,4 @@ public class StartRecoveryRequest extends TransportRequest {
         out.writeByte(recoveryType.id());
     }
 
-    public Store.MetadataSnapshot metadataSnapshot() {
-        return metadataSnapshot;
-    }
 }

@@ -293,10 +293,10 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
                 aliases((Map<String, Object>) entry.getValue());
             } else {
                 // maybe custom?
-                IndexMetaData.Custom.Factory factory = IndexMetaData.lookupFactory(name);
-                if (factory != null) {
+                IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
+                if (proto != null) {
                     try {
-                        customs.put(name, factory.fromMap((Map<String, Object>) entry.getValue()));
+                        customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
                     } catch (IOException e) {
                         throw new ElasticsearchParseException("failed to parse custom metadata for [" + name + "]");
                     }
@@ -441,7 +441,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
             String type = in.readString();
-            IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupFactorySafe(type).readFrom(in);
+            IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupPrototypeSafe(type).readFrom(in);
             customs.put(type, customIndexMetaData);
         }
         int aliasesSize = in.readVInt();
@@ -467,7 +467,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         out.writeVInt(customs.size());
         for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
             out.writeString(entry.getKey());
-            IndexMetaData.lookupFactorySafe(entry.getKey()).writeTo(entry.getValue(), out);
+            entry.getValue().writeTo(out);
         }
         out.writeVInt(aliases.size());
         for (Alias alias : aliases) {

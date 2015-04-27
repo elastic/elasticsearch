@@ -134,7 +134,7 @@ public class GetIndexResponse extends ActionResponse {
             int valueSize = in.readVInt();
             ImmutableOpenMap.Builder<String, MappingMetaData> mappingEntryBuilder = ImmutableOpenMap.builder();
             for (int j = 0; j < valueSize; j++) {
-                mappingEntryBuilder.put(in.readString(), MappingMetaData.readFrom(in));
+                mappingEntryBuilder.put(in.readString(), MappingMetaData.PROTO.readFrom(in));
             }
             mappingsMapBuilder.put(key, mappingEntryBuilder.build());
         }
@@ -181,7 +181,7 @@ public class GetIndexResponse extends ActionResponse {
             out.writeVInt(indexEntry.value.size());
             for (ObjectObjectCursor<String, MappingMetaData> mappingEntry : indexEntry.value) {
                 out.writeString(mappingEntry.key);
-                MappingMetaData.writeTo(mappingEntry.value, out);
+                mappingEntry.value.writeTo(out);
             }
         }
         out.writeVInt(aliases.size());
@@ -189,7 +189,7 @@ public class GetIndexResponse extends ActionResponse {
             out.writeString(indexEntry.key);
             out.writeVInt(indexEntry.value.size());
             for (AliasMetaData aliasEntry : indexEntry.value) {
-                AliasMetaData.Builder.writeTo(aliasEntry, out);
+                aliasEntry.writeTo(out);
             }
         }
         out.writeVInt(settings.size());

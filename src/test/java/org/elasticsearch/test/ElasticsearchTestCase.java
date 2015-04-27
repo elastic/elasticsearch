@@ -71,6 +71,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllFilesClosed;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSearchersClosed;
 
@@ -617,4 +618,17 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
             return threadGroup.getName();
         }
     }
+
+    /**
+     * Returns size random values
+     */
+    public static <T> List<T> randomSubsetOf(int size, T... values) {
+        if (size > values.length) {
+            throw new IllegalArgumentException("Can\'t pick " + size + " random objects from a list of " + values.length + " objects");
+        }
+        List<T> list = newArrayList(values);
+        Collections.shuffle(list);
+        return list.subList(0, size);
+    }
+
 }

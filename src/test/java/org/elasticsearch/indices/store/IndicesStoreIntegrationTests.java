@@ -41,6 +41,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -59,6 +60,12 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) { // simplify this and only use a single data path
         return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("path.data", "").build();
+    }
+
+    @Override
+    protected void ensureClusterStateConsistency() throws IOException {
+        // testShardActiveElseWhere might change the state of a non-master node
+        // so we cannot check state consistency of this cluster
     }
 
     @Test

@@ -21,7 +21,7 @@ covered in <<anatomy>>.
 === Maven Repository
 
 The Groovy API is hosted on
-http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22elasticsearch-client-groovy%22[Maven
+http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22elasticsearch-groovy%22[Maven
 Central].
 
 For example, you can define the latest version in your `pom.xml` file:
@@ -30,7 +30,7 @@ For example, you can define the latest version in your `pom.xml` file:
 --------------------------------------------------
 <dependency>
     <groupId>org.elasticsearch</groupId>
-    <artifactId>elasticsearch-lang-groovy</artifactId>
+    <artifactId>elasticsearch-groovy</artifactId>
     <version>${es.version}</version>
 </dependency>
 --------------------------------------------------

@@ -32,12 +32,12 @@ set -e
 ##  GPG_KEY_ID:             Key id of your GPG key
 ##  AWS_ACCESS_KEY_ID:      AWS access key id
 ##  AWS_SECRET_ACCESS_KEY:  AWS secret access key
-##  S3_BUCKET_SYNC_TO       Bucket to write packages to, defaults to packages.elasticsearch.org/elasticsearch
+##  S3_BUCKET_SYNC_TO       Bucket to write packages to, should be set packages.elasticsearch.org for a regular release
 ##
 ##
 ## optional
 ##
-##  S3_BUCKET_SYNC_FROM     Bucket to read packages from, defaults to packages.elasticsearch.org/elasticsearch
+##  S3_BUCKET_SYNC_FROM     Bucket to read packages from, defaults to packages.elasticsearch.org
 ##  KEEP_DIRECTORIES        Allows to keep all the generated directory structures for debugging
 ##  GPG_KEYRING             Configure GPG keyring home, defaults to ~/.gnupg/
 ##
@@ -51,7 +51,7 @@ set -e
 
 # No trailing slashes!
 if [ -z $S3_BUCKET_SYNC_FROM ] ; then
-  S3_BUCKET_SYNC_FROM="packages.elasticsearch.org/elasticsearch"
+  S3_BUCKET_SYNC_FROM="packages.elasticsearch.org"
 fi
 if [ ! -z $GPG_KEYRING ] ; then
   GPG_HOMEDIR="--homedir ${GPG_KEYRING}"
@@ -156,7 +156,7 @@ centosdir=$tempdir/repository/elasticsearch/$version/centos
 mkdir -p $centosdir
 
 echo "RPM: Syncing repository for version $version into $centosdir"
-$s3cmd sync s3://$S3_BUCKET_SYNC_FROM/$version/centos/ $centosdir
+$s3cmd sync s3://$S3_BUCKET_SYNC_FROM/elasticsearch/$version/centos/ $centosdir
 
 rpm=target/rpm/elasticsearch/RPMS/noarch/elasticsearch*.rpm
 echo "RPM: Copying $rpm into $centosdor"
@@ -191,7 +191,7 @@ mkdir -p $debbasedir
 
 echo "DEB: Syncing debian repository of version $version to $debbasedir"
 # sync all former versions into directory
-$s3cmd sync s3://$S3_BUCKET_SYNC_FROM/$version/debian/ $debbasedir
+$s3cmd sync s3://$S3_BUCKET_SYNC_FROM/elasticsearch/$version/debian/ $debbasedir
 
 # create directories in case of a new release so that syncing did not create this structure
 mkdir -p $debbasedir/dists/stable/main/binary-all

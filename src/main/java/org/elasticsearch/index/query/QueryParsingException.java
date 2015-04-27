@@ -19,26 +19,51 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexException;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
  *
  */
 public class QueryParsingException extends IndexException {
 
+    XContentLocation location;
+
     public QueryParsingException(Index index, String msg) {
-        super(index, msg);
+        this(index, msg, null, null);
+    }
+
+    public QueryParsingException(Index index, String msg, @Nullable XContentLocation location) {
+        this(index, msg, location, null);
     }
 
     public QueryParsingException(Index index, String msg, Throwable cause) {
+        this(index, msg, null, cause);
+    }
+
+    public QueryParsingException(Index index, String msg, @Nullable XContentLocation location, Throwable cause) {
         super(index, msg, cause);
+        this.location = location;
     }
 
     @Override
     public RestStatus status() {
         return RestStatus.BAD_REQUEST;
+    }
+
+    @Override
+    protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        if (location != null) {
+            builder.field("line", location.getLineNumber());
+            builder.field("col", location.getColumnNumber());
+        }
+        super.innerToXContent(builder, params);
     }
 
 }

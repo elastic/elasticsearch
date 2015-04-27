@@ -36,6 +36,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
+@ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 2)
 public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
 
     @Test // see #2896

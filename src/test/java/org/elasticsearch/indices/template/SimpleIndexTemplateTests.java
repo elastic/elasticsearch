@@ -70,6 +70,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
 
         client().admin().indices().preparePutTemplate("template_1")
                 .setTemplate("te*")
+                .setSettings(indexSettings())
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("field1").field("type", "string").field("store", "yes").endObject()
@@ -79,6 +80,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
 
         client().admin().indices().preparePutTemplate("template_2")
                 .setTemplate("test*")
+                .setSettings(indexSettings())
                 .setOrder(1)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("field2").field("type", "string").field("store", "no").endObject()
@@ -88,6 +90,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
         // test create param
         assertThrows(client().admin().indices().preparePutTemplate("template_2")
                 .setTemplate("test*")
+                .setSettings(indexSettings())
                 .setCreate(true)
                 .setOrder(1)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
@@ -103,8 +106,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
         // index something into test_index, will match on both templates
         client().prepareIndex("test_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefresh(true).execute().actionGet();
 
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
+        ensureGreen();
         SearchResponse searchResponse = client().prepareSearch("test_index")
                 .setQuery(termQuery("field1", "value1"))
                 .addField("field1").addField("field2")
@@ -116,8 +118,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
 
         client().prepareIndex("text_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefresh(true).execute().actionGet();
 
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
+        ensureGreen();
         // now only match on one template (template_1)
         searchResponse = client().prepareSearch("text_index")
                 .setQuery(termQuery("field1", "value1"))

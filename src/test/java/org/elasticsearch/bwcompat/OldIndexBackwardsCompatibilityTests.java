@@ -72,6 +72,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
+// needs at least 2 nodes since it bumps replicas to 1
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0)
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 @LuceneTestCase.Slow

@@ -21,7 +21,6 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
-import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
@@ -421,24 +420,6 @@ public class Requests {
      */
     public static ClusterStatsRequest clusterStatsRequest() {
         return new ClusterStatsRequest();
-    }
-
-    /**
-     * Shuts down all nodes in the cluster.
-     */
-    public static NodesShutdownRequest nodesShutdownRequest() {
-        return new NodesShutdownRequest();
-    }
-
-    /**
-     * Shuts down the specified nodes in the cluster.
-     *
-     * @param nodesIds The nodes ids to get the status for
-     * @return The nodes info request
-     * @see org.elasticsearch.client.ClusterAdminClient#nodesShutdown(org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest)
-     */
-    public static NodesShutdownRequest nodesShutdownRequest(String... nodesIds) {
-        return new NodesShutdownRequest(nodesIds);
     }
 
     /**

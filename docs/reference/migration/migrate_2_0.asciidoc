@@ -405,3 +405,8 @@ The obsolete parameters `expand_wildcards_open` and `expand_wildcards_close` are
 supported by the snapshot and restore operations. These parameters have been replaced by
 a single `expand_wildcards` parameter. See <<multi-index,the multi-index docs>> for more.
 
+=== `_shutdown` API
+
+The `_shutdown` API has been removed without a replacement. Nodes should be managed via operating
+systems and the provided start/stop scripts.
+

@@ -33,10 +33,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownAction;
-import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
-import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
@@ -231,21 +227,6 @@ public abstract class AbstractClusterAdminClient implements ClusterAdminClient {
     @Override
     public NodesHotThreadsRequestBuilder prepareNodesHotThreads(String... nodesIds) {
         return new NodesHotThreadsRequestBuilder(this).setNodesIds(nodesIds);
-    }
-
-    @Override
-    public ActionFuture<NodesShutdownResponse> nodesShutdown(final NodesShutdownRequest request) {
-        return execute(NodesShutdownAction.INSTANCE, request);
-    }
-
-    @Override
-    public void nodesShutdown(final NodesShutdownRequest request, final ActionListener<NodesShutdownResponse> listener) {
-        execute(NodesShutdownAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public NodesShutdownRequestBuilder prepareNodesShutdown(String... nodesIds) {
-        return new NodesShutdownRequestBuilder(this).setNodesIds(nodesIds);
     }
 
     @Override

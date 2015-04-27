@@ -513,7 +513,7 @@ def publish_repositories(version, dry_run=True):
   else:
     print('Triggering repository update - calling dev-tools/build_repositories.sh %s' % version)
     # src_branch is a version like 1.5/1.6/2.0/etc.. so we can use this
-    run('dev-tools/build_repositories.sh %s', src_branch)
+    run('dev-tools/build_repositories.sh %s' % src_branch)
 
 def print_sonatype_notice():
   settings = os.path.join(os.path.expanduser('~'), '.m2/settings.xml')

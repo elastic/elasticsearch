@@ -314,7 +314,8 @@ def main():
     # 10067: get a delete-by-query into the translog on upgrade.  We must do
     # this after the snapshot, because it calls flush.  Otherwise the index
     # will already have the deletions applied on upgrade.
-    delete_by_query(client, cfg.version, 'test', 'doc')
+    index_name = 'index-%s' % cfg.version.lower()
+    delete_by_query(client, cfg.version, index_name, 'doc')
 
   finally:
     if 'node' in vars():

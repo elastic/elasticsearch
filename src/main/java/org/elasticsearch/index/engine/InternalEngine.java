@@ -364,15 +364,16 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void index(Index index) throws EngineException {
+    public boolean index(Index index) throws EngineException {
+        final boolean created;
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (index.origin() == Operation.Origin.RECOVERY) {
                 // Don't throttle recovery operations
-                innerIndex(index);
+                created = innerIndex(index);
             } else {
                 try (Releasable r = throttle.acquireThrottle()) {
-                    innerIndex(index);
+                    created = innerIndex(index);
                 }
             }
             flushNeeded = true;
@@ -381,6 +382,7 @@ public class InternalEngine extends Engine {
             throw new IndexFailedEngineException(shardId, index, t);
         }
         checkVersionMapRefresh();
+        return created;
     }
 
     /**
@@ -410,7 +412,7 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void innerIndex(Index index) throws IOException {
+    private boolean innerIndex(Index index) throws IOException {
         synchronized (dirtyLock(index.uid())) {
             final long currentVersion;
             VersionValue versionValue = versionMap.getUnderLock(index.uid().bytes());
@@ -428,17 +430,18 @@ public class InternalEngine extends Engine {
             long expectedVersion = index.version();
             if (index.versionType().isVersionConflictForWrites(currentVersion, expectedVersion)) {
                 if (index.origin() == Operation.Origin.RECOVERY) {
-                    return;
+                    return false;
                 } else {
                     throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, expectedVersion);
                 }
             }
             updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
 
+            final boolean created;
             index.updateVersion(updatedVersion);
             if (currentVersion == Versions.NOT_FOUND) {
                 // document does not exists, we can optimize for create
-                index.created(true);
+                created = true;
                 if (index.docs().size() > 1) {
                     indexWriter.addDocuments(index.docs());
                 } else {
@@ -446,7 +449,9 @@ public class InternalEngine extends Engine {
                 }
             } else {
                 if (versionValue != null) {
-                    index.created(versionValue.delete()); // we have a delete which is not GC'ed...
+                    created = versionValue.delete(); // we have a delete which is not GC'ed...
+                } else {
+                    created = false;
                 }
                 if (index.docs().size() > 1) {
                     indexWriter.updateDocuments(index.uid(), index.docs());
@@ -459,6 +464,7 @@ public class InternalEngine extends Engine {
             versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, translogLocation));
 
             indexingService.postIndexUnderLock(index);
+            return created;
         }
     }
 

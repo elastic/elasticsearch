@@ -1354,34 +1354,29 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     public void testBasicCreatedFlag() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
         Engine.Index index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertTrue(index.created());
+        assertTrue(engine.index(index));
 
         index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertFalse(index.created());
+        assertFalse(engine.index(index));
 
         engine.delete(new Engine.Delete(null, "1", newUid("1")));
 
         index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertTrue(index.created());
+        assertTrue(engine.index(index));
     }
 
     @Test
     public void testCreatedFlagAfterFlush() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
         Engine.Index index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertTrue(index.created());
+        assertTrue(engine.index(index));
 
         engine.delete(new Engine.Delete(null, "1", newUid("1")));
 
         engine.flush();
 
         index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertTrue(index.created());
+        assertTrue(engine.index(index));
     }
 
     private static class MockAppender extends AppenderSkeleton {

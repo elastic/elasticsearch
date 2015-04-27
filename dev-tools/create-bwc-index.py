@@ -71,34 +71,6 @@ def index_documents(es, index_name, type, num_docs):
   logging.info('Flushing index')
   es.indices.flush(index=index_name)
 
-def delete_by_query(es, version, index_name, doc_type):
-
-  logging.info('Deleting long_sort:[10..20] docs')
-
-  query = {'query':
-           {'range':
-            {'long_sort':
-             {'gte': 10,
-              'lte': 20}}}}
-
-  if version.startswith('0.20.') or version.startswith('0.90.') or version in ('1.0.0.Beta1', '1.0.0.Beta2'):
-    # TODO #10262: we can't write DBQ into the translog for these old versions until we fix this back-compat bug:
-
-    # #4074: these versions don't expect to see the top-level 'query' to count/delete_by_query:
-    query = query['query']
-    return
-
-  deleted_count = es.count(index=index_name, doc_type=doc_type, body=query)['count']
-
-  result = es.delete_by_query(index=index_name,
-                              doc_type=doc_type,
-                              body=query)
-
-  # make sure no shards failed:
-  assert result['_indices'][index_name]['_shards']['failed'] == 0, 'delete by query failed: %s' % result
-
-  logging.info('Deleted %d docs' % deleted_count)
-
 def run_basic_asserts(es, index_name, type, num_docs):
   count = es.count(index=index_name)['count']
   assert count == num_docs, 'Expected %r but got %r documents' % (num_docs, count)
@@ -134,14 +106,14 @@ def start_node(version, release_dir, data_dir, tcp_port, http_port):
     os.path.join(release_dir, 'bin/elasticsearch'),
     '-Des.path.data=%s' % data_dir,
     '-Des.path.logs=logs',
-    '-Des.cluster.name=bwc_index_' + version,
-    '-Des.network.host=localhost',
+    '-Des.cluster.name=bwc_index_' + version,  
+    '-Des.network.host=localhost', 
     '-Des.discovery.zen.ping.multicast.enabled=false',
     '-Des.script.disable_dynamic=true',
     '-Des.transport.tcp.port=%s' % tcp_port,
     '-Des.http.port=%s' % http_port
   ]
-  if version.startswith('0.') or version.startswith('1.0.0.Beta') :
+  if version.startswith('0.') or version == '1.0.0.Beta1':
     cmd.append('-f') # version before 1.0 start in background automatically
   return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -159,14 +131,14 @@ def create_client(http_port, timeout=30):
     time.sleep(1)
   assert False, 'Timed out waiting for node for %s seconds' % timeout
 
-def generate_index(client, version):
-  name = 'index-%s' % version.lower()
-  client.indices.delete(index=name, ignore=404)
+def generate_index(client, cfg):
+  client.indices.delete(index='test', ignore=404)
   num_shards = random.randint(1, 10)
   num_replicas = random.randint(0, 1)
   logging.info('Create single shard test index')
 
   mappings = {}
+  version = cfg.version
   if not version.startswith('2.'):
     # TODO: we need better "before/onOr/after" logic in python
 
@@ -180,8 +152,7 @@ def generate_index(client, version):
         },
       }
     }
-    # completion type was added in 0.90.3
-    if not version.startswith('0.20') and version not in ['0.90.0.Beta1', '0.90.0.RC1', '0.90.0.RC2', '0.90.0', '0.90.1', '0.90.2']:
+    if not version.startswith('0.20') or version == '0.20.6':
       mappings['analyzer_type1']['properties']['completion_with_index_analyzer'] = {
         'type': 'completion',
         'index_analyzer': 'standard'
@@ -193,7 +164,7 @@ def generate_index(client, version):
       'search_quote_analyzer': 'english',
     }
 
-  client.indices.create(index=name, body={
+  client.indices.create(index='test', body={
       'settings': {
           'number_of_shards': 1,
           'number_of_replicas': 0
@@ -203,70 +174,21 @@ def generate_index(client, version):
   health = client.cluster.health(wait_for_status='green', wait_for_relocating_shards=0)
   assert health['timed_out'] == False, 'cluster health timed out %s' % health
 
-  num_docs = random.randint(2000, 3000)
-  if version == "1.1.0":
-    # 1.1.0 is buggy and creates lots and lots of segments, so we create a
-    # lighter index for it to keep bw tests reasonable
-    # see https://github.com/elastic/elasticsearch/issues/5817
-    num_docs = int(num_docs / 10)
-  index_documents(client, name, 'doc', num_docs)
+  num_docs = random.randint(10, 100)
+  index_documents(client, 'test', 'doc', num_docs)
   logging.info('Running basic asserts on the data added')
-  run_basic_asserts(client, name, 'doc', num_docs)
-
-def snapshot_index(client, cfg):
-  # Add bogus persistent settings to make sure they can be restored
-  client.cluster.put_settings(body = {
-    'persistent': {
-      'cluster.routing.allocation.exclude.version_attr' : cfg.version
-    }
-  })
-  client.indices.put_template(name = 'template_' + cfg.version.lower(), order = 0, body = {
-    "template" : "te*",
-    "settings" : {
-      "number_of_shards" : 1
-    },
-    "mappings" : {
-      "type1" : {
-        "_source" : { "enabled" : False }
-      }
-    },
-    "aliases" : {
-      "alias1" : {},
-      "alias2" : {
-        "filter" : {
-          "term" : {"version" : cfg.version }
-        },
-        "routing" : "kimchy"
-      },
-      "{index}-alias" : {}
-    }
-  });
-  client.snapshot.create_repository(repository='test_repo', body={
-    'type': 'fs',
-    'settings': {
-      'location': cfg.repo_dir
-    }
-  })
-  client.snapshot.create(repository='test_repo', snapshot='test_1', wait_for_completion=True)
-  client.snapshot.delete_repository(repository='test_repo')
+  run_basic_asserts(client, 'test', 'doc', num_docs)
 
 def compress_index(version, tmp_dir, output_dir):
-  compress(tmp_dir, output_dir, 'index-%s.zip' % version, 'data')
-
-def compress_repo(version, tmp_dir, output_dir):
-  compress(tmp_dir, output_dir, 'repo-%s.zip' % version, 'repo')
-
-def compress(tmp_dir, output_dir, zipfile, directory):
   abs_output_dir = os.path.abspath(output_dir)
-  zipfile = os.path.join(abs_output_dir, zipfile)
+  zipfile = os.path.join(abs_output_dir, 'index-%s.zip' % version)
   if os.path.exists(zipfile):
     os.remove(zipfile)
   logging.info('Compressing index into %s', zipfile)
   olddir = os.getcwd()
   os.chdir(tmp_dir)
-  subprocess.check_call('zip -r %s %s' % (zipfile, directory), shell=True)
+  subprocess.check_call('zip -r %s *' % zipfile, shell=True)
   os.chdir(olddir)
-
 
 def parse_config():
   parser = argparse.ArgumentParser(description='Builds an elasticsearch index for backwards compatibility tests')
@@ -284,17 +206,14 @@ def parse_config():
 
   cfg.release_dir = os.path.join(cfg.releases_dir, 'elasticsearch-%s' % cfg.version)
   if not os.path.exists(cfg.release_dir):
-    parser.error('ES version %s does not exist in %s' % (cfg.version, cfg.releases_dir))
+    parser.error('ES version %s does not exist in %s' % (cfg.version, cfg.releases_dir)) 
 
   if not os.path.exists(cfg.output_dir):
     parser.error('Output directory does not exist: %s' % cfg.output_dir)
 
   cfg.tmp_dir = tempfile.mkdtemp()
   cfg.data_dir = os.path.join(cfg.tmp_dir, 'data')
-  cfg.repo_dir = os.path.join(cfg.tmp_dir, 'repo')
   logging.info('Temp data dir: %s' % cfg.data_dir)
-  logging.info('Temp repo dir: %s' % cfg.repo_dir)
-  cfg.snapshot_supported = not (cfg.version.startswith('0.') or cfg.version == '1.0.0.Beta1')
 
   return cfg
 
@@ -303,28 +222,17 @@ def main():
                       datefmt='%Y-%m-%d %I:%M:%S %p')
   logging.getLogger('elasticsearch').setLevel(logging.ERROR)
   logging.getLogger('urllib3').setLevel(logging.WARN)
+
   cfg = parse_config()
   try:
     node = start_node(cfg.version, cfg.release_dir, cfg.data_dir, cfg.tcp_port, cfg.http_port)
     client = create_client(cfg.http_port)
-    generate_index(client, cfg.version)
-    if cfg.snapshot_supported:
-      snapshot_index(client, cfg)
-
-    # 10067: get a delete-by-query into the translog on upgrade.  We must do
-    # this after the snapshot, because it calls flush.  Otherwise the index
-    # will already have the deletions applied on upgrade.
-    index_name = 'index-%s' % cfg.version.lower()
-    delete_by_query(client, cfg.version, index_name, 'doc')
-
+    generate_index(client, cfg)
   finally:
     if 'node' in vars():
       logging.info('Shutting down node with pid %d', node.pid)
       node.terminate()
-      time.sleep(1) # some nodes take time to terminate
   compress_index(cfg.version, cfg.tmp_dir, cfg.output_dir)
-  if cfg.snapshot_supported:
-    compress_repo(cfg.version, cfg.tmp_dir, cfg.output_dir)
 
 if __name__ == '__main__':
   try:

@@ -34,6 +34,9 @@ import org.junit.Test;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -82,6 +85,34 @@ public class SitePluginTests extends ElasticsearchIntegrationTest {
     @Test
     public void testAnyPage() throws Exception {
         HttpResponse response = httpClient().path("/_plugin/dummy/index.html").execute();
+        assertThat(response.getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(response.getBody(), containsString("<title>Dummy Site Plugin</title>"));
+    }
+
+    /**
+     * Test normalizing of path
+     */
+    @Test
+    public void testThatPathsAreNormalized() throws Exception {
+        // more info: https://www.owasp.org/index.php/Path_Traversal
+        List<String> notFoundUris = new ArrayList<>();
+        notFoundUris.add("/_plugin/dummy/../../../../../log4j.properties");
+        notFoundUris.add("/_plugin/dummy/../../../../../%00log4j.properties");
+        notFoundUris.add("/_plugin/dummy/..%c0%af..%c0%af..%c0%af..%c0%af..%c0%aflog4j.properties");
+        notFoundUris.add("/_plugin/dummy/%2E%2E/%2E%2E/%2E%2E/%2E%2E/index.html");
+        notFoundUris.add("/_plugin/dummy/%2e%2e/%2e%2e/%2e%2e/%2e%2e/index.html");
+        notFoundUris.add("/_plugin/dummy/%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2findex.html");
+        notFoundUris.add("/_plugin/dummy/%2E%2E/%2E%2E/%2E%2E/%2E%2E/index.html");
+        notFoundUris.add("/_plugin/dummy/..\\..\\..\\..\\..\\log4j.properties");
+
+        for (String uri : notFoundUris) {
+            HttpResponse response = httpClient().path(uri).execute();
+            String message = String.format(Locale.ROOT, "URI [%s] expected to be not found", uri);
+            assertThat(message, response.getStatusCode(), equalTo(RestStatus.NOT_FOUND.getStatus()));
+        }
+
+        // using relative path inside of the plugin should work
+        HttpResponse response = httpClient().path("/_plugin/dummy/dir1/../dir1/../index.html").execute();
         assertThat(response.getStatusCode(), equalTo(RestStatus.OK.getStatus()));
         assertThat(response.getBody(), containsString("<title>Dummy Site Plugin</title>"));
     }

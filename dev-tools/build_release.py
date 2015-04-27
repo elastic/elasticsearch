@@ -248,7 +248,7 @@ def build_release(run_tests=False, dry_run=True, cpus=1, bwc_version=None):
       print('Running Backwards compatibility tests against version [%s]' % (bwc_version))
       run_mvn('clean', 'test -Dtests.filter=@backwards -Dtests.bwc.version=%s -Dtests.bwc=true -Dtests.jvms=1' % bwc_version)
   run_mvn('clean test-compile -Dforbidden.test.signatures="org.apache.lucene.util.LuceneTestCase\$AwaitsFix @ Please fix all bugs before release"')
-  gpg_args = '-Dgpg.key="%s" -Dgpg.passphrase="%s" -Ddeb.sign=true' % (target, env.get('GPG_KEY_ID'), env.get('GPG_PASSPHRASE'))
+  gpg_args = '-Dgpg.key="%s" -Dgpg.passphrase="%s" -Ddeb.sign=true' % (env.get('GPG_KEY_ID'), env.get('GPG_PASSPHRASE'))
   if env.get('GPG_KEYRING'):
     gpg_args += ' -Dgpg.keyring="%s"' % env.get('GPG_KEYRING')
   run_mvn('clean %s -DskipTests %s' % (target, gpg_args))

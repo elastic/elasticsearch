@@ -471,12 +471,22 @@ public abstract class AbstractIndicesAdminClient implements IndicesAdminClient {
     }
 
     @Override
+    public AnalyzeRequestBuilder prepareAnalyze(@Nullable String index, String... text) {
+        return new AnalyzeRequestBuilder(this, index, text);
+    }
+
+    @Override
     public AnalyzeRequestBuilder prepareAnalyze(@Nullable String index, String text) {
         return new AnalyzeRequestBuilder(this, index, text);
     }
 
     @Override
     public AnalyzeRequestBuilder prepareAnalyze(String text) {
+        return new AnalyzeRequestBuilder(this, null, text);
+    }
+
+    @Override
+    public AnalyzeRequestBuilder prepareAnalyze(String... text) {
         return new AnalyzeRequestBuilder(this, null, text);
     }
 

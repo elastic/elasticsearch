@@ -36,7 +36,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest> {
 
-    private String text;
+    private String[] text;
 
     private String analyzer;
 
@@ -61,11 +61,11 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
         this.index(index);
     }
 
-    public String text() {
+    public String[] text() {
         return this.text;
     }
 
-    public AnalyzeRequest text(String text) {
+    public AnalyzeRequest text(String... text) {
         this.text = text;
         return this;
     }
@@ -118,7 +118,7 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (text == null) {
+        if (text == null || text.length == 0) {
             validationException = addValidationError("text is missing", validationException);
         }
         if (tokenFilters == null) {
@@ -133,7 +133,7 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        text = in.readString();
+        text = in.readStringArray();
         analyzer = in.readOptionalString();
         tokenizer = in.readOptionalString();
         tokenFilters = in.readStringArray();
@@ -144,7 +144,7 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(text);
+        out.writeStringArray(text);
         out.writeOptionalString(analyzer);
         out.writeOptionalString(tokenizer);
         out.writeStringArray(tokenFilters);

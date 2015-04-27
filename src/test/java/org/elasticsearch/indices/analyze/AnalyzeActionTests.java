@@ -221,7 +221,8 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
 
         RestAnalyzeAction.buildFromContent(content, analyzeRequest);
 
-        assertThat(analyzeRequest.text(), equalTo("THIS IS A TEST"));
+        assertThat(analyzeRequest.text().length, equalTo(1));
+        assertThat(analyzeRequest.text(), equalTo(new String[]{"THIS IS A TEST"}));
         assertThat(analyzeRequest.tokenizer(), equalTo("keyword"));
         assertThat(analyzeRequest.tokenFilters(), equalTo(new String[]{"lowercase"}));
     }
@@ -240,7 +241,6 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
         }
     }
 
-
     @Test
     public void testParseXContentForAnalyzeRequestWithUnknownParamThrowsException() throws Exception {
         AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
@@ -257,6 +257,48 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
             assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
             assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
         }
+    }
+
+    @Test
+    public void analyzerWithMultiValues() throws Exception {
+
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        ensureGreen();
+
+        client().admin().indices().preparePutMapping("test")
+            .setType("document").setSource(
+            "{\n" +
+                "    \"document\":{\n" +
+                "        \"properties\":{\n" +
+                "            \"simple\":{\n" +
+                "                \"type\":\"string\",\n" +
+                "                \"analyzer\": \"simple\",\n" +
+                "                \"position_offset_gap\": 100\n" +
+                "            }\n" +
+                "        }\n" +
+                "    }\n" +
+                "}"
+        ).get();
+
+        String[] texts = new String[]{"THIS IS A TEST", "THE SECOND TEXT"};
+
+        final AnalyzeRequestBuilder requestBuilder = client().admin().indices().prepareAnalyze(texts);
+        requestBuilder.setIndex(indexOrAlias());
+        requestBuilder.setField("simple");
+        AnalyzeResponse analyzeResponse = requestBuilder.get();
+        assertThat(analyzeResponse.getTokens().size(), equalTo(7));
+        AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(3);
+        assertThat(token.getTerm(), equalTo("test"));
+        assertThat(token.getPosition(), equalTo(3));
+        assertThat(token.getStartOffset(), equalTo(10));
+        assertThat(token.getEndOffset(), equalTo(14));
+
+        token = analyzeResponse.getTokens().get(5);
+        assertThat(token.getTerm(), equalTo("second"));
+        assertThat(token.getPosition(), equalTo(105));
+        assertThat(token.getStartOffset(), equalTo(19));
+        assertThat(token.getEndOffset(), equalTo(25));
+
     }
 
 }

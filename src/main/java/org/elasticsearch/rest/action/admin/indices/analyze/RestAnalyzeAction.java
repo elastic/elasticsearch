@@ -58,10 +58,10 @@ public class RestAnalyzeAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
 
-        String text = request.param("text");
+        String[] texts = request.paramAsStringArrayOrEmptyIfAll("text");
 
         AnalyzeRequest analyzeRequest = new AnalyzeRequest(request.param("index"));
-        analyzeRequest.text(text);
+        analyzeRequest.text(texts);
         analyzeRequest.listenerThreaded(false);
         analyzeRequest.preferLocal(request.paramAsBoolean("prefer_local", analyzeRequest.preferLocalShard()));
         analyzeRequest.analyzer(request.param("analyzer"));
@@ -73,9 +73,9 @@ public class RestAnalyzeAction extends BaseRestHandler {
         if (RestActions.hasBodyContent(request)) {
             XContentType type = RestActions.guessBodyContentType(request);
             if (type == null) {
-                if (text == null) {
-                    text = RestActions.getRestContent(request).toUtf8();
-                    analyzeRequest.text(text);
+                if (texts == null || texts.length == 0) {
+                    texts = new String[]{ RestActions.getRestContent(request).toUtf8() };
+                    analyzeRequest.text(texts);
                 }
             } else {
                 // NOTE: if rest request with xcontent body has request parameters, the parameters does not override xcontent values
@@ -99,7 +99,16 @@ public class RestAnalyzeAction extends BaseRestHandler {
                     } else if ("prefer_local".equals(currentFieldName) && token == XContentParser.Token.VALUE_BOOLEAN) {
                         analyzeRequest.preferLocal(parser.booleanValue());
                     } else if ("text".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
-                            analyzeRequest.text(parser.text());
+                        analyzeRequest.text(parser.text());
+                    } else if ("text".equals(currentFieldName) && token == XContentParser.Token.START_ARRAY) {
+                        List<String> texts = Lists.newArrayList();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (token.isValue() == false) {
+                                throw new ElasticsearchIllegalArgumentException(currentFieldName + " array element should only contain text");
+                            }
+                            texts.add(parser.text());
+                        }
+                        analyzeRequest.text(texts.toArray(new String[0]));
                     } else if ("analyzer".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
                         analyzeRequest.analyzer(parser.text());
                     } else if ("field".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {

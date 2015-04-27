@@ -174,10 +174,11 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         // this is a plugin provided site, serve it as static files from the plugin location
         File siteFile = new File(new File(environment.pluginsFile(), pluginName), "_site");
         File file = new File(siteFile, sitePath);
-        if (!file.exists() || file.isHidden()) {
+        if (!file.exists() || file.isHidden() || !file.getAbsoluteFile().toPath().normalize().startsWith(siteFile.getAbsoluteFile().toPath())) {
             channel.sendResponse(new BytesRestResponse(NOT_FOUND));
             return;
         }
+
         if (!file.isFile()) {
             // If it's not a dir, we send a 403
             if (!file.isDirectory()) {
@@ -191,10 +192,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
                 return;
             }
         }
-        if (!file.getAbsolutePath().startsWith(siteFile.getAbsolutePath())) {
-            channel.sendResponse(new BytesRestResponse(FORBIDDEN));
-            return;
-        }
+
         try {
             byte[] data = Streams.copyToByteArray(file);
             channel.sendResponse(new BytesRestResponse(OK, guessMimeType(sitePath), data));

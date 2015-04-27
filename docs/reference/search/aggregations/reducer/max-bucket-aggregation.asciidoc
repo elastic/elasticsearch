@@ -34,7 +34,7 @@ The following snippet calculates the maximum of the total monthly `sales`:
 --------------------------------------------------
 
 <1> `bucket_paths` instructs this max_bucket aggregation that we want the maximum value of the `sales` aggregation in the 
-"sales_per_month` date histogram.
+`sales_per_month` date histogram.
 
 And the following may be the response:
 

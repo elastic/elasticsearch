@@ -71,7 +71,7 @@ embedded like any other metric aggregation:
 <1> A `date_histogram` named "my_date_histo" is constructed on the "timestamp" field, with one-day intervals
 <2> We must specify "min_doc_count: 0" in our date histogram that all buckets are returned, even if they are empty.
 <3> A `sum` metric is used to calculate the sum of a field.  This could be any metric (sum, min, max, etc)
-<4> Finally, we specify a `moving_avg` aggregation which uses "the_sum" metric as it's input.
+<4> Finally, we specify a `moving_avg` aggregation which uses "the_sum" metric as its input.
 
 Moving averages are built by first specifying a `histogram` or `date_histogram` over a field.  You can then optionally
 add normal metrics, such as a `sum`, inside of that histogram.  Finally, the `moving_avg` is embedded inside the histogram.
@@ -121,6 +121,7 @@ the values from a `simple` moving average tend to "lag" behind the real data.
             "buckets_path": "the_sum",
             "model" : "simple"
         }
+    }
 }
 --------------------------------------------------
 

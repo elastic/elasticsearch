@@ -331,12 +331,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
 
     @Override
-    public void publish(ClusterState clusterState, AckListener ackListener) {
-        if (!clusterState.getNodes().localNodeMaster()) {
+    public void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener) {
+        if (!clusterChangedEvent.state().getNodes().localNodeMaster()) {
             throw new ElasticsearchIllegalStateException("Shouldn't publish state when not master");
         }
-        nodesFD.updateNodesAndPing(clusterState);
-        publishClusterState.publish(clusterState, ackListener);
+        nodesFD.updateNodesAndPing(clusterChangedEvent.state());
+        publishClusterState.publish(clusterChangedEvent, ackListener);
     }
 
     /**

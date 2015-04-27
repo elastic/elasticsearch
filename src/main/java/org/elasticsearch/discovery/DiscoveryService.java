@@ -21,6 +21,7 @@ package org.elasticsearch.discovery;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -132,9 +133,9 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
      * The {@link org.elasticsearch.discovery.Discovery.AckListener} allows to acknowledge the publish
      * event based on the response gotten from all nodes
      */
-    public void publish(ClusterState clusterState, Discovery.AckListener ackListener) {
+    public void publish(ClusterChangedEvent clusterChangedEvent, Discovery.AckListener ackListener) {
         if (lifecycle.started()) {
-            discovery.publish(clusterState, ackListener);
+            discovery.publish(clusterChangedEvent, ackListener);
         }
     }
 

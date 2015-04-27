@@ -38,16 +38,19 @@ public class DiscoverySettings extends AbstractComponent {
 
     public static final String PUBLISH_TIMEOUT = "discovery.zen.publish_timeout";
     public static final String NO_MASTER_BLOCK = "discovery.zen.no_master_block";
+    public static final String PUBLISH_DIFF_ENABLE = "discovery.zen.publish_diff.enable";
 
     public static final TimeValue DEFAULT_PUBLISH_TIMEOUT = TimeValue.timeValueSeconds(30);
     public static final String DEFAULT_NO_MASTER_BLOCK = "write";
     public final static int NO_MASTER_BLOCK_ID = 2;
+    public final static boolean DEFAULT_PUBLISH_DIFF_ENABLE = true;
 
     public final static ClusterBlock NO_MASTER_BLOCK_ALL = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
     public final static ClusterBlock NO_MASTER_BLOCK_WRITES = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, false, RestStatus.SERVICE_UNAVAILABLE, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
 
     private volatile ClusterBlock noMasterBlock;
     private volatile TimeValue publishTimeout = DEFAULT_PUBLISH_TIMEOUT;
+    private volatile boolean publishDiff = DEFAULT_PUBLISH_DIFF_ENABLE;
 
     @Inject
     public DiscoverySettings(Settings settings, NodeSettingsService nodeSettingsService) {
@@ -55,6 +58,7 @@ public class DiscoverySettings extends AbstractComponent {
         nodeSettingsService.addListener(new ApplySettings());
         this.noMasterBlock = parseNoMasterBlock(settings.get(NO_MASTER_BLOCK, DEFAULT_NO_MASTER_BLOCK));
         this.publishTimeout = settings.getAsTime(PUBLISH_TIMEOUT, publishTimeout);
+        this.publishDiff = settings.getAsBoolean(PUBLISH_DIFF_ENABLE, DEFAULT_PUBLISH_DIFF_ENABLE);
     }
 
     /**
@@ -67,6 +71,8 @@ public class DiscoverySettings extends AbstractComponent {
     public ClusterBlock getNoMasterBlock() {
         return noMasterBlock;
     }
+
+    public boolean getPublishDiff() { return publishDiff;}
 
     private class ApplySettings implements NodeSettingsService.Listener {
         @Override
@@ -83,6 +89,13 @@ public class DiscoverySettings extends AbstractComponent {
                 ClusterBlock newNoMasterBlock = parseNoMasterBlock(newNoMasterBlockValue);
                 if (newNoMasterBlock != noMasterBlock) {
                     noMasterBlock = newNoMasterBlock;
+                }
+            }
+            Boolean newPublishDiff = settings.getAsBoolean(PUBLISH_DIFF_ENABLE, null);
+            if (newPublishDiff != null) {
+                if (newPublishDiff != publishDiff) {
+                    logger.info("updating [{}] from [{}] to [{}]", PUBLISH_DIFF_ENABLE, publishDiff, newPublishDiff);
+                    publishDiff = newPublishDiff;
                 }
             }
         }

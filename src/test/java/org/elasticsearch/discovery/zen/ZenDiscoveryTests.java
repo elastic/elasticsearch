@@ -32,9 +32,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -196,12 +193,7 @@ public class ZenDiscoveryTests extends ElasticsearchIntegrationTest {
                 .put(new DiscoveryNode("abc", new LocalTransportAddress("abc"), Version.CURRENT)).masterNodeId("abc");
         ClusterState.Builder builder = ClusterState.builder(state);
         builder.nodes(nodes);
-        BytesStreamOutput bStream = new BytesStreamOutput();
-        StreamOutput stream = CompressorFactory.defaultCompressor().streamOutput(bStream);
-        stream.setVersion(node.version());
-        ClusterState.Builder.writeTo(builder.build(), stream);
-        stream.close();
-        BytesReference bytes = bStream.bytes();
+        BytesReference bytes = PublishClusterStateAction.serializeFullClusterState(builder.build(), node.version());
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> reference = new AtomicReference<>();

@@ -68,7 +68,7 @@ public class ClusterRerouteResponse extends AcknowledgedResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        ClusterState.Builder.writeTo(state, out);
+        state.writeTo(out);
         writeAcknowledged(out);
         RoutingExplanations.writeTo(explanations, out);
     }

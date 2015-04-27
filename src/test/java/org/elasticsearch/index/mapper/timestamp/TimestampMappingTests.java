@@ -443,11 +443,11 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                     new MappingMetaData.Id(null), new MappingMetaData.Routing(false, null), timestamp, false);
 
             BytesStreamOutput out = new BytesStreamOutput();
-            MappingMetaData.writeTo(expected, out);
+            expected.writeTo(out);
             out.close();
             BytesReference bytes = out.bytes();
 
-            MappingMetaData metaData = MappingMetaData.readFrom(new BytesStreamInput(bytes));
+            MappingMetaData metaData = MappingMetaData.PROTO.readFrom(new BytesStreamInput(bytes));
 
             assertThat(metaData, is(expected));
         }
@@ -460,11 +460,11 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                     new MappingMetaData.Id(null), new MappingMetaData.Routing(false, null), timestamp, false);
 
             BytesStreamOutput out = new BytesStreamOutput();
-            MappingMetaData.writeTo(expected, out);
+            expected.writeTo(out);
             out.close();
             BytesReference bytes = out.bytes();
 
-            MappingMetaData metaData = MappingMetaData.readFrom(new BytesStreamInput(bytes));
+            MappingMetaData metaData = MappingMetaData.PROTO.readFrom(new BytesStreamInput(bytes));
 
             assertThat(metaData, is(expected));
         }
@@ -477,11 +477,11 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                     new MappingMetaData.Id(null), new MappingMetaData.Routing(false, null), timestamp, false);
 
             BytesStreamOutput out = new BytesStreamOutput();
-            MappingMetaData.writeTo(expected, out);
+            expected.writeTo(out);
             out.close();
             BytesReference bytes = out.bytes();
 
-            MappingMetaData metaData = MappingMetaData.readFrom(new BytesStreamInput(bytes));
+            MappingMetaData metaData = MappingMetaData.PROTO.readFrom(new BytesStreamInput(bytes));
 
             assertThat(metaData, is(expected));
         }

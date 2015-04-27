@@ -42,6 +42,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -66,6 +67,12 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
                 // to prevent this we are setting the timeout here to something highish ie. the default in practice
                 .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT, new TimeValue(30, TimeUnit.SECONDS))
                 .build();
+    }
+
+    @Override
+    protected void ensureClusterStateConsistency() throws IOException {
+        // testShardActiveElseWhere might change the state of a non-master node
+        // so we cannot check state consistency of this cluster
     }
 
     @Test

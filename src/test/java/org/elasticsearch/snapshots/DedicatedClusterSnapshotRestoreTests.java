@@ -38,7 +38,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -748,7 +750,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         ));
     }
 
-    public static abstract class TestCustomMetaData implements MetaData.Custom {
+    public static abstract class TestCustomMetaData extends AbstractDiffable<Custom> implements MetaData.Custom {
         private final String data;
 
         protected TestCustomMetaData(String data) {
@@ -776,194 +778,182 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
             return data.hashCode();
         }
 
-        public static abstract class TestCustomMetaDataFactory<T extends TestCustomMetaData> extends MetaData.Custom.Factory<T> {
+        protected abstract TestCustomMetaData newTestCustomMetaData(String data);
 
-            protected abstract TestCustomMetaData newTestCustomMetaData(String data);
+        @Override
+        public Custom readFrom(StreamInput in) throws IOException {
+            return newTestCustomMetaData(in.readString());
+        }
 
-            @Override
-            public T readFrom(StreamInput in) throws IOException {
-                return (T) newTestCustomMetaData(in.readString());
-            }
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(getData());
+        }
 
-            @Override
-            public void writeTo(T metadata, StreamOutput out) throws IOException {
-                out.writeString(metadata.getData());
-            }
-
-            @Override
-            public T fromXContent(XContentParser parser) throws IOException {
-                XContentParser.Token token;
-                String data = null;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        String currentFieldName = parser.currentName();
-                        if ("data".equals(currentFieldName)) {
-                            if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
-                                throw new ElasticsearchParseException("failed to parse snapshottable metadata, invalid data type");
-                            }
-                            data = parser.text();
-                        } else {
-                            throw new ElasticsearchParseException("failed to parse snapshottable metadata, unknown field [" + currentFieldName + "]");
+        @Override
+        public Custom fromXContent(XContentParser parser) throws IOException {
+            XContentParser.Token token;
+            String data = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    String currentFieldName = parser.currentName();
+                    if ("data".equals(currentFieldName)) {
+                        if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
+                            throw new ElasticsearchParseException("failed to parse snapshottable metadata, invalid data type");
                         }
+                        data = parser.text();
                     } else {
-                        throw new ElasticsearchParseException("failed to parse snapshottable metadata");
+                        throw new ElasticsearchParseException("failed to parse snapshottable metadata, unknown field [" + currentFieldName + "]");
                     }
+                } else {
+                    throw new ElasticsearchParseException("failed to parse snapshottable metadata");
                 }
-                if (data == null) {
-                    throw new ElasticsearchParseException("failed to parse snapshottable metadata, data not found");
-                }
-                return (T) newTestCustomMetaData(data);
             }
+            if (data == null) {
+                throw new ElasticsearchParseException("failed to parse snapshottable metadata, data not found");
+            }
+            return newTestCustomMetaData(data);
+        }
 
-            @Override
-            public void toXContent(T metadata, XContentBuilder builder, ToXContent.Params params) throws IOException {
-                builder.field("data", metadata.getData());
-            }
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+            builder.field("data", getData());
+            return builder;
         }
     }
 
+
     static {
-        MetaData.registerFactory(SnapshottableMetadata.TYPE, SnapshottableMetadata.FACTORY);
-        MetaData.registerFactory(NonSnapshottableMetadata.TYPE, NonSnapshottableMetadata.FACTORY);
-        MetaData.registerFactory(SnapshottableGatewayMetadata.TYPE, SnapshottableGatewayMetadata.FACTORY);
-        MetaData.registerFactory(NonSnapshottableGatewayMetadata.TYPE, NonSnapshottableGatewayMetadata.FACTORY);
-        MetaData.registerFactory(SnapshotableGatewayNoApiMetadata.TYPE, SnapshotableGatewayNoApiMetadata.FACTORY);
+        MetaData.registerPrototype(SnapshottableMetadata.TYPE, SnapshottableMetadata.PROTO);
+        MetaData.registerPrototype(NonSnapshottableMetadata.TYPE, NonSnapshottableMetadata.PROTO);
+        MetaData.registerPrototype(SnapshottableGatewayMetadata.TYPE, SnapshottableGatewayMetadata.PROTO);
+        MetaData.registerPrototype(NonSnapshottableGatewayMetadata.TYPE, NonSnapshottableGatewayMetadata.PROTO);
+        MetaData.registerPrototype(SnapshotableGatewayNoApiMetadata.TYPE, SnapshotableGatewayNoApiMetadata.PROTO);
     }
 
     public static class SnapshottableMetadata extends TestCustomMetaData {
         public static final String TYPE = "test_snapshottable";
 
-        public static final Factory FACTORY = new Factory();
+        public static final SnapshottableMetadata PROTO = new SnapshottableMetadata("");
 
         public SnapshottableMetadata(String data) {
             super(data);
         }
 
-        private static class Factory extends TestCustomMetaDataFactory<SnapshottableMetadata> {
+        @Override
+        public String type() {
+            return TYPE;
+        }
 
-            @Override
-            public String type() {
-                return TYPE;
-            }
+        @Override
+        protected TestCustomMetaData newTestCustomMetaData(String data) {
+            return new SnapshottableMetadata(data);
+        }
 
-            @Override
-            protected TestCustomMetaData newTestCustomMetaData(String data) {
-                return new SnapshottableMetadata(data);
-            }
-
-            @Override
-            public EnumSet<MetaData.XContentContext> context() {
-                return MetaData.API_AND_SNAPSHOT;
-            }
+        @Override
+        public EnumSet<MetaData.XContentContext> context() {
+            return MetaData.API_AND_SNAPSHOT;
         }
     }
 
     public static class NonSnapshottableMetadata extends TestCustomMetaData {
         public static final String TYPE = "test_non_snapshottable";
 
-        public static final Factory FACTORY = new Factory();
+        public static final NonSnapshottableMetadata PROTO = new NonSnapshottableMetadata("");
 
         public NonSnapshottableMetadata(String data) {
             super(data);
         }
 
-        private static class Factory extends TestCustomMetaDataFactory<NonSnapshottableMetadata> {
+        @Override
+        public String type() {
+            return TYPE;
+        }
 
-            @Override
-            public String type() {
-                return TYPE;
-            }
+        @Override
+        protected NonSnapshottableMetadata newTestCustomMetaData(String data) {
+            return new NonSnapshottableMetadata(data);
+        }
 
-            @Override
-            protected NonSnapshottableMetadata newTestCustomMetaData(String data) {
-                return new NonSnapshottableMetadata(data);
-            }
+        @Override
+        public EnumSet<MetaData.XContentContext> context() {
+            return MetaData.API_ONLY;
         }
     }
 
     public static class SnapshottableGatewayMetadata extends TestCustomMetaData {
         public static final String TYPE = "test_snapshottable_gateway";
 
-        public static final Factory FACTORY = new Factory();
+        public static final SnapshottableGatewayMetadata PROTO = new SnapshottableGatewayMetadata("");
 
         public SnapshottableGatewayMetadata(String data) {
             super(data);
         }
 
-        private static class Factory extends TestCustomMetaDataFactory<SnapshottableGatewayMetadata> {
+        @Override
+        public String type() {
+            return TYPE;
+        }
 
-            @Override
-            public String type() {
-                return TYPE;
-            }
+        @Override
+        protected TestCustomMetaData newTestCustomMetaData(String data) {
+            return new SnapshottableGatewayMetadata(data);
+        }
 
-            @Override
-            protected TestCustomMetaData newTestCustomMetaData(String data) {
-                return new SnapshottableGatewayMetadata(data);
-            }
-
-            @Override
-            public EnumSet<MetaData.XContentContext> context() {
-                return EnumSet.of(MetaData.XContentContext.API, MetaData.XContentContext.SNAPSHOT, MetaData.XContentContext.GATEWAY);
-            }
+        @Override
+        public EnumSet<MetaData.XContentContext> context() {
+            return EnumSet.of(MetaData.XContentContext.API, MetaData.XContentContext.SNAPSHOT, MetaData.XContentContext.GATEWAY);
         }
     }
 
     public static class NonSnapshottableGatewayMetadata extends TestCustomMetaData {
         public static final String TYPE = "test_non_snapshottable_gateway";
 
-        public static final Factory FACTORY = new Factory();
+        public static final NonSnapshottableGatewayMetadata PROTO = new NonSnapshottableGatewayMetadata("");
 
         public NonSnapshottableGatewayMetadata(String data) {
             super(data);
         }
 
-        private static class Factory extends TestCustomMetaDataFactory<NonSnapshottableGatewayMetadata> {
-
-            @Override
-            public String type() {
-                return TYPE;
-            }
-
-            @Override
-            protected NonSnapshottableGatewayMetadata newTestCustomMetaData(String data) {
-                return new NonSnapshottableGatewayMetadata(data);
-            }
-
-            @Override
-            public EnumSet<MetaData.XContentContext> context() {
-                return MetaData.API_AND_GATEWAY;
-            }
-
+        @Override
+        public String type() {
+            return TYPE;
         }
+
+        @Override
+        protected NonSnapshottableGatewayMetadata newTestCustomMetaData(String data) {
+            return new NonSnapshottableGatewayMetadata(data);
+        }
+
+        @Override
+        public EnumSet<MetaData.XContentContext> context() {
+            return MetaData.API_AND_GATEWAY;
+        }
+
     }
 
     public static class SnapshotableGatewayNoApiMetadata extends TestCustomMetaData {
         public static final String TYPE = "test_snapshottable_gateway_no_api";
 
-        public static final Factory FACTORY = new Factory();
+        public static final SnapshotableGatewayNoApiMetadata PROTO = new SnapshotableGatewayNoApiMetadata("");
 
         public SnapshotableGatewayNoApiMetadata(String data) {
             super(data);
         }
 
-        private static class Factory extends TestCustomMetaDataFactory<SnapshotableGatewayNoApiMetadata> {
+        @Override
+        public String type() {
+            return TYPE;
+        }
 
-            @Override
-            public String type() {
-                return TYPE;
-            }
+        @Override
+        protected SnapshotableGatewayNoApiMetadata newTestCustomMetaData(String data) {
+            return new SnapshotableGatewayNoApiMetadata(data);
+        }
 
-            @Override
-            protected SnapshotableGatewayNoApiMetadata newTestCustomMetaData(String data) {
-                return new SnapshotableGatewayNoApiMetadata(data);
-            }
-
-            @Override
-            public EnumSet<MetaData.XContentContext> context() {
-                return EnumSet.of(MetaData.XContentContext.GATEWAY, MetaData.XContentContext.SNAPSHOT);
-            }
-
+        @Override
+        public EnumSet<MetaData.XContentContext> context() {
+            return EnumSet.of(MetaData.XContentContext.GATEWAY, MetaData.XContentContext.SNAPSHOT);
         }
     }
 

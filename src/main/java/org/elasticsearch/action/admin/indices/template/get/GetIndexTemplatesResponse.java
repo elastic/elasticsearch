@@ -60,7 +60,7 @@ public class GetIndexTemplatesResponse extends ActionResponse {
         super.writeTo(out);
         out.writeVInt(indexTemplates.size());
         for (IndexTemplateMetaData indexTemplate : indexTemplates) {
-            IndexTemplateMetaData.Builder.writeTo(indexTemplate, out);
+            indexTemplate.writeTo(out);
         }
     }
 }

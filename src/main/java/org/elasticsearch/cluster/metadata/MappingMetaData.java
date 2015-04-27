@@ -19,11 +19,9 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.TimestampParsingException;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedString;
@@ -41,18 +39,14 @@ import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Mapping configuration for a type.
  */
-public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
-
-    public static final MappingMetaData PROTO = new MappingMetaData();
+public class MappingMetaData {
 
     public static class Id {
 
@@ -324,15 +318,6 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         initMappers(withoutType);
     }
 
-    private MappingMetaData() {
-        this.type = "";
-        try {
-            this.source = new CompressedString("");
-        } catch (IOException ex) {
-            throw new ElasticsearchIllegalStateException("Cannot create MappingMetaData prototype", ex);
-        }
-    }
-
     private void initMappers(Map<String, Object> withoutType) {
         if (withoutType.containsKey("_id")) {
             String path = null;
@@ -548,35 +533,34 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         }
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(type());
-        source().writeTo(out);
+    public static void writeTo(MappingMetaData mappingMd, StreamOutput out) throws IOException {
+        out.writeString(mappingMd.type());
+        mappingMd.source().writeTo(out);
         // id
-        if (id().hasPath()) {
+        if (mappingMd.id().hasPath()) {
             out.writeBoolean(true);
-            out.writeString(id().path());
+            out.writeString(mappingMd.id().path());
         } else {
             out.writeBoolean(false);
         }
         // routing
-        out.writeBoolean(routing().required());
-        if (routing().hasPath()) {
+        out.writeBoolean(mappingMd.routing().required());
+        if (mappingMd.routing().hasPath()) {
             out.writeBoolean(true);
-            out.writeString(routing().path());
+            out.writeString(mappingMd.routing().path());
         } else {
             out.writeBoolean(false);
         }
         // timestamp
-        out.writeBoolean(timestamp().enabled());
-        out.writeOptionalString(timestamp().path());
-        out.writeString(timestamp().format());
-        out.writeOptionalString(timestamp().defaultTimestamp());
+        out.writeBoolean(mappingMd.timestamp().enabled());
+        out.writeOptionalString(mappingMd.timestamp().path());
+        out.writeString(mappingMd.timestamp().format());
+        out.writeOptionalString(mappingMd.timestamp().defaultTimestamp());
         // TODO Remove the test in elasticsearch 2.0.0
         if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
-            out.writeOptionalBoolean(timestamp().ignoreMissing());
+            out.writeOptionalBoolean(mappingMd.timestamp().ignoreMissing());
         }
-        out.writeBoolean(hasParentField());
+        out.writeBoolean(mappingMd.hasParentField());
     }
 
     @Override
@@ -605,7 +589,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         return result;
     }
 
-    public MappingMetaData readFrom(StreamInput in) throws IOException {
+    public static MappingMetaData readFrom(StreamInput in) throws IOException {
         String type = in.readString();
         CompressedString source = CompressedString.readCompressedString(in);
         // id

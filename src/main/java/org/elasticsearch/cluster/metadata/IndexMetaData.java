@@ -25,9 +25,6 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
@@ -64,54 +61,60 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
 /**
  *
  */
-public class IndexMetaData implements Diffable<IndexMetaData> {
+public class IndexMetaData {
 
-    public static final IndexMetaData PROTO = IndexMetaData.builder("")
-            .settings(ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
-            .numberOfShards(1).numberOfReplicas(0).build();
 
-    public interface Custom extends Diffable<Custom>, ToXContent {
+    public interface Custom {
 
         String type();
 
-        Custom fromMap(Map<String, Object> map) throws IOException;
+        interface Factory<T extends Custom> {
 
-        Custom fromXContent(XContentParser parser) throws IOException;
+            String type();
 
-        /**
-         * Merges from this to another, with this being more important, i.e., if something exists in this and another,
-         * this will prevail.
-         */
-        Custom mergeWith(Custom another);
+            T readFrom(StreamInput in) throws IOException;
+
+            void writeTo(T customIndexMetaData, StreamOutput out) throws IOException;
+
+            T fromMap(Map<String, Object> map) throws IOException;
+
+            T fromXContent(XContentParser parser) throws IOException;
+
+            void toXContent(T customIndexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException;
+
+            /**
+             * Merges from first to second, with first being more important, i.e., if something exists in first and second,
+             * first will prevail.
+             */
+            T merge(T first, T second);
+        }
     }
 
-    public static Map<String, Custom> customPrototypes = new HashMap<>();
+    public static Map<String, Custom.Factory> customFactories = new HashMap<>();
 
     static {
         // register non plugin custom metadata
-        registerPrototype(IndexWarmersMetaData.TYPE, IndexWarmersMetaData.PROTO);
+        registerFactory(IndexWarmersMetaData.TYPE, IndexWarmersMetaData.FACTORY);
     }
 
     /**
      * Register a custom index meta data factory. Make sure to call it from a static block.
      */
-    public static void registerPrototype(String type, Custom proto) {
-        customPrototypes.put(type, proto);
+    public static void registerFactory(String type, Custom.Factory factory) {
+        customFactories.put(type, factory);
     }
 
     @Nullable
-    public static <T extends Custom> T lookupPrototype(String type) {
-        //noinspection unchecked
-        return (T) customPrototypes.get(type);
+    public static <T extends Custom> Custom.Factory<T> lookupFactory(String type) {
+        return customFactories.get(type);
     }
 
-    public static <T extends Custom> T lookupPrototypeSafe(String type) throws ElasticsearchIllegalArgumentException {
-        //noinspection unchecked
-        T proto = (T) customPrototypes.get(type);
-        if (proto == null) {
-            throw new ElasticsearchIllegalArgumentException("No custom metadata prototype registered for type [" + type + "]");
+    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) throws ElasticsearchIllegalArgumentException {
+        Custom.Factory<T> factory = customFactories.get(type);
+        if (factory == null) {
+            throw new ElasticsearchIllegalArgumentException("No custom index metadata factoy registered for type [" + type + "]");
         }
-        return proto;
+        return factory;
     }
 
     public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(5, "index read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
@@ -450,9 +453,7 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
         if (state != that.state) {
             return false;
         }
-        if (!customs.equals(that.customs)) {
-            return false;
-        }
+
         return true;
     }
 
@@ -464,126 +465,6 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
         result = 31 * result + settings.hashCode();
         result = 31 * result + mappings.hashCode();
         return result;
-    }
-
-    @Override
-    public Diff<IndexMetaData> diff(IndexMetaData previousState) {
-        return new IndexMetaDataDiff(previousState, this);
-    }
-
-    @Override
-    public Diff<IndexMetaData> readDiffFrom(StreamInput in) throws IOException {
-        return new IndexMetaDataDiff(in);
-    }
-
-    private static class IndexMetaDataDiff implements Diff<IndexMetaData> {
-
-        private final String index;
-        private final long version;
-        private final State state;
-        private final Settings settings;
-        private final Diff<ImmutableOpenMap<String, MappingMetaData>> mappings;
-        private final Diff<ImmutableOpenMap<String, AliasMetaData>> aliases;
-        private Diff<ImmutableOpenMap<String, Custom>> customs;
-
-        public IndexMetaDataDiff(IndexMetaData before, IndexMetaData after) {
-            index = after.index;
-            version = after.version;
-            state = after.state;
-            settings = after.settings;
-            mappings = DiffableUtils.diff(before.mappings, after.mappings);
-            aliases = DiffableUtils.diff(before.aliases, after.aliases);
-            customs = DiffableUtils.diff(before.customs, after.customs);
-        }
-
-        public IndexMetaDataDiff(StreamInput in) throws IOException {
-            index = in.readString();
-            version = in.readLong();
-            state = State.fromId(in.readByte());
-            settings = ImmutableSettings.readSettingsFromStream(in);
-            mappings = DiffableUtils.readImmutableOpenMapDiff(in, MappingMetaData.PROTO);
-            aliases = DiffableUtils.readImmutableOpenMapDiff(in, AliasMetaData.PROTO);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, new DiffableUtils.KeyedReader<Custom>() {
-                @Override
-                public Custom readFrom(StreamInput in, String key) throws IOException {
-                    return lookupPrototypeSafe(key).readFrom(in);
-                }
-
-                @Override
-                public Diff<Custom> readDiffFrom(StreamInput in, String key) throws IOException {
-                    return lookupPrototypeSafe(key).readDiffFrom(in);
-                }
-            });
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(index);
-            out.writeLong(version);
-            out.writeByte(state.id);
-            ImmutableSettings.writeSettingsToStream(settings, out);
-            mappings.writeTo(out);
-            aliases.writeTo(out);
-            customs.writeTo(out);
-        }
-
-        @Override
-        public IndexMetaData apply(IndexMetaData part) {
-            Builder builder = builder(index);
-            builder.version(version);
-            builder.state(state);
-            builder.settings(settings);
-            builder.mappings.putAll(mappings.apply(part.mappings));
-            builder.aliases.putAll(aliases.apply(part.aliases));
-            builder.customs.putAll(customs.apply(part.customs));
-            return builder.build();
-        }
-    }
-
-    @Override
-    public IndexMetaData readFrom(StreamInput in) throws IOException {
-        Builder builder = new Builder(in.readString());
-        builder.version(in.readLong());
-        builder.state(State.fromId(in.readByte()));
-        builder.settings(readSettingsFromStream(in));
-        int mappingsSize = in.readVInt();
-        for (int i = 0; i < mappingsSize; i++) {
-            MappingMetaData mappingMd = MappingMetaData.PROTO.readFrom(in);
-            builder.putMapping(mappingMd);
-        }
-        int aliasesSize = in.readVInt();
-        for (int i = 0; i < aliasesSize; i++) {
-            AliasMetaData aliasMd = AliasMetaData.Builder.readFrom(in);
-            builder.putAlias(aliasMd);
-        }
-        int customSize = in.readVInt();
-        for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            Custom customIndexMetaData = lookupPrototypeSafe(type).readFrom(in);
-            builder.putCustom(type, customIndexMetaData);
-        }
-        return builder.build();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(index);
-        out.writeLong(version);
-        out.writeByte(state.id());
-        writeSettingsToStream(settings, out);
-        out.writeVInt(mappings.size());
-        for (ObjectCursor<MappingMetaData> cursor : mappings.values()) {
-            cursor.value.writeTo(out);
-        }
-        out.writeVInt(aliases.size());
-        for (ObjectCursor<AliasMetaData> cursor : aliases.values()) {
-            cursor.value.writeTo(out);
-        }
-        out.writeVInt(customs.size());
-        for (ObjectObjectCursor<String, Custom> cursor : customs) {
-            out.writeString(cursor.key);
-            cursor.value.writeTo(out);
-        }
     }
 
     public static Builder builder(String index) {
@@ -781,7 +662,7 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
 
             for (ObjectObjectCursor<String, Custom> cursor : indexMetaData.customs()) {
                 builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
-                cursor.value.toXContent(builder, params);
+                lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
                 builder.endObject();
             }
 
@@ -828,13 +709,12 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
                         }
                     } else {
                         // check if its a custom index metadata
-                        Custom proto = lookupPrototype(currentFieldName);
-                        if (proto == null) {
+                        Custom.Factory<Custom> factory = lookupFactory(currentFieldName);
+                        if (factory == null) {
                             //TODO warn
                             parser.skipChildren();
                         } else {
-                            Custom custom = proto.fromXContent(parser);
-                            builder.putCustom(custom.type(), custom);
+                            builder.putCustom(factory.type(), factory.fromXContent(parser));
                         }
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
@@ -863,7 +743,47 @@ public class IndexMetaData implements Diffable<IndexMetaData> {
         }
 
         public static IndexMetaData readFrom(StreamInput in) throws IOException {
-            return PROTO.readFrom(in);
+            Builder builder = new Builder(in.readString());
+            builder.version(in.readLong());
+            builder.state(State.fromId(in.readByte()));
+            builder.settings(readSettingsFromStream(in));
+            int mappingsSize = in.readVInt();
+            for (int i = 0; i < mappingsSize; i++) {
+                MappingMetaData mappingMd = MappingMetaData.readFrom(in);
+                builder.putMapping(mappingMd);
+            }
+            int aliasesSize = in.readVInt();
+            for (int i = 0; i < aliasesSize; i++) {
+                AliasMetaData aliasMd = AliasMetaData.Builder.readFrom(in);
+                builder.putAlias(aliasMd);
+            }
+            int customSize = in.readVInt();
+            for (int i = 0; i < customSize; i++) {
+                String type = in.readString();
+                Custom customIndexMetaData = lookupFactorySafe(type).readFrom(in);
+                builder.putCustom(type, customIndexMetaData);
+            }
+            return builder.build();
+        }
+
+        public static void writeTo(IndexMetaData indexMetaData, StreamOutput out) throws IOException {
+            out.writeString(indexMetaData.index());
+            out.writeLong(indexMetaData.version());
+            out.writeByte(indexMetaData.state().id());
+            writeSettingsToStream(indexMetaData.settings(), out);
+            out.writeVInt(indexMetaData.mappings().size());
+            for (ObjectCursor<MappingMetaData> cursor : indexMetaData.mappings().values()) {
+                MappingMetaData.writeTo(cursor.value, out);
+            }
+            out.writeVInt(indexMetaData.aliases().size());
+            for (ObjectCursor<AliasMetaData> cursor : indexMetaData.aliases().values()) {
+                AliasMetaData.Builder.writeTo(cursor.value, out);
+            }
+            out.writeVInt(indexMetaData.customs().size());
+            for (ObjectObjectCursor<String, Custom> cursor : indexMetaData.customs()) {
+                out.writeString(cursor.key);
+                lookupFactorySafe(cursor.key).writeTo(cursor.value, out);
+            }
         }
     }
 

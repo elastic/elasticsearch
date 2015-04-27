@@ -198,7 +198,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
             fromNode.writeTo(out);
             out.writeVInt(indices.length);
             for (IndexMetaData indexMetaData : indices) {
-                indexMetaData.writeTo(out);
+                IndexMetaData.Builder.writeTo(indexMetaData, out);
             }
         }
     }

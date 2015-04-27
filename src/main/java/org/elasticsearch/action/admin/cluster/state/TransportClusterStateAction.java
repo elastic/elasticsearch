@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
@@ -36,6 +38,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.List;
+
+import static com.google.common.collect.Lists.newArrayList;
+import static org.elasticsearch.cluster.metadata.MetaData.lookupFactorySafe;
 
 /**
  *
@@ -77,7 +84,6 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
         builder.version(currentState.version());
-        builder.uuid(currentState.uuid());
         if (request.nodes()) {
             builder.nodes(currentState.nodes());
         }
@@ -116,9 +122,10 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
             }
 
             // Filter our metadata that shouldn't be returned by API
-            for(ObjectObjectCursor<String, Custom> custom :  currentState.metaData().customs()) {
-                if(!custom.value.context().contains(MetaData.XContentContext.API)) {
-                    mdBuilder.removeCustom(custom.key);
+            for(ObjectCursor<String> type :  currentState.metaData().customs().keys()) {
+                Custom.Factory factory = lookupFactorySafe(type.value);
+                if(!factory.context().contains(MetaData.XContentContext.API)) {
+                    mdBuilder.removeCustom(type.value);
                 }
             }
 

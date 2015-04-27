@@ -169,40 +169,41 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
             // Generate a "diff" of all the identical, different, and missing
             // segment files on the target node, using the existing files on
             // the source node
-            final Store.RecoveryDiff diff;
-            boolean copyFiles = true;
             if (recoverySourceMetadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID) != null &&
                     recoverySourceMetadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID).equals(request.metadataSnapshot().getCommitUserData().get(Engine.SYNC_COMMIT_ID))) {
-                diff = request.metadataSnapshot().recoveryDiff(request.metadataSnapshot());
-                copyFiles = false;
-            } else {
-                diff = recoverySourceMetadata.recoveryDiff(request.metadataSnapshot());
-            }
-            for (StoreFileMetaData md : diff.identical) {
-                response.phase1ExistingFileNames.add(md.name());
-                response.phase1ExistingFileSizes.add(md.length());
-                existingTotalSize += md.length();
-                if (logger.isDebugEnabled()) {
-                    if (copyFiles) {
+                for (StoreFileMetaData md : recoverySourceMetadata) {
+                    response.phase1ExistingFileNames.add(md.name());
+                    response.phase1ExistingFileSizes.add(md.length());
+                    existingTotalSize += md.length();
+                    if (logger.isDebugEnabled()) {
                         logger.debug("[{}][{}] recovery [phase1] to {}: not recovering [{}], exists in local store and has checksum [{}], size [{}]",
                                 indexName, shardId, request.targetNode(), md.name(), md.checksum(), md.length());
-                    } else {
+                    }
+                    totalSize += md.length();
+                }
+            } else {
+                final Store.RecoveryDiff diff = recoverySourceMetadata.recoveryDiff(request.metadataSnapshot());
+                for (StoreFileMetaData md : diff.identical) {
+                    response.phase1ExistingFileNames.add(md.name());
+                    response.phase1ExistingFileSizes.add(md.length());
+                    existingTotalSize += md.length();
+                    if (logger.isDebugEnabled()) {
                         logger.debug("[{}][{}] recovery [phase1] to {}: not recovering [{}], checksum [{}], size [{}], sync ids {} coincide, will skip file copy", indexName, shardId, request.targetNode(), md.name(), md.checksum(), md.length(), recoverySourceMetadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID));
                     }
+                    totalSize += md.length();
                 }
-                totalSize += md.length();
-            }
-            for (StoreFileMetaData md : Iterables.concat(diff.different, diff.missing)) {
-                if (request.metadataSnapshot().asMap().containsKey(md.name())) {
-                    logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
-                            indexName, shardId, request.targetNode(), md.name(), request.metadataSnapshot().asMap().get(md.name()), md);
-                } else {
-                    logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], does not exists in remote",
-                            indexName, shardId, request.targetNode(), md.name());
+                for (StoreFileMetaData md : Iterables.concat(diff.different, diff.missing)) {
+                    if (request.metadataSnapshot().asMap().containsKey(md.name())) {
+                        logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
+                                indexName, shardId, request.targetNode(), md.name(), request.metadataSnapshot().asMap().get(md.name()), md);
+                    } else {
+                        logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], does not exists in remote",
+                                indexName, shardId, request.targetNode(), md.name());
+                    }
+                    response.phase1FileNames.add(md.name());
+                    response.phase1FileSizes.add(md.length());
+                    totalSize += md.length();
                 }
-                response.phase1FileNames.add(md.name());
-                response.phase1FileSizes.add(md.length());
-                totalSize += md.length();
             }
             response.phase1TotalSize = totalSize;
             response.phase1ExistingTotalSize = existingTotalSize;
@@ -221,10 +222,6 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                             EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                 }
             });
-
-            if (copyFiles == false) {
-                return;
-            }
 
             // This latch will be used to wait until all files have been transferred to the target node
             final CountDownLatch latch = new CountDownLatch(response.phase1FileNames.size());

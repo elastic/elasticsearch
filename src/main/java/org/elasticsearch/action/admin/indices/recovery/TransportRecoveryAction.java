@@ -52,27 +52,16 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * Transport action for shard recovery operation. This transport action does not actually
  * perform shard recovery, it only reports on recoveries (both active and complete).
  */
-public class TransportRecoveryAction extends
-        TransportBroadcastOperationAction<RecoveryRequest, RecoveryResponse, TransportRecoveryAction.ShardRecoveryRequest, ShardRecoveryResponse> {
+public class TransportRecoveryAction extends TransportBroadcastOperationAction<RecoveryRequest, RecoveryResponse, TransportRecoveryAction.ShardRecoveryRequest, ShardRecoveryResponse> {
 
     private final IndicesService indicesService;
 
     @Inject
     public TransportRecoveryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                    TransportService transportService, IndicesService indicesService, ActionFilters actionFilters) {
-
-        super(settings, RecoveryAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, RecoveryAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                RecoveryRequest.class, ShardRecoveryRequest.class, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected RecoveryRequest newRequestInstance() {
-        return new RecoveryRequest();
     }
 
     @Override
@@ -120,14 +109,8 @@ public class TransportRecoveryAction extends
             }
         }
 
-        RecoveryResponse response = new RecoveryResponse(shardsResponses.length(), successfulShards,
+        return new RecoveryResponse(shardsResponses.length(), successfulShards,
                 failedShards, request.detailed(), shardResponses, shardFailures);
-        return response;
-    }
-
-    @Override
-    protected ShardRecoveryRequest newShardRequest() {
-        return new ShardRecoveryRequest();
     }
 
     @Override

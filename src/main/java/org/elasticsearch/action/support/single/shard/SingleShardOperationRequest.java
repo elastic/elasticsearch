@@ -26,6 +26,7 @@ import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
@@ -34,10 +35,10 @@ import java.io.IOException;
  */
 public abstract class SingleShardOperationRequest<T extends SingleShardOperationRequest> extends ActionRequest<T> implements IndicesRequest {
 
+    ShardId internalShardId;
+
     protected String index;
-
     public static final IndicesOptions INDICES_OPTIONS = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
-
     private boolean threadedOperation = true;
 
     protected SingleShardOperationRequest() {
@@ -107,6 +108,9 @@ public abstract class SingleShardOperationRequest<T extends SingleShardOperation
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        if (in.readBoolean()) {
+            internalShardId = ShardId.readShardId(in);
+        }
         index = in.readString();
         // no need to pass threading over the network, they are always false when coming throw a thread pool
     }
@@ -114,6 +118,7 @@ public abstract class SingleShardOperationRequest<T extends SingleShardOperation
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeOptionalStreamable(internalShardId);
         out.writeString(index);
     }
 

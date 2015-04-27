@@ -23,7 +23,6 @@ import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.spi.LoggingEvent;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -32,17 +31,20 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
+import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.support.AbstractIndexStore;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import java.util.Arrays;
+
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -134,7 +136,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
         // No throttling at first, only 1 non-replicated shard, force lots of merging:
         assertAcked(prepareCreate("test")
                     .setSettings(ImmutableSettings.builder()
-                                 .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "none")
+                                 .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "none")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                                  .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                                  .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
@@ -172,13 +174,13 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
             .indices()
             .prepareUpdateSettings("test")
             .setSettings(ImmutableSettings.builder()
-                         .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
-                         .put(AbstractIndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, "1mb"))
+                         .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
+                         .put(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, "1mb"))
             .get();
 
         // Make sure setting says it is in fact changed:
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
-        assertThat(getSettingsResponse.getSetting("test", AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE), equalTo("merge"));
+        assertThat(getSettingsResponse.getSetting("test", IndexStore.INDEX_STORE_THROTTLE_TYPE), equalTo("merge"));
 
         // Also make sure we see throttling kicking in:
         boolean done = false;
@@ -212,7 +214,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
             .indices()
             .prepareUpdateSettings("test")
             .setSettings(ImmutableSettings.builder()
-                         .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "none"))
+                         .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "none"))
             .get();
 
         // Optimize does a waitForMerges, which we must do to make sure all in-flight (throttled) merges finish:
@@ -382,6 +384,33 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
         } finally {
             rootLogger.removeAppender(mockAppender);
             rootLogger.setLevel(savedLevel);
+        }
+    }
+
+    @Test
+    public void testUpdateSettingsWithBlocks() {
+        createIndex("test");
+        ensureGreen("test");
+
+        Settings.Builder builder = ImmutableSettings.builder().put("index.refresh_interval", -1);
+
+        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
+            try {
+                enableIndexBlock("test", blockSetting);
+                assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(builder));
+            } finally {
+                disableIndexBlock("test", blockSetting);
+            }
+        }
+
+        // Closing an index is blocked
+        for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
+            try {
+                enableIndexBlock("test", blockSetting);
+                assertBlocked(client().admin().indices().prepareUpdateSettings("test").setSettings(builder));
+            } finally {
+                disableIndexBlock("test", blockSetting);
+            }
         }
     }
 }

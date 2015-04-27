@@ -59,18 +59,8 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastOperat
 
     @Inject
     public TransportFieldStatsTransportAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters, IndicesService indicesService) {
-        super(settings, FieldStatsAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, FieldStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, FieldStatsRequest.class, FieldStatsShardRequest.class, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected FieldStatsRequest newRequestInstance() {
-        return new FieldStatsRequest();
     }
 
     @Override
@@ -123,11 +113,6 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastOperat
             }
         }
         return new FieldStatsResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures, indicesMergedFieldStats);
-    }
-
-    @Override
-    protected FieldStatsShardRequest newShardRequest() {
-        return new FieldStatsShardRequest();
     }
 
     @Override

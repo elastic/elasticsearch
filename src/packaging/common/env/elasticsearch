@@ -17,9 +17,6 @@
 # Elasticsearch logs directory
 #LOG_DIR=${packaging.elasticsearch.log.dir}
 
-# Elasticsearch work directory
-#WORK_DIR=${packaging.elasticsearch.work.dir}
-
 # Elasticsearch PID directory
 #PID_DIR=${packaging.elasticsearch.pid.dir}
 

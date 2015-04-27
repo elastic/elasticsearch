@@ -34,7 +34,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -53,7 +52,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
@@ -276,8 +275,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
     @Override
     public final Query termQuery(Object value, @Nullable QueryParseContext context) {
-        TermQuery scoringQuery = new TermQuery(new Term(names.indexName(), indexedValueForSearch(value)));
-        return new ConstantScoreQuery(scoringQuery);
+        return new TermQuery(new Term(names.indexName(), indexedValueForSearch(value)));
     }
 
     @Override
@@ -370,12 +368,12 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        super.merge(mergeWith, mergeContext);
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+        super.merge(mergeWith, mergeResult);
         if (!this.getClass().equals(mergeWith.getClass())) {
             return;
         }
-        if (!mergeContext.mergeFlags().simulate()) {
+        if (!mergeResult.simulate()) {
             NumberFieldMapper nfmMergeWith = (NumberFieldMapper) mergeWith;
             this.precisionStep = nfmMergeWith.precisionStep;
             this.includeInAll = nfmMergeWith.includeInAll;

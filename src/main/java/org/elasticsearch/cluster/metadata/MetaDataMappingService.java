@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
@@ -48,8 +49,6 @@ import org.elasticsearch.percolator.PercolatorService;
 import java.util.*;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
-
 /**
  * Service responsible for submitting mapping changes
  */
@@ -382,10 +381,10 @@ public class MetaDataMappingService extends AbstractComponent {
                             newMapper = indexService.mapperService().parse(request.type(), new CompressedString(request.source()), existingMapper == null);
                             if (existingMapper != null) {
                                 // first, simulate
-                                DocumentMapper.MergeResult mergeResult = existingMapper.merge(newMapper.mapping(), mergeFlags().simulate(true));
+                                MergeResult mergeResult = existingMapper.merge(newMapper.mapping(), true);
                                 // if we have conflicts, and we are not supposed to ignore them, throw an exception
                                 if (!request.ignoreConflicts() && mergeResult.hasConflicts()) {
-                                    throw new MergeMappingException(mergeResult.conflicts());
+                                    throw new MergeMappingException(mergeResult.buildConflicts());
                                 }
                             }
                         }

@@ -20,13 +20,10 @@
 package org.elasticsearch.action.support.single.shard;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterService;
@@ -38,14 +35,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
-
-import java.io.IOException;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 
@@ -61,18 +54,19 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
     final String transportShardAction;
     final String executor;
 
-    protected TransportShardSingleOperationAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+    protected TransportShardSingleOperationAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
+                                                  Class<Request> request, String executor) {
         super(settings, actionName, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.transportService = transportService;
 
         this.transportShardAction = actionName + "[s]";
-        this.executor = executor();
+        this.executor = executor;
 
         if (!isSubAction()) {
-            transportService.registerHandler(actionName, new TransportHandler());
+            transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, new TransportHandler());
         }
-        transportService.registerHandler(transportShardAction, new ShardTransportHandler());
+        transportService.registerRequestHandler(transportShardAction, request, executor, new ShardTransportHandler());
     }
 
     /**
@@ -89,11 +83,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
         new AsyncSingleAction(request, listener).start();
     }
 
-    protected abstract String executor();
-
     protected abstract Response shardOperation(Request request, ShardId shardId) throws ElasticsearchException;
-
-    protected abstract Request newRequest();
 
     protected abstract Response newResponse();
 
@@ -210,7 +200,8 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
                 if (node == null) {
                     onFailure(shardRouting, new NoShardAvailableActionException(shardIt.shardId()));
                 } else {
-                    transportService.sendRequest(node, transportShardAction, new ShardSingleOperationRequest(internalRequest.request(), shardRouting.shardId()), new BaseTransportResponseHandler<Response>() {
+                    internalRequest.request().internalShardId = shardRouting.shardId();
+                    transportService.sendRequest(node, transportShardAction, internalRequest.request(), new BaseTransportResponseHandler<Response>() {
 
                         @Override
                         public Response newInstance() {
@@ -237,17 +228,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
         }
     }
 
-    private class TransportHandler extends BaseTransportRequestHandler<Request> {
-
-        @Override
-        public Request newInstance() {
-            return newRequest();
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
+    private class TransportHandler implements TransportRequestHandler<Request> {
 
         @Override
         public void messageReceived(Request request, final TransportChannel channel) throws Exception {
@@ -277,74 +258,15 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
         }
     }
 
-    private class ShardTransportHandler extends BaseTransportRequestHandler<ShardSingleOperationRequest> {
+    private class ShardTransportHandler implements TransportRequestHandler<Request> {
 
         @Override
-        public ShardSingleOperationRequest newInstance() {
-            return new ShardSingleOperationRequest();
-        }
-
-        @Override
-        public String executor() {
-            return executor;
-        }
-
-        @Override
-        public void messageReceived(final ShardSingleOperationRequest request, final TransportChannel channel) throws Exception {
+        public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
             if (logger.isTraceEnabled()) {
-                logger.trace("executing [{}] on shard [{}]", request.request(), request.shardId());
+                logger.trace("executing [{}] on shard [{}]", request, request.internalShardId);
             }
-            Response response = shardOperation(request.request(), request.shardId());
+            Response response = shardOperation(request, request.internalShardId);
             channel.sendResponse(response);
-        }
-    }
-
-    class ShardSingleOperationRequest extends TransportRequest implements IndicesRequest {
-
-        private Request request;
-
-        private ShardId shardId;
-
-        ShardSingleOperationRequest() {
-        }
-
-        ShardSingleOperationRequest(Request request, ShardId shardId) {
-            super(request);
-            this.request = request;
-            this.shardId = shardId;
-        }
-
-        public Request request() {
-            return request;
-        }
-
-        public ShardId shardId() {
-            return shardId;
-        }
-
-        @Override
-        public String[] indices() {
-            return request.indices();
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return request.indicesOptions();
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            request = newRequest();
-            request.readFrom(in);
-            shardId = ShardId.readShardId(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            request.writeTo(out);
-            shardId.writeTo(out);
         }
     }
 

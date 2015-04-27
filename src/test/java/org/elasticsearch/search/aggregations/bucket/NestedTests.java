@@ -365,7 +365,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
                     .execute().actionGet();
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("[nested] nested path [incorrect] is not nested"));
+            assertThat(e.toString(), containsString("[nested] nested path [incorrect] is not nested"));
         }
     }
 

@@ -55,28 +55,14 @@ public class TransportNodesSnapshotsStatus extends TransportNodesOperationAction
 
     @Inject
     public TransportNodesSnapshotsStatus(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, SnapshotsService snapshotsService, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
+        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+                Request.class, NodeRequest.class, ThreadPool.Names.GENERIC);
         this.snapshotsService = snapshotsService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.GENERIC;
     }
 
     @Override
     protected boolean transportCompress() {
         return true; // compress since the metadata can become large
-    }
-
-    @Override
-    protected Request newRequestInstance() {
-        return new Request();
-    }
-
-    @Override
-    protected NodeRequest newNodeRequest() {
-        return new NodeRequest();
     }
 
     @Override

@@ -50,6 +50,7 @@ import java.nio.file.*;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
@@ -92,8 +93,6 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     private volatile int transientBufferSize;
 
     private final ApplySettings applySettings = new ApplySettings();
-
-
 
     @Inject
     public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService,
@@ -355,9 +354,14 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     @Override
     public FsChannelSnapshot snapshot() throws TranslogException {
         while (true) {
+            FsTranslogFile current = this.current;
             FsChannelSnapshot snapshot = current.snapshot();
             if (snapshot != null) {
                 return snapshot;
+            }
+            if (current.closed() && this.current == current) {
+                // check if we are closed and if we are still current - then this translog is closed and we can exit
+                throw new TranslogException(shardId, "current translog is already closed");
             }
             Thread.yield();
         }

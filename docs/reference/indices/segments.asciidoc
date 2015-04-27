@@ -78,7 +78,7 @@ compound::   Whether the segment is stored in a compound file. When true, this
 
 To add additional information that can be used for debugging, use the `verbose` flag.
 
-NOTE: The format of additional verbose information is experimental and can change at any time.
+experimental[The format of the additional verbose information is experimental and can change at any time]
 
 [source,js]
 --------------------------------------------------
@@ -108,7 +108,7 @@ Response:
                 },
                 ...
                 ]
-          
+
         }
     ...
 }

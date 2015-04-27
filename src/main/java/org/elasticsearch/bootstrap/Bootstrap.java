@@ -26,7 +26,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.jna.Natives;
 import org.elasticsearch.common.logging.ESLogger;
@@ -40,7 +39,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
-import java.nio.file.Paths;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -60,12 +58,13 @@ public class Bootstrap {
     private static volatile CountDownLatch keepAliveLatch;
     private static Bootstrap bootstrap;
 
-    private void setup(boolean addShutdownHook, Tuple<Settings, Environment> tuple) throws Exception {
-        if (tuple.v1().getAsBoolean("bootstrap.mlockall", false)) {
+    private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {
+        setupSecurity(settings, environment);
+        if (settings.getAsBoolean("bootstrap.mlockall", false)) {
             Natives.tryMlockall();
         }
 
-        NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(tuple.v1()).loadConfigSettings(false);
+        NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(settings).loadConfigSettings(false);
         node = nodeBuilder.build();
         if (addShutdownHook) {
             Runtime.getRuntime().addShutdownHook(new Thread() {
@@ -76,7 +75,7 @@ public class Bootstrap {
             });
         }
 
-        if (tuple.v1().getAsBoolean("bootstrap.ctrlhandler", true)) {
+        if (settings.getAsBoolean("bootstrap.ctrlhandler", true)) {
             Natives.addConsoleCtrlHandler(new ConsoleCtrlHandler() {
                 @Override
                 public boolean handle(int code) {
@@ -92,12 +91,24 @@ public class Bootstrap {
             });
         }
     }
+    
+    /** 
+     * option for elasticsearch.yml etc to turn off our security manager completely,
+     * for example if you want to have your own configuration or just disable.
+     */
+    static final String SECURITY_SETTING = "security.manager.enabled";
+
+    private void setupSecurity(Settings settings, Environment environment) throws Exception {
+        if (settings.getAsBoolean(SECURITY_SETTING, true)) {
+            Security.configure(environment);
+        }
+    }
 
     @SuppressForbidden(reason = "Exception#printStackTrace()")
-    private static void setupLogging(Tuple<Settings, Environment> tuple) {
+    private static void setupLogging(Settings settings, Environment environment) {
         try {
-            tuple.v1().getClassLoader().loadClass("org.apache.log4j.Logger");
-            LogConfigurator.configure(tuple.v1());
+            settings.getClassLoader().loadClass("org.apache.log4j.Logger");
+            LogConfigurator.configure(settings);
         } catch (ClassNotFoundException e) {
             // no log4j
         } catch (NoClassDefFoundError e) {
@@ -117,8 +128,10 @@ public class Bootstrap {
      */
     public void init(String[] args) throws Exception {
         Tuple<Settings, Environment> tuple = initialSettings();
-        setupLogging(tuple);
-        setup(true, tuple);
+        Settings settings = tuple.v1();
+        Environment environment = tuple.v2();
+        setupLogging(settings, environment);
+        setup(true, settings, environment);
     }
 
     /**
@@ -168,10 +181,13 @@ public class Bootstrap {
             foreground = false;
         }
 
-        Tuple<Settings, Environment> tuple = null;
+        Settings settings = null;
+        Environment environment = null;
         try {
-            tuple = initialSettings();
-            setupLogging(tuple);
+            Tuple<Settings, Environment> tuple = initialSettings();
+            settings = tuple.v1();
+            environment = tuple.v2();
+            setupLogging(settings, environment);
         } catch (Exception e) {
             String errorMessage = buildErrorMessage("Setup", e);
             sysError(errorMessage, true);
@@ -199,7 +215,7 @@ public class Bootstrap {
             // fail if using broken version
             JVMCheck.check();
 
-            bootstrap.setup(true, tuple);
+            bootstrap.setup(true, settings, environment);
 
             stage = "Startup";
             bootstrap.start();

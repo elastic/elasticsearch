@@ -108,14 +108,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -1612,13 +1605,13 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
             client().prepareIndex("test", "child1", "c1").setParent("p1").setSource("c_field", "blue").get();
             fail();
         } catch (ElasticsearchIllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Can't specify parent if no parent field has been configured"));
+            assertThat(e.toString(), containsString("Can't specify parent if no parent field has been configured"));
         }
         try {
             client().prepareIndex("test", "child2", "c2").setParent("p1").setSource("c_field", "blue").get();
             fail();
         } catch (ElasticsearchIllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Can't specify parent if no parent field has been configured"));
+            assertThat(e.toString(), containsString("Can't specify parent if no parent field has been configured"));
         }
 
         refresh();
@@ -1645,7 +1638,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                     .endObject().endObject()).get();
             fail();
         } catch (MergeMappingException e) {
-            assertThat(e.getMessage(), equalTo("Merge failed with failures {[The _parent field's type option can't be changed: [null]->[parent]]}"));
+            assertThat(e.toString(), containsString("Merge failed with failures {[The _parent field's type option can't be changed: [null]->[parent]]}"));
         }
     }
 
@@ -2332,7 +2325,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
             response = minMaxQuery("none", 3, 2, cutoff);
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("[has_child] 'max_children' is less than 'min_children'"));
+            assertThat(e.toString(), containsString("[has_child] 'max_children' is less than 'min_children'"));
         }
 
         // Score mode = SUM
@@ -2412,7 +2405,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
             response = minMaxQuery("sum", 3, 2, cutoff);
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("[has_child] 'max_children' is less than 'min_children'"));
+            assertThat(e.toString(), containsString("[has_child] 'max_children' is less than 'min_children'"));
         }
 
         // Score mode = MAX
@@ -2492,7 +2485,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
             response = minMaxQuery("max", 3, 2, cutoff);
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("[has_child] 'max_children' is less than 'min_children'"));
+            assertThat(e.toString(), containsString("[has_child] 'max_children' is less than 'min_children'"));
         }
 
         // Score mode = AVG
@@ -2572,7 +2565,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
             response = minMaxQuery("avg", 3, 2, cutoff);
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("[has_child] 'max_children' is less than 'min_children'"));
+            assertThat(e.toString(), containsString("[has_child] 'max_children' is less than 'min_children'"));
         }
 
         // HasChildFilter
@@ -2652,7 +2645,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
             response = minMaxFilter(3, 2, cutoff);
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("[has_child] 'max_children' is less than 'min_children'"));
+            assertThat(e.toString(), containsString("[has_child] 'max_children' is less than 'min_children'"));
         }
 
     }

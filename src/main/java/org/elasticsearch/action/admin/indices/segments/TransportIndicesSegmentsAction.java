@@ -59,18 +59,9 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
     @Inject
     public TransportIndicesSegmentsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                           IndicesService indicesService, ActionFilters actionFilters) {
-        super(settings, IndicesSegmentsAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, IndicesSegmentsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                IndicesSegmentsRequest.class, TransportIndicesSegmentsAction.IndexShardSegmentRequest.class, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected IndicesSegmentsRequest newRequestInstance() {
-        return new IndicesSegmentsRequest();
     }
 
     /**
@@ -83,12 +74,12 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, IndicesSegmentsRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, IndicesSegmentsRequest countRequest, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, concreteIndices);
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 
     @Override
@@ -113,11 +104,6 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
             }
         }
         return new IndicesSegmentResponse(shards.toArray(new ShardSegments[shards.size()]), clusterState, shardsResponses.length(), successfulShards, failedShards, shardFailures);
-    }
-
-    @Override
-    protected IndexShardSegmentRequest newShardRequest() {
-        return new IndexShardSegmentRequest();
     }
 
     @Override

@@ -51,7 +51,7 @@ public class SandboxDisabledTests extends ElasticsearchIntegrationTest {
                             "\"sort\":{\"_script\": {\"script\": \"doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}").get();
             fail("shards should fail because the sandbox and dynamic scripting are disabled");
         } catch (Exception e) {
-            assertThat(ExceptionsHelper.detailedMessage(e), containsString("scripts of type [inline], operation [search] and lang [groovy] are disabled"));
+            assertThat(e.toString(), containsString("scripts of type [inline], operation [search] and lang [groovy] are disabled"));
         }
     }
 }

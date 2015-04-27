@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -38,7 +39,7 @@ public abstract class FieldMapperListener {
 
     public abstract void fieldMapper(FieldMapper<?> fieldMapper);
 
-    public void fieldMappers(List<FieldMapper<?>>  fieldMappers) {
+    public void fieldMappers(Collection<FieldMapper<?>> fieldMappers) {
         for (FieldMapper<?> mapper : fieldMappers) {
             fieldMapper(mapper);
         }

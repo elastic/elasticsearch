@@ -48,7 +48,7 @@ public class TransportDeleteByQueryAction extends TransportIndicesReplicationOpe
     public TransportDeleteByQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                         ThreadPool threadPool, TransportIndexDeleteByQueryAction indexDeleteByQueryAction,
                                         NodeSettingsService nodeSettingsService, ActionFilters actionFilters) {
-        super(settings, DeleteByQueryAction.NAME, transportService, clusterService, threadPool, indexDeleteByQueryAction, actionFilters);
+        super(settings, DeleteByQueryAction.NAME, transportService, clusterService, threadPool, indexDeleteByQueryAction, actionFilters, DeleteByQueryRequest.class);
         this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
     }
 
@@ -61,11 +61,6 @@ public class TransportDeleteByQueryAction extends TransportIndicesReplicationOpe
     @Override
     protected Map<String, Set<String>> resolveRouting(ClusterState clusterState, DeleteByQueryRequest request) throws ElasticsearchException {
         return clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());
-    }
-
-    @Override
-    protected DeleteByQueryRequest newRequestInstance() {
-        return new DeleteByQueryRequest();
     }
 
     @Override

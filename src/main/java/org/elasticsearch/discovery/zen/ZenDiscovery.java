@@ -195,7 +195,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         this.joinThreadControl = new JoinThreadControl(threadPool);
 
-        transportService.registerHandler(DISCOVERY_REJOIN_ACTION_NAME, new RejoinClusterRequestHandler());
+        transportService.registerRequestHandler(DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest.class, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
 
         dynamicSettings.addDynamicSetting(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, new Validator() {
             @Override
@@ -692,12 +692,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     static class ProcessClusterState {
         final ClusterState clusterState;
-        final PublishClusterStateAction.NewClusterStateListener.NewStateProcessed newStateProcessed;
         volatile boolean processed;
 
-        ProcessClusterState(ClusterState clusterState, PublishClusterStateAction.NewClusterStateListener.NewStateProcessed newStateProcessed) {
+        ProcessClusterState(ClusterState clusterState) {
             this.clusterState = clusterState;
-            this.newStateProcessed = newStateProcessed;
         }
     }
 
@@ -738,7 +736,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 newStateProcessed.onNewClusterStateFailed(new ElasticsearchIllegalStateException("received state from a node that is not part of the cluster"));
             } else {
 
-                final ProcessClusterState processClusterState = new ProcessClusterState(newClusterState, newStateProcessed);
+                final ProcessClusterState processClusterState = new ProcessClusterState(newClusterState);
                 processNewClusterStates.add(processClusterState);
 
                 assert newClusterState.nodes().masterNode() != null : "received a cluster state without a master";
@@ -1242,13 +1240,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
     }
 
-    class RejoinClusterRequestHandler extends BaseTransportRequestHandler<RejoinClusterRequest> {
-
-        @Override
-        public RejoinClusterRequest newInstance() {
-            return new RejoinClusterRequest();
-        }
-
+    class RejoinClusterRequestHandler implements TransportRequestHandler<RejoinClusterRequest> {
         @Override
         public void messageReceived(final RejoinClusterRequest request, final TransportChannel channel) throws Exception {
             clusterService.submitStateUpdateTask("received a request to rejoin the cluster from [" + request.fromNodeId + "]", Priority.IMMEDIATE, new ClusterStateNonMasterUpdateTask() {
@@ -1272,11 +1264,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     logger.error("unexpected failure during [{}]", t, source);
                 }
             });
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 

@@ -30,7 +30,6 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
@@ -46,7 +45,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
 
     @Inject
     public TransportGetFieldMappingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, TransportGetFieldMappingsIndexAction shardAction, ActionFilters actionFilters) {
-        super(settings, GetFieldMappingsAction.NAME, threadPool, transportService, actionFilters);
+        super(settings, GetFieldMappingsAction.NAME, threadPool, transportService, actionFilters, GetFieldMappingsRequest.class);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
     }
@@ -99,10 +98,5 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
             }
         }
         return new GetFieldMappingsResponse(mergedResponses.immutableMap());
-    }
-
-    @Override
-    public GetFieldMappingsRequest newRequestInstance() {
-        return new GetFieldMappingsRequest();
     }
 }

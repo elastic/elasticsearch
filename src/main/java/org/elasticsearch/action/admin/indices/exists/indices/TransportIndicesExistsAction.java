@@ -42,18 +42,13 @@ public class TransportIndicesExistsAction extends TransportMasterNodeReadOperati
     @Inject
     public TransportIndicesExistsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                         ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, IndicesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, IndicesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters, IndicesExistsRequest.class);
     }
 
     @Override
     protected String executor() {
         // lightweight in memory check
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected IndicesExistsRequest newRequest() {
-        return new IndicesExistsRequest();
     }
 
     @Override
@@ -65,7 +60,7 @@ public class TransportIndicesExistsAction extends TransportMasterNodeReadOperati
     protected ClusterBlockException checkBlock(IndicesExistsRequest request, ClusterState state) {
         //make sure through indices options that the concrete indices call never throws IndexMissingException
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true, request.indicesOptions().expandWildcardsOpen(), request.indicesOptions().expandWildcardsClosed());
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, clusterService.state().metaData().concreteIndices(indicesOptions, request.indices()));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, clusterService.state().metaData().concreteIndices(indicesOptions, request.indices()));
     }
 
     @Override

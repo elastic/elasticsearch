@@ -82,4 +82,6 @@ public interface FsTranslogFile extends Closeable {
     TranslogStream getStream();
 
     public Path getPath();
+
+    public boolean closed();
 }

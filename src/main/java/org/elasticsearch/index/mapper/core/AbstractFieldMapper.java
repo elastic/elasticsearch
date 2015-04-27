@@ -39,9 +39,6 @@ import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.queries.TermsFilter;
-import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -582,13 +579,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         if (!this.getClass().equals(mergeWith.getClass())) {
             String mergedType = mergeWith.getClass().getSimpleName();
             if (mergeWith instanceof AbstractFieldMapper) {
                 mergedType = ((AbstractFieldMapper) mergeWith).contentType();
             }
-            mergeContext.addConflict("mapper [" + names.fullName() + "] of different type, current_type [" + contentType() + "], merged_type [" + mergedType + "]");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] of different type, current_type [" + contentType() + "], merged_type [" + mergedType + "]");
             // different types, return
             return;
         }
@@ -596,62 +593,62 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         boolean indexed =  fieldType.indexOptions() != IndexOptions.NONE;
         boolean mergeWithIndexed = fieldMergeWith.fieldType().indexOptions() != IndexOptions.NONE;
         if (indexed != mergeWithIndexed || this.fieldType().tokenized() != fieldMergeWith.fieldType().tokenized()) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different index values");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different index values");
         }
         if (this.fieldType().stored() != fieldMergeWith.fieldType().stored()) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different store values");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different store values");
         }
         if (!this.hasDocValues() && fieldMergeWith.hasDocValues()) {
             // don't add conflict if this mapper has doc values while the mapper to merge doesn't since doc values are implicitely set
             // when the doc_values field data format is configured
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different " + TypeParsers.DOC_VALUES + " values");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different " + TypeParsers.DOC_VALUES + " values");
         }
         if (this.fieldType().omitNorms() && !fieldMergeWith.fieldType.omitNorms()) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] cannot enable norms (`norms.enabled`)");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] cannot enable norms (`norms.enabled`)");
         }
         if (this.fieldType().tokenized() != fieldMergeWith.fieldType().tokenized()) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different tokenize values");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different tokenize values");
         }
         if (this.fieldType().storeTermVectors() != fieldMergeWith.fieldType().storeTermVectors()) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different store_term_vector values");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different store_term_vector values");
         }
         if (this.fieldType().storeTermVectorOffsets() != fieldMergeWith.fieldType().storeTermVectorOffsets()) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different store_term_vector_offsets values");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different store_term_vector_offsets values");
         }
         if (this.fieldType().storeTermVectorPositions() != fieldMergeWith.fieldType().storeTermVectorPositions()) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different store_term_vector_positions values");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different store_term_vector_positions values");
         }
         if (this.fieldType().storeTermVectorPayloads() != fieldMergeWith.fieldType().storeTermVectorPayloads()) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different store_term_vector_payloads values");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different store_term_vector_payloads values");
         }
         
         // null and "default"-named index analyzers both mean the default is used
         if (this.indexAnalyzer == null || "default".equals(this.indexAnalyzer.name())) {
             if (fieldMergeWith.indexAnalyzer != null && !"default".equals(fieldMergeWith.indexAnalyzer.name())) {
-                mergeContext.addConflict("mapper [" + names.fullName() + "] has different analyzer");
+                mergeResult.addConflict("mapper [" + names.fullName() + "] has different analyzer");
             }
         } else if (fieldMergeWith.indexAnalyzer == null || "default".equals(fieldMergeWith.indexAnalyzer.name())) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different analyzer");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different analyzer");
         } else if (!this.indexAnalyzer.name().equals(fieldMergeWith.indexAnalyzer.name())) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different analyzer");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different analyzer");
         }
         
         if (!this.names().equals(fieldMergeWith.names())) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_name");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different index_name");
         }
 
         if (this.similarity == null) {
             if (fieldMergeWith.similarity() != null) {
-                mergeContext.addConflict("mapper [" + names.fullName() + "] has different similarity");
+                mergeResult.addConflict("mapper [" + names.fullName() + "] has different similarity");
             }
         } else if (fieldMergeWith.similarity() == null) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different similarity");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different similarity");
         } else if (!this.similarity().equals(fieldMergeWith.similarity())) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different similarity");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different similarity");
         }
-        multiFields.merge(mergeWith, mergeContext);
+        multiFields.merge(mergeWith, mergeResult);
 
-        if (!mergeContext.mergeFlags().simulate()) {
+        if (!mergeResult.simulate()) {
             // apply changeable values
             this.fieldType = new FieldType(this.fieldType);
             this.fieldType.setOmitNorms(fieldMergeWith.fieldType.omitNorms());
@@ -917,7 +914,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
 
         // No need for locking, because locking is taken care of in ObjectMapper#merge and DocumentMapper#merge
-        public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+        public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
             AbstractFieldMapper mergeWithMultiField = (AbstractFieldMapper) mergeWith;
 
             List<FieldMapper<?>> newFieldMappers = null;
@@ -928,7 +925,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                 Mapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
                 if (mergeIntoMapper == null) {
                     // no mapping, simply add it if not simulating
-                    if (!mergeContext.mergeFlags().simulate()) {
+                    if (!mergeResult.simulate()) {
                         // we disable the all in multi-field mappers
                         if (mergeWithMapper instanceof AllFieldMapper.IncludeInAll) {
                             ((AllFieldMapper.IncludeInAll) mergeWithMapper).unsetIncludeInAll();
@@ -945,13 +942,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                         }
                     }
                 } else {
-                    mergeIntoMapper.merge(mergeWithMapper, mergeContext);
+                    mergeIntoMapper.merge(mergeWithMapper, mergeResult);
                 }
             }
 
             // first add all field mappers
             if (newFieldMappers != null) {
-                mergeContext.addFieldMappers(newFieldMappers);
+                mergeResult.addFieldMappers(newFieldMappers);
             }
             // now publish mappers
             if (newMappersBuilder != null) {

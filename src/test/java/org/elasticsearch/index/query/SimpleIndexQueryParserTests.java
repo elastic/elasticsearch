@@ -464,7 +464,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     public void testTermQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(termQuery("age", 34).buildAsBytes()).query();
-        TermQuery fieldQuery = unwrapTermQuery(parsedQuery, true);
+        TermQuery fieldQuery = unwrapTermQuery(parsedQuery);
         assertThat(fieldQuery.getTerm().bytes(), equalTo(indexedValueForSearch(34l)));
     }
 
@@ -472,15 +472,11 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     public void testTermQuery() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/term.json");
-        TermQuery fieldQuery = unwrapTermQuery(queryParser.parse(query).query(), true);
+        TermQuery fieldQuery = unwrapTermQuery(queryParser.parse(query).query());
         assertThat(fieldQuery.getTerm().bytes(), equalTo(indexedValueForSearch(34l)));
     }
 
-    private static TermQuery unwrapTermQuery(Query q, boolean expectConstantWrapper) {
-        if (expectConstantWrapper) {
-            assertThat(q, instanceOf(ConstantScoreQuery.class));
-            q = ((ConstantScoreQuery) q).getQuery();
-        }
+    private static TermQuery unwrapTermQuery(Query q) {
         assertThat(q, instanceOf(TermQuery.class));
         return (TermQuery) q;
     }
@@ -545,7 +541,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
 
         Query parsedQuery = queryParser.parse(termQuery("age", 34).boost(2.0f)).query();
-        TermQuery fieldQuery = unwrapTermQuery(parsedQuery, true);
+        TermQuery fieldQuery = unwrapTermQuery(parsedQuery);
         assertThat(fieldQuery.getTerm().bytes(), equalTo(indexedValueForSearch(34l)));
         assertThat((double) parsedQuery.getBoost(), closeTo(2.0, 0.01));
     }
@@ -563,7 +559,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/term-with-boost.json");
         Query parsedQuery = queryParser.parse(query).query();
-        TermQuery fieldQuery = unwrapTermQuery(parsedQuery, true);
+        TermQuery fieldQuery = unwrapTermQuery(parsedQuery);
         assertThat(fieldQuery.getTerm().bytes(), equalTo(indexedValueForSearch(34l)));
         assertThat((double) parsedQuery.getBoost(), closeTo(2.0, 0.01));
     }
@@ -1191,7 +1187,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
             queryParser.parse(query).query();
             fail();
         } catch (QueryParsingException ex) {
-            assertThat(ex.getMessage(), equalTo("[test] [terms] query does not support multiple fields"));
+            assertThat(ex.getMessage(), equalTo("[terms] query does not support multiple fields"));
         }
     }
 
@@ -1207,7 +1203,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
             queryParser.parse(query).query();
             fail();
         } catch (QueryParsingException ex) {
-            assertThat(ex.getMessage(), equalTo("[test] [terms] filter does not support multiple fields"));
+            assertThat(ex.getMessage(), equalTo("[terms] filter does not support multiple fields"));
         }
     }
 

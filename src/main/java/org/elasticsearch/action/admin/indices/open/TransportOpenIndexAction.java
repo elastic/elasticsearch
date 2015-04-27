@@ -47,7 +47,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
     @Inject
     public TransportOpenIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     ThreadPool threadPool, MetaDataIndexStateService indexStateService, NodeSettingsService nodeSettingsService, ActionFilters actionFilters) {
-        super(settings, OpenIndexAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, OpenIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, OpenIndexRequest.class);
         this.indexStateService = indexStateService;
         this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
     }
@@ -56,11 +56,6 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
     protected String executor() {
         // we go async right away...
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected OpenIndexRequest newRequest() {
-        return new OpenIndexRequest();
     }
 
     @Override
@@ -76,7 +71,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
 
     @Override
     protected ClusterBlockException checkBlock(OpenIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override

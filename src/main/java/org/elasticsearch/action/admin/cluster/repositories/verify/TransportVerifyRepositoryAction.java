@@ -47,7 +47,7 @@ public class TransportVerifyRepositoryAction extends TransportMasterNodeOperatio
     @Inject
     public TransportVerifyRepositoryAction(Settings settings, ClusterName clusterName, TransportService transportService, ClusterService clusterService,
                                            RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, VerifyRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, VerifyRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters, VerifyRepositoryRequest.class);
         this.repositoriesService = repositoriesService;
         this.clusterName = clusterName;
     }
@@ -58,18 +58,13 @@ public class TransportVerifyRepositoryAction extends TransportMasterNodeOperatio
     }
 
     @Override
-    protected VerifyRepositoryRequest newRequest() {
-        return new VerifyRepositoryRequest();
-    }
-
-    @Override
     protected VerifyRepositoryResponse newResponse() {
         return new VerifyRepositoryResponse();
     }
 
     @Override
     protected ClusterBlockException checkBlock(VerifyRepositoryRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_READ, "");
     }
 
     @Override

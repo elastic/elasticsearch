@@ -46,7 +46,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeOperationAct
     @Inject
     public TransportGetSnapshotsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters) {
-        super(settings, GetSnapshotsAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, GetSnapshotsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetSnapshotsRequest.class);
         this.snapshotsService = snapshotsService;
     }
 
@@ -56,18 +56,13 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeOperationAct
     }
 
     @Override
-    protected GetSnapshotsRequest newRequest() {
-        return new GetSnapshotsRequest();
-    }
-
-    @Override
     protected GetSnapshotsResponse newResponse() {
         return new GetSnapshotsResponse();
     }
 
     @Override
     protected ClusterBlockException checkBlock(GetSnapshotsRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_READ, "");
     }
 
     @Override

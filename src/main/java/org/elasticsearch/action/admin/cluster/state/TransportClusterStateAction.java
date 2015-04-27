@@ -54,7 +54,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
     @Inject
     public TransportClusterStateAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                        ClusterName clusterName, ActionFilters actionFilters) {
-        super(settings, ClusterStateAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, ClusterStateAction.NAME, transportService, clusterService, threadPool, actionFilters, ClusterStateRequest.class);
         this.clusterName = clusterName;
     }
 
@@ -71,11 +71,6 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
         // in, we need to make sure we allow those calls
         // return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
         return null;
-    }
-
-    @Override
-    protected ClusterStateRequest newRequest() {
-        return new ClusterStateRequest();
     }
 
     @Override

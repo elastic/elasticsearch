@@ -45,6 +45,7 @@ public class FieldStatsIntegrationTests extends ElasticsearchIntegrationTest {
                 "test", "string", "type=string", "date", "type=date", "double", "type=double", "double", "type=double",
                 "float", "type=float", "long", "type=long", "integer", "type=integer", "short", "type=short", "byte", "type=byte"
         ));
+        ensureGreen("test");
 
         byte minByte = Byte.MAX_VALUE;
         byte maxByte = Byte.MIN_VALUE;
@@ -129,6 +130,7 @@ public class FieldStatsIntegrationTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test3").addMapping(
                 "test", "value", "type=long"
         ));
+        ensureGreen("test1", "test2", "test3");
 
         indexRange("test1", -10, 100);
         indexRange("test2", 101, 200);
@@ -180,6 +182,7 @@ public class FieldStatsIntegrationTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test2").addMapping(
                 "test", "value", "type=string"
         ));
+        ensureGreen("test1", "test2");
 
         client().prepareIndex("test1", "test").setSource("value", 1l).get();
         client().prepareIndex("test1", "test").setSource("value", 2l).get();

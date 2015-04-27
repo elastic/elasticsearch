@@ -52,18 +52,9 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
 
     @Inject
     public TransportFlushAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService, ActionFilters actionFilters) {
-        super(settings, FlushAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, FlushAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                FlushRequest.class, ShardFlushRequest.class, ThreadPool.Names.FLUSH);
         this.indicesService = indicesService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.FLUSH;
-    }
-
-    @Override
-    protected FlushRequest newRequestInstance() {
-        return new FlushRequest();
     }
 
     @Override
@@ -86,11 +77,6 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
             }
         }
         return new FlushResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures);
-    }
-
-    @Override
-    protected ShardFlushRequest newShardRequest() {
-        return new ShardFlushRequest();
     }
 
     @Override
@@ -120,11 +106,11 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, FlushRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, FlushRequest countRequest, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, concreteIndices);
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
     }
 }

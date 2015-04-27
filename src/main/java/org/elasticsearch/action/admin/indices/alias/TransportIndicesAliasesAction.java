@@ -50,7 +50,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
     @Inject
     public TransportIndicesAliasesAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, MetaDataIndexAliasesService indexAliasesService, ActionFilters actionFilters) {
-        super(settings, IndicesAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, IndicesAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, IndicesAliasesRequest.class);
         this.indexAliasesService = indexAliasesService;
     }
 
@@ -58,11 +58,6 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
     protected String executor() {
         // we go async right away...
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected IndicesAliasesRequest newRequest() {
-        return new IndicesAliasesRequest();
     }
 
     @Override
@@ -78,7 +73,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
                 indices.add(index);
             }
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, indices.toArray(new String[indices.size()]));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices.toArray(new String[indices.size()]));
     }
 
     @Override

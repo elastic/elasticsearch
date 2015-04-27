@@ -228,10 +228,10 @@ public class MockTransportService extends TransportService {
                 }
 
                 // poor mans request cloning...
-                TransportRequestHandler handler = MockTransportService.this.getHandler(action);
+                RequestHandlerRegistry reg = MockTransportService.this.getRequestHandler(action);
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 request.writeTo(bStream);
-                final TransportRequest clonedRequest = handler.newInstance();
+                final TransportRequest clonedRequest = reg.newRequest();
                 clonedRequest.readFrom(new BytesStreamInput(bStream.bytes()));
 
                 threadPool.schedule(delay, ThreadPool.Names.GENERIC, new AbstractRunnable() {

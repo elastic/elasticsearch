@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
@@ -32,6 +33,8 @@ import java.io.IOException;
  *
  */
 public abstract class SingleCustomOperationRequest<T extends SingleCustomOperationRequest> extends ActionRequest<T> implements IndicesRequest {
+
+    ShardId internalShardId;
 
     private boolean threadedOperation = true;
     private boolean preferLocal = true;
@@ -113,6 +116,9 @@ public abstract class SingleCustomOperationRequest<T extends SingleCustomOperati
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        if (in.readBoolean()) {
+            internalShardId = ShardId.readShardId(in);
+        }
         preferLocal = in.readBoolean();
         readIndex(in);
     }
@@ -124,6 +130,7 @@ public abstract class SingleCustomOperationRequest<T extends SingleCustomOperati
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeOptionalStreamable(internalShardId);
         out.writeBoolean(preferLocal);
         writeIndex(out);
     }

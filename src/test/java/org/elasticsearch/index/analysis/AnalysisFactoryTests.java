@@ -164,6 +164,8 @@ public class AnalysisFactoryTests extends ElasticsearchTestCase {
         put("hyphenatedwords",           Void.class);
         // repeats anything marked as keyword
         put("keywordrepeat",             Void.class);
+        // like limittokencount, but by offset
+        put("limittokenoffset",          Void.class);
         // like limittokencount, but by position
         put("limittokenposition",        Void.class);
         // ???

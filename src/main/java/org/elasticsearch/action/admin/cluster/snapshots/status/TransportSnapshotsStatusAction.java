@@ -58,7 +58,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
 
     @Inject
     public TransportSnapshotsStatusAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, SnapshotsService snapshotsService, TransportNodesSnapshotsStatus transportNodesSnapshotsStatus, ActionFilters actionFilters) {
-        super(settings, SnapshotsStatusAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, SnapshotsStatusAction.NAME, transportService, clusterService, threadPool, actionFilters, SnapshotsStatusRequest.class);
         this.snapshotsService = snapshotsService;
         this.transportNodesSnapshotsStatus = transportNodesSnapshotsStatus;
     }
@@ -70,12 +70,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
 
     @Override
     protected ClusterBlockException checkBlock(SnapshotsStatusRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
-    }
-
-    @Override
-    protected SnapshotsStatusRequest newRequest() {
-        return new SnapshotsStatusRequest();
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override

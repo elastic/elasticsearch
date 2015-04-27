@@ -53,18 +53,9 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
     @Inject
     public TransportOptimizeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                    TransportService transportService, IndicesService indicesService, ActionFilters actionFilters) {
-        super(settings, OptimizeAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, OptimizeAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                OptimizeRequest.class, ShardOptimizeRequest.class, ThreadPool.Names.OPTIMIZE);
         this.indicesService = indicesService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.OPTIMIZE;
-    }
-
-    @Override
-    protected OptimizeRequest newRequestInstance() {
-        return new OptimizeRequest();
     }
 
     @Override
@@ -87,11 +78,6 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
             }
         }
         return new OptimizeResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures);
-    }
-
-    @Override
-    protected ShardOptimizeRequest newShardRequest() {
-        return new ShardOptimizeRequest();
     }
 
     @Override
@@ -121,11 +107,11 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, OptimizeRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, OptimizeRequest request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, concreteIndices);
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
     }
 }

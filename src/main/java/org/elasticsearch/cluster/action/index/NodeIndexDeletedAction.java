@@ -55,12 +55,12 @@ public class NodeIndexDeletedAction extends AbstractComponent {
     private final IndicesService indicesService;
 
     @Inject
-    public NodeIndexDeletedAction(Settings settings, ThreadPool threadPool, TransportService transportService, NodeEnvironment nodeEnv, IndicesService indicesService) {
+    public NodeIndexDeletedAction(Settings settings, ThreadPool threadPool, TransportService transportService, IndicesService indicesService) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
-        transportService.registerHandler(INDEX_DELETED_ACTION_NAME, new NodeIndexDeletedTransportHandler());
-        transportService.registerHandler(INDEX_STORE_DELETED_ACTION_NAME, new NodeIndexStoreDeletedTransportHandler());
+        transportService.registerRequestHandler(INDEX_DELETED_ACTION_NAME, NodeIndexDeletedMessage.class, ThreadPool.Names.SAME, new NodeIndexDeletedTransportHandler());
+        transportService.registerRequestHandler(INDEX_STORE_DELETED_ACTION_NAME, NodeIndexStoreDeletedMessage.class, ThreadPool.Names.SAME, new NodeIndexStoreDeletedTransportHandler());
         this.indicesService = indicesService;
     }
 
@@ -113,12 +113,7 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         void onNodeIndexStoreDeleted(String index, String nodeId);
     }
 
-    private class NodeIndexDeletedTransportHandler extends BaseTransportRequestHandler<NodeIndexDeletedMessage> {
-
-        @Override
-        public NodeIndexDeletedMessage newInstance() {
-            return new NodeIndexDeletedMessage();
-        }
+    private class NodeIndexDeletedTransportHandler implements TransportRequestHandler<NodeIndexDeletedMessage> {
 
         @Override
         public void messageReceived(NodeIndexDeletedMessage message, TransportChannel channel) throws Exception {
@@ -127,19 +122,9 @@ public class NodeIndexDeletedAction extends AbstractComponent {
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
     }
 
-    private class NodeIndexStoreDeletedTransportHandler extends BaseTransportRequestHandler<NodeIndexStoreDeletedMessage> {
-
-        @Override
-        public NodeIndexStoreDeletedMessage newInstance() {
-            return new NodeIndexStoreDeletedMessage();
-        }
+    private class NodeIndexStoreDeletedTransportHandler implements TransportRequestHandler<NodeIndexStoreDeletedMessage> {
 
         @Override
         public void messageReceived(NodeIndexStoreDeletedMessage message, TransportChannel channel) throws Exception {
@@ -147,11 +132,6 @@ public class NodeIndexDeletedAction extends AbstractComponent {
                 listener.onNodeIndexStoreDeleted(message.index, message.nodeId);
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 

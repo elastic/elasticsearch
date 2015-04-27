@@ -52,7 +52,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
 
     @Inject
     public TransportDeleteWarmerAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, DeleteWarmerAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, DeleteWarmerAction.NAME, transportService, clusterService, threadPool, actionFilters, DeleteWarmerRequest.class);
     }
 
     @Override
@@ -62,18 +62,13 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
     }
 
     @Override
-    protected DeleteWarmerRequest newRequest() {
-        return new DeleteWarmerRequest();
-    }
-
-    @Override
     protected DeleteWarmerResponse newResponse() {
         return new DeleteWarmerResponse();
     }
 
     @Override
     protected ClusterBlockException checkBlock(DeleteWarmerRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override

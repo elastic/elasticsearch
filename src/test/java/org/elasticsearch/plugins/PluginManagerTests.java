@@ -422,7 +422,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Test
     @Network
     public void testInstallPluginWithElasticsearchDownloadService() throws IOException {
-        assumeTrue("download.elasticsearch.org is accessible", isDownloadServiceWorking("download.elasticsearch.org", 80, "/elasticsearch/ci-test.txt"));
+        assumeTrue("download.elastic.co is accessible", isDownloadServiceWorking("download.elastic.co", 80, "/elasticsearch/ci-test.txt"));
         singlePluginInstallAndRemove("elasticsearch/elasticsearch-transport-thrift/2.4.0", null);
     }
 

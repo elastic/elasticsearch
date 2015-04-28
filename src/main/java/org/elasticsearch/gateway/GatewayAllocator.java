@@ -330,8 +330,9 @@ public class GatewayAllocator extends AbstractComponent {
                             if (primaryNodeStore != null && primaryNodeStore.allocated()) {
                                 long sizeMatched = 0;
 
-                                // see if we have a sync id we cna make use of
+                                // see if we have a sync id we can make use of
                                 if (storeFilesMetaData.syncId() != null && storeFilesMetaData.syncId().equals(primaryNodeStore.syncId())) {
+                                    logger.trace("{}: node [{}] has same sync id {} as primary", shard, discoNode.name(), storeFilesMetaData.syncId());
                                     lastNodeMatched = node;
                                     lastSizeMatched = Long.MAX_VALUE;
                                     lastDiscoNodeMatched = discoNode;
@@ -429,7 +430,7 @@ public class GatewayAllocator extends AbstractComponent {
                 continue;
             }
             // we log warn here. debug logs with full stack traces will be logged if debug logging is turned on for TransportNodeListGatewayStartedShards
-            logger.warn("{}: failed to list shard {} on node [{}]", cause, failure, shard.shardId(), actionType, failure.nodeId());
+            logger.warn("{}: failed to list shard {} on node [{}]", failure, shard.shardId(), actionType, failure.nodeId());
         }
     }
 

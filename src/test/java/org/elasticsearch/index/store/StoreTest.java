@@ -39,7 +39,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
+import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
@@ -55,6 +59,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.Adler32;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.*;
 
@@ -1119,5 +1124,40 @@ public class StoreTest extends ElasticsearchTestCase {
         }
         assertThat(origEntries.size(), equalTo(0));
         assertThat(inMetadataSnapshot.getCommitUserData(), equalTo(outMetadataSnapshot.getCommitUserData()));
+    }
+
+    @Test
+    public void testUserDataRead() throws IOException {
+        final ShardId shardId = new ShardId(new Index("index"), 1);
+        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
+        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, new DummyShardLock(shardId));
+        IndexWriterConfig config = newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec());
+        SnapshotDeletionPolicy deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastDeletionPolicy(shardId, EMPTY_SETTINGS));
+        config.setIndexDeletionPolicy(deletionPolicy);
+        IndexWriter writer = new IndexWriter(store.directory(), config);
+        Document doc = new Document();
+        doc.add(new TextField("id", "1", Field.Store.NO));
+        writer.addDocument(doc);
+        Map<String, String> commitData = new HashMap<>(2);
+        String syncId = "a sync id";
+        String translogId = "a translog id";
+        commitData.put(Engine.SYNC_COMMIT_ID, syncId);
+        commitData.put(Translog.TRANSLOG_ID_KEY, translogId);
+        writer.setCommitData(commitData);
+        writer.commit();
+        writer.close();
+        Store.MetadataSnapshot metadata;
+        if (randomBoolean()) {
+            metadata = store.getMetadata();
+        } else {
+            metadata = store.getMetadata(deletionPolicy.snapshot());
+        }
+        assertFalse(metadata.asMap().isEmpty());
+        // do not check for correct files, we have enough tests for that above
+        assertThat(metadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncId));
+        assertThat(metadata.getCommitUserData().get(Translog.TRANSLOG_ID_KEY), equalTo(translogId));
+        TestUtil.checkIndex(store.directory());
+        assertDeleteContent(store, directoryService);
+        IOUtils.close(store);
     }
 }

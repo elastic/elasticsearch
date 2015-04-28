@@ -565,17 +565,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         return new Engine.DeleteByQuery(query, source, filteringAliases, aliasFilter, parentFilter, origin, startTime, types);
     }
 
-    public void deleteByQuery(Engine.DeleteByQuery deleteByQuery) throws ElasticsearchException {
-        writeAllowed(deleteByQuery.origin());
-        if (logger.isTraceEnabled()) {
-            logger.trace("delete_by_query [{}]", deleteByQuery.query());
-        }
-        deleteByQuery = indexingService.preDeleteByQuery(deleteByQuery);
-        engine().delete(deleteByQuery);
-        deleteByQuery.endTime(System.nanoTime());
-        indexingService.postDeleteByQuery(deleteByQuery);
-    }
-
     public Engine.GetResult get(Engine.Get get) throws ElasticsearchException {
         readAllowed();
         return engine().get(get);

@@ -29,8 +29,6 @@ import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -350,16 +348,6 @@ public class TransportClient extends AbstractClient {
     @Override
     public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
         internalClient.bulk(request, listener);
-    }
-
-    @Override
-    public ActionFuture<DeleteByQueryResponse> deleteByQuery(DeleteByQueryRequest request) {
-        return internalClient.deleteByQuery(request);
-    }
-
-    @Override
-    public void deleteByQuery(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener) {
-        internalClient.deleteByQuery(request, listener);
     }
 
     @Override

@@ -104,6 +104,15 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
 
         }
 
+        {
+            final ElasticsearchException[] foobars = ElasticsearchException.guessRootCauses(new IllegalArgumentException("foobar"));
+            assertEquals(foobars.length, 1);
+            assertTrue(foobars[0] instanceof ElasticsearchException);
+            assertEquals(foobars[0].getMessage(), "foobar");
+            assertEquals(foobars[0].getCause().getClass(), IllegalArgumentException.class);
+            assertEquals(foobars[0].getExceptionName(), "illegal_argument_exception");
+        }
+
     }
 
     public void testDeduplicate() throws IOException {

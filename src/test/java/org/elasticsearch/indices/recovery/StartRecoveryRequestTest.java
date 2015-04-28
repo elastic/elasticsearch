@@ -89,8 +89,8 @@ public class StartRecoveryRequestTest extends ElasticsearchTestCase {
         storeFileMetaDataMap.put(storeFileMetaData1.name(), storeFileMetaData1);
         storeFileMetaDataMap.put(storeFileMetaData2.name(), storeFileMetaData2);
         Map<String, String> commitUserData = new HashMap<>();
-        commitUserData.put("userdata_1", randomBoolean() ? "test" : null);
-        commitUserData.put("userdata_2", randomBoolean() ? "test" : null);
+        commitUserData.put("userdata_1", "test");
+        commitUserData.put("userdata_2", "test");
         Store.MetadataSnapshot outMetadataSnapshot = new Store.MetadataSnapshot(storeFileMetaDataMap, commitUserData);
         Version targetNodeVersion = randomVersion(random());
 

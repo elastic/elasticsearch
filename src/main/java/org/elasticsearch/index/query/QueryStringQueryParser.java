@@ -219,18 +219,11 @@ public class QueryStringQueryParser implements QueryParser {
         }
 
         qpSettings.queryTypes(parseContext.queryTypes());
-        Query query = parseContext.queryParserCache().get(qpSettings);
-        if (query != null) {
-            if (queryName != null) {
-                parseContext.addNamedQuery(queryName, query);
-            }
-            return query;
-        }
 
         MapperQueryParser queryParser = parseContext.queryParser(qpSettings);
 
         try {
-            query = queryParser.parse(qpSettings.queryString());
+            Query query = queryParser.parse(qpSettings.queryString());
             if (query == null) {
                 return null;
             }
@@ -241,7 +234,6 @@ public class QueryStringQueryParser implements QueryParser {
             if (query instanceof BooleanQuery) {
                 Queries.applyMinimumShouldMatch((BooleanQuery) query, qpSettings.minimumShouldMatch());
             }
-            parseContext.queryParserCache().put(qpSettings, query);
             if (queryName != null) {
                 parseContext.addNamedQuery(queryName, query);
             }

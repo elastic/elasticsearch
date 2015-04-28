@@ -121,7 +121,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
                         .put(HttpClient.SETTINGS_SSL_TRUSTSTORE, resource.toString())
                         .put(HttpClient.SETTINGS_SSL_TRUSTSTORE_PASSWORD, "testnode")
                         .build(), authRegistry);
-        webServer.useHttps(httpClient.sslSocketFactory, false);
+        webServer.useHttps(httpClient.getSslSocketFactory(), false);
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequest.Builder request = HttpRequest.builder("localhost", webPort)

@@ -43,8 +43,8 @@ public class HttpClient extends AbstractComponent {
     public static final String SETTINGS_SSL_TRUSTSTORE_ALGORITHM = SETTINGS_SSL_PREFIX + "truststore.algorithm";
     private static final String SETTINGS_SSL_SHIELD_TRUSTSTORE_ALGORITHM = SETTINGS_SSL_SHIELD_PREFIX + "truststore.algorithm";
 
-    final SSLSocketFactory sslSocketFactory;
-    final HttpAuthRegistry httpAuthRegistry;
+    private final SSLSocketFactory sslSocketFactory;
+    private final HttpAuthRegistry httpAuthRegistry;
 
     @Inject
     public HttpClient(Settings settings, HttpAuthRegistry httpAuthRegistry) {
@@ -172,4 +172,7 @@ public class HttpClient extends AbstractComponent {
         return sslContext.getSocketFactory();
     }
 
+    public SSLSocketFactory getSslSocketFactory() {
+        return sslSocketFactory;
+    }
 }

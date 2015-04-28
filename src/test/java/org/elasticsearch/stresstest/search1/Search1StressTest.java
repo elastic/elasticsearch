@@ -63,7 +63,6 @@ public class Search1StressTest {
     private int numberOfValues = 20;
     private int numberOfHits = 300;
     private TimeValue flusherThrottle = TimeValue.timeValueMillis(1000);
-    private TimeValue deleteByQueryThrottle = TimeValue.timeValueMillis(5000);
 
     private Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
 
@@ -127,11 +126,6 @@ public class Search1StressTest {
 
     public Search1StressTest setFlusherThrottle(TimeValue flusherThrottle) {
         this.flusherThrottle = flusherThrottle;
-        return this;
-    }
-
-    public Search1StressTest setDeleteByQueryThrottle(TimeValue deleteByQueryThrottle) {
-        this.deleteByQueryThrottle = deleteByQueryThrottle;
         return this;
     }
 
@@ -264,28 +258,6 @@ public class Search1StressTest {
         }
     }
 
-    private class DeleteByQuery extends Thread {
-        volatile boolean close = false;
-
-        volatile boolean closed = false;
-
-        @Override
-        public void run() {
-            while (true) {
-                if (close) {
-                    closed = true;
-                    return;
-                }
-                try {
-                    client.client().prepareDeleteByQuery().setQuery(termQuery("num", nextNumValue())).execute().actionGet();
-                    Thread.sleep(deleteByQueryThrottle.millis());
-                } catch (Exception e) {
-                    logger.warn("failed to delete_by_query", e);
-                }
-            }
-        }
-    }
-
     private void indexDoc() throws Exception {
         XContentBuilder json = XContentFactory.jsonBuilder().startObject()
                 .field("num", nextNumValue())
@@ -340,13 +312,6 @@ public class Search1StressTest {
             flusher.start();
         }
 
-        DeleteByQuery deleteByQuery = null;
-        if (deleteByQueryThrottle.millis() > 0) {
-            deleteByQuery = new DeleteByQuery();
-            deleteByQuery.start();
-        }
-
-
         long testStart = System.currentTimeMillis();
 
         while (true) {
@@ -362,10 +327,6 @@ public class Search1StressTest {
             flusher.close = true;
         }
 
-        if (deleteByQuery != null) {
-            deleteByQuery.close = true;
-        }
-
         for (Searcher searcherThread : searcherThreads) {
             searcherThread.close = true;
         }
@@ -378,9 +339,6 @@ public class Search1StressTest {
 
         if (flusher != null && !flusher.closed) {
             logger.warn("flusher not closed!");
-        }
-        if (deleteByQuery != null && !deleteByQuery.closed) {
-            logger.warn("deleteByQuery not closed!");
         }
         for (Searcher searcherThread : searcherThreads) {
             if (!searcherThread.closed) {
@@ -410,7 +368,6 @@ public class Search1StressTest {
                 .setIndexerThrottle(TimeValue.timeValueMillis(100))
                 .setSearchers(10)
                 .setSearcherThrottle(TimeValue.timeValueMillis(10))
-                .setDeleteByQueryThrottle(TimeValue.timeValueMillis(-1))
                 .setFlusherThrottle(TimeValue.timeValueMillis(1000))
                 .setNumberOfIndices(10)
                 .setNumberOfTypes(5)

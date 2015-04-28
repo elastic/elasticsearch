@@ -21,9 +21,6 @@ package org.elasticsearch.index.engine;
 
 import org.elasticsearch.index.shard.ShardId;
 
-/**
- *
- */
 public class DeleteByQueryFailedEngineException extends EngineException {
 
     public DeleteByQueryFailedEngineException(ShardId shardId, Engine.DeleteByQuery deleteByQuery, Throwable cause) {

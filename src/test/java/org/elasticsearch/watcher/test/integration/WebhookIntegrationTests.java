@@ -32,6 +32,7 @@ import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondit
 import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -87,7 +88,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTests {
 
         assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
         RecordedRequest recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getPath(), equalTo("/test/_id?watch_id=_id&param1=value1"));
+        assertThat(recordedRequest.getPath(), anyOf(equalTo("/test/_id?watch_id=_id&param1=value1"), equalTo("/test/_id?param1=value1&watch_id=_id")));
         assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("{key=value}"));
 
         SearchResponse response = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
@@ -123,7 +124,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTests {
 
         assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
         RecordedRequest recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getPath(), equalTo("/test/_id?watch_id=_id&param1=value1"));
+        assertThat(recordedRequest.getPath(), anyOf(equalTo("/test/_id?watch_id=_id&param1=value1"), equalTo("/test/_id?param1=value1&watch_id=_id")));
         assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("{key=value}"));
         assertThat(recordedRequest.getHeader("Authorization"), equalTo("Basic X3VzZXJuYW1lOl9wYXNzd29yZA=="));
     }

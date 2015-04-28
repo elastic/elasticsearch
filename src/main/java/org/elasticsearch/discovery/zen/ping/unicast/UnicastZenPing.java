@@ -220,11 +220,11 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                         protected void doRun() throws Exception {
                             sendPings(timeout, TimeValue.timeValueMillis(timeout.millis() / 2), sendPingsHandler);
                             sendPingsHandler.close();
+                            listener.onPing(sendPingsHandler.pingCollection().toArray());
                             for (DiscoveryNode node : sendPingsHandler.nodeToDisconnect) {
                                 logger.trace("[{}] disconnecting from {}", sendPingsHandler.id(), node);
                                 transportService.disconnectFromNode(node);
                             }
-                            listener.onPing(sendPingsHandler.pingCollection().toArray());
                         }
 
                         @Override

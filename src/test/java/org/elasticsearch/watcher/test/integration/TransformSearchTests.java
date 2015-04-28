@@ -16,6 +16,7 @@ import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.junit.Test;
 
+import java.net.URISyntaxException;
 import java.util.Map;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -39,8 +40,12 @@ public class TransformSearchTests extends AbstractWatcherIntegrationTests {
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         //Set path so ScriptService will pick up the test scripts
-        return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
-                .put("path.conf", TransformSearchTests.class.getResource("/config").getPath()).build();
+        try {
+            return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+                    .put("path.conf", TransformSearchTests.class.getResource("/config").toURI().getPath()).build();
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Test

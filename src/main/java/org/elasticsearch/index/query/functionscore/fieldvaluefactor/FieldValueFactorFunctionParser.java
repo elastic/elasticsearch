@@ -41,7 +41,8 @@ import java.util.Locale;
  *         "field_value_factor": {
  *             "field": "myfield",
  *             "factor": 1.5,
- *             "modifier": "square"
+ *             "modifier": "square",
+ *             "missing": 1
  *         }
  *     }
  * </pre>
@@ -56,6 +57,7 @@ public class FieldValueFactorFunctionParser implements ScoreFunctionParser {
         String field = null;
         float boostFactor = 1;
         FieldValueFactorFunction.Modifier modifier = FieldValueFactorFunction.Modifier.NONE;
+        Double missing = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -67,6 +69,8 @@ public class FieldValueFactorFunctionParser implements ScoreFunctionParser {
                     boostFactor = parser.floatValue();
                 } else if ("modifier".equals(currentFieldName)) {
                     modifier = FieldValueFactorFunction.Modifier.valueOf(parser.text().toUpperCase(Locale.ROOT));
+                } else if ("missing".equals(currentFieldName)) {
+                    missing = parser.doubleValue();
                 } else {
                     throw new QueryParsingException(parseContext.index(), NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
@@ -84,7 +88,7 @@ public class FieldValueFactorFunctionParser implements ScoreFunctionParser {
         if (mapper == null) {
             throw new ElasticsearchException("Unable to find a field mapper for field [" + field + "]");
         }
-        return new FieldValueFactorFunction(field, boostFactor, modifier,
+        return new FieldValueFactorFunction(field, boostFactor, modifier, missing,
                 (IndexNumericFieldData)searchContext.fieldData().getForField(mapper));
     }
 

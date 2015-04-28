@@ -37,9 +37,6 @@ grant {
   permission java.io.FilePermission "${project.basedir}${/}lib/sigar{/}-", "read";
   // mvn custom ./m2/repository for dependency jars
   permission java.io.FilePermission "${m2.repository}${/}-", "read";
-  // per-jvm directory
-  permission java.io.FilePermission "${junit4.childvm.cwd}${/}temp", "read,write";
-  permission java.io.FilePermission "${junit4.childvm.cwd}${/}temp${/}-", "read,write,delete";
 
   permission java.nio.file.LinkPermission "symbolic";
   permission groovy.security.GroovyCodeSourcePermission "/groovy/script";
@@ -86,7 +83,10 @@ grant {
 
   // needed for natives calls
   permission java.lang.RuntimePermission "loadLibrary.*";
+
+  // needed for testing access rules etc
   permission java.lang.RuntimePermission "createSecurityManager";
+  permission java.security.SecurityPermission "createPolicy.JavaPolicy";
 
   // reflection hacks:
   // needed for Striped64 (what is this doing), also enables unmap hack

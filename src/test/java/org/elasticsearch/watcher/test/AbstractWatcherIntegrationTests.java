@@ -141,6 +141,10 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         return LicensePlugin.class;
     }
 
+    protected boolean checkWatcherRunningOnlyOnce() {
+        return true;
+    }
+
     @Before
     public void _setup() throws Exception {
         setupTimeWarp();
@@ -151,6 +155,9 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
     public void _cleanup() throws Exception {
         // Clear all internal watcher state for the next test method:
         logger.info("[{}#{}]: clearing watcher state", getTestClass().getSimpleName(), getTestName());
+        if (checkWatcherRunningOnlyOnce()) {
+            ensureWatcherOnlyRunningOnce();
+        }
         stopWatcher();
     }
 
@@ -485,6 +492,16 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
     protected void stopWatcher() throws Exception {
         watcherClient().prepareWatchService().stop().get();
         ensureWatcherStopped(false);
+    }
+
+    protected void ensureWatcherOnlyRunningOnce() {
+        int running = 0;
+        for (WatcherService watcherService : internalTestCluster().getInstances(WatcherService.class)) {
+            if (watcherService.state() == WatcherService.State.STARTED) {
+                running++;
+            }
+        }
+        assertThat("watcher should only run on the elected master node, but it is running on [" + running + "] nodes", running, equalTo(1));
     }
 
     protected static InternalTestCluster internalTestCluster() {

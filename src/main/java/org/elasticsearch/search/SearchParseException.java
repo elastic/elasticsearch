@@ -43,8 +43,8 @@ public class SearchParseException extends SearchContextException {
     public SearchParseException(SearchContext context, String msg, @Nullable XContentLocation location, Throwable cause) {
         super(context, msg, cause);
         if (location != null) {
-            lineNumber = location.getLineNumber();
-            columnNumber = location.getColumnNumber();
+            lineNumber = location.lineNumber;
+            columnNumber = location.columnNumber;
         }
     }
 

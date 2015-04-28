@@ -193,12 +193,11 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     public XContentLocation getTokenLocation() {
-        XContentLocation result = null;
         JsonLocation loc = parser.getTokenLocation();
-        if (loc != null) {
-            result = new XContentLocation(loc.getLineNr(), loc.getColumnNr());
+        if (loc == null) {
+            return null;
         }
-        return result;
+        return new XContentLocation(loc.getLineNr(), loc.getColumnNr());
     }
 
     @Override

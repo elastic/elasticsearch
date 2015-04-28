@@ -19,21 +19,19 @@
 
 package org.elasticsearch.common.xcontent;
 
+/**
+ * Simple data structure representing the line and column number of a position
+ * in some XContent e.g. JSON. Locations are typically used to communicate the
+ * position of a parsing error to end users and consequently have line and
+ * column numbers starting from 1.
+ */
 public class XContentLocation {
-    private int lineNumber;
-    private int columnNumber;
+    public final int lineNumber;
+    public final int columnNumber;
 
     public XContentLocation(int lineNumber, int columnNumber) {
         super();
         this.lineNumber = lineNumber;
         this.columnNumber = columnNumber;
-    }
-
-    public int getLineNumber() {
-        return lineNumber;
-    }
-
-    public int getColumnNumber() {
-        return columnNumber;
     }
 }

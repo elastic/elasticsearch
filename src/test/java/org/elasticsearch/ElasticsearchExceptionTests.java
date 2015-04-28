@@ -184,6 +184,18 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
             assertEquals(expected, builder.string());
         }
 
+        {
+            XContentLocation errLocation = new XContentLocation(1, 2);
+            QueryParsingException ex = new QueryParsingException(new Index("foo"), "foobar", errLocation);
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.startObject();
+            ElasticsearchException.toXContent(builder, ToXContent.EMPTY_PARAMS, ex);
+            builder.endObject();
+            System.out.println(builder.string());
+            String expected = "{\"type\":\"query_parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2,\"index\":\"foo\"}";
+            assertEquals(expected, builder.string());
+        }
+
         { // test equivalence
             ElasticsearchException ex =  new RemoteTransportException("foobar", new FileNotFoundException("foo not found"));
             XContentBuilder builder = XContentFactory.jsonBuilder();

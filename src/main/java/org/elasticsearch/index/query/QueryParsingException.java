@@ -44,8 +44,8 @@ public class QueryParsingException extends IndexException {
     public QueryParsingException(Index index, String msg, @Nullable XContentLocation location, Throwable cause) {
         super(index, msg, cause);
         if (location != null) {
-            lineNumber = location.getLineNumber();
-            columnNumber = location.getColumnNumber();
+            lineNumber = location.lineNumber;
+            columnNumber = location.columnNumber;
         }
     }
 

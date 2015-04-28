@@ -24,6 +24,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatchSourceBuilders;
+import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
@@ -181,11 +182,12 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
 
         // watcher starts in the background, it can happen we get here too soon, so wait until watcher has started.
         ensureWatcherStarted(false);
+        ensureLicenseEnabled();
         for (int i = 1; i <= numberOfWatches; i++) {
             String watchName = "watch" + i;
             SearchRequest searchRequest = WatcherTestUtils.newInputSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
             BytesReference watchSource = createWatchSource("0/5 * * * * ? *", searchRequest, "ctx.payload.hits.total == 1");
-            watchService().putWatch(watchName, watchSource);
+            watcherClient().preparePutWatch(watchName).setSource(watchSource).get();
         }
         ensureGreen();
 
@@ -222,6 +224,9 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
         // Ensure that the watch manager doesn't run elsewhere
         for (WatcherService watcherService : internalTestCluster().getInstances(WatcherService.class)) {
             assertThat(watcherService.state(), is(WatcherService.State.STOPPED));
+        }
+        for (ExecutionService executionService : internalTestCluster().getInstances(ExecutionService.class)) {
+            assertThat(executionService.queueSize(), equalTo(0l));
         }
     }
 

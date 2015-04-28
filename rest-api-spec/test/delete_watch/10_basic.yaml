@@ -5,7 +5,7 @@
           wait_for_status: green
 
   - do:
-      watcher.put:
+      watcher.put_watch:
         id: "my_watch"
         body:  > 
           {
@@ -39,6 +39,6 @@
   - match: { _id: "my_watch" }
 
   - do:
-    watcher.delete:
+    watcher.delete_watch:
       id: "my_watch"
   - match: { found: true }

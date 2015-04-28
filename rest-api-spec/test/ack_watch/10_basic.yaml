@@ -5,7 +5,7 @@
           wait_for_status: green
 
   - do:
-      watcher.put:
+      watcher.put_watch:
         id: "my_watch"
         body:  > 
           {
@@ -43,11 +43,11 @@
           wait_for_status: green
 
   - do:
-    watcher.ack:
+    watcher.ack_watch:
       id: "my_watch"
   - match: { "status.ack.state" : "awaits_execution" }
 
   - do:
-    watcher.delete:
+    watcher.delete_watch:
       id: "my_watch"
   - match: { found: true }

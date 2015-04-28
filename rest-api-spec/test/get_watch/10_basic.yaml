@@ -5,7 +5,7 @@
           wait_for_status: green
 
   - do:
-      watcher.put:
+      watcher.put_watch:
         id: "my_watch"
         body:  > 
           {
@@ -41,7 +41,7 @@
   - match: { created: true }
 
   - do:
-      watcher.get:
+      watcher.get_watch:
         id: "my_watch"
   - match: { found : true}
   - match: { _id: "my_watch" }

@@ -1,7 +1,7 @@
 {
-  "watcher.get": {
-    "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-get-watch.html",
-    "methods": [ "GET" ],
+  "watcher.delete_watch": {
+    "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-delete-watch.html",
+    "methods": [ "DELETE" ],
     "url": {
       "path": "/_watcher/watch/{id}",
       "paths": [ "/_watcher/watch/{id}" ],

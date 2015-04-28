@@ -31,7 +31,7 @@
         <tests.heap.size>512m</tests.heap.size>
         <tests.topn>5</tests.topn>
         <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
-        <tests.rest>false</tests.rest>
+        <tests.rest>true</tests.rest>
         <tests.slow>false</tests.slow>
         <tests.timewarp>true</tests.timewarp>
     </properties>

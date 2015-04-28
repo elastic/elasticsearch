@@ -39,7 +39,7 @@ import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -505,7 +505,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
             if (indexReader.getCoreCacheKey() == reader.getCoreCacheKey()) {
                 return this;
             }
-            throw new ElasticsearchIllegalStateException();
+            throw new IllegalStateException();
         }
 
         @Override

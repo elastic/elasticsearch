@@ -25,7 +25,7 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.*;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
@@ -361,7 +361,7 @@ public class TopChildrenQuery extends Query {
 
                     };
                 }
-                throw new ElasticsearchIllegalStateException("No support for score type [" + scoreType + "]");
+                throw new IllegalStateException("No support for score type [" + scoreType + "]");
             }
             return new EmptyScorer(this);
         }

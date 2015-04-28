@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
@@ -91,12 +91,12 @@ public final class ShardPath {
             ShardStateMetaData load = ShardStateMetaData.FORMAT.loadLatestState(logger, path);
             if (load != null) {
                 if ((load.indexUUID.equals(indexUUID) || IndexMetaData.INDEX_UUID_NA_VALUE.equals(load.indexUUID)) == false) {
-                    throw new ElasticsearchIllegalStateException(shardId + " index UUID in shard state was: " + load.indexUUID + " excepted: " + indexUUID + " on shard path: " + path);
+                    throw new IllegalStateException(shardId + " index UUID in shard state was: " + load.indexUUID + " excepted: " + indexUUID + " on shard path: " + path);
                 }
                 if (loadedPath == null) {
                     loadedPath = path;
                 } else{
-                    throw new ElasticsearchIllegalStateException(shardId + " more than one shard state found");
+                    throw new IllegalStateException(shardId + " more than one shard state found");
                 }
             }
 

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -63,7 +63,7 @@ public class SizeValueTests extends ElasticsearchTestCase {
         assertThat(SizeValue.parseSizeValue("1G").toString(), is(new SizeValue(1, SizeUnit.GIGA).toString()));
     }
 
-    @Test(expected = ElasticsearchIllegalArgumentException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testThatNegativeValuesThrowException() {
         new SizeValue(-1);
     }

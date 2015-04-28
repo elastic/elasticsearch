@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.rest.action.script;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
@@ -84,7 +84,7 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
         if (sOpType != null) {
             try {
                 putRequest.opType(IndexRequest.OpType.fromString(sOpType));
-            } catch (ElasticsearchIllegalArgumentException eia){
+            } catch (IllegalArgumentException eia){
                 try {
                     XContentBuilder builder = channel.newBuilder();
                     channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", eia.getMessage()).endObject()));

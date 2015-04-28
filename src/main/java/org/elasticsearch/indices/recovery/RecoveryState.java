@@ -20,8 +20,8 @@
 package org.elasticsearch.indices.recovery;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalArgumentException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.common.Nullable;
@@ -82,9 +82,9 @@ public class RecoveryState implements ToXContent, Streamable {
             return id;
         }
 
-        public static Stage fromId(byte id) throws ElasticsearchIllegalArgumentException {
+        public static Stage fromId(byte id) throws IllegalArgumentException {
             if (id < 0 || id >= STAGES.length) {
-                throw new ElasticsearchIllegalArgumentException("No mapping for id [" + id + "]");
+                throw new IllegalArgumentException("No mapping for id [" + id + "]");
             }
             return STAGES[id];
         }
@@ -115,9 +115,9 @@ public class RecoveryState implements ToXContent, Streamable {
             return id;
         }
 
-        public static Type fromId(byte id) throws ElasticsearchIllegalArgumentException {
+        public static Type fromId(byte id) throws IllegalArgumentException {
             if (id < 0 || id >= TYPES.length) {
-                throw new ElasticsearchIllegalArgumentException("No mapping for id [" + id + "]");
+                throw new IllegalArgumentException("No mapping for id [" + id + "]");
             }
             return TYPES[id];
         }
@@ -170,7 +170,7 @@ public class RecoveryState implements ToXContent, Streamable {
 
     private void validateAndSetStage(Stage expected, Stage next) {
         if (stage != expected) {
-            throw new ElasticsearchIllegalStateException("can't move recovery to stage [" + next + "]. current stage: ["
+            throw new IllegalStateException("can't move recovery to stage [" + next + "]. current stage: ["
                     + stage + "] (expected [" + expected + "])");
         }
         stage = next;
@@ -209,7 +209,7 @@ public class RecoveryState implements ToXContent, Streamable {
                 getTimer().stop();
                 break;
             default:
-                throw new ElasticsearchIllegalArgumentException("unknown RecoveryState.Stage [" + stage + "]");
+                throw new IllegalArgumentException("unknown RecoveryState.Stage [" + stage + "]");
         }
         return this;
     }

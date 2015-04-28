@@ -19,15 +19,13 @@
 package org.elasticsearch.rest.action.admin.indices.analyze;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -86,10 +84,10 @@ public class RestAnalyzeAction extends BaseRestHandler {
         client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<AnalyzeResponse>(channel));
     }
 
-    public static void buildFromContent(BytesReference content, AnalyzeRequest analyzeRequest) throws ElasticsearchIllegalArgumentException {
+    public static void buildFromContent(BytesReference content, AnalyzeRequest analyzeRequest) throws IllegalArgumentException {
         try (XContentParser parser = XContentHelper.createParser(content)) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchIllegalArgumentException("Malforrmed content, must start with an object");
+                throw new IllegalArgumentException("Malforrmed content, must start with an object");
             } else {
                 XContentParser.Token token;
                 String currentFieldName = null;
@@ -110,7 +108,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
                         List<String> filters = Lists.newArrayList();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token.isValue() == false) {
-                                throw new ElasticsearchIllegalArgumentException(currentFieldName + " array element should only contain token filter's name");
+                                throw new IllegalArgumentException(currentFieldName + " array element should only contain token filter's name");
                             }
                             filters.add(parser.text());
                         }
@@ -119,18 +117,18 @@ public class RestAnalyzeAction extends BaseRestHandler {
                         List<String> charFilters = Lists.newArrayList();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token.isValue() == false) {
-                                throw new ElasticsearchIllegalArgumentException(currentFieldName + " array element should only contain char filter's name");
+                                throw new IllegalArgumentException(currentFieldName + " array element should only contain char filter's name");
                             }
                             charFilters.add(parser.text());
                         }
                         analyzeRequest.tokenFilters(charFilters.toArray(new String[0]));
                     } else {
-                        throw new ElasticsearchIllegalArgumentException("Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");
+                        throw new IllegalArgumentException("Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");
                     }
                 }
             }
         } catch (IOException e) {
-            throw new ElasticsearchIllegalArgumentException("Failed to parse request body", e);
+            throw new IllegalArgumentException("Failed to parse request body", e);
         }
     }
 }

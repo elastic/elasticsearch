@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.service;
 
 import com.google.common.collect.Iterables;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.ClusterState.Builder;
@@ -129,17 +129,17 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     }
 
     @Override
-    public void addInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException {
+    public void addInitialStateBlock(ClusterBlock block) throws IllegalStateException {
         if (lifecycle.started()) {
-            throw new ElasticsearchIllegalStateException("can't set initial block when started");
+            throw new IllegalStateException("can't set initial block when started");
         }
         initialBlocks.addGlobalBlock(block);
     }
 
     @Override
-    public void removeInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException {
+    public void removeInitialStateBlock(ClusterBlock block) throws IllegalStateException {
         if (lifecycle.started()) {
-            throw new ElasticsearchIllegalStateException("can't set initial block when started");
+            throw new IllegalStateException("can't set initial block when started");
         }
         initialBlocks.removeGlobalBlock(block);
     }

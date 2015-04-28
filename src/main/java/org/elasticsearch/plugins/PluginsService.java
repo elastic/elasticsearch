@@ -25,7 +25,7 @@ import com.google.common.collect.*;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
@@ -123,7 +123,7 @@ public class PluginsService extends AbstractComponent {
         try {
             loadPluginsIntoClassLoader();
         } catch (IOException ex) {
-            throw new ElasticsearchIllegalStateException("Can't load plugins into classloader", ex);
+            throw new IllegalStateException("Can't load plugins into classloader", ex);
         }
         if (loadClasspathPlugins) {
             tupleBuilder.addAll(loadPluginsFromClasspath(settings));
@@ -147,7 +147,7 @@ public class PluginsService extends AbstractComponent {
                 sitePlugins.add(tuple.v1().getName());
             }
         } catch (IOException ex) {
-            throw new ElasticsearchIllegalStateException("Can't load site  plugins", ex);
+            throw new IllegalStateException("Can't load site  plugins", ex);
         }
 
         // Checking expected plugins

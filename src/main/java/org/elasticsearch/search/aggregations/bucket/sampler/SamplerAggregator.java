@@ -19,7 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -109,7 +109,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
                     return mode;
                 }
             }
-            throw new ElasticsearchIllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of " + values());
+            throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of " + values());
         }
 
         private final ParseField parseField;

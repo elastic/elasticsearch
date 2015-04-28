@@ -31,8 +31,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalArgumentException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
@@ -340,7 +340,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     public void updateRoutingEntry(final ShardRouting newRouting, final boolean persistState) {
         final ShardRouting currentRouting = this.shardRouting;
         if (!newRouting.shardId().equals(shardId())) {
-            throw new ElasticsearchIllegalArgumentException("Trying to set a routing entry with shardId [" + newRouting.shardId() + "] on a shard with shardId [" + shardId() + "]");
+            throw new IllegalArgumentException("Trying to set a routing entry with shardId [" + newRouting.shardId() + "] on a shard with shardId [" + shardId() + "]");
         }
         try {
             if (currentRouting != null) {
@@ -997,7 +997,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      */
     public void deleteShardState() throws IOException {
         if (this.routingEntry() != null && this.routingEntry().active()) {
-            throw new ElasticsearchIllegalStateException("Can't delete shard state on an active shard");
+            throw new IllegalStateException("Can't delete shard state on an active shard");
         }
         MetaDataStateFormat.deleteMetaState(shardPath().getDataPath());
     }

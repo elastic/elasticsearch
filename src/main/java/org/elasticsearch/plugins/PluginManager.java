@@ -119,7 +119,7 @@ public class PluginManager {
 
     public void downloadAndExtract(String name) throws IOException {
         if (name == null) {
-            throw new ElasticsearchIllegalArgumentException("plugin name must be supplied with --install [name].");
+            throw new IllegalArgumentException("plugin name must be supplied with --install [name].");
         }
         HttpDownloadHelper downloadHelper = new HttpDownloadHelper();
         boolean downloaded = false;
@@ -293,7 +293,7 @@ public class PluginManager {
 
     public void removePlugin(String name) throws IOException {
         if (name == null) {
-            throw new ElasticsearchIllegalArgumentException("plugin name must be supplied with --remove [name].");
+            throw new IllegalArgumentException("plugin name must be supplied with --remove [name].");
         }
         PluginHandle pluginHandle = PluginHandle.parse(name);
         boolean removed = false;
@@ -342,7 +342,7 @@ public class PluginManager {
 
     private static void checkForForbiddenName(String name) {
         if (!hasLength(name) || BLACKLIST.contains(name.toLowerCase(Locale.ROOT))) {
-            throw new ElasticsearchIllegalArgumentException("Illegal plugin name: " + name);
+            throw new IllegalArgumentException("Illegal plugin name: " + name);
         }
     }
 
@@ -485,7 +485,7 @@ public class PluginManager {
                         pluginManager.log("-> Removing " + Strings.nullToEmpty(pluginName) + "...");
                         pluginManager.removePlugin(pluginName);
                         exitCode = EXIT_CODE_OK;
-                    } catch (ElasticsearchIllegalArgumentException e) {
+                    } catch (IllegalArgumentException e) {
                         exitCode = EXIT_CODE_CMD_USAGE;
                         pluginManager.log("Failed to remove " + pluginName + ", reason: " + e.getMessage());
                     } catch (IOException e) {
@@ -526,12 +526,12 @@ public class PluginManager {
      * @return Never {@code null}. The trimmed value.
      * @throws NullPointerException if {@code args} is {@code null}.
      * @throws ArrayIndexOutOfBoundsException if {@code arg} is negative.
-     * @throws ElasticsearchIllegalStateException if {@code arg} is &gt;= {@code args.length}.
-     * @throws ElasticsearchIllegalArgumentException if the value evaluates to blank ({@code null} or only whitespace)
+     * @throws IllegalStateException if {@code arg} is &gt;= {@code args.length}.
+     * @throws IllegalArgumentException if the value evaluates to blank ({@code null} or only whitespace)
      */
     private static String getCommandValue(String[] args, int arg, String flag) {
         if (arg >= args.length) {
-            throw new ElasticsearchIllegalStateException("missing value for " + flag + ". Usage: " + flag + " [value]");
+            throw new IllegalStateException("missing value for " + flag + ". Usage: " + flag + " [value]");
         }
 
         // avoid having to interpret multiple forms of unset
@@ -539,7 +539,7 @@ public class PluginManager {
 
         // If we had a value that is blank, then fail immediately
         if (trimmedValue == null) {
-            throw new ElasticsearchIllegalArgumentException(
+            throw new IllegalArgumentException(
                     "value for " + flag + "('" + args[arg] + "') must be set. Usage: " + flag + " [value]");
         }
 

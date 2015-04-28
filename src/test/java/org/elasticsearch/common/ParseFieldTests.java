@@ -19,7 +19,7 @@
 package org.elasticsearch.common;
 
 import org.apache.commons.lang3.ArrayUtils;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -58,14 +58,14 @@ public class ParseFieldTests extends ElasticsearchTestCase {
         try {
             withDeprecations.match(randomFrom(deprecated), flags);
             fail();
-        } catch (ElasticsearchIllegalArgumentException ex) {
+        } catch (IllegalArgumentException ex) {
 
         }
 
         try {
             withDeprecations.match("barFoo", flags);
             fail();
-        } catch (ElasticsearchIllegalArgumentException ex) {
+        } catch (IllegalArgumentException ex) {
 
         }
     }
@@ -96,7 +96,7 @@ public class ParseFieldTests extends ElasticsearchTestCase {
         try {
             field.match(randomFrom(allValues), flags);
             fail();
-        } catch (ElasticsearchIllegalArgumentException ex) {
+        } catch (IllegalArgumentException ex) {
         }
     }
 }

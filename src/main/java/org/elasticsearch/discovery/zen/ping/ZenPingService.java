@@ -21,7 +21,7 @@ package org.elasticsearch.discovery.zen.ping;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Nullable;
@@ -71,7 +71,7 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
     @Override
     public void setPingContextProvider(PingContextProvider contextProvider) {
         if (lifecycle.started()) {
-            throw new ElasticsearchIllegalStateException("Can't set nodes provider when started");
+            throw new IllegalStateException("Can't set nodes provider when started");
         }
         for (ZenPing zenPing : zenPings) {
             zenPing.setPingContextProvider(contextProvider);

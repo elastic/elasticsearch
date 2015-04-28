@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.admin.indices.get;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -105,7 +105,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
                             writeWarmers(response.warmers().get(index), builder, request);
                             break;
                         default:
-                            throw new ElasticsearchIllegalStateException("feature [" + feature + "] is not valid");
+                            throw new IllegalStateException("feature [" + feature + "] is not valid");
                         }
                     }
                     builder.endObject();

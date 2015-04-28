@@ -28,11 +28,10 @@ import org.apache.lucene.analysis.synonym.SolrSynonymParser;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.analysis.synonym.WordnetSynonymParser;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -66,7 +65,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         } else if (settings.get("synonyms_path") != null) {
             rulesReader = Analysis.getReaderFromFile(env, settings, "synonyms_path");
         } else {
-            throw new ElasticsearchIllegalArgumentException("synonym requires either `synonyms` or `synonyms_path` to be configured");
+            throw new IllegalArgumentException("synonym requires either `synonyms` or `synonyms_path` to be configured");
         }
 
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
@@ -79,7 +78,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             tokenizerFactoryFactory = indicesAnalysisService.tokenizerFactoryFactory(tokenizerName);
         }
         if (tokenizerFactoryFactory == null) {
-            throw new ElasticsearchIllegalArgumentException("failed to find tokenizer [" + tokenizerName + "] for synonym token filter");
+            throw new IllegalArgumentException("failed to find tokenizer [" + tokenizerName + "] for synonym token filter");
         }
 
         final TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.create(tokenizerName, ImmutableSettings.builder().put(indexSettings).put(settings).build());
@@ -106,7 +105,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
             synonymMap = parser.build();
         } catch (Exception e) {
-            throw new ElasticsearchIllegalArgumentException("failed to build synonyms", e);
+            throw new IllegalArgumentException("failed to build synonyms", e);
         }
     }
 

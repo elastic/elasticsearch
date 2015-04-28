@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.type.ParsedScrollId;
 import org.elasticsearch.action.search.type.TransportSearchScrollQueryAndFetchAction;
@@ -66,7 +66,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
             } else if (scrollId.getType().equals(SCAN)) {
                 scanAction.execute(request, scrollId, listener);
             } else {
-                throw new ElasticsearchIllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
+                throw new IllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
             }
         } catch (Throwable e) {
             listener.onFailure(e);

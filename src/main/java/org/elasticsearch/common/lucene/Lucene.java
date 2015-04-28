@@ -61,8 +61,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalArgumentException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -513,7 +513,7 @@ public class Lucene {
 
     public static void writeScoreDoc(StreamOutput out, ScoreDoc scoreDoc) throws IOException {
         if (!scoreDoc.getClass().equals(ScoreDoc.class)) {
-            throw new ElasticsearchIllegalArgumentException("This method can only be used to serialize a ScoreDoc, not a " + scoreDoc.getClass());
+            throw new IllegalArgumentException("This method can only be used to serialize a ScoreDoc, not a " + scoreDoc.getClass());
         }
         out.writeVInt(scoreDoc.doc);
         out.writeFloat(scoreDoc.score);
@@ -699,27 +699,27 @@ public class Lucene {
         return new Scorer(null) {
             @Override
             public float score() throws IOException {
-                throw new ElasticsearchIllegalStateException(message);
+                throw new IllegalStateException(message);
             }
             @Override
             public int freq() throws IOException {
-                throw new ElasticsearchIllegalStateException(message);
+                throw new IllegalStateException(message);
             }
             @Override
             public int advance(int arg0) throws IOException {
-                throw new ElasticsearchIllegalStateException(message);
+                throw new IllegalStateException(message);
             }
             @Override
             public long cost() {
-                throw new ElasticsearchIllegalStateException(message);
+                throw new IllegalStateException(message);
             }
             @Override
             public int docID() {
-                throw new ElasticsearchIllegalStateException(message);
+                throw new IllegalStateException(message);
             }
             @Override
             public int nextDoc() throws IOException {
-                throw new ElasticsearchIllegalStateException(message);
+                throw new IllegalStateException(message);
             }
         };
     }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -122,7 +122,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
         } else if (path.size() == 1 && "value".equals(path.get(0))) {
             return aggregation;
         } else {
-            throw new ElasticsearchIllegalArgumentException("path not supported for [" + getName() + "]: " + path);
+            throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
     }
 

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -95,7 +95,7 @@ public class DiscoverySettings extends AbstractComponent {
             case "write":
                 return NO_MASTER_BLOCK_WRITES;
             default:
-                throw new ElasticsearchIllegalArgumentException("invalid master block [" + value + "]");
+                throw new IllegalArgumentException("invalid master block [" + value + "]");
         }
     }
 }

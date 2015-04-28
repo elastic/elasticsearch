@@ -241,7 +241,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll, Clonea
                 builder.pathType(parsePathType(name, fieldNode.toString()));
                 return true;
             }
-           return false;
+            return false;
         }
 
         protected static void parseNested(String name, Map<String, Object> node, ObjectMapper.Builder builder) {

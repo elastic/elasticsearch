@@ -25,8 +25,8 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.ExceptionsHelper;
+import java.lang.IllegalStateException;
+
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -783,7 +783,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 logger.trace("can't find relocation source node for shard {} because it is assigned to an unknown node [{}].", shardRouting.shardId(), shardRouting.relocatingNodeId());
             }
         } else {
-            throw new ElasticsearchIllegalStateException("trying to find source node for peer recovery when routing state means no peer recovery: " + shardRouting);
+            throw new IllegalStateException("trying to find source node for peer recovery when routing state means no peer recovery: " + shardRouting);
         }
         return sourceNode;
     }

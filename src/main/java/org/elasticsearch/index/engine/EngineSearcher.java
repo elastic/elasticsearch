@@ -23,9 +23,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
@@ -54,13 +53,13 @@ public class EngineSearcher extends Engine.Searcher {
                  * when it might happen though: when the request and the Reaper thread would both try to release it in a very short amount
                  * of time, this is why we only log a warning instead of throwing an exception.
                  */
-            logger.warn("Searcher was released twice", new ElasticsearchIllegalStateException("Double release"));
+            logger.warn("Searcher was released twice", new IllegalStateException("Double release"));
             return;
         }
         try {
             manager.release(this.searcher());
         } catch (IOException e) {
-            throw new ElasticsearchIllegalStateException("Cannot close", e);
+            throw new IllegalStateException("Cannot close", e);
         } catch (AlreadyClosedException e) {
                 /* this one can happen if we already closed the
                  * underlying store / directory and we call into the

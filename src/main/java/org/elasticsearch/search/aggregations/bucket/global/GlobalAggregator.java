@@ -19,7 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.global;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -78,7 +78,7 @@ public class GlobalAggregator extends SingleBucketAggregator {
                         "sub-aggregation [" + name + "]. Global aggregations can only be defined as top level aggregations");
             }
             if (collectsFromSingleBucket == false) {
-                throw new ElasticsearchIllegalStateException();
+                throw new IllegalStateException();
             }
             return new GlobalAggregator(name, factories, context, metaData);
         }

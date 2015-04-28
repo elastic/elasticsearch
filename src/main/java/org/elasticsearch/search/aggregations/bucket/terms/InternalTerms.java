@@ -22,7 +22,7 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -78,7 +78,7 @@ public abstract class InternalTerms extends InternalMultiBucketAggregation imple
         @Override
         public long getDocCountError() {
             if (!showDocCountError) {
-                throw new ElasticsearchIllegalStateException("show_terms_doc_count_error is false");
+                throw new IllegalStateException("show_terms_doc_count_error is false");
             }
             return docCountError;
         }

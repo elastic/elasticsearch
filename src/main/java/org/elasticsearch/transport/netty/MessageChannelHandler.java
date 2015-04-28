@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport.netty;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.Compressor;
@@ -101,7 +101,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                     sb.append(buffer.getByte(offset + i)).append(",");
                 }
                 sb.append("]");
-                throw new ElasticsearchIllegalStateException(sb.toString());
+                throw new IllegalStateException(sb.toString());
             }
             wrappedStream = compressor.streamInput(streamIn);
         } else {

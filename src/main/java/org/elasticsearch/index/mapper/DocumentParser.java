@@ -25,7 +25,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.CloseableThreadLocal;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -576,7 +575,7 @@ class DocumentParser implements Closeable {
                 mapper = builder.build(builderContext);
             } else {
                 // TODO how do we identify dynamically that its a binary value?
-                throw new ElasticsearchIllegalStateException("Can't handle serializing a dynamic type with content token [" + token + "] and field name [" + currentFieldName + "]");
+                throw new IllegalStateException("Can't handle serializing a dynamic type with content token [" + token + "] and field name [" + currentFieldName + "]");
             }
         }
 
@@ -652,7 +651,7 @@ class DocumentParser implements Closeable {
                     parent = context.docMapper().objectMappers().get(parentPath);
                 }
                 if (parent == null) {
-                    throw new ElasticsearchIllegalStateException("[" + objectPath + "] has no parent for path [" + parentPath + "]");
+                    throw new IllegalStateException("[" + objectPath + "] has no parent for path [" + parentPath + "]");
                 }
                 update = parent.mappingUpdate(update);
                 objectPath = parentPath;

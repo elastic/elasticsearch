@@ -22,8 +22,8 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalArgumentException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -109,10 +109,10 @@ public class IndexMetaData {
         return customFactories.get(type);
     }
 
-    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) throws ElasticsearchIllegalArgumentException {
+    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) throws IllegalArgumentException {
         Custom.Factory<T> factory = customFactories.get(type);
         if (factory == null) {
-            throw new ElasticsearchIllegalArgumentException("No custom index metadata factoy registered for type [" + type + "]");
+            throw new IllegalArgumentException("No custom index metadata factoy registered for type [" + type + "]");
         }
         return factory;
     }
@@ -142,7 +142,7 @@ public class IndexMetaData {
             } else if (id == 1) {
                 return CLOSE;
             }
-            throw new ElasticsearchIllegalStateException("No state match for id [" + id + "]");
+            throw new IllegalStateException("No state match for id [" + id + "]");
         }
 
         public static State fromString(String state) {
@@ -151,7 +151,7 @@ public class IndexMetaData {
             } else if ("close".equals(state)) {
                 return CLOSE;
             }
-            throw new ElasticsearchIllegalStateException("No state match for [" + state + "]");
+            throw new IllegalStateException("No state match for [" + state + "]");
         }
     }
     public static final String INDEX_SETTING_PREFIX = "index.";
@@ -237,7 +237,7 @@ public class IndexMetaData {
             try {
                 routingHashFunction = hashFunctionClass.newInstance();
             } catch (InstantiationException | IllegalAccessException e) {
-                throw new ElasticsearchIllegalStateException("Cannot instantiate hash function", e);
+                throw new IllegalStateException("Cannot instantiate hash function", e);
             }
         }
         useTypeForRouting = settings.getAsBoolean(SETTING_LEGACY_ROUTING_USE_TYPE, false);

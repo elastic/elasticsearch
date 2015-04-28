@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -78,7 +78,7 @@ public class BooleansTests extends ElasticsearchTestCase {
             Booleans.parseBooleanExact(randomFrom(null, "fred", "foo", "barney"));
             fail("Expected exception while parsing invalid boolean value ");
         } catch (Exception ex) {
-            assertTrue(ex instanceof ElasticsearchIllegalArgumentException);
+            assertTrue(ex instanceof IllegalArgumentException);
         }
     }
 

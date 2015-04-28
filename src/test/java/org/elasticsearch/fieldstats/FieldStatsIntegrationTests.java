@@ -19,7 +19,7 @@
 
 package org.elasticsearch.fieldstats;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
@@ -193,7 +193,7 @@ public class FieldStatsIntegrationTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareFieldStats().setFields("value").get();
             fail();
-        } catch (ElasticsearchIllegalStateException e){
+        } catch (IllegalStateException e){
             assertThat(e.getMessage(), containsString("trying to merge the field stats of field [value]"));
         }
 

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -130,7 +130,7 @@ public class RestSearchAction extends BaseRestHandler {
                 } else if ("AND".equals(defaultOperator)) {
                     queryBuilder.defaultOperator(QueryStringQueryBuilder.Operator.AND);
                 } else {
-                    throw new ElasticsearchIllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
+                    throw new IllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
                 }
             }
             if (searchSourceBuilder == null) {
@@ -179,7 +179,7 @@ public class RestSearchAction extends BaseRestHandler {
             int terminateAfter = request.paramAsInt("terminate_after",
                     SearchContext.DEFAULT_TERMINATE_AFTER);
             if (terminateAfter < 0) {
-                throw new ElasticsearchIllegalArgumentException("terminateAfter must be > 0");
+                throw new IllegalArgumentException("terminateAfter must be > 0");
             } else if (terminateAfter > 0) {
                 searchSourceBuilder.terminateAfter(terminateAfter);
             }

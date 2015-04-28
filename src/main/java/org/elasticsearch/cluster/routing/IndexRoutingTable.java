@@ -25,7 +25,7 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.google.common.collect.UnmodifiableIterator;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
@@ -398,7 +398,7 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
          */
         private Builder initializeAsRestore(IndexMetaData indexMetaData, RestoreSource restoreSource, IntSet ignoreShards, boolean asNew) {
             if (!shards.isEmpty()) {
-                throw new ElasticsearchIllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
+                throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
             for (int shardId = 0; shardId < indexMetaData.numberOfShards(); shardId++) {
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(new ShardId(indexMetaData.index(), shardId), asNew ? false : true);
@@ -420,7 +420,7 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
          */
         private Builder initializeEmpty(IndexMetaData indexMetaData, boolean asNew) {
             if (!shards.isEmpty()) {
-                throw new ElasticsearchIllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
+                throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
             for (int shardId = 0; shardId < indexMetaData.numberOfShards(); shardId++) {
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(new ShardId(indexMetaData.index(), shardId), asNew ? false : true);

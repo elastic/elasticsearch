@@ -21,7 +21,7 @@ package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -159,7 +159,7 @@ public class ScriptModes {
         }
         ScriptMode scriptMode = scriptModes.get(ENGINE_SETTINGS_PREFIX + "." + lang + "." + scriptType + "." + scriptContext.getKey());
         if (scriptMode == null) {
-            throw new ElasticsearchIllegalArgumentException("script mode not found for lang [" + lang + "], script_type [" + scriptType + "], operation [" + scriptContext.getKey() + "]");
+            throw new IllegalArgumentException("script mode not found for lang [" + lang + "], script_type [" + scriptType + "], operation [" + scriptContext.getKey() + "]");
         }
         return scriptMode;
     }

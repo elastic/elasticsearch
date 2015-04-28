@@ -21,7 +21,7 @@ package org.elasticsearch.index.query.functionscore;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -428,16 +428,16 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             super(CombineFunction.MULT);
             this.mode = mode;
             if (userSuppiedScale <= 0.0) {
-                throw new ElasticsearchIllegalArgumentException(FunctionScoreQueryParser.NAME + " : scale must be > 0.0.");
+                throw new IllegalArgumentException(FunctionScoreQueryParser.NAME + " : scale must be > 0.0.");
             }
             if (decay <= 0.0 || decay >= 1.0) {
-                throw new ElasticsearchIllegalArgumentException(FunctionScoreQueryParser.NAME
+                throw new IllegalArgumentException(FunctionScoreQueryParser.NAME
                         + " : decay must be in the range [0..1].");
             }
             this.scale = func.processScale(userSuppiedScale, decay);
             this.func = func;
             if (offset < 0.0d) {
-                throw new ElasticsearchIllegalArgumentException(FunctionScoreQueryParser.NAME + " : offset must be > 0.0");
+                throw new IllegalArgumentException(FunctionScoreQueryParser.NAME + " : offset must be > 0.0");
             }
             this.offset = offset;
         }

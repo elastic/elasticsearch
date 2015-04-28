@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.suggest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -64,7 +64,7 @@ public class RestSuggestAction extends BaseRestHandler {
         if (RestActions.hasBodyContent(request)) {
             suggestRequest.suggest(RestActions.getRestContent(request));
         } else {
-            throw new ElasticsearchIllegalArgumentException("no content or source provided to execute suggestion");
+            throw new IllegalArgumentException("no content or source provided to execute suggestion");
         }
         suggestRequest.routing(request.param("routing"));
         suggestRequest.preference(request.param("preference"));

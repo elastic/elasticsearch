@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.indices.get;
 import com.google.common.collect.ImmutableList;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.support.ActionFilters;
@@ -112,7 +112,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                     break;
 
                 default:
-                    throw new ElasticsearchIllegalStateException("feature [" + feature + "] is not valid");
+                    throw new IllegalStateException("feature [" + feature + "] is not valid");
             }
         }
         listener.onResponse(new GetIndexResponse(concreteIndices, warmersResult, mappingsResult, aliasesResult, settings));

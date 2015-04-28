@@ -19,7 +19,7 @@
 package org.elasticsearch.indices.analyze;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
@@ -80,13 +80,13 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
         try {
             client().admin().indices().prepareAnalyze(indexOrAlias(), "123").setField("long").get();
             fail("shouldn't get here");
-        } catch (ElasticsearchIllegalArgumentException ex) {
+        } catch (IllegalArgumentException ex) {
             //all good
         }
         try {
             client().admin().indices().prepareAnalyze(indexOrAlias(), "123.0").setField("double").get();
             fail("shouldn't get here");
-        } catch (ElasticsearchIllegalArgumentException ex) {
+        } catch (IllegalArgumentException ex) {
             //all good
         }
     }
@@ -235,7 +235,7 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
             RestAnalyzeAction.buildFromContent(invalidContent, analyzeRequest);
             fail("shouldn't get here");
         } catch (Exception e) {
-            assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(e, instanceOf(IllegalArgumentException.class));
             assertThat(e.getMessage(), equalTo("Failed to parse request body"));
         }
     }
@@ -254,7 +254,7 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
             RestAnalyzeAction.buildFromContent(invalidContent, analyzeRequest);
             fail("shouldn't get here");
         } catch (Exception e) {
-            assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(e, instanceOf(IllegalArgumentException.class));
             assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
         }
     }

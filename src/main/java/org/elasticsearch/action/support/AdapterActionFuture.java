@@ -20,7 +20,7 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -44,7 +44,7 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
         try {
             return get();
         } catch (InterruptedException e) {
-            throw new ElasticsearchIllegalStateException("Future got interrupted", e);
+            throw new IllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
             throw rethrowExecutionException(e);
         }
@@ -72,20 +72,24 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
         } catch (TimeoutException e) {
             throw new ElasticsearchTimeoutException(e.getMessage());
         } catch (InterruptedException e) {
-            throw new ElasticsearchIllegalStateException("Future got interrupted", e);
+            throw new IllegalStateException("Future got interrupted", e);
         } catch (ExecutionException e) {
             throw rethrowExecutionException(e);
         }
     }
 
-    static ElasticsearchException rethrowExecutionException(ExecutionException e) {
+    static RuntimeException rethrowExecutionException(ExecutionException e) {
         if (e.getCause() instanceof ElasticsearchException) {
             ElasticsearchException esEx = (ElasticsearchException) e.getCause();
             Throwable root = esEx.unwrapCause();
             if (root instanceof ElasticsearchException) {
                 return (ElasticsearchException) root;
+            } else if (root instanceof RuntimeException) {
+                return (RuntimeException) root;
             }
             return new UncategorizedExecutionException("Failed execution", root);
+        } else if (e.getCause() instanceof RuntimeException) {
+            return (RuntimeException) e.getCause();
         } else {
             return new UncategorizedExecutionException("Failed execution", e);
         }

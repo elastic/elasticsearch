@@ -24,7 +24,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -279,7 +279,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
          * keep it synced.
          */
         if (closed.get()) {
-            throw new ElasticsearchIllegalStateException("Can't create shard [" + index.name() + "][" + sShardId + "], closed");
+            throw new IllegalStateException("Can't create shard [" + index.name() + "][" + sShardId + "], closed");
         }
         final ShardId shardId = new ShardId(index, sShardId);
         ShardLock lock = null;

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
@@ -115,7 +115,7 @@ public class AggregatorFactories {
 
         public Builder add(AggregatorFactory factory) {
             if (!names.add(factory.name)) {
-                throw new ElasticsearchIllegalArgumentException("Two sibling aggregations cannot have the same name: [" + factory.name + "]");
+                throw new IllegalArgumentException("Two sibling aggregations cannot have the same name: [" + factory.name + "]");
             }
             factories.add(factory);
             return this;

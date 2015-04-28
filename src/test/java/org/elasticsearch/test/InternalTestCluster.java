@@ -38,7 +38,7 @@ import com.google.common.util.concurrent.SettableFuture;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -132,7 +132,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static junit.framework.Assert.fail;
 import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
-import static org.apache.lucene.util.LuceneTestCase.random;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.apache.lucene.util.LuceneTestCase.usually;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -365,7 +364,7 @@ public final class InternalTestCluster extends TestCluster {
         Settings settings = settingsSource.node(nodeOrdinal);
         if (settings != null) {
             if (settings.get(ClusterName.SETTING) != null) {
-                throw new ElasticsearchIllegalStateException("Tests must not set a '" + ClusterName.SETTING + "' as a node setting set '" + ClusterName.SETTING + "': [" + settings.get(ClusterName.SETTING) + "]");
+                throw new IllegalStateException("Tests must not set a '" + ClusterName.SETTING + "' as a node setting set '" + ClusterName.SETTING + "': [" + settings.get(ClusterName.SETTING) + "]");
             }
             builder.put(settings);
         }

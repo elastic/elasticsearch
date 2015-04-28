@@ -26,7 +26,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import org.apache.lucene.search.DocIdSet;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -87,7 +87,7 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
             }
             final int concurrencyLevel = settings.getAsInt(INDICES_CACHE_FILTER_CONCURRENCY_LEVEL, IndicesFilterCache.this.concurrencyLevel);
             if (concurrencyLevel <= 0) {
-                throw new ElasticsearchIllegalArgumentException("concurrency_level must be > 0 but was: " + concurrencyLevel);
+                throw new IllegalArgumentException("concurrency_level must be > 0 but was: " + concurrencyLevel);
             }
             if (!Objects.equal(concurrencyLevel, IndicesFilterCache.this.concurrencyLevel)) {
                 logger.info("updating [{}] from [{}] to [{}]",
@@ -112,13 +112,13 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
         this.expire = settings.getAsTime(INDICES_CACHE_FILTER_EXPIRE, null);
         this.minimumEntryWeight = settings.getAsInt(INDICES_CACHE_FILTER_MINIMUM_ENTRY_WEIGHT, 1024); // 1k per entry minimum
         if (minimumEntryWeight <= 0) {
-            throw new ElasticsearchIllegalArgumentException("minimum_entry_weight must be > 0 but was: " + minimumEntryWeight);
+            throw new IllegalArgumentException("minimum_entry_weight must be > 0 but was: " + minimumEntryWeight);
         }
         this.cleanInterval = settings.getAsTime(INDICES_CACHE_FILTER_CLEAN_INTERVAL, TimeValue.timeValueSeconds(60));
         // defaults to 4, but this is a busy map for all indices, increase it a bit
         this.concurrencyLevel =  settings.getAsInt(INDICES_CACHE_FILTER_CONCURRENCY_LEVEL, 16);
         if (concurrencyLevel <= 0) {
-            throw new ElasticsearchIllegalArgumentException("concurrency_level must be > 0 but was: " + concurrencyLevel);
+            throw new IllegalArgumentException("concurrency_level must be > 0 but was: " + concurrencyLevel);
         }
         computeSizeInBytes();
         buildCache();

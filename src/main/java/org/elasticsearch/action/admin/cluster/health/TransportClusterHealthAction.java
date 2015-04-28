@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -141,7 +141,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
 
             @Override
             public void onClusterServiceClose() {
-                listener.onFailure(new ElasticsearchIllegalStateException("ClusterService was close during health call"));
+                listener.onFailure(new IllegalStateException("ClusterService was close during health call"));
             }
 
             @Override

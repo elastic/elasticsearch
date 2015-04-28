@@ -24,7 +24,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -53,7 +53,7 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData {
             final Bits docsWithField = DocValues.getDocsWithField(reader, field);
             return FieldData.singleton(values, docsWithField);
         } catch (IOException e) {
-            throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
+            throw new IllegalStateException("Cannot load doc values", e);
         }
     }
 

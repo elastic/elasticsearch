@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.ContextHolder;
 import org.elasticsearch.common.Nullable;
@@ -97,7 +97,7 @@ public abstract class RestRequest extends ContextHolder implements ToXContent.Pa
         try {
             return Float.parseFloat(sValue);
         } catch (NumberFormatException e) {
-            throw new ElasticsearchIllegalArgumentException("Failed to parse float parameter [" + key + "] with value [" + sValue + "]", e);
+            throw new IllegalArgumentException("Failed to parse float parameter [" + key + "] with value [" + sValue + "]", e);
         }
     }
 
@@ -109,7 +109,7 @@ public abstract class RestRequest extends ContextHolder implements ToXContent.Pa
         try {
             return Integer.parseInt(sValue);
         } catch (NumberFormatException e) {
-            throw new ElasticsearchIllegalArgumentException("Failed to parse int parameter [" + key + "] with value [" + sValue + "]", e);
+            throw new IllegalArgumentException("Failed to parse int parameter [" + key + "] with value [" + sValue + "]", e);
         }
     }
 
@@ -121,7 +121,7 @@ public abstract class RestRequest extends ContextHolder implements ToXContent.Pa
         try {
             return Long.parseLong(sValue);
         } catch (NumberFormatException e) {
-            throw new ElasticsearchIllegalArgumentException("Failed to parse int parameter [" + key + "] with value [" + sValue + "]", e);
+            throw new IllegalArgumentException("Failed to parse int parameter [" + key + "] with value [" + sValue + "]", e);
         }
     }
 

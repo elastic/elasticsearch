@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.geobounds;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -123,7 +123,7 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
             case "right":
                 return boundingBox.bottomRight.lon();
             default:
-                throw new ElasticsearchIllegalArgumentException("Found unknown path element [" + bBoxSide + "] in [" + getName() + "]");
+                throw new IllegalArgumentException("Found unknown path element [" + bBoxSide + "] in [" + getName() + "]");
             }
         } else if (path.size() == 2) {
             BoundingBox boundingBox = resolveBoundingBox();
@@ -137,7 +137,7 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
                 cornerPoint = boundingBox.bottomRight;
                 break;
             default:
-                throw new ElasticsearchIllegalArgumentException("Found unknown path element [" + cornerString + "] in [" + getName() + "]");
+                throw new IllegalArgumentException("Found unknown path element [" + cornerString + "] in [" + getName() + "]");
             }
             String latLonString = path.get(1);
             switch (latLonString) {
@@ -146,10 +146,10 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
             case "lon":
                 return cornerPoint.lon();
             default:
-                throw new ElasticsearchIllegalArgumentException("Found unknown path element [" + latLonString + "] in [" + getName() + "]");
+                throw new IllegalArgumentException("Found unknown path element [" + latLonString + "] in [" + getName() + "]");
             }
         } else {
-            throw new ElasticsearchIllegalArgumentException("path not supported for [" + getName() + "]: " + path);
+            throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
     }
 

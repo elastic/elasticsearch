@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.breaker;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 
 import java.util.Locale;
 
@@ -50,7 +50,7 @@ public interface CircuitBreaker {
                 case "memory":
                     return Type.MEMORY;
                 default:
-                    throw new ElasticsearchIllegalArgumentException("No CircuitBreaker with type: " + value);
+                    throw new IllegalArgumentException("No CircuitBreaker with type: " + value);
             }
         }
     }

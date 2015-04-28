@@ -26,7 +26,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.QueryWrapperFilter;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.LocaleUtils;
@@ -110,7 +110,7 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         try {
             LocaleUtils.parse("de_DE_DE_DE");
             fail();
-        } catch(ElasticsearchIllegalArgumentException ex) {
+        } catch(IllegalArgumentException ex) {
             // expected
         }
         assertThat(Locale.ROOT,  equalTo(LocaleUtils.parse("")));

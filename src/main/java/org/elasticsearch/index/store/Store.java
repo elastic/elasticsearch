@@ -27,7 +27,7 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.*;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -532,7 +532,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @param reason         the reason for this cleanup operation logged for each deleted file
      * @param sourceMetaData the metadata used for cleanup. all files in this metadata should be kept around.
      * @throws IOException                        if an IOException occurs
-     * @throws ElasticsearchIllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
+     * @throws IllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
      */
     public void cleanupAndVerify(String reason, MetadataSnapshot sourceMetaData) throws IOException {
         metadataLock.writeLock().lock();
@@ -553,7 +553,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                         || existingFile.equals(IndexFileNames.OLD_SEGMENTS_GEN)) {
                         // TODO do we need to also fail this if we can't delete the pending commit file?
                         // if one of those files can't be deleted we better fail the cleanup otherwise we might leave an old commit point around?
-                        throw new ElasticsearchIllegalStateException("Can't delete " + existingFile + " - cleanup failed", ex);
+                        throw new IllegalStateException("Can't delete " + existingFile + " - cleanup failed", ex);
                     }
                     logger.debug("failed to delete file [{}]", ex, existingFile);
                     // ignore, we don't really care, will get deleted later on
@@ -592,12 +592,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     final boolean consistent = hashAndLengthEqual || same;
                     if (consistent == false) {
                         logger.debug("Files are different on the recovery target: {} ", recoveryDiff);
-                        throw new ElasticsearchIllegalStateException("local version: " + local + " is different from remote version after recovery: " + remote, null);
+                        throw new IllegalStateException("local version: " + local + " is different from remote version after recovery: " + remote, null);
                     }
                 }
             } else {
                 logger.debug("Files are missing on the recovery target: {} ", recoveryDiff);
-                throw new ElasticsearchIllegalStateException("Files are missing on the recovery target: [different="
+                throw new IllegalStateException("Files are missing on the recovery target: [different="
                         + recoveryDiff.different + ", missing=" + recoveryDiff.missing + ']', null);
             }
         }

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.indices;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
@@ -774,7 +774,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         assertAcked(client().admin().indices().prepareOpen("_all").get());
         try {
             verify(client().admin().indices().prepareUpdateSettings("barbaz").setSettings(ImmutableSettings.builder().put("e", "f")), false);
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Can't update non dynamic settings[[index.e]] for open indices[[barbaz]]"));
         }
         verify(client().admin().indices().prepareUpdateSettings("baz*").setSettings(ImmutableSettings.builder().put("a", "b")), true);

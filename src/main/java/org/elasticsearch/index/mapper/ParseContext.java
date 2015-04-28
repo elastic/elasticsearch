@@ -27,8 +27,8 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalArgumentException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.all.AllEntries;
@@ -110,7 +110,7 @@ public abstract class ParseContext {
             if (keyedFields == null) {
                 keyedFields = new ObjectObjectOpenHashMap<>();
             } else if (keyedFields.containsKey(key)) {
-                throw new ElasticsearchIllegalStateException("Only one field can be stored per key");
+                throw new IllegalStateException("Only one field can be stored per key");
             }
             keyedFields.put(key, field);
             add(field);
@@ -790,7 +790,7 @@ public abstract class ParseContext {
     }
 
     public Object externalValue() {
-        throw new ElasticsearchIllegalStateException("External value is not set");
+        throw new IllegalStateException("External value is not set");
     }
 
     /**
@@ -804,7 +804,7 @@ public abstract class ParseContext {
         }
 
         if (!clazz.isInstance(externalValue())) {
-            throw new ElasticsearchIllegalArgumentException("illegal external value class ["
+            throw new IllegalArgumentException("illegal external value class ["
                     + externalValue().getClass().getName() + "]. Should be " + clazz.getName());
         }
         return clazz.cast(externalValue());

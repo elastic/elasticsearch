@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 
 /**
  *
@@ -108,7 +108,7 @@ public enum ThreadingModel {
         } else if (id == 3) {
             return OPERATION_LISTENER;
         } else {
-            throw new ElasticsearchIllegalArgumentException("No threading model for [" + id + "]");
+            throw new IllegalArgumentException("No threading model for [" + id + "]");
         }
     }
 }

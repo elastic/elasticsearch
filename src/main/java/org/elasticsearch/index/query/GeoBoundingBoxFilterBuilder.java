@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -167,13 +167,13 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         // check values
         if(Double.isNaN(box[TOP])) {
-            throw new ElasticsearchIllegalArgumentException("geo_bounding_box requires top latitude to be set");
+            throw new IllegalArgumentException("geo_bounding_box requires top latitude to be set");
         } else if(Double.isNaN(box[BOTTOM])) {
-            throw new ElasticsearchIllegalArgumentException("geo_bounding_box requires bottom latitude to be set");
+            throw new IllegalArgumentException("geo_bounding_box requires bottom latitude to be set");
         } else if(Double.isNaN(box[RIGHT])) {
-            throw new ElasticsearchIllegalArgumentException("geo_bounding_box requires right longitude to be set");
+            throw new IllegalArgumentException("geo_bounding_box requires right longitude to be set");
         } else if(Double.isNaN(box[LEFT])) {
-            throw new ElasticsearchIllegalArgumentException("geo_bounding_box requires left longitude to be set");
+            throw new IllegalArgumentException("geo_bounding_box requires left longitude to be set");
         }
                 
         builder.startObject(GeoBoundingBoxFilterParser.NAME);

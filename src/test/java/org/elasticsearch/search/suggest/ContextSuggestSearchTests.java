@@ -20,15 +20,13 @@ package org.elasticsearch.search.suggest;
 
 import com.google.common.collect.Sets;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -602,7 +600,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         try {
             index(INDEX, "service", "2", jsonBuilder().startObject().startObject("suggest").field("input", "backback").endObject().endObject());
             fail("index operation was not supposed to be successful");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("one or more prefixes needed"));
         }
     }

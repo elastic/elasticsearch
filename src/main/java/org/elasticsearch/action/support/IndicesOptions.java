@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.common.Strings;
+import java.lang.IllegalArgumentException;
+
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestRequest;
@@ -121,7 +121,7 @@ public class IndicesOptions {
         //we just receive the old corresponding value with the new flag set to true (default)
         byte id = in.readByte();
         if (id >= VALUES.length) {
-            throw new ElasticsearchIllegalArgumentException("No valid missing index type id: " + id);
+            throw new IllegalArgumentException("No valid missing index type id: " + id);
         }
         return VALUES[id];
     }
@@ -179,7 +179,7 @@ public class IndicesOptions {
                     expandWildcardsOpen = true;
                     expandWildcardsClosed = true;
                 } else {
-                    throw new ElasticsearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
+                    throw new IllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
                 }
             }
         }

@@ -26,7 +26,7 @@ import org.apache.lucene.search.DiversifiedTopDocsCollector.ScoreDocKey;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -110,7 +110,7 @@ public class DiversifiedMapSamplerAggregator extends SamplerAggregator {
                         values.setDocument(doc);
                         final int valuesCount = values.count();
                         if (valuesCount > 1) {
-                            throw new ElasticsearchIllegalArgumentException("Sample diversifying key must be a single valued-field");
+                            throw new IllegalArgumentException("Sample diversifying key must be a single valued-field");
                         }
                         if (valuesCount == 1) {
                             final BytesRef bytes = values.valueAt(0);

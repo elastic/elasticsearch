@@ -21,7 +21,7 @@ package org.elasticsearch.bwcompat;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.util.English;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
@@ -393,7 +393,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
                     setSettings(ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings()))
                     .addMapping("type", mapping));
         } catch (MapperParsingException ex) {
-            assertThat(ex.getCause(), instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(ExceptionsHelper.detailedMessage(ex).contains("type=_field_names is not supported on indices created before version 1.3.0"), equalTo(true));
         }
 

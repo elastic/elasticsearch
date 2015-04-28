@@ -19,7 +19,7 @@
 
 package org.elasticsearch.indices.breaker;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -164,9 +164,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     /**
      * Validate that child settings are valid
-     * @throws ElasticsearchIllegalStateException
+     * @throws IllegalStateException
      */
-    public static void validateSettings(BreakerSettings[] childrenSettings) throws ElasticsearchIllegalStateException {
+    public static void validateSettings(BreakerSettings[] childrenSettings) throws IllegalStateException {
         for (BreakerSettings childSettings : childrenSettings) {
             // If the child is disabled, ignore it
             if (childSettings.getLimit() == -1) {
@@ -174,7 +174,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             }
 
             if (childSettings.getOverhead() < 0) {
-                throw new ElasticsearchIllegalStateException("Child breaker overhead " + childSettings + " must be non-negative");
+                throw new IllegalStateException("Child breaker overhead " + childSettings + " must be non-negative");
             }
         }
     }

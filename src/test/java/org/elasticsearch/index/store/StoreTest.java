@@ -44,6 +44,7 @@ import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
@@ -1098,15 +1099,7 @@ public class StoreTest extends ElasticsearchTestCase {
     @Test
     public void testMetadataSnapshotStreaming() throws Exception {
 
-        StoreFileMetaData storeFileMetaData1 = new StoreFileMetaData("segments", 1);
-        StoreFileMetaData storeFileMetaData2 = new StoreFileMetaData("no_segments", 1);
-        Map<String, StoreFileMetaData> storeFileMetaDataMap = new HashMap<>();
-        storeFileMetaDataMap.put(storeFileMetaData1.name(), storeFileMetaData1);
-        storeFileMetaDataMap.put(storeFileMetaData2.name(), storeFileMetaData2);
-        Map<String, String> commitUserData = new HashMap<>();
-        commitUserData.put("userdata_1", "test");
-        commitUserData.put("userdata_2", "test");
-        Store.MetadataSnapshot outMetadataSnapshot = new Store.MetadataSnapshot(storeFileMetaDataMap, commitUserData);
+        Store.MetadataSnapshot outMetadataSnapshot = createMetaDataSnapshot();
         org.elasticsearch.Version targetNodeVersion = randomVersion(random());
 
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
@@ -1124,6 +1117,18 @@ public class StoreTest extends ElasticsearchTestCase {
         }
         assertThat(origEntries.size(), equalTo(0));
         assertThat(inMetadataSnapshot.getCommitUserData(), equalTo(outMetadataSnapshot.getCommitUserData()));
+    }
+
+    protected Store.MetadataSnapshot createMetaDataSnapshot() {
+        StoreFileMetaData storeFileMetaData1 = new StoreFileMetaData("segments", 1);
+        StoreFileMetaData storeFileMetaData2 = new StoreFileMetaData("no_segments", 1);
+        Map<String, StoreFileMetaData> storeFileMetaDataMap = new HashMap<>();
+        storeFileMetaDataMap.put(storeFileMetaData1.name(), storeFileMetaData1);
+        storeFileMetaDataMap.put(storeFileMetaData2.name(), storeFileMetaData2);
+        Map<String, String> commitUserData = new HashMap<>();
+        commitUserData.put("userdata_1", "test");
+        commitUserData.put("userdata_2", "test");
+        return new Store.MetadataSnapshot(storeFileMetaDataMap, commitUserData);
     }
 
     @Test
@@ -1159,5 +1164,25 @@ public class StoreTest extends ElasticsearchTestCase {
         TestUtil.checkIndex(store.directory());
         assertDeleteContent(store, directoryService);
         IOUtils.close(store);
+    }
+
+    @Test
+    public void testStreamStoreFilesMetaData() throws Exception {
+        Store.MetadataSnapshot metadataSnapshot = createMetaDataSnapshot();
+        TransportNodesListShardStoreMetaData.StoreFilesMetaData outStoreFileMetaData = new TransportNodesListShardStoreMetaData.StoreFilesMetaData(randomBoolean(), new ShardId("test", 0),metadataSnapshot);
+        ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+        OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+        org.elasticsearch.Version targetNodeVersion = randomVersion(random());
+        out.setVersion(targetNodeVersion);
+        outStoreFileMetaData.writeTo(out);
+        ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
+        InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
+        in.setVersion(targetNodeVersion);
+        TransportNodesListShardStoreMetaData.StoreFilesMetaData inStoreFileMetaData = TransportNodesListShardStoreMetaData.StoreFilesMetaData.readStoreFilesMetaData(in);
+        Iterator<StoreFileMetaData> outFiles = outStoreFileMetaData.iterator();
+        for (StoreFileMetaData inFile : inStoreFileMetaData) {
+            assertThat(inFile.name(), equalTo(outFiles.next().name()));
+        }
+        assertThat(outStoreFileMetaData.syncId(), equalTo(inStoreFileMetaData.syncId()));
     }
 }

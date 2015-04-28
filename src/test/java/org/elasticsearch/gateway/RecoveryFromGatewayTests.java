@@ -351,6 +351,7 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow
+    @TestLogging("gateway:TRACE")
     public void testReusePeerRecovery() throws Exception {
         final Settings settings = settingsBuilder()
                 .put("action.admin.cluster.node.shutdown.delay", "10ms")
@@ -427,7 +428,7 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
                     recovered += file.length();
                 }
             }
-            if (!recoveryState.getPrimary() && useSyncIds == false) {
+            if (!recoveryState.getPrimary() && (useSyncIds == false)) {
                 logger.info("--> replica shard {} recovered from {} to {}, recovered {}, reuse {}",
                         response.getShardId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
                         recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());

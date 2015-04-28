@@ -59,7 +59,6 @@ public class Bootstrap {
     private static Bootstrap bootstrap;
 
     private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {
-        setupSecurity(settings, environment);
         if (settings.getAsBoolean("bootstrap.mlockall", false)) {
             Natives.tryMlockall();
         }
@@ -90,6 +89,8 @@ public class Bootstrap {
                 }
             });
         }
+        // install SM after natives, JNA can require strange permissions
+        setupSecurity(settings, environment);
     }
     
     /** 

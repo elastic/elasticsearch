@@ -5,7 +5,7 @@
           wait_for_status: green
 
   - do:
-      put_watch:
+      watcher.put:
         id: "my_watch"
         body:  > 
           {

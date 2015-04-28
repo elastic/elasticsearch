@@ -1,10 +1,10 @@
 {
-  "execute_watch": {
-    "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-execute-watch.html",
+  "watcher.put": {
+    "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-put-watch.html",
     "methods": [ "PUT", "POST" ],
     "url": {
-      "path": "/_watcher/watch/{id}/_execute",
-      "paths": [ "/_watcher/watch/{id}/_execute" ],
+      "path": "/_watcher/watch/{id}",
+      "paths": [ "/_watcher/watch/{id}" ],
       "parts": {
         "id": {
           "type" : "string",
@@ -21,8 +21,8 @@
       }
     },
     "body": {
-      "description" : "Execution control",
-      "required" : false
+      "description" : "The watch",
+      "required" : true
     }    
   }
 }

@@ -5,7 +5,7 @@
           wait_for_status: green
 
   - do:
-      put_watch:
+      watcher.put:
         id: "my_logging_watch"
         body:  > 
           {
@@ -53,7 +53,7 @@
   - match: { _id: "my_logging_watch" }
 
   - do:
-      execute_watch:
+      watcher.execute:
         id: "my_logging_watch"
         body: null
 

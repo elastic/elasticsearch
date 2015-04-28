@@ -1,5 +1,5 @@
 {
-  "ack_watch": {
+  "watcher.ack": {
     "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-ack-watch.html",
     "methods": [ "PUT", "POST" ],
     "url": {
@@ -13,11 +13,6 @@
         }
       },
       "params": {
-        "pretty": {
-          "type": "boolean",
-          "description": "Pretty the output",
-          "default": false
-        }
       }
     },
     "body": null

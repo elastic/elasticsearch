@@ -1,5 +1,5 @@
 {
-  "watcher_info": {
+  "watcher.info": {
     "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-info.html",
     "methods": [ "GET" ],
     "url": {

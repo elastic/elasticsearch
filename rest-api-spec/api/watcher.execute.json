@@ -1,0 +1,23 @@
+{
+  "watcher.execute": {
+    "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-execute-watch.html",
+    "methods": [ "PUT", "POST" ],
+    "url": {
+      "path": "/_watcher/watch/{id}/_execute",
+      "paths": [ "/_watcher/watch/{id}/_execute" ],
+      "parts": {
+        "id": {
+          "type" : "string",
+          "description" : "Watch ID",
+          "required" : true
+        }
+      },
+      "params": {
+      }
+    },
+    "body": {
+      "description" : "Execution control",
+      "required" : false
+    }    
+  }
+}

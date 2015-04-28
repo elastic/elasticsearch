@@ -1,7 +1,5 @@
 ---
 "Test watcher stats output":
 
-  - do:
-      watcher_stats:
-        pretty: true
+  - do: {watcher.stats: {}}
   - match: { "watch_service_state": "started" }

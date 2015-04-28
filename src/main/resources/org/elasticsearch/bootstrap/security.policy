@@ -95,8 +95,6 @@ grant {
   permission java.lang.RuntimePermission "accessClassInPackage.sun.nio.ch";
   // needed by groovy engine
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
-  // needed to get file descriptor statistics
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.management";
 
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.RuntimePermission "getStackTrace";

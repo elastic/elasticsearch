@@ -322,8 +322,9 @@ All of the index level configuration can be found within each
 Elasticsearch uses an internal logging abstraction and comes, out of the
 box, with http://logging.apache.org/log4j/1.2/[log4j]. It tries to simplify
 log4j configuration by using http://www.yaml.org/[YAML] to configure it,
-and the logging configuration file is `config/logging.yml`. The
-http://en.wikipedia.org/wiki/JSON[JSON] and
+and the logging configuration file is `config/logging.yml`. The location
+of the configuration file can be customized through the `path.conf.logging`
+configuration parameter. The http://en.wikipedia.org/wiki/JSON[JSON] and
 http://en.wikipedia.org/wiki/.properties[properties] formats are also
 supported. Multiple configuration files can be loaded, in which case they will
 get merged, as long as they start with the `logging.` prefix and end with one
@@ -337,20 +338,6 @@ the http://logging.apache.org/log4j/1.2/manual.html[log4j documentation].
 Additional Appenders and other logging classes provided by 
 http://logging.apache.org/log4j/extras/[log4j-extras] are also available, 
 out of the box.
-
-Optionally, the location of the configuration file can be set externally using
-a system property, for example:
-
-[source,sh]
---------------------------------------------------
-$ elasticsearch -Des.logging=/abs/path/to/logging/file.yml
---------------------------------------------------
-
-or
-
-[source,sh]
---------------------------------------------------
-$ elasticsearch -Des.logging=log_config_file_in_classpath.yml
 
 [float]
 [[deprecation-logging]]

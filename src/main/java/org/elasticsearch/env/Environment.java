@@ -54,6 +54,8 @@ public class Environment {
 
     private final Path configFile;
 
+    private final Path loggingFile;
+
     private final Path pluginsFile;
 
     private final Path logsFile;
@@ -92,6 +94,12 @@ public class Environment {
             configFile = PathUtils.get(cleanPath(settings.get("path.conf")));
         } else {
             configFile = homeFile.resolve("config");
+        }
+
+        if (settings.get("path.conf.logging") != null) {
+            loggingFile = PathUtils.get(cleanPath(settings.get("path.conf.logging")));
+        } else {
+            loggingFile = configFile;
         }
 
         if (settings.get("path.plugins") != null) {
@@ -183,6 +191,13 @@ public class Environment {
      */
     public Path configFile() {
         return configFile;
+    }
+
+    /**
+     * The logging config location.
+     */
+    public Path loggingFile() {
+        return loggingFile;
     }
 
     public Path pluginsFile() {

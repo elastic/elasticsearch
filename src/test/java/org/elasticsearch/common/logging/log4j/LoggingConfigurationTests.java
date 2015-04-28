@@ -21,10 +21,10 @@ package org.elasticsearch.common.logging.log4j;
 
 import org.apache.log4j.Appender;
 import org.apache.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.FailedToResolveConfigException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
 import org.junit.Test;
@@ -152,7 +152,7 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testResolveLoggingDirFromSystemProperty() throws Exception {
+    public void testResolvePathConfLoggingDir() throws Exception {
         Path tempDir = createTempDir();
         Path customLogConfig1 = tempDir.resolve(LoggingConfigurationTests.loggingConfiguration("yml"));
         Files.write(customLogConfig1, "action: WARN".getBytes(StandardCharsets.UTF_8));
@@ -168,25 +168,22 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
             Path ignoredLogConfig = tempDir.resolve("logging.unknown");
             Files.write(ignoredLogConfig, "invalid: TRACE".getBytes(StandardCharsets.UTF_8));
         }
+        
+        Environment environment = new Environment(Settings.builder()
+                .put("path.home", createTempDir().toString())
+                .put("path.conf.logging", tempDir.toString()).build());
+        Settings.Builder builder = Settings.builder();
+        LogConfigurator.resolveConfig(environment, builder);
 
-        try {
-            System.setProperty(LogConfigurator.ES_LOGGING_SYSPROP, tempDir.toString());
-            Environment environment = new Environment(Settings.EMPTY);
-            Settings.Builder builder = Settings.builder();
-            LogConfigurator.resolveConfig(environment, builder);
-
-            Settings logSettings = builder.build();
-            assertThat(logSettings.names().size(), equalTo(2));
-            assertThat(logSettings.get("action"), is("WARN"));
-            assertThat(logSettings.get("transport"), is("TRACE"));
-            assertThat(logSettings.get("invalid"), nullValue());
-        } finally {
-            System.clearProperty(LogConfigurator.ES_LOGGING_SYSPROP);
-        }
+        Settings logSettings = builder.build();
+        assertThat(logSettings.names().size(), equalTo(2));
+        assertThat(logSettings.get("action"), is("WARN"));
+        assertThat(logSettings.get("transport"), is("TRACE"));
+        assertThat(logSettings.get("invalid"), nullValue());
     }
 
     @Test
-    public void testResolveLoggingFileFromSystemProperty() throws Exception {
+    public void testResolvePathConfLoggingFile() throws Exception {
         Path tempDir = createTempDir();
         Path customLogConfig = tempDir.resolve(LoggingConfigurationTests.loggingConfiguration("yml"));
         Files.write(customLogConfig, "action: WARN".getBytes(StandardCharsets.UTF_8));
@@ -196,30 +193,24 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
             Files.write(ignoredLogConfig, "transport: TRACE".getBytes(StandardCharsets.UTF_8));
         }
 
-        try {
-            System.setProperty(LogConfigurator.ES_LOGGING_SYSPROP, customLogConfig.toString());
-            Environment environment = new Environment(Settings.EMPTY);
-            Settings.Builder builder = Settings.builder();
-            LogConfigurator.resolveConfig(environment, builder);
+        Environment environment = new Environment(Settings.builder()
+                .put("path.home", createTempDir().toString())
+                .put("path.conf.logging", customLogConfig.toString()).build());
+        Settings.Builder builder = Settings.builder();
+        LogConfigurator.resolveConfig(environment, builder);
 
-            Settings logSettings = builder.build();
-            assertThat(logSettings.names().size(), equalTo(1));
-            assertThat(logSettings.get("action"), is("WARN"));
-        } finally {
-            System.clearProperty(LogConfigurator.ES_LOGGING_SYSPROP);
-        }
+        Settings logSettings = builder.build();
+        assertThat(logSettings.names().size(), equalTo(1));
+        assertThat(logSettings.get("action"), is("WARN"));
     }
 
-    @Test(expected = FailedToResolveConfigException.class)
-    public void testResolveNonExistingLoggingFileFromSystemProperty() throws IOException {
-        try {
-            System.setProperty(LogConfigurator.ES_LOGGING_SYSPROP, "non_existing.yml");
-            Environment environment = new Environment(Settings.builder().build());
-            Settings.Builder builder = Settings.builder();
-            LogConfigurator.resolveConfig(environment, builder);
-        } finally {
-            System.clearProperty(LogConfigurator.ES_LOGGING_SYSPROP);
-        }
+    @Test(expected = ElasticsearchException.class)
+    public void testResolveNonExistingPathConfLoggingFile() throws IOException {
+        Environment environment = new Environment(Settings.builder()
+                .put("path.home", createTempDir().toString())
+                .put("path.conf.logging", "non_existing.yml").build());
+        Settings.Builder builder = Settings.builder();
+        LogConfigurator.resolveConfig(environment, builder);
     }
 
     private static String loggingConfiguration(String suffix) {

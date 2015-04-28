@@ -34,6 +34,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class SearchRequestBuilderTests extends ElasticsearchTestCase {
@@ -83,7 +84,7 @@ public class SearchRequestBuilderTests extends ElasticsearchTestCase {
         SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client);
         String query = "{ \"match_all\" : {} }";
         searchRequestBuilder.setQuery(query);
-        assertThat(searchRequestBuilder.toString(), equalTo("{\n  \"query\":{ \"match_all\" : {} }\n}"));
+        assertThat(searchRequestBuilder.toString(), containsString("\"query\":{ \"match_all\" : {} }"));
     }
 
     @Test

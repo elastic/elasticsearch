@@ -29,8 +29,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.util.HashSet;
-import java.util.Set;
 
 /** 
  * Initializes securitymanager with necessary permissions.
@@ -68,55 +66,42 @@ class Security {
             try (InputStream in = new BufferedInputStream(template)) {
                 ByteStreams.copy(in, output);
             }
-            
-            // add permissions for all configured paths.
-            Set<Path> paths = new HashSet<>();
-            paths.add(environment.homeFile());
-            paths.add(environment.configFile());
-            paths.add(environment.logsFile());
-            paths.add(environment.pluginsFile());
-            for (Path path : environment.dataFiles()) {
-                paths.add(path);
+
+            //  all policy files are UTF-8:
+            //  https://docs.oracle.com/javase/7/docs/technotes/guides/security/PolicyFiles.html
+            try (Writer writer = new OutputStreamWriter(output, StandardCharsets.UTF_8)) {
+                writer.write(System.lineSeparator());
+                writer.write("grant {");
+                writer.write(System.lineSeparator());
+
+                // add permissions for all configured paths.
+                // TODO: improve test infra so we can reduce permissions where read/write
+                // is not really needed...
+                addPath(writer, environment.homeFile(), "read,readlink,write,delete");
+                addPath(writer, environment.configFile(), "read,readlink,write,delete");
+                addPath(writer, environment.logsFile(), "read,readlink,write,delete");
+                addPath(writer, environment.pluginsFile(), "read,readlink,write,delete");
+                for (Path path : environment.dataFiles()) {
+                    addPath(writer, path, "read,readlink,write,delete");
+                }
+                for (Path path : environment.dataWithClusterFiles()) {
+                    addPath(writer, path, "read,readlink,write,delete");
+                }
+
+                writer.write("};");
+                writer.write(System.lineSeparator());
             }
-            for (Path path : environment.dataWithClusterFiles()) {
-                paths.add(path);
-            }
-            output.write(createPermissions(paths));
         }
         return processed;
     }
     
-    // package private for testing
-    static byte[] createPermissions(Set<Path> paths) throws IOException {
-        ByteArrayOutputStream stream = new ByteArrayOutputStream();
-        
-        // all policy files are UTF-8:
-        //  https://docs.oracle.com/javase/7/docs/technotes/guides/security/PolicyFiles.html
-        try (Writer writer = new OutputStreamWriter(stream, StandardCharsets.UTF_8)) {
-            writer.write(System.lineSeparator());
-            writer.write("grant {");
-            writer.write(System.lineSeparator());
-            for (Path path : paths) {
-                // data paths actually may not exist yet.
-                Files.createDirectories(path);
-                // add each path twice: once for itself, again for files underneath it
-                addPath(writer, encode(path), "read,readlink,write,delete");
-                addRecursivePath(writer, encode(path), "read,readlink,write,delete");
-            }
-            writer.write("};");
-            writer.write(System.lineSeparator());
-        }
-        
-        return stream.toByteArray();
-    }
-    
-    static void addPath(Writer writer, String path, String permissions) throws IOException {
-        writer.write("permission java.io.FilePermission \"" + path + "\", \"" + permissions + "\";");
+    static void addPath(Writer writer, Path path, String permissions) throws IOException {
+        // paths may not exist yet
+        Files.createDirectories(path);
+        // add each path twice: once for itself, again for files underneath it
+        writer.write("permission java.io.FilePermission \"" + encode(path) + "\", \"" + permissions + "\";");
         writer.write(System.lineSeparator());
-    }
-    
-    static void addRecursivePath(Writer writer, String path, String permissions) throws IOException {
-        writer.write("permission java.io.FilePermission \"" + path + "${/}-\", \"" + permissions + "\";");
+        writer.write("permission java.io.FilePermission \"" + encode(path) + "${/}-\", \"" + permissions + "\";");
         writer.write(System.lineSeparator());
     }
     
@@ -124,10 +109,6 @@ class Security {
     // See "Note Regarding File Path Specifications on Windows Systems".
     // https://docs.oracle.com/javase/7/docs/technotes/guides/security/PolicyFiles.html
     static String encode(Path path) {
-        return encode(path.toString());
-    }
-    
-    static String encode(String path) {
-        return path.replace("\\", "\\\\");
+        return path.toString().replace("\\", "\\\\");
     }
 }

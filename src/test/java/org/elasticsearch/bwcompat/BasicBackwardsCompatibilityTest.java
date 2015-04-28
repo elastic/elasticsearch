@@ -31,8 +31,6 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
-import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.get.*;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -476,36 +474,6 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     public Version getMasterVersion() {
         return client().admin().cluster().prepareState().get().getState().nodes().masterNode().getVersion();
-    }
-
-    @Test
-    public void testDeleteByQuery() throws ExecutionException, InterruptedException {
-        createIndex("test");
-        ensureYellow("test");
-
-        int numDocs = iterations(10, 50);
-        IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs + 1];
-        for (int i = 0; i < numDocs; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "test", Integer.toString(i)).setSource("field", "value");
-        }
-        indexRequestBuilders[numDocs] = client().prepareIndex("test", "test", Integer.toString(numDocs)).setSource("field", "other_value");
-        indexRandom(true, indexRequestBuilders);
-
-        SearchResponse searchResponse = client().prepareSearch("test").get();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs + 1));
-
-        DeleteByQueryResponse deleteByQueryResponse = client().prepareDeleteByQuery("test").setQuery(QueryBuilders.termQuery("field", "value")).get();
-        assertThat(deleteByQueryResponse.getIndices().size(), equalTo(1));
-        for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : deleteByQueryResponse) {
-            assertThat(indexDeleteByQueryResponse.getIndex(), equalTo("test"));
-            assertThat(indexDeleteByQueryResponse.getShardInfo().getFailures().length, equalTo(0));
-        }
-
-        refresh();
-        searchResponse = client().prepareSearch("test").get();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
 
     @Test

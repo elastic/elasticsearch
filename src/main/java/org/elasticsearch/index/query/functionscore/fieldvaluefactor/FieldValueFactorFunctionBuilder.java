@@ -33,6 +33,7 @@ import java.util.Locale;
 public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder {
     private String field = null;
     private Float factor = null;
+    private Double missing = null;
     private FieldValueFactorFunction.Modifier modifier = null;
 
     public FieldValueFactorFunctionBuilder(String fieldName) {
@@ -46,6 +47,14 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder {
 
     public FieldValueFactorFunctionBuilder factor(float boostFactor) {
         this.factor = boostFactor;
+        return this;
+    }
+
+    /**
+     * Value used instead of the field value for documents that don't have that field defined.
+     */
+    public FieldValueFactorFunctionBuilder missing(double missing) {
+        this.missing = missing;
         return this;
     }
 
@@ -63,6 +72,10 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder {
 
         if (factor != null) {
             builder.field("factor", factor);
+        }
+
+        if (missing != null) {
+            builder.field("missing", missing);
         }
 
         if (modifier != null) {

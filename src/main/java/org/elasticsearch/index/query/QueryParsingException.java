@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexException;
 import org.elasticsearch.rest.RestStatus;
@@ -37,16 +37,31 @@ public class QueryParsingException extends IndexException {
     private int lineNumber = UNKNOWN_POSITION;
     private int columnNumber = UNKNOWN_POSITION;
 
-    public QueryParsingException(Index index, String msg, @Nullable XContentLocation location) {
-        this(index, msg, location, null);
+    public QueryParsingException(QueryParseContext parseContext, String msg) {
+        this(parseContext, msg, null);
     }
 
-    public QueryParsingException(Index index, String msg, @Nullable XContentLocation location, Throwable cause) {
-        super(index, msg, cause);
-        if (location != null) {
-            lineNumber = location.lineNumber;
-            columnNumber = location.columnNumber;
+    public QueryParsingException(QueryParseContext parseContext, String msg, Throwable cause) {
+        super(parseContext.index(), msg, cause);
+
+        XContentParser parser = parseContext.parser();
+        if (parser != null) {
+            XContentLocation location = parser.getTokenLocation();
+            if (location != null) {
+                lineNumber = location.lineNumber;
+                columnNumber = location.columnNumber;
+            }
         }
+    }
+
+    /**
+     * This constructor is provided for use in unit tests where a
+     * {@link QueryParseContext} may not be available
+     */
+    protected QueryParsingException(Index index, int line, int col, String msg, Throwable cause) {
+        super(index, msg, cause);
+        this.lineNumber = line;
+        this.columnNumber = col;
     }
 
     /**

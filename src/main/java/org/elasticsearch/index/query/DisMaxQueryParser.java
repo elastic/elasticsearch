@@ -70,8 +70,7 @@ public class DisMaxQueryParser implements QueryParser {
                         queries.add(query);
                     }
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[dis_max] query does not support [" + currentFieldName + "]",
-                            parser.getTokenLocation());
+                    throw new QueryParsingException(parseContext, "[dis_max] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("queries".equals(currentFieldName)) {
@@ -84,8 +83,7 @@ public class DisMaxQueryParser implements QueryParser {
                         token = parser.nextToken();
                     }
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[dis_max] query does not support [" + currentFieldName + "]",
-                            parser.getTokenLocation());
+                    throw new QueryParsingException(parseContext, "[dis_max] query does not support [" + currentFieldName + "]");
                 }
             } else {
                 if ("boost".equals(currentFieldName)) {
@@ -95,14 +93,13 @@ public class DisMaxQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[dis_max] query does not support [" + currentFieldName + "]",
-                            parser.getTokenLocation());
+                    throw new QueryParsingException(parseContext, "[dis_max] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (!queriesFound) {
-            throw new QueryParsingException(parseContext.index(), "[dis_max] requires 'queries' field", parser.getTokenLocation());
+            throw new QueryParsingException(parseContext, "[dis_max] requires 'queries' field");
         }
 
         if (queries.isEmpty()) {

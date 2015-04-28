@@ -41,8 +41,7 @@ public final class QueryParserUtils {
         }
 
         if (TransportShardDeleteByQueryAction.DELETE_BY_QUERY_API.equals(context.source())) {
-            throw new QueryParsingException(parseContext.index(), "[" + name + "] query and filter unsupported in delete_by_query api",
-                    null);
+            throw new QueryParsingException(parseContext, "[" + name + "] query and filter unsupported in delete_by_query api");
         }
     }
 

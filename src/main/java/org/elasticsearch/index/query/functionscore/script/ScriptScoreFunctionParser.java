@@ -69,13 +69,11 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
                 if ("params".equals(currentFieldName)) {
                     vars = parser.map();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), NAMES[0] + " query does not support [" + currentFieldName + "]",
-                            parser.getTokenLocation());
+                    throw new QueryParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if (!scriptParameterParser.token(currentFieldName, token, parser)) {
-                    throw new QueryParsingException(parseContext.index(), NAMES[0] + " query does not support [" + currentFieldName + "]",
-                            parser.getTokenLocation());
+                    throw new QueryParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
             }
         }
@@ -86,7 +84,7 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
             scriptType = scriptValue.scriptType();
         }
         if (script == null) {
-            throw new QueryParsingException(parseContext.index(), NAMES[0] + " requires 'script' field", parser.getTokenLocation());
+            throw new QueryParsingException(parseContext, NAMES[0] + " requires 'script' field");
         }
 
         SearchScript searchScript;
@@ -94,8 +92,7 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
             searchScript = parseContext.scriptService().search(parseContext.lookup(), new Script(scriptParameterParser.lang(), script, scriptType, vars), ScriptContext.Standard.SEARCH);
             return new ScriptScoreFunction(script, vars, searchScript);
         } catch (Exception e) {
-            throw new QueryParsingException(parseContext.index(), NAMES[0] + " the script could not be loaded", parser.getTokenLocation(),
-                    e);
+            throw new QueryParsingException(parseContext, NAMES[0] + " the script could not be loaded", e);
         }
     }
 }

@@ -70,8 +70,7 @@ public class NestedFilterParser implements FilterParser {
                 } else if ("inner_hits".equals(currentFieldName)) {
                     builder.setInnerHits(innerHitsQueryParserHelper.parse(parseContext));
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[nested] filter does not support [" + currentFieldName + "]",
-                            parser.getTokenLocation());
+                    throw new QueryParsingException(parseContext, "[nested] filter does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("path".equals(currentFieldName)) {
@@ -85,8 +84,7 @@ public class NestedFilterParser implements FilterParser {
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new HashedBytesRef(parser.text());
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[nested] filter does not support [" + currentFieldName + "]",
-                            parser.getTokenLocation());
+                    throw new QueryParsingException(parseContext, "[nested] filter does not support [" + currentFieldName + "]");
                 }
             }
         }

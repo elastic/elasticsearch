@@ -79,14 +79,13 @@ public class NotFilterParser implements FilterParser {
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new HashedBytesRef(parser.text());
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[not] filter does not support [" + currentFieldName + "]",
-                            parser.getTokenLocation());
+                    throw new QueryParsingException(parseContext, "[not] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (!filterFound) {
-            throw new QueryParsingException(parseContext.index(), "filter is required when using `not` filter", parser.getTokenLocation());
+            throw new QueryParsingException(parseContext, "filter is required when using `not` filter");
         }
 
         if (filter == null) {

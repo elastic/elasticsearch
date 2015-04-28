@@ -69,14 +69,13 @@ public class ExistsFilterParser implements FilterParser {
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[exists] filter does not support [" + currentFieldName + "]",
-                            parser.getTokenLocation());
+                    throw new QueryParsingException(parseContext, "[exists] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (fieldPattern == null) {
-            throw new QueryParsingException(parseContext.index(), "exists must be provided with a [field]", parser.getTokenLocation());
+            throw new QueryParsingException(parseContext, "exists must be provided with a [field]");
         }
 
         return newFilter(parseContext, fieldPattern, filterName);

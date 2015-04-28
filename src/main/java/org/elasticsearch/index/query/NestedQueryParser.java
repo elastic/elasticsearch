@@ -75,8 +75,7 @@ public class NestedQueryParser implements QueryParser {
                 } else if ("inner_hits".equals(currentFieldName)) {
                     builder.setInnerHits(innerHitsQueryParserHelper.parse(parseContext));
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[nested] query does not support [" + currentFieldName + "]",
-                            parser.getTokenLocation());
+                    throw new QueryParsingException(parseContext, "[nested] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("path".equals(currentFieldName)) {
@@ -94,14 +93,12 @@ public class NestedQueryParser implements QueryParser {
                     } else if ("none".equals(sScoreMode)) {
                         scoreMode = ScoreMode.None;
                     } else {
-                        throw new QueryParsingException(parseContext.index(), "illegal score_mode for nested query [" + sScoreMode + "]",
-                                parser.getTokenLocation());
+                        throw new QueryParsingException(parseContext, "illegal score_mode for nested query [" + sScoreMode + "]");
                     }
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[nested] query does not support [" + currentFieldName + "]",
-                            parser.getTokenLocation());
+                    throw new QueryParsingException(parseContext, "[nested] query does not support [" + currentFieldName + "]");
                 }
             }
         }
@@ -147,7 +144,7 @@ public class NestedQueryParser implements QueryParser {
                     innerQuery = null;
                 }
             } else {
-                throw new QueryParsingException(parseContext.index(), "[nested] requires either 'query' or 'filter' field", null);
+                throw new QueryParsingException(parseContext, "[nested] requires either 'query' or 'filter' field");
             }
 
             if (innerHits != null) {

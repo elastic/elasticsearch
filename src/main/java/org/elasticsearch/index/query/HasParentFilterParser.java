@@ -85,8 +85,7 @@ public class HasParentFilterParser implements FilterParser {
                 } else if ("inner_hits".equals(currentFieldName)) {
                     innerHits = innerHitsQueryParserHelper.parse(parseContext);
                 } else {
-                    throw new QueryParsingException(parseContext.index(),
-                            "[has_parent] filter does not support [" + currentFieldName + "]", parser.getTokenLocation());
+                    throw new QueryParsingException(parseContext, "[has_parent] filter does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "parent_type".equals(currentFieldName) || "parentType".equals(currentFieldName)) {
@@ -98,18 +97,15 @@ public class HasParentFilterParser implements FilterParser {
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     // noop to be backwards compatible
                 } else {
-                    throw new QueryParsingException(parseContext.index(),
-                            "[has_parent] filter does not support [" + currentFieldName + "]", parser.getTokenLocation());
+                    throw new QueryParsingException(parseContext, "[has_parent] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (!queryFound && !filterFound) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] filter requires 'query' or 'filter' field",
-                    parser.getTokenLocation());
+            throw new QueryParsingException(parseContext, "[has_parent] filter requires 'query' or 'filter' field");
         }
         if (parentType == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] filter requires 'parent_type' field",
-                    parser.getTokenLocation());
+            throw new QueryParsingException(parseContext, "[has_parent] filter requires 'parent_type' field");
         }
 
         Query innerQuery;

@@ -77,13 +77,13 @@ public class MissingFilterParser implements FilterParser {
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[missing] filter does not support [" + currentFieldName + "]", parser.getTokenLocation());
+                    throw new QueryParsingException(parseContext, "[missing] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (fieldPattern == null) {
-            throw new QueryParsingException(parseContext.index(), "missing must be provided with a [field]", parser.getTokenLocation());
+            throw new QueryParsingException(parseContext, "missing must be provided with a [field]");
         }
 
         return newFilter(parseContext, fieldPattern, existence, nullValue, filterName);
@@ -91,8 +91,7 @@ public class MissingFilterParser implements FilterParser {
 
     public static Filter newFilter(QueryParseContext parseContext, String fieldPattern, boolean existence, boolean nullValue, String filterName) {
         if (!existence && !nullValue) {
-            throw new QueryParsingException(parseContext.index(), "missing must have either existence, or null_value, or both set to true",
-                    null);
+            throw new QueryParsingException(parseContext, "missing must have either existence, or null_value, or both set to true");
         }
 
         final FieldMappers fieldNamesMappers = parseContext.mapperService().fullName(FieldNamesFieldMapper.NAME);

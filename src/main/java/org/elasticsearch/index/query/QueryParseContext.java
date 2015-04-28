@@ -297,23 +297,23 @@ public class QueryParseContext {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new QueryParsingException(index, "[_na] query malformed, must start with start_object", parser.getTokenLocation());
+                throw new QueryParsingException(this, "[_na] query malformed, must start with start_object");
             }
         }
         token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(index, "[_na] query malformed, no field after start_object", parser.getTokenLocation());
+            throw new QueryParsingException(this, "[_na] query malformed, no field after start_object");
         }
         String queryName = parser.currentName();
         // move to the next START_OBJECT
         token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT && token != XContentParser.Token.START_ARRAY) {
-            throw new QueryParsingException(index, "[_na] query malformed, no field after start_object", parser.getTokenLocation());
+            throw new QueryParsingException(this, "[_na] query malformed, no field after start_object");
         }
 
         QueryParser queryParser = indexQueryParser.queryParser(queryName);
         if (queryParser == null) {
-            throw new QueryParsingException(index, "No query registered for [" + queryName + "]", parser.getTokenLocation());
+            throw new QueryParsingException(this, "No query registered for [" + queryName + "]");
         }
         Query result = queryParser.parse(this);
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
@@ -340,7 +340,7 @@ public class QueryParseContext {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new QueryParsingException(index, "[_na] filter malformed, must start with start_object", parser.getTokenLocation());
+                throw new QueryParsingException(this, "[_na] filter malformed, must start with start_object");
             }
         }
         token = parser.nextToken();
@@ -349,18 +349,18 @@ public class QueryParseContext {
             if (token == XContentParser.Token.END_OBJECT || token == XContentParser.Token.VALUE_NULL) {
                 return null;
             }
-            throw new QueryParsingException(index, "[_na] filter malformed, no field after start_object", parser.getTokenLocation());
+            throw new QueryParsingException(this, "[_na] filter malformed, no field after start_object");
         }
         String filterName = parser.currentName();
         // move to the next START_OBJECT or START_ARRAY
         token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT && token != XContentParser.Token.START_ARRAY) {
-            throw new QueryParsingException(index, "[_na] filter malformed, no field after start_object", parser.getTokenLocation());
+            throw new QueryParsingException(this, "[_na] filter malformed, no field after start_object");
         }
 
         FilterParser filterParser = indexQueryParser.filterParser(filterName);
         if (filterParser == null) {
-            throw new QueryParsingException(index, "No filter registered for [" + filterName + "]", parser.getTokenLocation());
+            throw new QueryParsingException(this, "No filter registered for [" + filterName + "]");
         }
         Filter result = executeFilterParser(filterParser);
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
@@ -373,7 +373,7 @@ public class QueryParseContext {
     public Filter parseInnerFilter(String filterName) throws IOException, QueryParsingException {
         FilterParser filterParser = indexQueryParser.filterParser(filterName);
         if (filterParser == null) {
-            throw new QueryParsingException(index, "No filter registered for [" + filterName + "]", parser.getTokenLocation());
+            throw new QueryParsingException(this, "No filter registered for [" + filterName + "]");
         }
         return executeFilterParser(filterParser);
     }
@@ -437,9 +437,8 @@ public class QueryParseContext {
         } else {
             Version indexCreatedVersion = indexQueryParser.getIndexCreatedVersion();
             if (fieldMapping == null && indexCreatedVersion.onOrAfter(Version.V_1_4_0_Beta1)) {
-                throw new QueryParsingException(index,
-                        "Strict field resolution and no field mapping can be found for the field with name [" + name + "]",
-                        parser.getTokenLocation());
+                throw new QueryParsingException(this, "Strict field resolution and no field mapping can be found for the field with name ["
+                        + name + "]");
             } else {
                 return fieldMapping;
             }

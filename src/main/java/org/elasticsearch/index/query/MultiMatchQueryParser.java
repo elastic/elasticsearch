@@ -78,8 +78,7 @@ public class MultiMatchQueryParser implements QueryParser {
                 } else if (token.isValue()) {
                     extractFieldAndBoost(parseContext, parser, fieldNameWithBoosts);
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[" + NAME + "] query does not support [" + currentFieldName
-                            + "]", parser.getTokenLocation());
+                    throw new QueryParsingException(parseContext, "[" + NAME + "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {
@@ -89,8 +88,7 @@ public class MultiMatchQueryParser implements QueryParser {
                 } else if ("analyzer".equals(currentFieldName)) {
                     String analyzer = parser.text();
                     if (parseContext.analysisService().analyzer(analyzer) == null) {
-                        throw new QueryParsingException(parseContext.index(), "[" + NAME + "] analyzer [" + parser.text() + "] not found",
-                                parser.getTokenLocation());
+                        throw new QueryParsingException(parseContext, "[" + NAME + "] analyzer [" + parser.text() + "] not found");
                     }
                     multiMatchQuery.setAnalyzer(analyzer);
                 } else if ("boost".equals(currentFieldName)) {
@@ -110,8 +108,8 @@ public class MultiMatchQueryParser implements QueryParser {
                     } else if ("and".equalsIgnoreCase(op)) {
                         multiMatchQuery.setOccur(BooleanClause.Occur.MUST);
                     } else {
-                        throw new QueryParsingException(parseContext.index(),
-                                "text query requires operator to be either 'and' or 'or', not [" + op + "]", parser.getTokenLocation());
+                        throw new QueryParsingException(parseContext, "text query requires operator to be either 'and' or 'or', not [" + op
+                                + "]");
                     }
                 } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
                     minimumShouldMatch = parser.textOrNull();
@@ -134,23 +132,22 @@ public class MultiMatchQueryParser implements QueryParser {
                     } else if ("all".equalsIgnoreCase(zeroTermsDocs)) {
                         multiMatchQuery.setZeroTermsQuery(MatchQuery.ZeroTermsQuery.ALL);
                     } else {
-                        throw new QueryParsingException(parseContext.index(), "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]", parser.getTokenLocation());
+                        throw new QueryParsingException(parseContext, "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]");
                     }
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[match] query does not support [" + currentFieldName + "]",
-                            parser.getTokenLocation());
+                    throw new QueryParsingException(parseContext, "[match] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext.index(), "No text specified for multi_match query", parser.getTokenLocation());
+            throw new QueryParsingException(parseContext, "No text specified for multi_match query");
         }
 
         if (fieldNameWithBoosts.isEmpty()) {
-            throw new QueryParsingException(parseContext.index(), "No fields specified for multi_match query", parser.getTokenLocation());
+            throw new QueryParsingException(parseContext, "No fields specified for multi_match query");
         }
         if (type == null) {
             type = MultiMatchQueryBuilder.Type.BEST_FIELDS;

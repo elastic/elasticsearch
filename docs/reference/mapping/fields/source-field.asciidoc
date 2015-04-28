@@ -24,6 +24,7 @@ example:
 [float]
 [[include-exclude]]
 ==== Includes / Excludes
+deprecated[1.6.0]
 
 Allow to specify paths in the source that would be included / excluded
 when it's stored, supporting `*` as wildcard annotation. For example:

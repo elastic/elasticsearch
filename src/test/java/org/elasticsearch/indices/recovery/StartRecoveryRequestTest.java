@@ -78,37 +78,4 @@ public class StartRecoveryRequestTest extends ElasticsearchTestCase {
         assertThat(outRequest.recoveryType(), equalTo(inRequest.recoveryType()));
     }
 
-
-    // TODO: where should this test be?
-    @Test
-    public void testMetadataSnapshotStreaming() throws Exception {
-
-        StoreFileMetaData storeFileMetaData1 = new StoreFileMetaData("segments", 1);
-        StoreFileMetaData storeFileMetaData2 = new StoreFileMetaData("no_segments", 1);
-        Map<String, StoreFileMetaData> storeFileMetaDataMap = new HashMap<>();
-        storeFileMetaDataMap.put(storeFileMetaData1.name(), storeFileMetaData1);
-        storeFileMetaDataMap.put(storeFileMetaData2.name(), storeFileMetaData2);
-        Map<String, String> commitUserData = new HashMap<>();
-        commitUserData.put("userdata_1", "test");
-        commitUserData.put("userdata_2", "test");
-        Store.MetadataSnapshot outMetadataSnapshot = new Store.MetadataSnapshot(storeFileMetaDataMap, commitUserData);
-        Version targetNodeVersion = randomVersion(random());
-
-        ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
-        OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-        out.setVersion(targetNodeVersion);
-        outMetadataSnapshot.writeTo(out);
-
-        ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
-        InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
-        in.setVersion(targetNodeVersion);
-        Store.MetadataSnapshot inMetadataSnapshot = Store.MetadataSnapshot.read(in);
-        Map<String, StoreFileMetaData> origEntries = outMetadataSnapshot.asMap();
-        for (Map.Entry<String, StoreFileMetaData> entry : inMetadataSnapshot.asMap().entrySet()) {
-            assertThat(entry.getValue().name(), equalTo(origEntries.remove(entry.getKey()).name()));
-        }
-        assertThat(origEntries.size(), equalTo(0));
-        assertThat(inMetadataSnapshot.getCommitUserData(), equalTo(outMetadataSnapshot.getCommitUserData()));
-    }
-
 }

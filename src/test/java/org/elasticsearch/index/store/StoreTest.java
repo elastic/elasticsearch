@@ -32,6 +32,8 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -43,6 +45,8 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
@@ -51,6 +55,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.Adler32;
 
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.*;
 
 public class StoreTest extends ElasticsearchTestCase {
@@ -180,6 +185,7 @@ public class StoreTest extends ElasticsearchTestCase {
                 public SegmentInfo read(Directory directory, String segmentName, byte[] segmentID, IOContext context) throws IOException {
                     return segmentInfoFormat.read(directory, segmentName, segmentID, context);
                 }
+
                 // this sucks it's a full copy of Lucene50SegmentInfoFormat but hey I couldn't find a way to make it write 4_5_0 versions
                 // somebody was too paranoid when implementing this. ey rmuir, was that you? - go fix it :P
                 @Override
@@ -536,7 +542,7 @@ public class StoreTest extends ElasticsearchTestCase {
         }
         final long luceneChecksum;
         final long adler32LegacyChecksum = adler32.getValue();
-        try(IndexInput indexInput = dir.openInput("lucene_checksum.bin", IOContext.DEFAULT)) {
+        try (IndexInput indexInput = dir.openInput("lucene_checksum.bin", IOContext.DEFAULT)) {
             assertEquals(luceneFileLength, indexInput.length());
             luceneChecksum = CodecUtil.retrieveChecksum(indexInput);
         }
@@ -551,8 +557,8 @@ public class StoreTest extends ElasticsearchTestCase {
         }
 
         { // negative check - wrong checksum
-            StoreFileMetaData lucene = new StoreFileMetaData("lucene_checksum.bin", luceneFileLength, Store.digestToString(luceneChecksum+1), Version.LUCENE_4_8_0);
-            StoreFileMetaData legacy = new StoreFileMetaData("legacy.bin", legacyFileLength, Store.digestToString(adler32LegacyChecksum+1));
+            StoreFileMetaData lucene = new StoreFileMetaData("lucene_checksum.bin", luceneFileLength, Store.digestToString(luceneChecksum + 1), Version.LUCENE_4_8_0);
+            StoreFileMetaData legacy = new StoreFileMetaData("legacy.bin", legacyFileLength, Store.digestToString(adler32LegacyChecksum + 1));
             assertTrue(legacy.hasLegacyChecksum());
             assertFalse(lucene.hasLegacyChecksum());
             assertFalse(Store.checkIntegrityNoException(lucene, dir));
@@ -560,8 +566,8 @@ public class StoreTest extends ElasticsearchTestCase {
         }
 
         { // negative check - wrong length
-            StoreFileMetaData lucene = new StoreFileMetaData("lucene_checksum.bin", luceneFileLength+1, Store.digestToString(luceneChecksum), Version.LUCENE_4_8_0);
-            StoreFileMetaData legacy = new StoreFileMetaData("legacy.bin", legacyFileLength+1, Store.digestToString(adler32LegacyChecksum));
+            StoreFileMetaData lucene = new StoreFileMetaData("lucene_checksum.bin", luceneFileLength + 1, Store.digestToString(luceneChecksum), Version.LUCENE_4_8_0);
+            StoreFileMetaData legacy = new StoreFileMetaData("legacy.bin", legacyFileLength + 1, Store.digestToString(adler32LegacyChecksum));
             assertTrue(legacy.hasLegacyChecksum());
             assertFalse(lucene.hasLegacyChecksum());
             assertFalse(Store.checkIntegrityNoException(lucene, dir));
@@ -616,19 +622,19 @@ public class StoreTest extends ElasticsearchTestCase {
         IOUtils.close(dir);
     }
 
-    private void readIndexInputFullyWithRandomSeeks(IndexInput indexInput) throws IOException{
+    private void readIndexInputFullyWithRandomSeeks(IndexInput indexInput) throws IOException {
         BytesRef ref = new BytesRef(scaledRandomIntBetween(1, 1024));
         long pos = 0;
         while (pos < indexInput.length()) {
             assertEquals(pos, indexInput.getFilePointer());
             int op = random().nextInt(5);
-            if (op == 0 ) {
-                int shift =  100 - randomIntBetween(0, 200);
-                pos =  Math.min(indexInput.length() - 1, Math.max(0, pos + shift));
+            if (op == 0) {
+                int shift = 100 - randomIntBetween(0, 200);
+                pos = Math.min(indexInput.length() - 1, Math.max(0, pos + shift));
                 indexInput.seek(pos);
             } else if (op == 1) {
                 indexInput.readByte();
-                pos ++;
+                pos++;
             } else {
                 int min = (int) Math.min(indexInput.length() - pos, ref.bytes.length);
                 indexInput.readBytes(ref.bytes, ref.offset, min);
@@ -673,16 +679,18 @@ public class StoreTest extends ElasticsearchTestCase {
         public LuceneManagedDirectoryService(Random random) {
             this(random, true);
         }
+
         public LuceneManagedDirectoryService(Random random, boolean preventDoubleWrite) {
             super(new ShardId("fake", 1), ImmutableSettings.EMPTY);
-                dir = StoreTest.newDirectory(random);
-                if (dir instanceof MockDirectoryWrapper) {
-                    ((MockDirectoryWrapper)dir).setPreventDoubleWrite(preventDoubleWrite);
-                    // TODO: fix this test to handle virus checker
-                    ((MockDirectoryWrapper)dir).setEnableVirusScanner(false);
-                }
+            dir = StoreTest.newDirectory(random);
+            if (dir instanceof MockDirectoryWrapper) {
+                ((MockDirectoryWrapper) dir).setPreventDoubleWrite(preventDoubleWrite);
+                // TODO: fix this test to handle virus checker
+                ((MockDirectoryWrapper) dir).setEnableVirusScanner(false);
+            }
             this.random = random;
         }
+
         @Override
         public Directory newDirectory() throws IOException {
             return dir;
@@ -711,7 +719,7 @@ public class StoreTest extends ElasticsearchTestCase {
     @Test
     public void testRecoveryDiffWithLegacyCommit() {
         Map<String, StoreFileMetaData> metaDataMap = new HashMap<>();
-        metaDataMap.put("segments_1", new StoreFileMetaData("segments_1", 50, null, null, new BytesRef(new byte[] {1})));
+        metaDataMap.put("segments_1", new StoreFileMetaData("segments_1", 50, null, null, new BytesRef(new byte[]{1})));
         metaDataMap.put("_0_1.del", new StoreFileMetaData("_0_1.del", 42, "foobarbaz", null, new BytesRef()));
         Store.MetadataSnapshot first = new Store.MetadataSnapshot(metaDataMap, Collections.EMPTY_MAP);
 
@@ -760,7 +768,7 @@ public class StoreTest extends ElasticsearchTestCase {
             store.close();
         }
         long time = new Date().getTime();
-        while(time == new Date().getTime()) {
+        while (time == new Date().getTime()) {
             Thread.sleep(10); // bump the time
         }
         Store.MetadataSnapshot second;
@@ -827,7 +835,7 @@ public class StoreTest extends ElasticsearchTestCase {
         }
         Store.RecoveryDiff afterDeleteDiff = metadata.recoveryDiff(second);
         if (delFile != null) {
-            assertThat(afterDeleteDiff.identical.size(), equalTo(metadata.size()-2)); // segments_N + del file
+            assertThat(afterDeleteDiff.identical.size(), equalTo(metadata.size() - 2)); // segments_N + del file
             assertThat(afterDeleteDiff.different.size(), equalTo(0));
             assertThat(afterDeleteDiff.missing.size(), equalTo(2));
         } else {
@@ -856,7 +864,7 @@ public class StoreTest extends ElasticsearchTestCase {
         Store.MetadataSnapshot newCommitMetaData = store.getMetadata();
         Store.RecoveryDiff newCommitDiff = newCommitMetaData.recoveryDiff(metadata);
         if (delFile != null) {
-            assertThat(newCommitDiff.identical.size(), equalTo(newCommitMetaData.size()-5)); // segments_N, del file, cfs, cfe, si for the new segment
+            assertThat(newCommitDiff.identical.size(), equalTo(newCommitMetaData.size() - 5)); // segments_N, del file, cfs, cfe, si for the new segment
             assertThat(newCommitDiff.different.size(), equalTo(1)); // the del file must be different
             assertThat(newCommitDiff.different.get(0).name(), endsWith(".liv"));
             assertThat(newCommitDiff.missing.size(), equalTo(4)); // segments_N,cfs, cfe, si for the new segment
@@ -883,7 +891,7 @@ public class StoreTest extends ElasticsearchTestCase {
         int docs = 1 + random().nextInt(100);
         int numCommits = 0;
         for (int i = 0; i < docs; i++) {
-            if (i > 0 && randomIntBetween(0, 10 ) == 0) {
+            if (i > 0 && randomIntBetween(0, 10) == 0) {
                 writer.commit();
                 numCommits++;
             }
@@ -948,7 +956,7 @@ public class StoreTest extends ElasticsearchTestCase {
                 assertTrue(firstMeta.contains(file) || Store.isChecksum(file) || file.equals("write.lock"));
                 if (Store.isChecksum(file)) {
                     numChecksums++;
-                } else  if (secondMeta.contains(file) == false) {
+                } else if (secondMeta.contains(file) == false) {
                     numNotFound++;
                 }
 
@@ -967,7 +975,7 @@ public class StoreTest extends ElasticsearchTestCase {
                 assertTrue(file, secondMeta.contains(file) || Store.isChecksum(file) || file.equals("write.lock"));
                 if (Store.isChecksum(file)) {
                     numChecksums++;
-                } else  if (firstMeta.contains(file) == false) {
+                } else if (firstMeta.contains(file) == false) {
                     numNotFound++;
                 }
 
@@ -1009,7 +1017,7 @@ public class StoreTest extends ElasticsearchTestCase {
         final AtomicInteger count = new AtomicInteger(0);
         final ShardLock lock = new DummyShardLock(shardId);
 
-        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, lock , new Store.OnClose() {
+        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, lock, new Store.OnClose() {
             @Override
             public void handle(ShardLock theLock) {
                 assertEquals(shardId, theLock.getShardId());
@@ -1080,5 +1088,36 @@ public class StoreTest extends ElasticsearchTestCase {
             }
         }
         return numNonExtra;
+    }
+
+    @Test
+    public void testMetadataSnapshotStreaming() throws Exception {
+
+        StoreFileMetaData storeFileMetaData1 = new StoreFileMetaData("segments", 1);
+        StoreFileMetaData storeFileMetaData2 = new StoreFileMetaData("no_segments", 1);
+        Map<String, StoreFileMetaData> storeFileMetaDataMap = new HashMap<>();
+        storeFileMetaDataMap.put(storeFileMetaData1.name(), storeFileMetaData1);
+        storeFileMetaDataMap.put(storeFileMetaData2.name(), storeFileMetaData2);
+        Map<String, String> commitUserData = new HashMap<>();
+        commitUserData.put("userdata_1", "test");
+        commitUserData.put("userdata_2", "test");
+        Store.MetadataSnapshot outMetadataSnapshot = new Store.MetadataSnapshot(storeFileMetaDataMap, commitUserData);
+        org.elasticsearch.Version targetNodeVersion = randomVersion(random());
+
+        ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+        OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+        out.setVersion(targetNodeVersion);
+        outMetadataSnapshot.writeTo(out);
+
+        ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
+        InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
+        in.setVersion(targetNodeVersion);
+        Store.MetadataSnapshot inMetadataSnapshot = Store.MetadataSnapshot.read(in);
+        Map<String, StoreFileMetaData> origEntries = outMetadataSnapshot.asMap();
+        for (Map.Entry<String, StoreFileMetaData> entry : inMetadataSnapshot.asMap().entrySet()) {
+            assertThat(entry.getValue().name(), equalTo(origEntries.remove(entry.getKey()).name()));
+        }
+        assertThat(origEntries.size(), equalTo(0));
+        assertThat(inMetadataSnapshot.getCommitUserData(), equalTo(outMetadataSnapshot.getCommitUserData()));
     }
 }

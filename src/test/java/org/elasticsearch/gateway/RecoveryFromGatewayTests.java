@@ -35,7 +35,6 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
-import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.Test;
 
@@ -353,7 +352,7 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
                 .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
                 .put("gateway.recover_after_nodes", 4)
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CONCURRENT_RECOVERIES, 4)
-                .put(MockDirectoryHelper.CRASH_INDEX, false).build();
+                .put(MockFSDirectoryService.CRASH_INDEX, false).build();
 
         internalCluster().startNodesAsync(4, settings).get();
         // prevent any rebalance actions during the peer recovery

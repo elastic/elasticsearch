@@ -38,28 +38,9 @@ final class MockShadowEngine extends ShadowEngine {
     }
 
     @Override
-    public void close() throws IOException {
-        try {
-            super.close();
-        } finally {
-            if (logger.isTraceEnabled()) {
-                // log debug if we have pending searchers
-                for (Map.Entry<AssertingSearcher, RuntimeException> entry : MockEngineSupport.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
-                    logger.trace("Unreleased Searchers instance for shard [{}]", entry.getValue(), entry.getKey().shardId());
-                }
-            }
-        }
-    }
-
-    @Override
     protected Searcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) throws EngineException {
-        final AssertingIndexSearcher assertingIndexSearcher = support.newSearcher(this, source, searcher, manager);
-        assertingIndexSearcher.setSimilarity(searcher.getSimilarity());
-        // pass the original searcher to the super.newSearcher() method to make sure this is the searcher that will
-        // be released later on. If we wrap an index reader here must not pass the wrapped version to the manager
-        // on release otherwise the reader will be closed too early. - good news, stuff will fail all over the place if we don't get this right here
-        return new AssertingSearcher(assertingIndexSearcher,
-                super.newSearcher(source, searcher, manager), shardId, MockEngineSupport.INFLIGHT_ENGINE_SEARCHERS, logger);
+        final Searcher engineSearcher = super.newSearcher(source, searcher, manager);
+        return support.wrapSearcher(source, engineSearcher, searcher, manager);
     }
 
 }

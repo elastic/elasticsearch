@@ -33,8 +33,10 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.util.Map;
@@ -54,6 +56,7 @@ public final class MockEngineSupport {
     public static final String FLUSH_ON_CLOSE_RATIO = "index.engine.mock.flush_on_close.ratio";
     private final AtomicBoolean closing = new AtomicBoolean(false);
     private final ESLogger logger = Loggers.getLogger(Engine.class);
+    private final ShardId shardId;
 
     public static class MockContext {
         public final Random random;
@@ -71,12 +74,12 @@ public final class MockEngineSupport {
         }
     }
 
-    public static final ConcurrentMap<AssertingSearcher, RuntimeException> INFLIGHT_ENGINE_SEARCHERS = new ConcurrentHashMap<>();
 
     private final MockContext mockContext;
 
     public MockEngineSupport(EngineConfig config) {
         Settings indexSettings = config.getIndexSettings();
+        shardId = config.getShardId();
         final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.SETTING_INDEX_SEED, 0l);
         Random random = new Random(seed);
         final double ratio = indexSettings.getAsDouble(WRAP_READER_RATIO, 0.0d); // DISABLED by default - AssertingDR is crazy slow
@@ -99,33 +102,23 @@ public final class MockEngineSupport {
      * the first call and treats subsequent calls as if the engine passed is already closed.
      */
     public CloseAction flushOrClose(Engine engine, CloseAction originalAction) throws IOException {
-        try {
-            if (closing.compareAndSet(false, true)) { // only do the random thing if we are the first call to this since super.flushOnClose() calls #close() again and then we might end up with a stackoverflow.
-                if (mockContext.flushOnClose > mockContext.random.nextDouble()) {
-                    return CloseAction.FLUSH_AND_CLOSE;
-                } else {
-                    return CloseAction.CLOSE;
-                }
+        if (closing.compareAndSet(false, true)) { // only do the random thing if we are the first call to this since super.flushOnClose() calls #close() again and then we might end up with a stackoverflow.
+            if (mockContext.flushOnClose > mockContext.random.nextDouble()) {
+                return CloseAction.FLUSH_AND_CLOSE;
             } else {
-                return originalAction;
+                return CloseAction.CLOSE;
             }
-        } finally {
-            if (logger.isTraceEnabled()) {
-                // log debug if we have pending searchers
-                for (Map.Entry<AssertingSearcher, RuntimeException> entry : INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
-                    logger.trace("Unreleased Searchers instance for shard [{}]",
-                            entry.getValue(), entry.getKey().shardId());
-                }
-            }
+        } else {
+            return originalAction;
         }
     }
 
-    public AssertingIndexSearcher newSearcher(Engine engine, String source, IndexSearcher searcher, SearcherManager manager) throws EngineException {
+    public AssertingIndexSearcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) throws EngineException {
         IndexReader reader = searcher.getIndexReader();
         IndexReader wrappedReader = reader;
         assert reader != null;
         if (reader instanceof DirectoryReader && mockContext.wrapReader) {
-            wrappedReader = wrapReader((DirectoryReader) reader, engine);
+            wrappedReader = wrapReader((DirectoryReader) reader);
         }
         // this executes basic query checks and asserts that weights are normalized only once etc.
         final AssertingIndexSearcher assertingIndexSearcher = new AssertingIndexSearcher(mockContext.random, wrappedReader);
@@ -133,7 +126,7 @@ public final class MockEngineSupport {
         return assertingIndexSearcher;
     }
 
-    private DirectoryReader wrapReader(DirectoryReader reader, Engine engine) {
+    private DirectoryReader wrapReader(DirectoryReader reader) {
         try {
             Constructor<?>[] constructors = mockContext.wrapper.getConstructors();
             Constructor<?> nonRandom = null;
@@ -176,5 +169,15 @@ public final class MockEngineSupport {
         }
 
     }
+
+    public Engine.Searcher wrapSearcher(String source, Engine.Searcher engineSearcher, IndexSearcher searcher, SearcherManager manager) {
+        final AssertingIndexSearcher assertingIndexSearcher = newSearcher(source, searcher, manager);
+        assertingIndexSearcher.setSimilarity(searcher.getSimilarity());
+        // pass the original searcher to the super.newSearcher() method to make sure this is the searcher that will
+        // be released later on. If we wrap an index reader here must not pass the wrapped version to the manager
+        // on release otherwise the reader will be closed too early. - good news, stuff will fail all over the place if we don't get this right here
+        return new AssertingSearcher(assertingIndexSearcher, engineSearcher, shardId, logger);
+    }
+
 
 }

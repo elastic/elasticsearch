@@ -1150,6 +1150,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null);
                 Map<String, Object> masterStateMap = convertToMap(masterClusterState);
                 int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
+                String masterId = masterClusterState.nodes().masterNodeId();
                 for (Client client : cluster()) {
                     ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
                     byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
@@ -1157,7 +1158,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null);
                     Map<String, Object> localStateMap = convertToMap(localClusterState);
                     int localClusterStateSize = localClusterStateBytes.length;
-                    if (masterClusterState.version() == localClusterState.version()) {
+                    // Check that the non-master node has the same version of the cluster state as the master and that this node didn't disconnect from the master
+                    if (masterClusterState.version() == localClusterState.version() && localClusterState.nodes().nodes().containsKey(masterId)) {
                         try {
                             assertThat(masterClusterState.uuid(), equalTo(localClusterState.uuid()));
                             // We cannot compare serialization bytes since serialization order of maps is not guaranteed

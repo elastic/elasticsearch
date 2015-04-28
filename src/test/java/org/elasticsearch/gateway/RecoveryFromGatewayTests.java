@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -355,6 +356,7 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
                 .put("action.admin.cluster.node.shutdown.delay", "10ms")
                 .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
                 .put("gateway.recover_after_nodes", 4)
+
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CONCURRENT_RECOVERIES, 4)
                 .put(MockFSDirectoryService.CRASH_INDEX, false).build();
 
@@ -381,18 +383,28 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareOptimize("test").setMaxNumSegments(100).get(); // just wait for merges
         client().admin().indices().prepareFlush().setWaitIfOngoing(true).setForce(true).get();
 
-        logger.info("--> disabling allocation while the cluster is shut down");
+        boolean useSyncIds = randomBoolean();
+        if (useSyncIds == false) {
+            logger.info("--> disabling allocation while the cluster is shut down");
 
-        // Disable allocations while we are closing nodes
-        client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(settingsBuilder()
-                        .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
-                .get();
-        logger.info("--> full cluster restart");
-        internalCluster().fullRestart();
+            // Disable allocations while we are closing nodes
+            client().admin().cluster().prepareUpdateSettings()
+                    .setTransientSettings(settingsBuilder()
+                            .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
+                    .get();
+            logger.info("--> full cluster restart");
+            internalCluster().fullRestart();
 
-        logger.info("--> waiting for cluster to return to green after first shutdown");
-        ensureGreen();
+            logger.info("--> waiting for cluster to return to green after first shutdown");
+            ensureGreen();
+        } else {
+            logger.info("--> trying to sync flush");
+            int numShards = Integer.parseInt(client().admin().indices().prepareGetSettings("test").get().getSetting("test", "index.number_of_shards"));
+            SyncedFlushService syncedFlushService = internalCluster().getInstance(SyncedFlushService.class);
+            for (int i = 0; i < numShards; i++) {
+                assertTrue(syncedFlushService.attemptSyncedFlush(new ShardId("test", i)).success());
+            }
+        }
 
         logger.info("--> disabling allocation while the cluster is shut down second time");
         // Disable allocations while we are closing nodes
@@ -403,7 +415,7 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
         logger.info("--> full cluster restart");
         internalCluster().fullRestart();
 
-        logger.info("--> waiting for cluster to return to green after second shutdown");
+        logger.info("--> waiting for cluster to return to green after {}shutdown", useSyncIds ? "" : "second ");
         ensureGreen();
 
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
@@ -415,7 +427,7 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
                     recovered += file.length();
                 }
             }
-            if (!recoveryState.getPrimary()) {
+            if (!recoveryState.getPrimary() && useSyncIds == false) {
                 logger.info("--> replica shard {} recovered from {} to {}, recovered {}, reuse {}",
                         response.getShardId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
                         recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());

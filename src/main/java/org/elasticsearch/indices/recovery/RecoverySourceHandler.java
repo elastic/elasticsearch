@@ -169,15 +169,16 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
             // Generate a "diff" of all the identical, different, and missing
             // segment files on the target node, using the existing files on
             // the source node
-            if (recoverySourceMetadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID) != null &&
-                    recoverySourceMetadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID).equals(request.metadataSnapshot().getCommitUserData().get(Engine.SYNC_COMMIT_ID))) {
-                for (StoreFileMetaData md : recoverySourceMetadata) {
+            final boolean recoverWithSyncId = recoverySourceMetadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID) != null &&
+                    recoverySourceMetadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID).equals(request.metadataSnapshot().getCommitUserData().get(Engine.SYNC_COMMIT_ID));
+            if (recoverWithSyncId) {
+                for (StoreFileMetaData md : request.metadataSnapshot()) {
                     response.phase1ExistingFileNames.add(md.name());
                     response.phase1ExistingFileSizes.add(md.length());
                     existingTotalSize += md.length();
                     if (logger.isDebugEnabled()) {
-                        logger.debug("[{}][{}] recovery [phase1] to {}: not recovering [{}], exists in local store and has checksum [{}], size [{}]",
-                                indexName, shardId, request.targetNode(), md.name(), md.checksum(), md.length());
+                        logger.debug("[{}][{}] recovery [phase1] to {}: not recovering [{}], checksum [{}], size [{}], sync ids {} coincide, will skip file copy",
+                                indexName, shardId, request.targetNode(), md.name(), md.checksum(), md.length(), recoverySourceMetadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID));
                     }
                     totalSize += md.length();
                 }
@@ -188,7 +189,8 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                     response.phase1ExistingFileSizes.add(md.length());
                     existingTotalSize += md.length();
                     if (logger.isDebugEnabled()) {
-                        logger.debug("[{}][{}] recovery [phase1] to {}: not recovering [{}], checksum [{}], size [{}], sync ids {} coincide, will skip file copy", indexName, shardId, request.targetNode(), md.name(), md.checksum(), md.length(), recoverySourceMetadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID));
+                        logger.debug("[{}][{}] recovery [phase1] to {}: not recovering [{}], exists in local store and has checksum [{}], size [{}]",
+                                indexName, shardId, request.targetNode(), md.name(), md.checksum(), md.length());
                     }
                     totalSize += md.length();
                 }
@@ -377,8 +379,9 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                     // related to this recovery (out of date segments, for example)
                     // are deleted
                     try {
+                        final Store.MetadataSnapshot remainingFilesAfterCleanup = recoverWithSyncId? request.metadataSnapshot(): recoverySourceMetadata;
                         transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.CLEAN_FILES,
-                                new RecoveryCleanFilesRequest(request.recoveryId(), shard.shardId(), recoverySourceMetadata, shard.translog().estimatedNumberOfOperations()),
+                                new RecoveryCleanFilesRequest(request.recoveryId(), shard.shardId(), remainingFilesAfterCleanup, shard.translog().estimatedNumberOfOperations()),
                                 TransportRequestOptions.options().withTimeout(recoverySettings.internalActionTimeout()),
                                 EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                     } catch (RemoteTransportException remoteException) {

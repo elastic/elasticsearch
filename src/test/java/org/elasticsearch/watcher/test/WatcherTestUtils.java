@@ -12,10 +12,18 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.actions.email.EmailAction;
@@ -42,9 +50,10 @@ import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.secret.Secret;
-import org.elasticsearch.watcher.support.template.xmustache.XMustacheTemplateEngine;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.template.xmustache.XMustacheScriptEngineService;
+import org.elasticsearch.watcher.support.template.xmustache.XMustacheTemplateEngine;
 import org.elasticsearch.watcher.transform.search.ExecutableSearchTransform;
 import org.elasticsearch.watcher.transform.search.SearchTransform;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
@@ -54,10 +63,8 @@ import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 
 import javax.mail.internet.AddressException;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.io.IOException;
+import java.util.*;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -188,6 +195,20 @@ public final class WatcherTestUtils {
                 metadata,
                 new TimeValue(0),
                 new Watch.Status());
+    }
+
+
+    public static ScriptServiceProxy getScriptServiceProxy(ThreadPool tp) throws IOException {
+        Settings settings = ImmutableSettings.settingsBuilder()
+                .put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, "none")
+                .build();
+        GroovyScriptEngineService groovyScriptEngineService = new GroovyScriptEngineService(settings);
+        XMustacheScriptEngineService mustacheScriptEngineService = new XMustacheScriptEngineService(settings);
+        Set<ScriptEngineService> engineServiceSet = new HashSet<>();
+        engineServiceSet.add(mustacheScriptEngineService);
+        engineServiceSet.add(groovyScriptEngineService);
+        NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);
+        return ScriptServiceProxy.of(new ScriptService(settings, new Environment(), engineServiceSet, new ResourceWatcherService(settings, tp), nodeSettingsService));
     }
 
 }

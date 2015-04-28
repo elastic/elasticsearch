@@ -7,12 +7,12 @@ package org.elasticsearch.watcher.support.init.proxy;
 
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.watcher.support.Script;
-import org.elasticsearch.watcher.support.Variables;
 import org.elasticsearch.watcher.support.init.InitializingService;
 
 import java.util.Map;
@@ -37,6 +37,18 @@ public class ScriptServiceProxy implements InitializingService.Initializable {
     @Override
     public void init(Injector injector) {
         this.service = injector.getInstance(ScriptService.class);
+    }
+
+    public CompiledScript compile(String lang, String script, ScriptService.ScriptType scriptType) {
+        return service.compile(lang, script, scriptType);
+    }
+
+    public CompiledScript compile(Script script) {
+        return compile(script.lang(), script.script(), script.type());
+    }
+
+    public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
+        return service.executable(compiledScript, vars);
     }
 
     public ExecutableScript executable(Script script, Map<String, Object> vars) {

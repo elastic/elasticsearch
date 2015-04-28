@@ -102,6 +102,7 @@ public class WatcherService extends AbstractComponent {
             }
             return result.indexResponse();
         } catch (Exception e) {
+            logger.warn("failed to put watch [{}]", e, id);
             throw new WatcherException("failed to put watch [{}]", e, id);
         } finally {
             lock.release();

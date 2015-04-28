@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.transform.script;
 
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Script;
@@ -25,10 +26,17 @@ import static org.elasticsearch.watcher.support.Variables.createCtxModel;
 public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransform, ScriptTransform.Result> {
 
     private final ScriptServiceProxy scriptService;
+    private final CompiledScript compiledScript;
 
     public ExecutableScriptTransform(ScriptTransform transform, ESLogger logger, ScriptServiceProxy scriptService) {
         super(transform, logger);
         this.scriptService = scriptService;
+        Script script = transform.getScript();
+        try {
+            compiledScript = scriptService.compile(script);
+        } catch (Exception e) {
+            throw new ScriptTransformValidationException("failed to compile script [{}] with lang [{}] of type [{}]", e, script.script(), script.lang(), script.type(), e);
+        }
     }
 
     @Override
@@ -37,7 +45,7 @@ public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransfo
         Map<String, Object> model = new HashMap<>();
         model.putAll(script.params());
         model.putAll(createCtxModel(ctx, payload));
-        ExecutableScript executable = scriptService.executable(script.lang(), script.script(), script.type(), model);
+        ExecutableScript executable = scriptService.executable(compiledScript, model);
         Object value = executable.run();
         if (value instanceof Map) {
             return new ScriptTransform.Result(new Payload.Simple((Map<String, Object>) value));

@@ -11,20 +11,14 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
@@ -34,11 +28,10 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.getScriptServiceProxy;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.Matchers.is;
 
@@ -165,6 +158,42 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
         fail("expected a condition exception trying to parse an invalid condition XContent");
     }
 
+    @Test(expected = ScriptConditionValidationException.class)
+    @Repeat(iterations = 3)
+    public void testScriptConditionParser_badScript() throws Exception {
+        ScriptConditionFactory conditionParser = new ScriptConditionFactory(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
+        ScriptService.ScriptType scriptType = randomFrom(ScriptService.ScriptType.values());
+        String script;
+        switch (scriptType) {
+            case INDEXED:
+            case FILE:
+                script = "nonExisting_script";
+                break;
+            case INLINE:
+            default:
+                script = "foo = = 1";
+        }
+        XContentBuilder builder = createConditionContent(script, "groovy", scriptType);
+        XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
+        parser.nextToken();
+        ScriptCondition scriptCondition = conditionParser.parseCondition("_watch", parser);
+        conditionParser.createExecutable(scriptCondition);
+        fail("expected a condition validation exception trying to create an executable with a bad or missing script");
+    }
+
+    @Test(expected = ScriptConditionValidationException.class)
+    public void testScriptConditionParser_badLang() throws Exception {
+        ScriptConditionFactory conditionParser = new ScriptConditionFactory(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
+        ScriptService.ScriptType scriptType = ScriptService.ScriptType.INLINE;
+        String script = "return true";
+        XContentBuilder builder = createConditionContent(script, "not_a_valid_lang", scriptType);
+        XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
+        parser.nextToken();
+        ScriptCondition scriptCondition = conditionParser.parseCondition("_watch", parser);
+        conditionParser.createExecutable(scriptCondition);
+        fail("expected a condition validation exception trying to create an executable with an invalid language");
+    }
+
     @Test(expected = ScriptConditionException.class)
     public void testScriptCondition_throwException() throws Exception {
         ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
@@ -172,7 +201,7 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         condition.execute(ctx);
-        fail();
+        fail("expected a ScriptConditionException trying to execute a script that throws an exception");
     }
 
     @Test(expected = ScriptConditionException.class)
@@ -183,6 +212,7 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         condition.execute(ctx);
         fail();
+        fail("expected a ScriptConditionException trying to execute a script that returns an object");
     }
 
     @Test
@@ -193,18 +223,6 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
         WatchExecutionContext ctx = mockExecutionContext("_name", new DateTime(UTC), new Payload.XContent(response));
         Thread.sleep(10);
         assertThat(condition.execute(ctx).met(), is(true));
-    }
-
-
-    private static ScriptServiceProxy getScriptServiceProxy(ThreadPool tp) throws IOException {
-        Settings settings = ImmutableSettings.settingsBuilder()
-                .put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, "none")
-                .build();
-        GroovyScriptEngineService groovyScriptEngineService = new GroovyScriptEngineService(settings);
-        Set<ScriptEngineService> engineServiceSet = new HashSet<>();
-        engineServiceSet.add(groovyScriptEngineService);
-        NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);
-        return ScriptServiceProxy.of(new ScriptService(settings, new Environment(), engineServiceSet, new ResourceWatcherService(settings, tp), nodeSettingsService));
     }
 
     private static XContentBuilder createConditionContent(String script, String scriptLang, ScriptService.ScriptType scriptType) throws IOException {
@@ -218,6 +236,5 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
         }
         return builder.endObject();
     }
-
 
 }

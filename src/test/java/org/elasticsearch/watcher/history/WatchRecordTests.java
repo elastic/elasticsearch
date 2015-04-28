@@ -38,7 +38,7 @@ public class WatchRecordTests extends AbstractWatcherIntegrationTests {
 
     @Test
     public void testParser() throws Exception {
-        Watch watch = WatcherTestUtils.createTestWatch("fired_test", scriptService(), httpClient(), noopEmailService(), logger);
+        Watch watch = WatcherTestUtils.createTestWatch("fired_test", scriptService(), watcherHttpClient(), noopEmailService(), logger);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.id(), DateTime.now(UTC), DateTime.now(UTC));
         Wid wid = new Wid("_record", randomLong(), DateTime.now(UTC));
         WatchRecord watchRecord = new WatchRecord(wid, watch, event);
@@ -54,7 +54,7 @@ public class WatchRecordTests extends AbstractWatcherIntegrationTests {
 
     @Test
     public void testParser_WithSealedWatchRecord() throws Exception {
-        Watch watch = WatcherTestUtils.createTestWatch("fired_test", scriptService(), httpClient(), noopEmailService(), logger);
+        Watch watch = WatcherTestUtils.createTestWatch("fired_test", scriptService(), watcherHttpClient(), noopEmailService(), logger);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.id(), DateTime.now(UTC), DateTime.now(UTC));
         Wid wid = new Wid("_record", randomLong(), DateTime.now(UTC));
         WatchRecord watchRecord = new WatchRecord(wid, watch, event);
@@ -84,7 +84,7 @@ public class WatchRecordTests extends AbstractWatcherIntegrationTests {
 
     @Test
     public void testParser_WithSealedWatchRecord_WithScriptSearchCondition() throws Exception {
-        Watch watch = WatcherTestUtils.createTestWatch("fired_test", scriptService(), httpClient(), noopEmailService(), logger);
+        Watch watch = WatcherTestUtils.createTestWatch("fired_test", scriptService(), watcherHttpClient(), noopEmailService(), logger);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.id(), DateTime.now(UTC), DateTime.now(UTC));
         WatchExecutionContext ctx = new TriggeredExecutionContext( watch, new DateTime(), event);
         WatchRecord watchRecord = new WatchRecord(ctx.id(), watch, event);

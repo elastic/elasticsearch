@@ -333,7 +333,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         return internalTestCluster().getInstance(ScriptServiceProxy.class);
     }
 
-    protected HttpClient httpClient() {
+    protected HttpClient watcherHttpClient() {
         return internalTestCluster().getInstance(HttpClient.class);
     }
 

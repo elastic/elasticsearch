@@ -20,33 +20,32 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.lucene.BytesRefs;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
-public class TermQueryBuilderTest extends BaseTermQueryTestCase<TermQueryBuilder> {
+public class SpanTermQueryBuilderTest extends BaseTermQueryTestCase<SpanTermQueryBuilder> {
 
     @Override
-    protected TermQueryBuilder createEmptyQueryBuilder() {
-        return new TermQueryBuilder();
+    protected SpanTermQueryBuilder createEmptyQueryBuilder() {
+        return new SpanTermQueryBuilder();
+    }
+    
+    @Override
+    protected SpanTermQueryBuilder createQueryBuilder(String fieldName, Object value) {
+        return new SpanTermQueryBuilder(fieldName, value);
     }
 
-    /**
-     * @return a TermQuery with random field name and value, optional random boost and queryname
-     */
+    /** Returns a {@link SpanTermQueryBuilder} with random field name and value, optional random boost and queryname */
     @Override
-    protected TermQueryBuilder createQueryBuilder(String fieldName, Object value) {
-        return new TermQueryBuilder(fieldName, value);
-    }
-
-    /** Returns a TermQuery with random field name and value, optional random boost and queryname. */
-    @Override
-    protected TermQueryBuilder createTestQueryBuilder() {
+    protected SpanTermQueryBuilder createTestQueryBuilder() {
         Object value = createRandomValueObject();
-        TermQueryBuilder query = new TermQueryBuilder(randomAsciiOfLength(8), value);
+        SpanTermQueryBuilder query = new SpanTermQueryBuilder(randomAsciiOfLength(8), value);
         if (randomBoolean()) {
             query.boost(2.0f / randomIntBetween(1, 20));
         }
@@ -56,12 +55,12 @@ public class TermQueryBuilderTest extends BaseTermQueryTestCase<TermQueryBuilder
         return query;
     }
 
-    /** Validates the Lucene query that was generated from a given {@link TermQueryBuilder}*/
+    /** Checks the generated Lucene query against the {@link SpanTermQueryBuilder} it was created from. */
     @Override
-    protected void assertLuceneQuery(TermQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
-        assertThat(query, instanceOf(TermQuery.class));
+    protected void assertLuceneQuery(SpanTermQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+        assertThat(query, instanceOf(SpanTermQuery.class));
         assertThat(query.getBoost(), is(queryBuilder.boost()));
-        TermQuery termQuery = (TermQuery) query;
+        SpanTermQuery termQuery = (SpanTermQuery) query;
         assertThat(termQuery.getTerm().field(), is(queryBuilder.fieldName()));
         assertThat(termQuery.getTerm().bytes(), is(BytesRefs.toBytesRef(queryBuilder.value())));
         if (queryBuilder.queryName() != null) {

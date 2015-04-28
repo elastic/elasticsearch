@@ -19,6 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-public abstract class SpanQueryBuilder extends QueryBuilder {
+public interface SpanQueryBuilder {
 
 }

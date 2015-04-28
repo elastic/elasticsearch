@@ -439,6 +439,11 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
                 assertThat("all files should be reused except of the segments file", recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount() - 1));
                 assertThat("> 0 files should be reused", recoveryState.getIndex().reusedFileCount(), greaterThan(0));
             } else {
+                if (useSyncIds && !recoveryState.getPrimary()) {
+                    logger.info("--> replica shard {} recovered from {} to {} using sync id, recovered {}, reuse {}",
+                            response.getShardId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
+                            recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
+                }
                 assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(0l));
                 assertThat(recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes()));
                 assertThat(recoveryState.getIndex().recoveredFileCount(), equalTo(0));

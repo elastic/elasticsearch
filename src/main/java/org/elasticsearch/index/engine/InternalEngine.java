@@ -1283,6 +1283,11 @@ public class InternalEngine extends Engine {
             throw new EngineException(shardId, "failed to recover from translog", e);
         }
 
+        // nocommit:  when we recover from gateway we recover ops from the translog we found and then create a new translog with new id.
+        // we flush here because we need to write a new translog id after recovery.
+        // we need to make sure here that an existing sync id is not overwritten by this flush if one exists.
+        // so, in case the old translog did not contain any ops, we should use the old sync id for flushing.
+        // nocommit because not sure if this here is the best solution for this...
         if (operationsRecovered > 0) {
             flush(true, true);
             refresh("translog recovery");

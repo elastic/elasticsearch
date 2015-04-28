@@ -178,7 +178,7 @@ public class Environment {
         String origPath = path;
         // first, try it as a path on the file system
         Path f1 = PathUtils.get(path);
-        if (Files.exists(f1)) {
+        if (f1.isAbsolute() && Files.exists(f1)) {
             try {
                 return f1.toUri().toURL();
             } catch (MalformedURLException e) {

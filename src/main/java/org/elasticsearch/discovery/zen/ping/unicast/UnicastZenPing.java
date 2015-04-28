@@ -23,8 +23,8 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Lists;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalArgumentException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -130,7 +130,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                     configuredTargetNodes.add(new DiscoveryNode(UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "#", addresses[i], version.minimumCompatibilityVersion()));
                 }
             } catch (Exception e) {
-                throw new ElasticsearchIllegalArgumentException("Failed to resolve address for [" + host + "]", e);
+                throw new IllegalArgumentException("Failed to resolve address for [" + host + "]", e);
             }
         }
         this.configuredTargetNodes = configuredTargetNodes.toArray(new DiscoveryNode[configuredTargetNodes.size()]);
@@ -462,7 +462,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     private UnicastPingResponse handlePingRequest(final UnicastPingRequest request) {
         if (!lifecycle.started()) {
-            throw new ElasticsearchIllegalStateException("received ping request while not started");
+            throw new IllegalStateException("received ping request while not started");
         }
         temporalResponses.add(request.pingResponse);
         threadPool.schedule(TimeValue.timeValueMillis(request.timeout.millis() * 2), ThreadPool.Names.SAME, new Runnable() {

@@ -22,9 +22,7 @@ package org.elasticsearch.common.recycler;
 import com.carrotsearch.hppc.hash.MurmurHash3;
 import com.google.common.collect.Queues;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-
-import java.lang.ref.SoftReference;
+import java.lang.IllegalArgumentException;
 
 public enum Recyclers {
     ;
@@ -155,7 +153,7 @@ public enum Recyclers {
      */
     public static <T> Recycler<T> concurrent(final Recycler.Factory<T> factory, final int concurrencyLevel) {
         if (concurrencyLevel < 1) {
-            throw new ElasticsearchIllegalArgumentException("concurrencyLevel must be >= 1");
+            throw new IllegalArgumentException("concurrencyLevel must be >= 1");
         }
         if (concurrencyLevel == 1) {
             return locked(factory.build());

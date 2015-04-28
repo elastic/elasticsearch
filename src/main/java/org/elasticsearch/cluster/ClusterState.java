@@ -22,7 +22,7 @@ package org.elasticsearch.cluster;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -103,10 +103,10 @@ public class ClusterState implements ToXContent {
         return customFactories.get(type);
     }
 
-    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) throws ElasticsearchIllegalArgumentException {
+    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) throws IllegalArgumentException {
         Custom.Factory<T> factory = customFactories.get(type);
         if (factory == null) {
-            throw new ElasticsearchIllegalArgumentException("No custom state factory registered for type [" + type + "]");
+            throw new IllegalArgumentException("No custom state factory registered for type [" + type + "]");
         }
         return factory;
     }
@@ -288,7 +288,7 @@ public class ClusterState implements ToXContent {
                 Metric m = valueToEnum.get(metric);
                 if (m == null) {
                     if (!ignoreUnknown) {
-                        throw new ElasticsearchIllegalArgumentException("Unknown metric [" + metric + "]");
+                        throw new IllegalArgumentException("Unknown metric [" + metric + "]");
                     }
                 } else {
                     result.add(m);

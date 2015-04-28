@@ -19,7 +19,7 @@
 
 package org.elasticsearch.discovery.zen;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -75,7 +75,7 @@ public class ZenDiscoveryUnitTest extends ElasticsearchTestCase {
         try {
             shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build());
             fail("should ignore, because current state's master is not equal to new state's master");
-        } catch (ElasticsearchIllegalStateException e) {
+        } catch (IllegalStateException e) {
             assertThat(e.getMessage(), containsString("cluster state from a different master then the current one, rejecting"));
         }
 

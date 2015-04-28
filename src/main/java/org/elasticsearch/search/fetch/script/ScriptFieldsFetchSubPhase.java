@@ -21,7 +21,7 @@ package org.elasticsearch.search.fetch.script;
 import com.google.common.collect.ImmutableMap;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.search.SearchHitField;
@@ -77,7 +77,7 @@ public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
             try {
                 leafScript = scriptField.script().getLeafSearchScript(hitContext.readerContext());
             } catch (IOException e1) {
-                throw new ElasticsearchIllegalStateException("Failed to load script", e1);
+                throw new IllegalStateException("Failed to load script", e1);
             }
             leafScript.setDocument(hitContext.docId());
 

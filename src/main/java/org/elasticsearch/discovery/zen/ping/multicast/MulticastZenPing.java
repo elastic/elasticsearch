@@ -21,7 +21,7 @@ package org.elasticsearch.discovery.zen.ping.multicast;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -113,7 +113,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     @Override
     public void setPingContextProvider(PingContextProvider nodesProvider) {
         if (lifecycle.started()) {
-            throw new ElasticsearchIllegalStateException("Can't set nodes provider when started");
+            throw new IllegalStateException("Can't set nodes provider when started");
         }
         this.contextProvider = nodesProvider;
     }
@@ -406,7 +406,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                                 .createParser(data)
                                 .mapAndClose();
                     } else {
-                        throw new ElasticsearchIllegalStateException("failed multicast message, probably message from previous version");
+                        throw new IllegalStateException("failed multicast message, probably message from previous version");
                     }
                 }
                 if (externalPingData != null) {

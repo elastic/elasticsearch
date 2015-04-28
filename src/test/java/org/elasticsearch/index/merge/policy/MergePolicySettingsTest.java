@@ -20,10 +20,9 @@ package org.elasticsearch.index.merge.policy;
 
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.LogDocMergePolicy;
-import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -94,19 +93,19 @@ public class MergePolicySettingsTest extends ElasticsearchTestCase {
         try {
             new LogDocMergePolicyProvider(createStore(build(-0.1)), service).getMergePolicy().getNoCFSRatio();
             fail("exception expected");
-        } catch (ElasticsearchIllegalArgumentException ex) {
+        } catch (IllegalArgumentException ex) {
 
         }
         try {
             new LogDocMergePolicyProvider(createStore(build(1.1)), service).getMergePolicy().getNoCFSRatio();
             fail("exception expected");
-        } catch (ElasticsearchIllegalArgumentException ex) {
+        } catch (IllegalArgumentException ex) {
 
         }
         try {
             new LogDocMergePolicyProvider(createStore(build("Falsch")), service).getMergePolicy().getNoCFSRatio();
             fail("exception expected");
-        } catch (ElasticsearchIllegalArgumentException ex) {
+        } catch (IllegalArgumentException ex) {
 
         }
 

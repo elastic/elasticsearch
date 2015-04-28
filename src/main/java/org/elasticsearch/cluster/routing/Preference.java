@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 
 /**
  * Routing Preference Type
@@ -99,7 +99,7 @@ public enum  Preference {
             case "_onlyLocal":
                 return ONLY_LOCAL;
             default:
-                throw new ElasticsearchIllegalArgumentException("no Preference for [" + preferenceType + "]");
+                throw new IllegalArgumentException("no Preference for [" + preferenceType + "]");
         }
     }
 }

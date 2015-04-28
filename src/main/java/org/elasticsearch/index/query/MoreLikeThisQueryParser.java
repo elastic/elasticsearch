@@ -28,7 +28,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
@@ -173,14 +173,14 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 } else if (Fields.DOCUMENT_IDS.match(currentFieldName, parseContext.parseFlags())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (!token.isValue()) {
-                            throw new ElasticsearchIllegalArgumentException("ids array element should only contain ids");
+                            throw new IllegalArgumentException("ids array element should only contain ids");
                         }
                         likeItems.add(newTermVectorsRequest().id(parser.text()));
                     }
                 } else if (Fields.DOCUMENTS.match(currentFieldName, parseContext.parseFlags())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token != XContentParser.Token.START_OBJECT) {
-                            throw new ElasticsearchIllegalArgumentException("docs array element should include an object");
+                            throw new IllegalArgumentException("docs array element should include an object");
                         }
                         likeItems.add(parseDocument(parser));
                     }
@@ -313,7 +313,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
         } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
             items.add(parseDocument(parser));
         } else {
-            throw new ElasticsearchIllegalArgumentException("Content of 'like' parameter should either be a string or an object");
+            throw new IllegalArgumentException("Content of 'like' parameter should either be a string or an object");
         }
     }
 
@@ -331,7 +331,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
             final String fieldName = it.next();
             if (!Analysis.generatesCharacterTokenStream(analyzer, fieldName)) {
                 if (failOnUnsupportedField) {
-                    throw new ElasticsearchIllegalArgumentException("more_like_this doesn't support binary/numeric fields: [" + fieldName + "]");
+                    throw new IllegalArgumentException("more_like_this doesn't support binary/numeric fields: [" + fieldName + "]");
                 } else {
                     it.remove();
                 }

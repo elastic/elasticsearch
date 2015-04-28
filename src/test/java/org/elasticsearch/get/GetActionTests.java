@@ -20,7 +20,6 @@
 package org.elasticsearch.get;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -785,7 +784,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareGet(indexOrAlias(), "my-type1", "1").setFields("field1").get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             //all well
         }
 
@@ -794,7 +793,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareGet(indexOrAlias(), "my-type1", "1").setFields("field1").get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             //all well
         }
     }

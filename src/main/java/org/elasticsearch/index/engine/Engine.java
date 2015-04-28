@@ -28,7 +28,7 @@ import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
@@ -105,7 +105,7 @@ public abstract class Engine implements Closeable {
 
     /**
      * Tries to extract a segment reader from the given index reader.
-     * If no SegmentReader can be extracted an {@link org.elasticsearch.ElasticsearchIllegalStateException} is thrown.
+     * If no SegmentReader can be extracted an {@link IllegalStateException} is thrown.
      */
     protected static SegmentReader segmentReader(LeafReader reader) {
         if (reader instanceof SegmentReader) {
@@ -115,7 +115,7 @@ public abstract class Engine implements Closeable {
             return segmentReader(FilterLeafReader.unwrap(fReader));
         }
         // hard fail - we can't get a SegmentReader
-        throw new ElasticsearchIllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
+        throw new IllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
     }
 
     /**

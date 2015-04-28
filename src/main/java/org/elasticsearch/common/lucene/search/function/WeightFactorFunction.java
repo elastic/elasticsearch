@@ -21,7 +21,7 @@ package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 
 import java.io.IOException;
 
@@ -37,7 +37,7 @@ public class WeightFactorFunction extends ScoreFunction {
     public WeightFactorFunction(float weight, ScoreFunction scoreFunction) {
         super(CombineFunction.MULT);
         if (scoreFunction instanceof BoostScoreFunction) {
-            throw new ElasticsearchIllegalArgumentException(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE);
+            throw new IllegalArgumentException(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE);
         }
         if (scoreFunction == null) {
             this.scoreFunction = SCORE_ONE;

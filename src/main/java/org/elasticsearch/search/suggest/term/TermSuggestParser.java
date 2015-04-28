@@ -20,7 +20,7 @@ package org.elasticsearch.search.suggest.term;
 
 import java.io.IOException;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
@@ -48,7 +48,7 @@ public final class TermSuggestParser implements SuggestContextParser {
             } else if (token.isValue()) {
                 parseTokenValue(parser, mapperService, fieldName, suggestion, settings);
             } else {
-                throw new ElasticsearchIllegalArgumentException("suggester[term]  doesn't support field [" + fieldName + "]");
+                throw new IllegalArgumentException("suggester[term]  doesn't support field [" + fieldName + "]");
             }
         }
         return suggestion;
@@ -58,7 +58,7 @@ public final class TermSuggestParser implements SuggestContextParser {
             DirectSpellcheckerSettings settings) throws IOException {
         if (!(SuggestUtils.parseSuggestContext(parser, mapperService, fieldName, suggestion) || SuggestUtils.parseDirectSpellcheckerSettings(
                 parser, fieldName, settings))) {
-            throw new ElasticsearchIllegalArgumentException("suggester[term] doesn't support [" + fieldName + "]");
+            throw new IllegalArgumentException("suggester[term] doesn't support [" + fieldName + "]");
 
         }
     }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -271,7 +271,7 @@ public class BulkProcessor implements Closeable {
 
     protected void ensureOpen() {
         if (closed) {
-            throw new ElasticsearchIllegalStateException("bulk process already closed");
+            throw new IllegalStateException("bulk process already closed");
         }
     }
 

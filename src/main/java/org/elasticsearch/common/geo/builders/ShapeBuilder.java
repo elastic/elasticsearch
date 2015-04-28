@@ -27,7 +27,7 @@ import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import org.apache.commons.lang3.tuple.Pair;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
@@ -256,7 +256,7 @@ public abstract class ShapeBuilder implements ToXContent {
             }
             return new CoordinateNode(new Coordinate(lon, lat));
         } else if (token == XContentParser.Token.VALUE_NULL) {
-            throw new ElasticsearchIllegalArgumentException("coordinates cannot contain NULL values)");
+            throw new IllegalArgumentException("coordinates cannot contain NULL values)");
         }
 
         List<CoordinateNode> nodes = new ArrayList<>();
@@ -703,7 +703,7 @@ public abstract class ShapeBuilder implements ToXContent {
                     return type;
                 }
             }
-            throw new ElasticsearchIllegalArgumentException("unknown geo_shape ["+geoshapename+"]");
+            throw new IllegalArgumentException("unknown geo_shape ["+geoshapename+"]");
         }
 
         public static ShapeBuilder parse(XContentParser parser) throws IOException {

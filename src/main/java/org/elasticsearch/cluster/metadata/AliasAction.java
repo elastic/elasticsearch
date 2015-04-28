@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -59,7 +59,7 @@ public class AliasAction implements Streamable {
             } else if (value == 1) {
                 return REMOVE;
             } else {
-                throw new ElasticsearchIllegalArgumentException("No type for action [" + value + "]");
+                throw new IllegalArgumentException("No type for action [" + value + "]");
             }
         }
     }

@@ -19,10 +19,9 @@
 
 package org.elasticsearch.search.preference;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -112,7 +111,7 @@ public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
 
-    @Test (expected = ElasticsearchIllegalArgumentException.class)
+    @Test (expected = IllegalArgumentException.class)
     public void testThatSpecifyingNonExistingNodesReturnsUsefulError() throws Exception {
         createIndex("test");
         ensureGreen();

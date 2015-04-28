@@ -21,8 +21,8 @@ package org.elasticsearch.rest;
 
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalArgumentException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -136,7 +136,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
                 headHandlers.insert(path, handler);
                 break;
             default:
-                throw new ElasticsearchIllegalArgumentException("Can't handle [" + method + "] for path [" + path + "]");
+                throw new IllegalArgumentException("Can't handle [" + method + "] for path [" + path + "]");
         }
     }
 
@@ -260,7 +260,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
             try {
                 int loc = index.getAndIncrement();
                 if (loc > filters.length) {
-                    throw new ElasticsearchIllegalStateException("filter continueProcessing was called more than expected");
+                    throw new IllegalStateException("filter continueProcessing was called more than expected");
                 } else if (loc == filters.length) {
                     executionFilter.process(request, channel, this);
                 } else {

@@ -25,7 +25,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase.Slow;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
@@ -1646,7 +1646,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
             .prepareRestoreSnapshot("test-repo", "test-snap")
             .setIgnoreIndexSettings("index.analysis.*")
             .setIndexSettings(newIncorrectReplicasIndexSettings)
-            .setWaitForCompletion(true), ElasticsearchIllegalArgumentException.class);
+            .setWaitForCompletion(true), IllegalArgumentException.class);
 
         logger.info("--> restore index with correct settings from the snapshot");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster()

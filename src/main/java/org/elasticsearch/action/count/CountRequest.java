@@ -20,7 +20,7 @@
 package org.elasticsearch.action.count;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
@@ -217,7 +217,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
      */
     public CountRequest terminateAfter(int terminateAfterCount) {
         if (terminateAfterCount <= 0) {
-            throw new ElasticsearchIllegalArgumentException("terminateAfter must be > 0");
+            throw new IllegalArgumentException("terminateAfter must be > 0");
         }
         this.terminateAfter = terminateAfterCount;
         return this;

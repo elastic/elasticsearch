@@ -21,7 +21,7 @@ package org.elasticsearch.node;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -157,7 +157,7 @@ public class Node implements Releasable {
         try {
             nodeEnvironment = new NodeEnvironment(this.settings, this.environment);
         } catch (IOException ex) {
-            throw new ElasticsearchIllegalStateException("Failed to created node environment", ex);
+            throw new IllegalStateException("Failed to created node environment", ex);
         }
 
         boolean success = false;

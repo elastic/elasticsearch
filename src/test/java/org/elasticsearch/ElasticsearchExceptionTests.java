@@ -21,14 +21,15 @@ package org.elasticsearch;
 
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexException;
 import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
@@ -67,10 +68,10 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
 
     public void testGuessRootCause() {
         {
-            ElasticsearchException exception = new ElasticsearchException("foo", new ElasticsearchException("bar", new ElasticsearchIllegalArgumentException("index is closed", new RuntimeException("foobar"))));
+            ElasticsearchException exception = new ElasticsearchException("foo", new ElasticsearchException("bar", new IndexException(new Index("foo"), "index is closed", new RuntimeException("foobar"))));
             ElasticsearchException[] rootCauses = exception.guessRootCauses();
             assertEquals(rootCauses.length, 1);
-            assertEquals(ElasticsearchException.getExceptionName(rootCauses[0]), "illegal_argument_exception");
+            assertEquals(ElasticsearchException.getExceptionName(rootCauses[0]), "index_exception");
             assertEquals(rootCauses[0].getMessage(), "index is closed");
             ShardSearchFailure failure = new ShardSearchFailure(new QueryParsingException(new Index("foo"), "foobar"), new SearchShardTarget("node_1", "foo", 1));
             ShardSearchFailure failure1 = new ShardSearchFailure(new QueryParsingException(new Index("foo"), "foobar"), new SearchShardTarget("node_1", "foo", 2));
@@ -143,20 +144,20 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
 
     public void testGetRootCause() {
         Exception root = new RuntimeException("foobar");
-        ElasticsearchException exception = new ElasticsearchException("foo", new ElasticsearchException("bar", new ElasticsearchIllegalArgumentException("index is closed", root)));
+        ElasticsearchException exception = new ElasticsearchException("foo", new ElasticsearchException("bar", new IllegalArgumentException("index is closed", root)));
         assertEquals(root, exception.getRootCause());
         assertTrue(exception.contains(RuntimeException.class));
         assertFalse(exception.contains(EOFException.class));
     }
 
     public void testToString() {
-        ElasticsearchException exception = new ElasticsearchException("foo", new ElasticsearchException("bar", new ElasticsearchIllegalArgumentException("index is closed", new RuntimeException("foobar"))));
-        assertEquals("ElasticsearchException[foo]; nested: ElasticsearchException[bar]; nested: ElasticsearchIllegalArgumentException[index is closed]; nested: RuntimeException[foobar];", exception.toString());
+        ElasticsearchException exception = new ElasticsearchException("foo", new ElasticsearchException("bar", new IllegalArgumentException("index is closed", new RuntimeException("foobar"))));
+        assertEquals("ElasticsearchException[foo]; nested: ElasticsearchException[bar]; nested: IllegalArgumentException[index is closed]; nested: RuntimeException[foobar];", exception.toString());
     }
 
     public void testToXContent() throws IOException {
         {
-            ElasticsearchException ex = new ElasticsearchException("foo", new ElasticsearchException("bar", new ElasticsearchIllegalArgumentException("index is closed", new RuntimeException("foobar"))));
+            ElasticsearchException ex = new ElasticsearchException("foo", new ElasticsearchException("bar", new IllegalArgumentException("index is closed", new RuntimeException("foobar"))));
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             ex.toXContent(builder, ToXContent.EMPTY_PARAMS);

@@ -23,8 +23,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalArgumentException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -269,7 +269,7 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
                     case 4:
                         return DELETE_BY_QUERY;
                     default:
-                        throw new ElasticsearchIllegalArgumentException("No type mapped for [" + id + "]");
+                        throw new IllegalArgumentException("No type mapped for [" + id + "]");
                 }
             }
         }
@@ -635,7 +635,7 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
 
         @Override
         public Source getSource(){
-            throw new ElasticsearchIllegalStateException("trying to read doc source from delete operation");
+            throw new IllegalStateException("trying to read doc source from delete operation");
         }
 
         @Override
@@ -709,7 +709,7 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
 
         @Override
         public Source getSource() {
-            throw new ElasticsearchIllegalStateException("trying to read doc source from delete_by_query operation");
+            throw new IllegalStateException("trying to read doc source from delete_by_query operation");
         }
 
         @Override

@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.routing;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -185,7 +185,7 @@ public class OperationRouting extends AbstractComponent {
                     ensureNodeIdExists(nodes, nodeId);
                     return indexShard.onlyNodeActiveInitializingShardsIt(nodeId);
                 default:
-                    throw new ElasticsearchIllegalArgumentException("unknown preference [" + preferenceType + "]");
+                    throw new IllegalArgumentException("unknown preference [" + preferenceType + "]");
             }
         }
         // if not, then use it as the index
@@ -260,14 +260,14 @@ public class OperationRouting extends AbstractComponent {
     @Deprecated
     protected int hash(HashFunction hashFunction, String type, String id) {
         if (type == null || "_all".equals(type)) {
-            throw new ElasticsearchIllegalArgumentException("Can't route an operation with no type and having type part of the routing (for backward comp)");
+            throw new IllegalArgumentException("Can't route an operation with no type and having type part of the routing (for backward comp)");
         }
         return hashFunction.hash(type, id);
     }
 
     private void ensureNodeIdExists(DiscoveryNodes nodes, String nodeId) {
         if (!nodes.dataNodes().keys().contains(nodeId)) {
-            throw new ElasticsearchIllegalArgumentException("No data node with id[" + nodeId + "] found");
+            throw new IllegalArgumentException("No data node with id[" + nodeId + "] found");
         }
     }
 

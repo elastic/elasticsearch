@@ -20,7 +20,7 @@
 package org.elasticsearch.action.suggest;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -141,7 +141,7 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
             if (suggest != null && suggest.length() > 0) {
                 parser = XContentFactory.xContent(suggest).createParser(suggest);
                 if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                    throw new ElasticsearchIllegalArgumentException("suggest content missing");
+                    throw new IllegalArgumentException("suggest content missing");
                 }
                 final SuggestionSearchContext context = suggestPhase.parseElement().parseInternal(parser, indexService.mapperService(), request.shardId().getIndex(), request.shardId().id());
                 final Suggest result = suggestPhase.execute(context, searcher.reader());

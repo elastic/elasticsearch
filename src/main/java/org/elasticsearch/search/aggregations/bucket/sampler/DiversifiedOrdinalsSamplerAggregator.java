@@ -27,7 +27,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.DiversifiedTopDocsCollector;
 import org.apache.lucene.search.DiversifiedTopDocsCollector.ScoreDocKey;
 import org.apache.lucene.search.TopDocsCollector;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.BestDocsDeferringCollector;
@@ -100,7 +100,7 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
                         globalOrds.setDocument(doc);
                         final long valuesCount = globalOrds.cardinality();
                         if (valuesCount > 1) {
-                            throw new ElasticsearchIllegalArgumentException("Sample diversifying key must be a single valued-field");
+                            throw new IllegalArgumentException("Sample diversifying key must be a single valued-field");
                         }
                         if (valuesCount == 1) {
                             long result = globalOrds.ordAt(0);

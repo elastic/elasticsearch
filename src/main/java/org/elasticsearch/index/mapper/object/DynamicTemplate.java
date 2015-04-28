@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper.object;
 
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -46,7 +46,7 @@ public class DynamicTemplate {
             } else if ("regex".equals(value)) {
                 return REGEX;
             }
-            throw new ElasticsearchIllegalArgumentException("No matching pattern matched on [" + value + "]");
+            throw new IllegalArgumentException("No matching pattern matched on [" + value + "]");
         }
     }
 

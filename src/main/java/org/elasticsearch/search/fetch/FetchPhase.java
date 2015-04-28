@@ -28,8 +28,8 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalArgumentException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -147,7 +147,7 @@ public class FetchPhase implements SearchPhase {
                 if (x == null) {
                     // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
                     if (context.smartNameObjectMapper(fieldName) != null) {
-                        throw new ElasticsearchIllegalArgumentException("field [" + fieldName + "] isn't a leaf field");
+                        throw new IllegalArgumentException("field [" + fieldName + "] isn't a leaf field");
                     }
                 } else if (x.mapper().fieldType().stored()) {
                     if (fieldNames == null) {
@@ -313,7 +313,7 @@ public class FetchPhase implements SearchPhase {
                     // nested field has an object value in the _source. This just means the nested field has just one inner object, which is valid, but uncommon.
                     nestedParsedSource = ImmutableList.of((Map < String, Object >) extractedValue);
                 } else {
-                    throw new ElasticsearchIllegalStateException("extracted source isn't an object or an array");
+                    throw new IllegalStateException("extracted source isn't an object or an array");
                 }
                 sourceAsMap = nestedParsedSource.get(nested.getOffset());
                 nested = nested.getChild();

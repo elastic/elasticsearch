@@ -21,7 +21,7 @@ package org.elasticsearch.script;
 
 import java.util.Map;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 
 import static org.elasticsearch.script.ScriptService.ScriptType;
 
@@ -46,10 +46,10 @@ public class Script {
      */
     public Script(String lang, String script, ScriptType type, Map<String, Object> params) {
         if (script == null) {
-            throw new ElasticsearchIllegalArgumentException("The parameter script (String) must not be null in Script.");
+            throw new IllegalArgumentException("The parameter script (String) must not be null in Script.");
         }
         if (type == null) {
-            throw new ElasticsearchIllegalArgumentException("The parameter type (ScriptType) must not be null in Script.");
+            throw new IllegalArgumentException("The parameter type (ScriptType) must not be null in Script.");
         }
 
         this.lang = lang;

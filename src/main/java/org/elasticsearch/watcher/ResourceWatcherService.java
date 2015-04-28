@@ -19,7 +19,7 @@
 package org.elasticsearch.watcher;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -135,7 +135,7 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
             case HIGH:
                 return highMonitor.add(watcher);
             default:
-                throw new ElasticsearchIllegalArgumentException("Unknown frequency [" + frequency + "]");
+                throw new IllegalArgumentException("Unknown frequency [" + frequency + "]");
         }
     }
 
@@ -155,7 +155,7 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
                 highMonitor.run();
                 break;
             default:
-                throw new ElasticsearchIllegalArgumentException("Unknown frequency [" + frequency + "]");
+                throw new IllegalArgumentException("Unknown frequency [" + frequency + "]");
         }
     }
 

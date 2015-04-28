@@ -21,10 +21,9 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -501,7 +500,7 @@ public class AllocationService extends AbstractComponent {
                     logger.debug("failed shard {} not found in routingNodes, ignoring it", failedShard);
                 }
             } else {
-                throw new ElasticsearchIllegalStateException("illegal state for a failed shard, relocating node id is set, but state does not match: " + failedShard);
+                throw new IllegalStateException("illegal state for a failed shard, relocating node id is set, but state does not match: " + failedShard);
             }
         } else {
             // the shard is not relocating, its either started, or initializing, just cancel it and move on...

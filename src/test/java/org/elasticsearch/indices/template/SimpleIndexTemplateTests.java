@@ -20,7 +20,7 @@ package org.elasticsearch.indices.template;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -33,7 +33,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
@@ -495,7 +494,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
         try {
             createIndex("test");
             fail("index creation should have failed due to invalid alias filter in matching index template");
-        } catch(ElasticsearchIllegalArgumentException e) {
+        } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [invalid_alias]"));
             assertThat(e.getCause(), instanceOf(QueryParsingException.class));
             assertThat(e.getCause().getMessage(), equalTo("No filter registered for [invalid]"));
@@ -512,7 +511,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
 
         try {
             putIndexTemplateRequestBuilder.get();
-        } catch(ElasticsearchIllegalArgumentException e) {
+        } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [invalid_alias]"));
         }
 
@@ -546,7 +545,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
         try {
             putIndexTemplateRequestBuilder.get();
             fail("put template should have failed due to alias with empty name");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("alias name is required"));
         }
     }
@@ -560,7 +559,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
         try {
             putIndexTemplateRequestBuilder.get();
             fail("put template should have failed due to alias with multiple index routings");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("alias [alias] has several index routing values associated with it"));
         }
     }
@@ -661,7 +660,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
             client().prepareIndex("d1", "test", "test").setSource("{}").get();
             fail();
         } catch (Exception e) {
-            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(IllegalArgumentException.class));
             assertThat(e.getMessage(), containsString("failed to parse filter for alias [alias4]"));
         }
         response = client().prepareBulk().add(new IndexRequest("d2", "test", "test").source("{}")).get();

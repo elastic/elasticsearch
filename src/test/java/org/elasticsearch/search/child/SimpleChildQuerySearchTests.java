@@ -20,7 +20,7 @@ package org.elasticsearch.search.child;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -1467,13 +1467,13 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareIndex("test", "child1", "c1").setParent("p1").setSource("c_field", "blue").get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.toString(), containsString("Can't specify parent if no parent field has been configured"));
         }
         try {
             client().prepareIndex("test", "child2", "c2").setParent("p1").setSource("c_field", "blue").get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.toString(), containsString("Can't specify parent if no parent field has been configured"));
         }
 

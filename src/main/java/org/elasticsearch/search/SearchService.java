@@ -29,7 +29,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchType;
@@ -230,7 +230,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         final int originalSize = context.size();
         try {
             if (context.aggregations() != null) {
-                throw new ElasticsearchIllegalArgumentException("aggregations are not supported with search_type=scan");
+                throw new IllegalArgumentException("aggregations are not supported with search_type=scan");
             }
 
             if (context.scroll() == null) {

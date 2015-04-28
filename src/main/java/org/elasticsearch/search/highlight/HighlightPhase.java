@@ -23,14 +23,13 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -89,7 +88,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
             if (context.highlight().forceSource(field)) {
                 SourceFieldMapper sourceFieldMapper = context.mapperService().documentMapper(hitContext.hit().type()).sourceMapper();
                 if (!sourceFieldMapper.enabled()) {
-                    throw new ElasticsearchIllegalArgumentException("source is forced for fields " +  fieldNamesToHighlight + " but type [" + hitContext.hit().type() + "] has disabled _source");
+                    throw new IllegalArgumentException("source is forced for fields " +  fieldNamesToHighlight + " but type [" + hitContext.hit().type() + "] has disabled _source");
                 }
             }
 
@@ -113,7 +112,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
 
                 Highlighter highlighter = highlighters.get(highlighterType);
                 if (highlighter == null) {
-                    throw new ElasticsearchIllegalArgumentException("unknown highlighter type [" + highlighterType + "] for the field [" + fieldName + "]");
+                    throw new IllegalArgumentException("unknown highlighter type [" + highlighterType + "] for the field [" + fieldName + "]");
                 }
 
                 HighlighterContext.HighlightQuery highlightQuery;

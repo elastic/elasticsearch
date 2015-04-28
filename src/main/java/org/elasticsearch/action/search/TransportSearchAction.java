@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.type.*;
 import org.elasticsearch.action.support.ActionFilters;
@@ -106,7 +106,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else if (searchRequest.searchType() == SearchType.COUNT) {
             countAction.execute(searchRequest, listener);
         } else {
-            throw new ElasticsearchIllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");
+            throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");
         }
     }
 }

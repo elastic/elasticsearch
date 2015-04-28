@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -111,7 +111,7 @@ public class CreateIndexTests extends ElasticsearchIntegrationTest{
                 .build())
             .get();
             fail("should have thrown an exception about the primary shard count");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat("message contains error about shard count: " + e.getMessage(),
                     e.getMessage().contains("index must have 1 or more primary shards"), equalTo(true));
         }
@@ -122,7 +122,7 @@ public class CreateIndexTests extends ElasticsearchIntegrationTest{
                 .build())
                     .get();
             fail("should have thrown an exception about the replica shard count");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat("message contains error about shard count: " + e.getMessage(),
                     e.getMessage().contains("index must have 0 or more replica shards"), equalTo(true));
         }
@@ -134,7 +134,7 @@ public class CreateIndexTests extends ElasticsearchIntegrationTest{
                 .build())
                     .get();
             fail("should have thrown an exception about the shard count");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat("message contains error about shard count: " + e.getMessage(),
                     e.getMessage().contains("index must have 1 or more primary shards"), equalTo(true));
             assertThat("message contains error about shard count: " + e.getMessage(),
@@ -160,7 +160,7 @@ public class CreateIndexTests extends ElasticsearchIntegrationTest{
                 .build())
                 .get();
             fail("should have thrown an exception about the shard count");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat("message contains error about shard count: " + e.getMessage(),
                 e.getMessage().contains("index must have 1 or more primary shards"), equalTo(true));
         }
@@ -170,7 +170,7 @@ public class CreateIndexTests extends ElasticsearchIntegrationTest{
                 .build())
                 .get();
             fail("should have thrown an exception about the shard count");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat("message contains error about shard count: " + e.getMessage(),
                 e.getMessage().contains("index must have 0 or more replica shards"), equalTo(true));
         }
@@ -181,7 +181,7 @@ public class CreateIndexTests extends ElasticsearchIntegrationTest{
                 .build())
                 .get();
             fail("should have thrown an exception about the shard count");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat("message contains error about shard count: " + e.getMessage(),
                 e.getMessage().contains("index must have 1 or more primary shards"), equalTo(true));
             assertThat("message contains error about shard count: " + e.getMessage(),

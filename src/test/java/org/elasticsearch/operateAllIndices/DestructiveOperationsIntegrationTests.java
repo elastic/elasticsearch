@@ -19,11 +19,9 @@
 
 package org.elasticsearch.operateAllIndices;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -54,12 +52,14 @@ public class DestructiveOperationsIntegrationTests extends ElasticsearchIntegrat
             // should fail since index1 is the only index.
             client().admin().indices().prepareDelete("i*").get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {}
+        } catch (IllegalArgumentException e) {
+        }
 
         try {
             client().admin().indices().prepareDelete("_all").get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {}
+        } catch (IllegalArgumentException e) {
+        }
 
         settings = ImmutableSettings.builder()
                 .put(DestructiveOperations.REQUIRES_NAME, false)
@@ -85,20 +85,22 @@ public class DestructiveOperationsIntegrationTests extends ElasticsearchIntegrat
         try {
             client().admin().indices().prepareClose("_all").get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {}
+        } catch (IllegalArgumentException e) {
+        }
         try {
             assertAcked(client().admin().indices().prepareOpen("_all").get());
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
         }
         try {
             client().admin().indices().prepareClose("*").get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {}
+        } catch (IllegalArgumentException e) {
+        }
         try {
             assertAcked(client().admin().indices().prepareOpen("*").get());
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
         }
 
         settings = ImmutableSettings.builder()
@@ -111,5 +113,4 @@ public class DestructiveOperationsIntegrationTests extends ElasticsearchIntegrat
         // end close index:
         client().admin().indices().prepareDelete("_all").get();
     }
-
 }

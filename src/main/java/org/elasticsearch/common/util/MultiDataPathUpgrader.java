@@ -27,7 +27,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -127,7 +127,7 @@ public class MultiDataPathUpgrader {
             out.flush();
             if (!status.clean) {
                 logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
-                throw new ElasticsearchIllegalStateException("index check failure");
+                throw new IllegalStateException("index check failure");
             }
         }
     }

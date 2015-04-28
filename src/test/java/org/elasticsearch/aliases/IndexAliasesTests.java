@@ -20,7 +20,7 @@
 package org.elasticsearch.aliases;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -112,7 +112,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         try {
             indicesAliasesRequestBuilder.get();
             fail("put alias should have been failed due to invalid filter");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias1]"));
         }
 
@@ -121,7 +121,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         try {
             indicesAliasesRequestBuilder.get();
             fail("put alias should have been failed due to invalid filter");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias1]"));
         }
     }
@@ -743,7 +743,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         try {
             assertAcked(admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, "alias1")));
             fail("create alias should have failed due to null index");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat("Exception text does not contain \"Alias action [add]: [index] may not be empty string\"",
                     e.getMessage(), containsString("Alias action [add]: [index] may not be empty string"));
         }
@@ -760,7 +760,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         try {
             assertAcked(admin().indices().prepareAliases().addAlias((String) null, "empty-alias"));
             fail("create alias should have failed due to null index");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat("Exception text does not contain \"Alias action [add]: [index] may not be empty string\"",
                     e.getMessage(), containsString("Alias action [add]: [index] may not be empty string"));
         }
@@ -904,7 +904,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         try {
             createIndexRequestBuilder.get();
             fail("create index should have failed due to invalid alias filter");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias2]"));
         }
 
@@ -914,7 +914,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         try {
             createIndexRequestBuilder.get();
             fail("create index should have failed due to invalid alias filter");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias2]"));
         }
     }
@@ -928,8 +928,8 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
                     .addAlias("test", "a", FilterBuilders.termFilter("field1", "term"))
                     .get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
-            assertThat(e.getRootCause(), instanceOf(QueryParsingException.class));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getCause(), instanceOf(QueryParsingException.class));
         }
 
         try {
@@ -937,8 +937,8 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
                     .addAlias("test", "a", FilterBuilders.rangeFilter("field2").from(0).to(1))
                     .get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
-            assertThat(e.getRootCause(), instanceOf(QueryParsingException.class));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getCause(), instanceOf(QueryParsingException.class));
         }
 
         client().admin().indices().prepareAliases()

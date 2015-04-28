@@ -184,13 +184,13 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         // we want to have at least 1 for reg/state/ping
         if (this.connectionsPerNodeReg == 0) {
-            throw new ElasticsearchIllegalArgumentException("can't set [connection_per_node.reg] to 0");
+            throw new IllegalArgumentException("can't set [connection_per_node.reg] to 0");
         }
         if (this.connectionsPerNodePing == 0) {
-            throw new ElasticsearchIllegalArgumentException("can't set [connection_per_node.ping] to 0");
+            throw new IllegalArgumentException("can't set [connection_per_node.ping] to 0");
         }
         if (this.connectionsPerNodeState == 0) {
-            throw new ElasticsearchIllegalArgumentException("can't set [connection_per_node.state] to 0");
+            throw new IllegalArgumentException("can't set [connection_per_node.state] to 0");
         }
 
         long defaultReceiverPredictor = 512 * 1024;
@@ -736,7 +736,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     public void connectToNode(DiscoveryNode node, boolean light) {
         if (!lifecycle.started()) {
-            throw new ElasticsearchIllegalStateException("can't add nodes to a stopped transport");
+            throw new IllegalStateException("can't add nodes to a stopped transport");
         }
         if (node == null) {
             throw new ConnectTransportException(null, "can't connect to a null node");
@@ -746,7 +746,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             connectionLock.acquire(node.id());
             try {
                 if (!lifecycle.started()) {
-                    throw new ElasticsearchIllegalStateException("can't add nodes to a stopped transport");
+                    throw new IllegalStateException("can't add nodes to a stopped transport");
                 }
                 NodeChannels nodeChannels = connectedNodes.get(node);
                 if (nodeChannels != null) {
@@ -1107,7 +1107,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             } else if (type == TransportRequestOptions.Type.RECOVERY) {
                 return recovery[MathUtils.mod(recoveryCounter.incrementAndGet(), recovery.length)];
             } else {
-                throw new ElasticsearchIllegalArgumentException("no type channel for [" + type + "]");
+                throw new IllegalArgumentException("no type channel for [" + type + "]");
             }
         }
 

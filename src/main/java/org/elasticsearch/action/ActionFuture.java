@@ -35,7 +35,7 @@ public interface ActionFuture<T> extends Future<T> {
 
     /**
      * Similar to {@link #get()}, just catching the {@link InterruptedException} and throwing
-     * an {@link org.elasticsearch.ElasticsearchIllegalStateException} instead. Also catches
+     * an {@link IllegalStateException} instead. Also catches
      * {@link java.util.concurrent.ExecutionException} and throws the actual cause instead.
      * <p/>
      * <p>Note, the actual cause is unwrapped to the actual failure (for example, unwrapped
@@ -46,7 +46,7 @@ public interface ActionFuture<T> extends Future<T> {
 
     /**
      * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just catching the {@link InterruptedException} and throwing
-     * an {@link org.elasticsearch.ElasticsearchIllegalStateException} instead. Also catches
+     * an {@link IllegalStateException} instead. Also catches
      * {@link java.util.concurrent.ExecutionException} and throws the actual cause instead.
      * <p/>
      * <p>Note, the actual cause is unwrapped to the actual failure (for example, unwrapped
@@ -57,7 +57,7 @@ public interface ActionFuture<T> extends Future<T> {
 
     /**
      * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just catching the {@link InterruptedException} and throwing
-     * an {@link org.elasticsearch.ElasticsearchIllegalStateException} instead. Also catches
+     * an {@link IllegalStateException} instead. Also catches
      * {@link java.util.concurrent.ExecutionException} and throws the actual cause instead.
      * <p/>
      * <p>Note, the actual cause is unwrapped to the actual failure (for example, unwrapped
@@ -70,7 +70,7 @@ public interface ActionFuture<T> extends Future<T> {
 
     /**
      * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just catching the {@link InterruptedException} and throwing
-     * an {@link org.elasticsearch.ElasticsearchIllegalStateException} instead. Also catches
+     * an {@link IllegalStateException} instead. Also catches
      * {@link java.util.concurrent.ExecutionException} and throws the actual cause instead.
      * <p/>
      * <p>Note, the actual cause is unwrapped to the actual failure (for example, unwrapped
@@ -81,7 +81,7 @@ public interface ActionFuture<T> extends Future<T> {
 
     /**
      * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just catching the {@link InterruptedException} and throwing
-     * an {@link org.elasticsearch.ElasticsearchIllegalStateException} instead. Also catches
+     * an {@link IllegalStateException} instead. Also catches
      * {@link java.util.concurrent.ExecutionException} and throws the actual cause instead.
      * <p/>
      * <p>Note, the actual cause is unwrapped to the actual failure (for example, unwrapped

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.index;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 import static org.hamcrest.Matchers.equalTo;
@@ -40,7 +40,7 @@ public class IndexRequestTests extends ElasticsearchTestCase {
         assertThat(IndexRequest.OpType.fromString(indexUpper), equalTo(IndexRequest.OpType.INDEX));
     }
 
-    @Test(expected= ElasticsearchIllegalArgumentException.class)
+    @Test(expected= IllegalArgumentException.class)
     public void testReadBogusString(){
         String foobar = "foobar";
         IndexRequest.OpType.fromString(foobar);

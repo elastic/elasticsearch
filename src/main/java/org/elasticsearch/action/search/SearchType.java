@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.ParseField;
 
 /**
@@ -100,7 +100,7 @@ public enum SearchType {
         } else if (id == 5) {
             return COUNT;
         } else {
-            throw new ElasticsearchIllegalArgumentException("No search type for [" + id + "]");
+            throw new IllegalArgumentException("No search type for [" + id + "]");
         }
     }
 
@@ -109,7 +109,7 @@ public enum SearchType {
      * one of "dfs_query_then_fetch"/"dfsQueryThenFetch", "dfs_query_and_fetch"/"dfsQueryAndFetch",
      * "query_then_fetch"/"queryThenFetch", "query_and_fetch"/"queryAndFetch", and "scan".
      */
-    public static SearchType fromString(String searchType) throws ElasticsearchIllegalArgumentException {
+    public static SearchType fromString(String searchType) throws IllegalArgumentException {
         if (searchType == null) {
             return SearchType.DEFAULT;
         }
@@ -126,7 +126,7 @@ public enum SearchType {
         } else if (COUNT_VALUE.match(searchType)) {
             return SearchType.COUNT;
         } else {
-            throw new ElasticsearchIllegalArgumentException("No search type for [" + searchType + "]");
+            throw new IllegalArgumentException("No search type for [" + searchType + "]");
         }
     }
 }

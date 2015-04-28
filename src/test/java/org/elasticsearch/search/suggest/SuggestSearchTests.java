@@ -19,13 +19,11 @@
 
 package org.elasticsearch.search.suggest;
 
-import com.carrotsearch.randomizedtesting.annotations.Nightly;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.io.Resources;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.*;
@@ -124,11 +122,11 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
             searchSuggest( termSuggest);
             fail(" can not suggest across multiple indices with different analysis chains");
         } catch (ReduceSearchPhaseException ex) {
-            assertThat(ex.getCause(), instanceOf(ElasticsearchIllegalStateException.class));
+            assertThat(ex.getCause(), instanceOf(IllegalStateException.class));
             assertThat(ex.getCause().getMessage(),
                     anyOf(endsWith("Suggest entries have different sizes actual [1] expected [2]"),
                             endsWith("Suggest entries have different sizes actual [2] expected [1]")));
-        } catch (ElasticsearchIllegalStateException ex) {
+        } catch (IllegalStateException ex) {
             assertThat(ex.getMessage(), anyOf(endsWith("Suggest entries have different sizes actual [1] expected [2]"),
                     endsWith("Suggest entries have different sizes actual [2] expected [1]")));
         }
@@ -144,10 +142,10 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
             searchSuggest( termSuggest);
             fail(" can not suggest across multiple indices with different analysis chains");
         } catch (ReduceSearchPhaseException ex) {
-            assertThat(ex.getCause(), instanceOf(ElasticsearchIllegalStateException.class));
+            assertThat(ex.getCause(), instanceOf(IllegalStateException.class));
             assertThat(ex.getCause().getMessage(), anyOf(endsWith("Suggest entries have different text actual [ABCD] expected [abcd]"),
                     endsWith("Suggest entries have different text actual [abcd] expected [ABCD]")));
-        } catch (ElasticsearchIllegalStateException ex) {
+        } catch (IllegalStateException ex) {
             assertThat(ex.getMessage(), anyOf(endsWith("Suggest entries have different text actual [ABCD] expected [abcd]"),
                     endsWith("Suggest entries have different text actual [abcd] expected [ABCD]")));
         }

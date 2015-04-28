@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.index;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
@@ -88,7 +88,7 @@ public class RestIndexAction extends BaseRestHandler {
         if (sOpType != null) {
             try {
                 indexRequest.opType(IndexRequest.OpType.fromString(sOpType));
-            } catch (ElasticsearchIllegalArgumentException eia){
+            } catch (IllegalArgumentException eia){
                 try {
                     XContentBuilder builder = channel.newBuilder();
                     channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", eia.getMessage()).endObject()));

@@ -24,8 +24,8 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalArgumentException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -211,10 +211,10 @@ public final class QueryRescorer implements Rescorer {
                     } else if ("multiply".equals(sScoreMode)) {
                         rescoreContext.setScoreMode(ScoreMode.Multiply);
                     } else {
-                        throw new ElasticsearchIllegalArgumentException("[rescore] illegal score_mode [" + sScoreMode + "]");
+                        throw new IllegalArgumentException("[rescore] illegal score_mode [" + sScoreMode + "]");
                     }
                 } else {
-                    throw new ElasticsearchIllegalArgumentException("rescore doesn't support [" + fieldName + "]");
+                    throw new IllegalArgumentException("rescore doesn't support [" + fieldName + "]");
                 }
             }
         }
@@ -314,7 +314,7 @@ public final class QueryRescorer implements Rescorer {
         try {
             context.searcher().createNormalizedWeight(((QueryRescoreContext) rescoreContext).query(), false).extractTerms(termsSet);
         } catch (IOException e) {
-            throw new ElasticsearchIllegalStateException("Failed to extract terms", e);
+            throw new IllegalStateException("Failed to extract terms", e);
         }
     }
 

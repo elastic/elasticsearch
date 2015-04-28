@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -50,12 +50,12 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
     /**
      * Adds an initial block to be set on the first cluster state created.
      */
-    void addInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException;
+    void addInitialStateBlock(ClusterBlock block) throws IllegalStateException;
 
     /**
      * Remove an initial block to be set on the first cluster state created.
      */
-    void removeInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException;
+    void removeInitialStateBlock(ClusterBlock block) throws IllegalStateException;
 
     /**
      * The operation routing.

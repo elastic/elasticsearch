@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalArgumentException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.ElasticsearchNullPointerException;
 
 import java.util.NoSuchElementException;
@@ -70,12 +70,12 @@ public final class Preconditions {
      * calling method.
      *
      * @param expression a boolean expression
-     * @throws org.elasticsearch.ElasticsearchIllegalArgumentException
+     * @throws IllegalArgumentException
      *          if {@code expression} is false
      */
     public static void checkArgument(boolean expression) {
         if (!expression) {
-            throw new ElasticsearchIllegalArgumentException();
+            throw new IllegalArgumentException();
         }
     }
 
@@ -86,12 +86,12 @@ public final class Preconditions {
      * @param expression   a boolean expression
      * @param errorMessage the exception message to use if the check fails; will
      *                     be converted to a string using {@link String#valueOf(Object)}
-     * @throws org.elasticsearch.ElasticsearchIllegalArgumentException
+     * @throws IllegalArgumentException
      *          if {@code expression} is false
      */
     public static void checkArgument(boolean expression, Object errorMessage) {
         if (!expression) {
-            throw new ElasticsearchIllegalArgumentException(String.valueOf(errorMessage));
+            throw new IllegalArgumentException(String.valueOf(errorMessage));
         }
     }
 
@@ -109,7 +109,7 @@ public final class Preconditions {
      * @param errorMessageArgs     the arguments to be substituted into the message
      *                             template. Arguments are converted to strings using
      *                             {@link String#valueOf(Object)}.
-     * @throws org.elasticsearch.ElasticsearchIllegalArgumentException
+     * @throws IllegalArgumentException
      *          if {@code expression} is false
      * @throws org.elasticsearch.ElasticsearchNullPointerException
      *          if the check fails and either {@code
@@ -119,7 +119,7 @@ public final class Preconditions {
     public static void checkArgument(boolean expression,
                                      String errorMessageTemplate, Object... errorMessageArgs) {
         if (!expression) {
-            throw new ElasticsearchIllegalArgumentException(
+            throw new IllegalArgumentException(
                     format(errorMessageTemplate, errorMessageArgs));
         }
     }
@@ -129,12 +129,12 @@ public final class Preconditions {
      * instance, but not involving any parameters to the calling method.
      *
      * @param expression a boolean expression
-     * @throws org.elasticsearch.ElasticsearchIllegalStateException
+     * @throws IllegalStateException
      *          if {@code expression} is false
      */
     public static void checkState(boolean expression) {
         if (!expression) {
-            throw new ElasticsearchIllegalStateException();
+            throw new IllegalStateException();
         }
     }
 
@@ -145,12 +145,12 @@ public final class Preconditions {
      * @param expression   a boolean expression
      * @param errorMessage the exception message to use if the check fails; will
      *                     be converted to a string using {@link String#valueOf(Object)}
-     * @throws org.elasticsearch.ElasticsearchIllegalStateException
+     * @throws IllegalStateException
      *          if {@code expression} is false
      */
     public static void checkState(boolean expression, Object errorMessage) {
         if (!expression) {
-            throw new ElasticsearchIllegalStateException(String.valueOf(errorMessage));
+            throw new IllegalStateException(String.valueOf(errorMessage));
         }
     }
 
@@ -168,7 +168,7 @@ public final class Preconditions {
      * @param errorMessageArgs     the arguments to be substituted into the message
      *                             template. Arguments are converted to strings using
      *                             {@link String#valueOf(Object)}.
-     * @throws org.elasticsearch.ElasticsearchIllegalStateException
+     * @throws IllegalStateException
      *          if {@code expression} is false
      * @throws org.elasticsearch.ElasticsearchNullPointerException
      *          if the check fails and either {@code
@@ -178,7 +178,7 @@ public final class Preconditions {
     public static void checkState(boolean expression,
                                   String errorMessageTemplate, Object... errorMessageArgs) {
         if (!expression) {
-            throw new ElasticsearchIllegalStateException(
+            throw new IllegalStateException(
                     format(errorMessageTemplate, errorMessageArgs));
         }
     }

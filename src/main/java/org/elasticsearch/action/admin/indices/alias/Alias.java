@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -187,7 +187,7 @@ public class Alias implements Streamable {
         String currentFieldName = null;
         XContentParser.Token token = parser.nextToken();
         if (token == null) {
-            throw new ElasticsearchIllegalArgumentException("No alias is specified");
+            throw new IllegalArgumentException("No alias is specified");
         }
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {

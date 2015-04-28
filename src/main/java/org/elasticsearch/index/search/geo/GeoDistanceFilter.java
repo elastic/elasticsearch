@@ -26,7 +26,7 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocValuesDocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -73,7 +73,7 @@ public class GeoDistanceFilter extends Filter {
                 boundingBoxFilter = IndexedGeoBoundingBoxFilter.create(distanceBoundingCheck.topLeft(), distanceBoundingCheck.bottomRight(), mapper);
                 distanceBoundingCheck = GeoDistance.ALWAYS_INSTANCE; // fine, we do the bounding box check using the filter
             } else {
-                throw new ElasticsearchIllegalArgumentException("type [" + optimizeBbox + "] for bounding box optimization not supported");
+                throw new IllegalArgumentException("type [" + optimizeBbox + "] for bounding box optimization not supported");
             }
         } else {
             distanceBoundingCheck = GeoDistance.ALWAYS_INSTANCE;

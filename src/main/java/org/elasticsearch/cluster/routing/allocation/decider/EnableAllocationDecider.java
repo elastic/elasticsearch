@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalArgumentException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -112,7 +112,7 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
                     return allocation.decision(Decision.NO, NAME, "replica allocations are forbidden");
                 }
             default:
-                throw new ElasticsearchIllegalStateException("Unknown allocation option");
+                throw new IllegalStateException("Unknown allocation option");
         }
     }
 
@@ -148,7 +148,7 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
                     return allocation.decision(Decision.NO, NAME, "primary rebalancing is forbidden");
                 }
             default:
-                throw new ElasticsearchIllegalStateException("Unknown rebalance option");
+                throw new IllegalStateException("Unknown rebalance option");
         }
     }
 
@@ -188,7 +188,7 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
                 try {
                     return Allocation.valueOf(strValue);
                 } catch (IllegalArgumentException e) {
-                    throw new ElasticsearchIllegalArgumentException("Illegal allocation.enable value [" + strValue + "]");
+                    throw new IllegalArgumentException("Illegal allocation.enable value [" + strValue + "]");
                 }
             }
         }
@@ -214,7 +214,7 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
                 try {
                     return Rebalance.valueOf(strValue);
                 } catch (IllegalArgumentException e) {
-                    throw new ElasticsearchIllegalArgumentException("Illegal rebalance.enable value [" + strValue + "]");
+                    throw new IllegalArgumentException("Illegal rebalance.enable value [" + strValue + "]");
                 }
             }
         }

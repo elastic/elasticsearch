@@ -22,7 +22,7 @@ package org.elasticsearch.action.index;
 import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
@@ -109,11 +109,11 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
             } else if (id == 1) {
                 return CREATE;
             } else {
-                throw new ElasticsearchIllegalArgumentException("No type match for [" + id + "]");
+                throw new IllegalArgumentException("No type match for [" + id + "]");
             }
         }
 
-        public static OpType fromString(String sOpType) throws ElasticsearchIllegalArgumentException {
+        public static OpType fromString(String sOpType) throws IllegalArgumentException {
             String lowersOpType = sOpType.toLowerCase(Locale.ROOT);
             switch(lowersOpType){
                 case "create":
@@ -121,7 +121,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
                 case "index":
                     return OpType.INDEX;
                 default:
-                    throw new ElasticsearchIllegalArgumentException("opType [" + sOpType + "] not allowed, either [index] or [create] are allowed");
+                    throw new IllegalArgumentException("opType [" + sOpType + "] not allowed, either [index] or [create] are allowed");
             }
         }
 
@@ -326,7 +326,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
             return this;
         }
         if (ttl <= 0) {
-            throw new ElasticsearchIllegalArgumentException("TTL value must be > 0. Illegal value provided [" + ttl + "]");
+            throw new IllegalArgumentException("TTL value must be > 0. Illegal value provided [" + ttl + "]");
         }
         this.ttl = ttl;
         return this;
@@ -490,7 +490,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
      * Sets a string representation of the {@link #opType(org.elasticsearch.action.index.IndexRequest.OpType)}. Can
      * be either "index" or "create".
      */
-    public IndexRequest opType(String opType) throws ElasticsearchIllegalArgumentException {
+    public IndexRequest opType(String opType) throws IllegalArgumentException {
         return opType(OpType.fromString(opType));
     }
 
@@ -608,11 +608,11 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
             }
 
             if (parent != null && !mappingMd.hasParentField()) {
-                throw new ElasticsearchIllegalArgumentException("Can't specify parent if no parent field has been configured");
+                throw new IllegalArgumentException("Can't specify parent if no parent field has been configured");
             }
         } else {
             if (parent != null) {
-                throw new ElasticsearchIllegalArgumentException("Can't specify parent if no parent field has been configured");
+                throw new IllegalArgumentException("Can't specify parent if no parent field has been configured");
             }
         }
 

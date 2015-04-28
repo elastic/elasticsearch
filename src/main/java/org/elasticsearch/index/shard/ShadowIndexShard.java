@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import java.lang.IllegalStateException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
@@ -98,7 +98,7 @@ public final class ShadowIndexShard extends IndexShard {
     @Override
     public void updateRoutingEntry(ShardRouting newRouting, boolean persistState) {
         if (newRouting.primary() == true) {// becoming a primary
-            throw new ElasticsearchIllegalStateException("can't promote shard to primary");
+            throw new IllegalStateException("can't promote shard to primary");
         }
         super.updateRoutingEntry(newRouting, persistState);
     }

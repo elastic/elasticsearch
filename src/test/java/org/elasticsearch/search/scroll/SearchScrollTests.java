@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.scroll;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
@@ -319,13 +319,13 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareClearScroll().addScrollId("c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1").get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
         }
         try {
             // Fails during base64 decoding (Base64-encoded string must have at least four characters)
             client().prepareClearScroll().addScrollId("a").get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
         }
         try {
             client().prepareClearScroll().addScrollId("abcabc").get();
@@ -513,7 +513,7 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
             RestSearchScrollAction.buildFromContent(invalidContent, searchScrollRequest);
             fail("expected parseContent failure");
         } catch (Exception e) {
-            assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(e, instanceOf(IllegalArgumentException.class));
             assertThat(e.getMessage(), equalTo("Failed to parse request body"));
         }
     }
@@ -530,7 +530,7 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
             RestSearchScrollAction.buildFromContent(invalidContent, searchScrollRequest);
             fail("expected parseContent failure");
         } catch (Exception e) {
-            assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(e, instanceOf(IllegalArgumentException.class));
             assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
         }
     }
@@ -555,7 +555,7 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
             RestClearScrollAction.buildFromContent(invalidContent, clearScrollRequest);
             fail("expected parseContent failure");
         } catch (Exception e) {
-            assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(e, instanceOf(IllegalArgumentException.class));
             assertThat(e.getMessage(), equalTo("Failed to parse request body"));
         }
     }
@@ -572,7 +572,7 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
             RestClearScrollAction.buildFromContent(invalidContent, clearScrollRequest);
             fail("expected parseContent failure");
         } catch (Exception e) {
-            assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(e, instanceOf(IllegalArgumentException.class));
             assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
         }
     }

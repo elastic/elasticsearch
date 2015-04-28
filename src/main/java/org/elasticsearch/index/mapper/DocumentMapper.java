@@ -26,7 +26,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BitDocIdSet;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Strings;
@@ -562,7 +562,7 @@ public class DocumentMapper implements ToXContent {
                 ctx = (Map<String, Object>) executable.unwrap(ctx);
                 return (Map<String, Object>) ctx.get("_source");
             } catch (Exception e) {
-                throw new ElasticsearchIllegalArgumentException("failed to execute script", e);
+                throw new IllegalArgumentException("failed to execute script", e);
             }
         }
 

@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.indices.create;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -239,7 +239,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         try {
             mappings.put(type, source.string());
         } catch (IOException e) {
-            throw new ElasticsearchIllegalArgumentException("Failed to build json for mapping request", e);
+            throw new IllegalArgumentException("Failed to build json for mapping request", e);
         }
         return this;
     }

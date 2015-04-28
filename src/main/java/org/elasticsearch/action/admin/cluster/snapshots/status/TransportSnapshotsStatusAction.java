@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
@@ -180,7 +180,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
                             stage = SnapshotIndexShardStage.DONE;
                             break;
                         default:
-                            throw new ElasticsearchIllegalArgumentException("Unknown snapshot state " + shardEntry.getValue().state());
+                            throw new IllegalArgumentException("Unknown snapshot state " + shardEntry.getValue().state());
                     }
                     SnapshotIndexShardStatus shardStatus = new SnapshotIndexShardStatus(shardEntry.getKey(), stage);
                     shardStatusBuilder.add(shardStatus);
@@ -216,7 +216,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
                                 state = SnapshotMetaData.State.SUCCESS;
                                 break;
                             default:
-                                throw new ElasticsearchIllegalArgumentException("Unknown snapshot state " + snapshot.state());
+                                throw new IllegalArgumentException("Unknown snapshot state " + snapshot.state());
                         }
                         builder.add(new SnapshotStatus(snapshotId, state, shardStatusBuilder.build()));
                     }

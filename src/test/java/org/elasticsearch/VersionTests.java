@@ -117,7 +117,7 @@ public class VersionTests extends ElasticsearchTestCase {
         Version.fromString("WRONG.VERSION");
     }
 
-    @Test(expected = ElasticsearchIllegalStateException.class)
+    @Test(expected = IllegalStateException.class)
     public void testVersionNoPresentInSettings() {
         Version.indexCreated(ImmutableSettings.builder().build());
     }

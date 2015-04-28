@@ -20,7 +20,7 @@
 package org.elasticsearch.script;
 
 import com.google.common.collect.*;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -106,7 +106,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
         assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED, ScriptType.INLINE);
     }
 
-    @Test(expected = ElasticsearchIllegalArgumentException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testMissingSetting() {
         assertAllSettingsWereChecked = false;
         this.scriptModes = new ScriptModes(scriptEngines, scriptContextRegistry, ImmutableSettings.EMPTY);

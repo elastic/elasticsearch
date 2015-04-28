@@ -227,7 +227,6 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
 
     void unloadIndex(String indexName) throws Exception {
         ElasticsearchAssertions.assertAcked(client().admin().indices().prepareDelete(indexName).get());
-        ElasticsearchAssertions.assertAllFilesClosed();
     }
 
     public void testAllVersionsTested() throws Exception {

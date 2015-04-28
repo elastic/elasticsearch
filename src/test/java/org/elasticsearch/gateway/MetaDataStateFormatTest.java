@@ -538,33 +538,6 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         }
     }
 
-    // copied from lucene - it's package private
-    final class CloseableDirectory implements Closeable {
-        private final BaseDirectoryWrapper dir;
-        private final TestRuleMarkFailure failureMarker;
-
-        public CloseableDirectory(BaseDirectoryWrapper dir,
-                                  TestRuleMarkFailure failureMarker) {
-            this.dir = dir;
-            this.failureMarker = failureMarker;
-        }
-
-        @Override
-        public void close() throws IOException {
-            // We only attempt to check open/closed state if there were no other test
-            // failures.
-            try {
-                if (failureMarker.wasSuccessful() && dir.isOpen()) {
-                    Assert.fail("Directory not closed: " + dir);
-                }
-            } finally {
-                if (dir.isOpen()) {
-                    dir.close();
-                }
-            }
-        }
-    }
-
     public Path[] content(String glob, Path dir) throws IOException {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, glob)) {
             return Iterators.toArray(stream.iterator(), Path.class);

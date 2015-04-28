@@ -41,7 +41,6 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.Test;
 
@@ -108,15 +107,15 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
             client().admin().indices().prepareFlush("test").setWaitIfOngoing(true).execute().get();
             client().admin().indices().prepareClose("test").execute().get();
             client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder()
-                    .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE, exceptionRate)
-                    .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, exceptionOnOpenRate));
+                    .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE, exceptionRate)
+                    .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, exceptionOnOpenRate));
             client().admin().indices().prepareOpen("test").execute().get();
         } else {
             Builder settings = settingsBuilder()
                     .put("index.number_of_replicas", randomIntBetween(0, 1))
                     .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
-                    .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE, exceptionRate)
-                    .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, exceptionOnOpenRate); // we cannot expect that the index will be valid
+                    .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE, exceptionRate)
+                    .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, exceptionOnOpenRate); // we cannot expect that the index will be valid
             logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
             client().admin().indices().prepareCreate("test")
                     .setSettings(settings)
@@ -190,8 +189,8 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
             // check the index still contains the records that we indexed without errors
             client().admin().indices().prepareClose("test").execute().get();
             client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder()
-                    .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE, 0)
-                    .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, 0));
+                    .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE, 0)
+                    .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, 0));
             client().admin().indices().prepareOpen("test").execute().get();
             ensureGreen();
             SearchResponse searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchQuery("test", "init")).get();

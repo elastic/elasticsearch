@@ -1141,34 +1141,41 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     protected void ensureClusterStateConsistency() throws IOException {
         if (cluster() != null) {
-            ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
-            byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
-            // remove local node reference
-            masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null);
-            Map<String, Object> masterStateMap = convertToMap(masterClusterState);
-            int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
-            for (Client client : cluster()) {
-                ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
-                byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
+            boolean getResolvedAddress = InetSocketTransportAddress.getResolveAddress();
+            try {
+                InetSocketTransportAddress.setResolveAddress(false);
+                ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
+                byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
                 // remove local node reference
-                localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null);
-                Map<String, Object> localStateMap = convertToMap(localClusterState);
-                int localClusterStateSize = localClusterStateBytes.length;
-                if (masterClusterState.version() == localClusterState.version()) {
-                    try {
-                        assertThat(masterClusterState.uuid(), equalTo(localClusterState.uuid()));
-                        // We cannot compare serialization bytes since serialization order of maps is not guaranteed
-                        // but we can compare serialization sizes - they should be the same
-                        assertThat(masterClusterStateSize, equalTo(localClusterStateSize));
-                        // Compare JSON serialization
-                        assertThat(mapsEqualIgnoringArrayOrder(masterStateMap, localStateMap), equalTo(true));
-                    } catch (AssertionError error) {
-                        logger.error("Cluster state from master:\n{}\nLocal cluster state:\n{}", masterClusterState.toString(), localClusterState.toString());
-                        throw error;
+                masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null);
+                Map<String, Object> masterStateMap = convertToMap(masterClusterState);
+                int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
+                for (Client client : cluster()) {
+                    ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
+                    byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
+                    // remove local node reference
+                    localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null);
+                    Map<String, Object> localStateMap = convertToMap(localClusterState);
+                    int localClusterStateSize = localClusterStateBytes.length;
+                    if (masterClusterState.version() == localClusterState.version()) {
+                        try {
+                            assertThat(masterClusterState.uuid(), equalTo(localClusterState.uuid()));
+                            // We cannot compare serialization bytes since serialization order of maps is not guaranteed
+                            // but we can compare serialization sizes - they should be the same
+                            assertThat(masterClusterStateSize, equalTo(localClusterStateSize));
+                            // Compare JSON serialization
+                            assertThat(mapsEqualIgnoringArrayOrder(masterStateMap, localStateMap), equalTo(true));
+                        } catch (AssertionError error) {
+                            logger.error("Cluster state from master:\n{}\nLocal cluster state:\n{}", masterClusterState.toString(), localClusterState.toString());
+                            throw error;
+                        }
                     }
                 }
+            } finally {
+                InetSocketTransportAddress.setResolveAddress(getResolvedAddress);
             }
         }
+
     }
 
     /**

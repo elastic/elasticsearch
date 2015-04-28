@@ -19,30 +19,77 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
-import java.nio.charset.StandardCharsets;
+import java.io.ByteArrayInputStream;
+import java.io.FilePermission;
 import java.nio.file.Path;
-import java.util.Collections;
+import java.security.Policy;
+import java.security.ProtectionDomain;
+import java.security.URIParameter;
 
 public class SecurityTests extends ElasticsearchTestCase {
     
-    /** backslash escaping (e.g. windows paths) */
-    public void testEncode() {
-        assertEquals("c:\\\\foobar", Security.encode("c:\\foobar"));
-    }
-    
-    /** test template processing */
-    public void testTemplateProcessing() throws Exception {
+    /** test generated permissions */
+    public void testGeneratedPermissions() throws Exception {
         Path path = createTempDir();
-        
-        byte results[] = Security.createPermissions(Collections.singleton(path));
-        String unicode = new String(results, StandardCharsets.UTF_8);
-        // try not to make this test too fragile or useless
-        assertTrue(unicode.contains("grant {"));
-        assertTrue(unicode.contains(Security.encode(path)));
-        assertTrue(unicode.contains("read"));
-        assertTrue(unicode.contains("write"));
+        // make a fake ES home and ensure we only grant permissions to that.
+        Path esHome = path.resolve("esHome");
+        ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder();
+        settingsBuilder.put("path.home", esHome.toString());
+        Settings settings = settingsBuilder.build();
+
+        Environment environment = new Environment(settings);        
+        Path policyFile = Security.processTemplate(new ByteArrayInputStream(new byte[0]), environment);
+      
+        ProtectionDomain domain = getClass().getProtectionDomain();
+        Policy policy = Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toUri()));
+        // the fake es home
+        assertTrue(policy.implies(domain, new FilePermission(esHome.toString(), "read")));
+        // its parent
+        assertFalse(policy.implies(domain, new FilePermission(path.toString(), "read")));
+        // some other sibling
+        assertFalse(policy.implies(domain, new FilePermission(path.resolve("other").toString(), "read")));
     }
-    
+
+    /** test generated permissions for all configured paths */
+    public void testEnvironmentPaths() throws Exception {
+        Path path = createTempDir();
+
+        ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder();
+        settingsBuilder.put("path.home", path.resolve("home").toString());
+        settingsBuilder.put("path.conf", path.resolve("conf").toString());
+        settingsBuilder.put("path.plugins", path.resolve("plugins").toString());
+        settingsBuilder.putArray("path.data", path.resolve("data1").toString(), path.resolve("data2").toString());
+        settingsBuilder.put("path.logs", path.resolve("logs").toString());
+        Settings settings = settingsBuilder.build();
+
+        Environment environment = new Environment(settings);        
+        Path policyFile = Security.processTemplate(new ByteArrayInputStream(new byte[0]), environment);
+     
+        ProtectionDomain domain = getClass().getProtectionDomain();
+        Policy policy = Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toUri()));
+
+        // check that all directories got permissions:
+        // homefile: this is needed unless we break out rules for "lib" dir.
+        // TODO: make read-only
+        assertTrue(policy.implies(domain, new FilePermission(environment.homeFile().toString(), "read,readlink,write,delete")));
+        // config file
+        // TODO: make read-only
+        assertTrue(policy.implies(domain, new FilePermission(environment.configFile().toString(), "read,readlink,write,delete")));
+        // plugins: r/w, TODO: can this be minimized?
+        assertTrue(policy.implies(domain, new FilePermission(environment.pluginsFile().toString(), "read,readlink,write,delete")));
+        // data paths: r/w
+        for (Path dataPath : environment.dataFiles()) {
+            assertTrue(policy.implies(domain, new FilePermission(dataPath.toString(), "read,readlink,write,delete")));
+        }
+        for (Path dataPath : environment.dataWithClusterFiles()) {
+            assertTrue(policy.implies(domain, new FilePermission(dataPath.toString(), "read,readlink,write,delete")));
+        }
+        // logs: r/w
+        assertTrue(policy.implies(domain, new FilePermission(environment.logsFile().toString(), "read,readlink,write,delete")));
+    }
 }

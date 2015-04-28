@@ -22,15 +22,17 @@ package org.elasticsearch.gateway;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
-import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
@@ -52,10 +54,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -351,7 +350,7 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow
-    @TestLogging("gateway:TRACE")
+    @TestLogging("gateway:TRACE,indices.recovery:TRACE,index.engine:TRACE")
     public void testReusePeerRecovery() throws Exception {
         final Settings settings = settingsBuilder()
                 .put("action.admin.cluster.node.shutdown.delay", "10ms")
@@ -405,6 +404,7 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
             for (int i = 0; i < numShards; i++) {
                 assertTrue(syncedFlushService.attemptSyncedFlush(new ShardId("test", i)).success());
             }
+            assertSyncIdsNotNull();
         }
 
         logger.info("--> disabling allocation while the cluster is shut down second time");
@@ -419,6 +419,9 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
         logger.info("--> waiting for cluster to return to green after {}shutdown", useSyncIds ? "" : "second ");
         ensureGreen();
 
+        if (useSyncIds) {
+            assertSyncIdsNotNull();
+        }
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
         for (ShardRecoveryResponse response : recoveryResponse.shardResponses().get("test")) {
             RecoveryState recoveryState = response.recoveryState();
@@ -451,7 +454,13 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
                 assertThat(recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()));
             }
         }
+    }
 
+    public void assertSyncIdsNotNull() {
+        IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
+        for (ShardStats shardStats : indexStats.getShards()) {
+            assertNotNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
+        }
     }
 
     @Test

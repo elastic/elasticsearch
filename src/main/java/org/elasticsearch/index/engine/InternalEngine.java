@@ -152,16 +152,21 @@ public class InternalEngine extends Engine {
                 long nextTranslogID = translogId.v2();
                 translog.newTranslog(nextTranslogID);
                 translogIdGenerator.set(nextTranslogID);
+
                 if (translogId.v1() != null && skipInitialTranslogRecovery == false) {
+                    // recovering from local store
                     recoverFromTranslog(translogId.v1(), transformer);
                 } else {
+                    // recovering from a different source
+                    // nocommit
+                    // when we create the Engine on a target shard after recovery we must make sure that
+                    // if a sync id is there then it is not overwritten by a forced flush
                     if (lastCommittedSegmentInfos.getUserData().get(SYNC_COMMIT_ID) == null) {
                         flush(true, true);
                     } else {
                         SyncedFlushResult syncedFlushResult = syncFlushIfNoPendingChanges(lastCommittedSegmentInfos.getUserData().get(SYNC_COMMIT_ID), lastCommittedSegmentInfos.getId());
                         assert syncedFlushResult.equals(SyncedFlushResult.SUCCESS) : "skipped translog recovery but synced flush failed";
                     }
-
                 }
             } catch (IOException | EngineException ex) {
                 throw new EngineCreationFailureException(shardId, "failed to recover from translog", ex);

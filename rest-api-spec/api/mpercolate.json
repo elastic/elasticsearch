@@ -16,10 +16,6 @@
         }
       },
       "params": {
-        "source": {
-          "type" : "string",
-          "description" : "The URL-encoded request definition"
-        },
         "ignore_unavailable": {
           "type": "boolean",
           "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"

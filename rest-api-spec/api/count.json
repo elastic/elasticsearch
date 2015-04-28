@@ -41,10 +41,6 @@
         "routing": {
           "type" : "string",
           "description" : "Specific routing value"
-        },
-        "source": {
-          "type" : "string",
-          "description" : "The URL-encoded query definition (instead of using the request body)"
         }
       }
     },

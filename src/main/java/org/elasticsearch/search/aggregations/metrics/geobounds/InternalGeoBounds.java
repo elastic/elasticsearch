@@ -57,8 +57,8 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
     }
     
     InternalGeoBounds(String name, double top, double bottom, double posLeft, double posRight,
- double negLeft, double negRight,
-            boolean wrapLongitude, List<Reducer> reducers, Map<String, Object> metaData) {
+            double negLeft, double negRight, boolean wrapLongitude,
+            List<Reducer> reducers, Map<String, Object> metaData) {
         super(name, reducers, metaData);
         this.top = top;
         this.bottom = bottom;

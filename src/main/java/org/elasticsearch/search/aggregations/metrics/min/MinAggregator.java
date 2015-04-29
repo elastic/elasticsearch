@@ -53,8 +53,8 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     DoubleArray mins;
 
     public MinAggregator(String name, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
- AggregationContext context,
-            Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+            AggregationContext context, Aggregator parent, List<Reducer> reducers,
+            Map<String, Object> metaData) throws IOException {
         super(name, context, parent, reducers, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
@@ -74,22 +74,22 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
             final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
-    }
+        }
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
         final NumericDoubleValues values = MultiValueMode.MIN.select(allValues, Double.POSITIVE_INFINITY);
         return new LeafBucketCollectorBase(sub, allValues) {
 
-    @Override
+            @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (bucket >= mins.size()) {
-            long from = mins.size();
+                    long from = mins.size();
                     mins = bigArrays.grow(mins, bucket + 1);
-            mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
-        }
-        final double value = values.get(doc);
+                    mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
+                }
+                final double value = values.get(doc);
                 double min = mins.get(bucket);
-        min = Math.min(min, value);
+                min = Math.min(min, value);
                 mins.set(bucket, min);
             }
 

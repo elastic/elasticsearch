@@ -65,7 +65,7 @@ public class LongTermsAggregator extends TermsAggregator {
         this.longFilter = longFilter;
         bucketOrds = new LongHash(1, aggregationContext.bigArrays());
     }
-    
+
     @Override
     public boolean needsScores() {
         return (valuesSource != null && valuesSource.needsScores()) || super.needsScores();
@@ -80,30 +80,30 @@ public class LongTermsAggregator extends TermsAggregator {
             final LeafBucketCollector sub) throws IOException {
         final SortedNumericDocValues values = getValues(valuesSource, ctx);
         return new LeafBucketCollectorBase(sub, values) {
-    @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
-        values.setDocument(doc);
-        final int valuesCount = values.count();
+            @Override
+            public void collect(int doc, long owningBucketOrdinal) throws IOException {
+                assert owningBucketOrdinal == 0;
+                values.setDocument(doc);
+                final int valuesCount = values.count();
 
-        long previous = Long.MAX_VALUE;
-        for (int i = 0; i < valuesCount; ++i) {
-            final long val = values.valueAt(i);
-            if (previous != val || i == 0) {
-                if ((longFilter == null) || (longFilter.accept(val))) {
-                    long bucketOrdinal = bucketOrds.add(val);
-                    if (bucketOrdinal < 0) { // already seen
-                        bucketOrdinal = - 1 - bucketOrdinal;
+                long previous = Long.MAX_VALUE;
+                for (int i = 0; i < valuesCount; ++i) {
+                    final long val = values.valueAt(i);
+                    if (previous != val || i == 0) {
+                        if ((longFilter == null) || (longFilter.accept(val))) {
+                            long bucketOrdinal = bucketOrds.add(val);
+                            if (bucketOrdinal < 0) { // already seen
+                                bucketOrdinal = - 1 - bucketOrdinal;
                                 collectExistingBucket(sub, doc, bucketOrdinal);
-                    } else {
+                            } else {
                                 collectBucket(sub, doc, bucketOrdinal);
-                    }                       
+                            }
+                        }
+
+                        previous = val;
+                    }
                 }
-                
-                previous = val;
             }
-        }
-    }
         };
     }
 
@@ -152,7 +152,7 @@ public class LongTermsAggregator extends TermsAggregator {
             list[i] = bucket;
             otherDocCount -= bucket.docCount;
         }
-      
+
         runDeferredCollections(survivingBucketOrds);
 
         //Now build the aggs
@@ -160,13 +160,12 @@ public class LongTermsAggregator extends TermsAggregator {
           list[i].aggregations = bucketAggregations(list[i].bucketOrd);
           list[i].docCountError = 0;
         }
-        
+
         return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(),
                 bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0, otherDocCount, reducers(),
                 metaData());
     }
-    
-    
+
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(),

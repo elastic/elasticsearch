@@ -65,7 +65,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
 
     public ParentToChildrenAggregator(String name, AggregatorFactories factories, AggregationContext aggregationContext,
                                       Aggregator parent, String parentType, Filter childFilter, Filter parentFilter,
- ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource,
+                                      ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource,
             long maxOrd, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, reducers, metaData);
         this.parentType = parentType;

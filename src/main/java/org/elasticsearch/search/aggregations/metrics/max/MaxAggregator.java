@@ -53,8 +53,8 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     DoubleArray maxes;
 
     public MaxAggregator(String name, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
- AggregationContext context,
-            Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+            AggregationContext context, Aggregator parent, List<Reducer> reducers,
+            Map<String, Object> metaData) throws IOException {
         super(name, context, parent, reducers, metaData);
         this.valuesSource = valuesSource;
         this.formatter = formatter;
@@ -80,16 +80,16 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
         final NumericDoubleValues values = MultiValueMode.MAX.select(allValues, Double.NEGATIVE_INFINITY);
         return new LeafBucketCollectorBase(sub, allValues) {
 
-    @Override
+            @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (bucket >= maxes.size()) {
-            long from = maxes.size();
+                    long from = maxes.size();
                     maxes = bigArrays.grow(maxes, bucket + 1);
-            maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
-        }
-        final double value = values.get(doc);
+                    maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
+                }
+                final double value = values.get(doc);
                 double max = maxes.get(bucket);
-        max = Math.max(max, value);
+                max = Math.max(max, value);
                 maxes.set(bucket, max);
             }
 

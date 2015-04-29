@@ -69,8 +69,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     InternalExtendedStats() {} // for serialization
 
     public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs,
- double sigma,
-            @Nullable ValueFormatter formatter, List<Reducer> reducers, Map<String, Object> metaData) {
+            double sigma, @Nullable ValueFormatter formatter, List<Reducer> reducers, Map<String, Object> metaData) {
         super(name, count, sum, min, max, formatter, reducers, metaData);
         this.sumOfSqrs = sumOfSqrs;
         this.sigma = sigma;

@@ -106,7 +106,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
             aggregation = aggregationObjects;
         }
         return new InternalScriptedMetric(firstAggregation.getName(), aggregation, firstAggregation.scriptLang, firstAggregation.scriptType,
- firstAggregation.reduceScript, firstAggregation.reduceParams, reducers(), getMetaData());
+                firstAggregation.reduceScript, firstAggregation.reduceParams, reducers(), getMetaData());
 
     }
 

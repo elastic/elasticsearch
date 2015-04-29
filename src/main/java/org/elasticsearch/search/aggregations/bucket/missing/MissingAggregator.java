@@ -44,8 +44,8 @@ public class MissingAggregator extends SingleBucketAggregator {
     private final ValuesSource valuesSource;
 
     public MissingAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
- AggregationContext aggregationContext,
-            Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+            AggregationContext aggregationContext, Aggregator parent, List<Reducer> reducers,
+            Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, reducers, metaData);
         this.valuesSource = valuesSource;
     }

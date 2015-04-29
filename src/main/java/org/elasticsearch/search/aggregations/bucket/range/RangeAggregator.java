@@ -105,7 +105,7 @@ public class RangeAggregator extends BucketsAggregator {
                            List<Range> ranges,
                            boolean keyed,
                            AggregationContext aggregationContext,
-            Aggregator parent, List<Reducer> reducers,
+                           Aggregator parent, List<Reducer> reducers,
                            Map<String, Object> metaData) throws IOException {
 
         super(name, factories, aggregationContext, parent, reducers, metaData);
@@ -140,15 +140,15 @@ public class RangeAggregator extends BucketsAggregator {
             final LeafBucketCollector sub) throws IOException {
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
-    @Override
+            @Override
             public void collect(int doc, long bucket) throws IOException {
-        values.setDocument(doc);
-        final int valuesCount = values.count();
-        for (int i = 0, lo = 0; i < valuesCount; ++i) {
-            final double value = values.valueAt(i);
+                values.setDocument(doc);
+                final int valuesCount = values.count();
+                for (int i = 0, lo = 0; i < valuesCount; ++i) {
+                    final double value = values.valueAt(i);
                     lo = collect(doc, value, bucket, lo);
-        }
-    }
+                }
+            }
 
     private int collect(int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException {
         int lo = lowBound, hi = ranges.length - 1; // all candidates are between these indexes
@@ -267,7 +267,7 @@ public class RangeAggregator extends BucketsAggregator {
                         ValueFormat format,
                         AggregationContext context,
                         Aggregator parent,
- InternalRange.Factory factory, List<Reducer> reducers,
+                        InternalRange.Factory factory, List<Reducer> reducers,
                         Map<String, Object> metaData) throws IOException {
 
             super(name, context, parent, reducers, metaData);

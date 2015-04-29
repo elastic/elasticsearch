@@ -57,14 +57,12 @@ public class HistogramAggregator extends BucketsAggregator {
     private final InternalHistogram.Factory histogramFactory;
 
     private final LongHash bucketOrds;
-    private SortedNumericDocValues values;
 
     public HistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, InternalOrder order,
                                boolean keyed, long minDocCount, @Nullable ExtendedBounds extendedBounds,
                                @Nullable ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
-                               InternalHistogram.Factory<?> histogramFactory,
- AggregationContext aggregationContext,
-            Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+                               InternalHistogram.Factory<?> histogramFactory, AggregationContext aggregationContext,
+                               Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, aggregationContext, parent, reducers, metaData);
         this.rounding = rounding;

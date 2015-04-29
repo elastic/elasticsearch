@@ -40,7 +40,7 @@ import java.util.Map;
 public class PercentilesAggregator extends AbstractPercentilesAggregator {
 
     public PercentilesAggregator(String name, Numeric valuesSource, AggregationContext context,
- Aggregator parent, double[] percents,
+            Aggregator parent, double[] percents,
             double compression, boolean keyed, @Nullable ValueFormatter formatter, List<Reducer> reducers,
             Map<String, Object> metaData) throws IOException {
         super(name, valuesSource, context, parent, percents, compression, keyed, formatter, reducers, metaData);
@@ -97,8 +97,7 @@ public class PercentilesAggregator extends AbstractPercentilesAggregator {
         protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
                 boolean collectsFromSingleBucket, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
             return new PercentilesAggregator(name, valuesSource, aggregationContext, parent, percents, compression,
- keyed,
-                    config.formatter(), reducers, metaData);
+                    keyed, config.formatter(), reducers, metaData);
         }
     }
 }

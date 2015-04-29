@@ -43,7 +43,7 @@ import java.util.Map;
 public class DoubleTermsAggregator extends LongTermsAggregator {
 
     public DoubleTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format,
- Terms.Order order, BucketCountThresholds bucketCountThresholds,
+            Terms.Order order, BucketCountThresholds bucketCountThresholds,
             AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError,
             IncludeExclude.LongFilter longFilter, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
         super(name, factories, valuesSource, format, order, bucketCountThresholds, aggregationContext, parent, collectionMode,

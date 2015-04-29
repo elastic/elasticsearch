@@ -51,10 +51,9 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
     DoubleArray negLefts;
     DoubleArray negRights;
 
-    protected GeoBoundsAggregator(String name, AggregationContext aggregationContext,
- Aggregator parent,
-            ValuesSource.GeoPoint valuesSource, boolean wrapLongitude, List<Reducer> reducers, Map<String, Object> metaData)
-            throws IOException {
+    protected GeoBoundsAggregator(String name, AggregationContext aggregationContext, Aggregator parent,
+            ValuesSource.GeoPoint valuesSource, boolean wrapLongitude, List<Reducer> reducers,
+            Map<String, Object> metaData) throws IOException {
         super(name, aggregationContext, parent, reducers, metaData);
         this.valuesSource = valuesSource;
         this.wrapLongitude = wrapLongitude;
@@ -184,8 +183,7 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
 
         @Override
         protected Aggregator doCreateInternal(ValuesSource.GeoPoint valuesSource, AggregationContext aggregationContext,
- Aggregator parent,
-                boolean collectsFromSingleBucket, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+                Aggregator parent, boolean collectsFromSingleBucket, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
             return new GeoBoundsAggregator(name, aggregationContext, parent, valuesSource, wrapLongitude, reducers, metaData);
         }
 

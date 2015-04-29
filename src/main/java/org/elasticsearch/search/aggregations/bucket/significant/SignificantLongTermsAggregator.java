@@ -46,10 +46,9 @@ import java.util.Map;
 public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
     public SignificantLongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format,
-              BucketCountThresholds bucketCountThresholds,
- AggregationContext aggregationContext,
-            Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory, IncludeExclude.LongFilter includeExclude,
-            List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+              BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext,
+              Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory, IncludeExclude.LongFilter includeExclude,
+              List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, valuesSource, format, null, bucketCountThresholds, aggregationContext, parent,
                 SubAggCollectionMode.DEPTH_FIRST, false, includeExclude, reducers, metaData);

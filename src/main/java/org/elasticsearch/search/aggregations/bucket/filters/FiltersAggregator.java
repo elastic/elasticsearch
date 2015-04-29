@@ -61,7 +61,7 @@ public class FiltersAggregator extends BucketsAggregator {
     private final boolean keyed;
 
     public FiltersAggregator(String name, AggregatorFactories factories, List<KeyedFilter> filters, boolean keyed, AggregationContext aggregationContext,
- Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData)
+            Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData)
             throws IOException {
         super(name, factories, aggregationContext, parent, reducers, metaData);
         this.keyed = keyed;
@@ -78,14 +78,14 @@ public class FiltersAggregator extends BucketsAggregator {
             bits[i] = DocIdSets.asSequentialAccessBits(ctx.reader().maxDoc(), filters[i].filter.getDocIdSet(ctx, null));
     }
         return new LeafBucketCollectorBase(sub, null) {
-    @Override
+            @Override
             public void collect(int doc, long bucket) throws IOException {
-        for (int i = 0; i < bits.length; i++) {
-            if (bits[i].get(doc)) {
+                for (int i = 0; i < bits.length; i++) {
+                    if (bits[i].get(doc)) {
                         collectBucket(sub, doc, bucketOrd(bucket, i));
                     }
+                }
             }
-        }
         };
     }
 

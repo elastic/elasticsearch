@@ -70,17 +70,17 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
             final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
-    }
+        }
         final BigArrays bigArrays = context.bigArrays();
         final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
 
-    @Override
+            @Override
             public void collect(int doc, long bucket) throws IOException {
                 counts = bigArrays.grow(counts, bucket + 1);
                 values.setDocument(doc);
                 counts.increment(bucket, values.count());
-    }
+            }
 
         };
     }

@@ -96,8 +96,7 @@ public class PercentileRanksAggregator extends AbstractPercentilesAggregator {
         protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
                 boolean collectsFromSingleBucket, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
             return new PercentileRanksAggregator(name, valuesSource, aggregationContext, parent, values, compression,
- keyed,
-                    config.formatter(), reducers, metaData);
+                    keyed, config.formatter(), reducers, metaData);
         }
     }
 }

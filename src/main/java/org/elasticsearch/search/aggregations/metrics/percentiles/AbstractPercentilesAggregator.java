@@ -55,8 +55,8 @@ public abstract class AbstractPercentilesAggregator extends NumericMetricsAggreg
 
     public AbstractPercentilesAggregator(String name, ValuesSource.Numeric valuesSource, AggregationContext context,
                                  Aggregator parent, double[] keys, double compression, boolean keyed,
- @Nullable ValueFormatter formatter, List<Reducer> reducers,
-            Map<String, Object> metaData) throws IOException {
+                                 @Nullable ValueFormatter formatter, List<Reducer> reducers,
+                                 Map<String, Object> metaData) throws IOException {
         super(name, context, parent, reducers, metaData);
         this.valuesSource = valuesSource;
         this.keyed = keyed;

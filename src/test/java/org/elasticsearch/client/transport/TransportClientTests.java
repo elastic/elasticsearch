@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -35,7 +34,10 @@ import org.junit.Test;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 1.0)
 public class TransportClientTests extends ElasticsearchIntegrationTest {
@@ -92,7 +94,8 @@ public class TransportClientTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatTransportClientSettingCannotBeChanged() {
-        try (TransportClient client = new TransportClient(settingsBuilder().put(Client.CLIENT_TYPE_SETTING, "anything"))) {
+        Settings baseSettings = settingsBuilder().put(Client.CLIENT_TYPE_SETTING, "anything").put("path.home", createTempDir()).build();
+        try (TransportClient client = new TransportClient(baseSettings)) {
             Settings settings = client.injector.getInstance(Settings.class);
             assertThat(settings.get(Client.CLIENT_TYPE_SETTING), is("transport"));
         }

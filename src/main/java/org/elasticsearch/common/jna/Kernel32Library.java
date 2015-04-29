@@ -20,7 +20,7 @@
 package org.elasticsearch.common.jna;
 
 import com.google.common.collect.ImmutableList;
-import com.sun.jna.Native;
+import com.sun.jna.*;
 import com.sun.jna.win32.StdCallLibrary;
 
 import org.apache.lucene.util.Constants;
@@ -28,6 +28,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 
@@ -134,4 +135,91 @@ public class Kernel32Library {
          */
         boolean handle(int code);
     }
+
+
+    /**
+     * Memory protection constraints
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/aa366786%28v=vs.85%29.aspx
+     */
+    public static final int PAGE_NOACCESS = 0x0001;
+    public static final int PAGE_GUARD = 0x0100;
+    public static final int MEM_COMMIT = 0x1000;
+
+    /**
+     * Contains information about a range of pages in the virtual address space of a process.
+     * The VirtualQuery and VirtualQueryEx functions use this structure.
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/aa366775%28v=vs.85%29.aspx
+     */
+    public static class MemoryBasicInformation extends Structure {
+        public Pointer BaseAddress;
+        public Pointer AllocationBase;
+        public NativeLong AllocationProtect;
+        public SizeT RegionSize;
+        public NativeLong State;
+        public NativeLong Protect;
+        public NativeLong Type;
+
+        @Override
+        protected List getFieldOrder() {
+            return Arrays.asList(new String[]{"BaseAddress", "AllocationBase", "AllocationProtect", "RegionSize", "State", "Protect", "Type"});
+        }
+    }
+
+    /**
+     * Locks the specified region of the process's virtual address space into physical
+     * memory, ensuring that subsequent access to the region will not incur a page fault.
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/aa366895%28v=vs.85%29.aspx
+     *
+     * @param address A pointer to the base address of the region of pages to be locked.
+     * @param size The size of the region to be locked, in bytes.
+     * @return true if the function succeeds
+     */
+    public native boolean VirtualLock(Pointer address, SizeT size);
+
+    /**
+     * Retrieves information about a range of pages within the virtual address space of a specified process.
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/aa366907%28v=vs.85%29.aspx
+     *
+     * @param handle A handle to the process whose memory information is queried.
+     * @param address A pointer to the base address of the region of pages to be queried.
+     * @param memoryInfo A pointer to a structure in which information about the specified page range is returned.
+     * @param length The size of the buffer pointed to by the memoryInfo parameter, in bytes.
+     * @return the actual number of bytes returned in the information buffer.
+     */
+    public native int VirtualQueryEx(Pointer handle, Pointer address, MemoryBasicInformation memoryInfo, int length);
+
+    /**
+     * Sets the minimum and maximum working set sizes for the specified process.
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms686234%28v=vs.85%29.aspx
+     *
+     * @param handle A handle to the process whose working set sizes is to be set.
+     * @param minSize The minimum working set size for the process, in bytes.
+     * @param maxSize The maximum working set size for the process, in bytes.
+     * @return true if the function succeeds.
+     */
+    public native boolean SetProcessWorkingSetSize(Pointer handle, SizeT minSize, SizeT maxSize);
+
+    /**
+     * Retrieves a pseudo handle for the current process.
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms683179%28v=vs.85%29.aspx
+     *
+     * @return a pseudo handle to the current process.
+     */
+    public native Pointer GetCurrentProcess();
+
+    /**
+     * Closes an open object handle.
+     *
+     * https://msdn.microsoft.com/en-us/library/windows/desktop/ms724211%28v=vs.85%29.aspx
+     *
+     * @param handle A valid handle to an open object.
+     * @return true if the function succeeds.
+     */
+    public native boolean CloseHandle(Pointer handle);
 }

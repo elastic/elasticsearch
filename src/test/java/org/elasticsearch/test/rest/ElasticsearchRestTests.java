@@ -207,9 +207,6 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
                     if (!restApi.getMethods().contains("POST")) {
                         errorMessage.append("\n- ").append(restApi.getName()).append(" supports GET with a body but doesn't support POST");
                     }
-                    if (!restApi.getParams().contains("source")) {
-                        errorMessage.append("\n- ").append(restApi.getName()).append(" supports GET with a body but doesn't support the source query string parameter");
-                    }
                 }
             }
             if (errorMessage.length() > 0) {

@@ -68,8 +68,8 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-            // In ES if parent is deleted, then also the children are deleted, so the child docs this agg receives
-            // must belong to parent docs that is alive. For this reason acceptedDocs can be null here.
+        // In ES if parent is deleted, then also the children are deleted, so the child docs this agg receives
+        // must belong to parent docs that is alive. For this reason acceptedDocs can be null here.
         BitDocIdSet docIdSet = parentFilter.getDocIdSet(ctx);
         final BitSet parentDocs;
         if (DocIdSets.isEmpty(docIdSet)) {

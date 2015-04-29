@@ -193,6 +193,23 @@ public abstract class BaseTriggerEngineTests extends ElasticsearchTestCase {
         }
     }
 
+    @Test
+    public void testAddSameJobSeveralTimes() {
+        engine.start(Collections.<TriggerEngine.Job>emptySet());
+        engine.register(new TriggerEngine.Listener() {
+
+            @Override
+            public void triggered(Iterable<TriggerEvent> events) {
+                logger.info("triggered job on [{}]", new DateTime());
+            }
+        });
+
+        int times = scaledRandomIntBetween(3, 30);
+        for (int i = 0; i < times; i++) {
+            engine.add(new SimpleJob("_id", interval("10s")));
+        }
+    }
+
     static class SimpleJob implements TriggerEngine.Job {
 
         private final String name;

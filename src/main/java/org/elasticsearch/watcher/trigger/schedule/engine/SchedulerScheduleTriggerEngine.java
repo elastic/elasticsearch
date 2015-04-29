@@ -168,7 +168,7 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
             ImmutableMap.Builder<String, ActiveSchedule> builder = ImmutableMap.builder();
             for (int i = 0; i < schedules.length; i++) {
                 ActiveSchedule sched = schedules[i].name.equals(schedule.name) ? schedule : schedules[i];
-                schedules[i] = sched;
+                newSchedules[i] = sched;
                 builder.put(sched.name, sched);
             }
             return new Schedules(newSchedules, builder.build());

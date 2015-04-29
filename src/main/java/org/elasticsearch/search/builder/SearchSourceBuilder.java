@@ -60,7 +60,7 @@ import java.util.Map;
  * A search source builder allowing to easily build search source. Simple
  * construction using
  * {@link org.elasticsearch.search.builder.SearchSourceBuilder#searchSource()}.
- * 
+ *
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
 public class SearchSourceBuilder implements ToXContent {
@@ -133,7 +133,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     /**
      * Constructs a new search source builder with a search query.
-     * 
+     *
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     public SearchSourceBuilder query(QueryBuilder query) {
@@ -315,7 +315,7 @@ public class SearchSourceBuilder implements ToXContent {
      * An optional terminate_after to terminate the search after collecting
      * <code>terminateAfter</code> documents
      */
-    public SearchSourceBuilder terminateAfter(int terminateAfter) {
+    public  SearchSourceBuilder terminateAfter(int terminateAfter) {
         if (terminateAfter <= 0) {
             throw new IllegalArgumentException("terminateAfter must be > 0");
         }
@@ -325,7 +325,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     /**
      * Adds a sort against the given field name and the sort ordering.
-     * 
+     *
      * @param name
      *            The name of the field
      * @param order
@@ -337,7 +337,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     /**
      * Add a sort against the given field name.
-     * 
+     *
      * @param name
      *            The name of the field to sort by
      */
@@ -474,7 +474,7 @@ public class SearchSourceBuilder implements ToXContent {
     /**
      * Indicates whether the response should contain the stored _source for
      * every hit
-     * 
+     *
      * @param fetch
      * @return
      */
@@ -491,7 +491,7 @@ public class SearchSourceBuilder implements ToXContent {
      * Indicate that _source should be returned with every hit, with an
      * "include" and/or "exclude" set which can include simple wildcard
      * elements.
-     * 
+     *
      * @param include
      *            An optional include (optionally wildcarded) pattern to filter
      *            the returned _source
@@ -508,7 +508,7 @@ public class SearchSourceBuilder implements ToXContent {
      * Indicate that _source should be returned with every hit, with an
      * "include" and/or "exclude" set which can include simple wildcard
      * elements.
-     * 
+     *
      * @param includes
      *            An optional list of include (optionally wildcarded) pattern to
      *            filter the returned _source
@@ -588,7 +588,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     /**
      * Adds a script field under the given name with the provided script.
-     * 
+     *
      * @param name
      *            The name of the field
      * @param script
@@ -600,7 +600,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     /**
      * Adds a script field.
-     * 
+     *
      * @param name
      *            The name of the field
      * @param script
@@ -614,7 +614,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     /**
      * Adds a script field.
-     * 
+     *
      * @param name
      *            The name of the field
      * @param lang
@@ -635,7 +635,7 @@ public class SearchSourceBuilder implements ToXContent {
     /**
      * Sets the boost a specific index will receive when the query is executeed
      * against it.
-     * 
+     *
      * @param index
      *            The index to apply the boost against
      * @param indexBoost
@@ -916,36 +916,6 @@ public class SearchSourceBuilder implements ToXContent {
 
         public Map<String, Object> params() {
             return params;
-        }
-    }
-
-    private static class PartialField {
-        private final String name;
-        private final String[] includes;
-        private final String[] excludes;
-
-        private PartialField(String name, String[] includes, String[] excludes) {
-            this.name = name;
-            this.includes = includes;
-            this.excludes = excludes;
-        }
-
-        private PartialField(String name, String include, String exclude) {
-            this.name = name;
-            this.includes = include == null ? null : new String[] { include };
-            this.excludes = exclude == null ? null : new String[] { exclude };
-        }
-
-        public String name() {
-            return name;
-        }
-
-        public String[] includes() {
-            return includes;
-        }
-
-        public String[] excludes() {
-            return excludes;
         }
     }
 }

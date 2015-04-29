@@ -27,7 +27,6 @@ import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -100,7 +99,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         } else if ("https".equals(protocol)) {
             clientConfiguration.setProtocol(Protocol.HTTPS);
         } else {
-            throw new ElasticsearchIllegalArgumentException("No protocol supported [" + protocol + "], can either be [http] or [https]");
+            throw new IllegalArgumentException("No protocol supported [" + protocol + "], can either be [http] or [https]");
         }
 
         String proxyHost = settings.get("cloud.aws.proxy_host");
@@ -112,7 +111,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             try {
                 proxyPort = Integer.parseInt(portString, 10);
             } catch (NumberFormatException ex) {
-                throw new ElasticsearchIllegalArgumentException("The configured proxy port value [" + portString + "] is invalid", ex);
+                throw new IllegalArgumentException("The configured proxy port value [" + portString + "] is invalid", ex);
             }
             clientConfiguration.withProxyHost(proxyHost).setProxyPort(proxyPort);
         }
@@ -128,7 +127,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             logger.debug("using AWS API signer [{}]", awsSigner);
             try {
                 AwsSigner.configureSigner(awsSigner, clientConfiguration);
-            } catch (ElasticsearchIllegalArgumentException e) {
+            } catch (IllegalArgumentException e) {
                 logger.warn("wrong signer set for [cloud.aws.s3.signer] or [cloud.aws.signer]: [{}]", awsSigner);
             }
         }
@@ -190,7 +189,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         } else if ("cn-north".equals(region) || "cn-north-1".equals(region)) {
             return "s3.cn-north-1.amazonaws.com.cn";
         } else {
-            throw new ElasticsearchIllegalArgumentException("No automatic endpoint could be derived from region [" + region + "]");
+            throw new IllegalArgumentException("No automatic endpoint could be derived from region [" + region + "]");
         }
     }
 

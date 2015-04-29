@@ -21,7 +21,6 @@ package org.elasticsearch.cloud.aws;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.SignerFactory;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 public class AwsSigner {
 
@@ -33,13 +32,13 @@ public class AwsSigner {
      * Add a AWS API Signer.
      * @param signer Signer to use
      * @param configuration AWS Client configuration
-     * @throws ElasticsearchIllegalArgumentException if signer does not exist
+     * @throws IllegalArgumentException if signer does not exist
      */
     public static void configureSigner(String signer, ClientConfiguration configuration)
-        throws ElasticsearchIllegalArgumentException {
+        throws IllegalArgumentException {
 
         if (signer == null) {
-            throw new ElasticsearchIllegalArgumentException("[null] signer set");
+            throw new IllegalArgumentException("[null] signer set");
         }
 
         try {
@@ -48,7 +47,7 @@ public class AwsSigner {
             SignerFactory.getSignerByTypeAndService(signer, null);
             configuration.setSignerOverride(signer);
         } catch (IllegalArgumentException e) {
-            throw new ElasticsearchIllegalArgumentException("wrong signer set [" + signer + "]");
+            throw new IllegalArgumentException("wrong signer set [" + signer + "]");
         }
     }
 }

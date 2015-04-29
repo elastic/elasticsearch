@@ -112,10 +112,15 @@ public class HttpClient extends AbstractComponent {
         }
         urlConnection.connect();
 
-        byte[] body = Streams.copyToByteArray(urlConnection.getInputStream());
-
-        HttpResponse response = new HttpResponse(urlConnection.getResponseCode(), body);
-        logger.debug("http status code [{}]", response.status());
+        final HttpResponse response;
+        final int statusCode = urlConnection.getResponseCode();
+        logger.debug("http status code [{}]", statusCode);
+        if (statusCode < 400) {
+            byte[] body = Streams.copyToByteArray(urlConnection.getInputStream());
+            response = new HttpResponse(statusCode, body);
+        } else {
+            response = new HttpResponse(statusCode);
+        }
         return response;
     }
 

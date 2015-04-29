@@ -42,8 +42,10 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
         HttpRequest request = input.getRequest().render(templateEngine, model);
 
         HttpResponse response = client.execute(request);
-        Payload payload;
-        if (input.getExtractKeys() != null) {
+        final Payload payload;
+        if (!response.hasContent()) {
+             payload = Payload.EMPTY;
+        } else if (input.getExtractKeys() != null) {
             XContentParser parser = XContentHelper.createParser(response.body());
             Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser);
             payload = new Payload.Simple(filteredKeys);

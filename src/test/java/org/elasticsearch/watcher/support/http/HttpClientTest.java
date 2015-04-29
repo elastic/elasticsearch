@@ -29,6 +29,7 @@ import java.nio.file.Paths;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.core.Is.is;
 
 /**
  */
@@ -153,5 +154,20 @@ public class HttpClientTest extends ElasticsearchTestCase {
         assertThat(recordedRequest.getPath(), equalTo("/test"));
         assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("body"));
     }
+
+    @Test
+    public void test400Code() throws Exception {
+        webServer.enqueue(new MockResponse().setResponseCode(400));
+        HttpRequest.Builder request = HttpRequest.builder("localhost", webPort)
+                .method(HttpMethod.POST)
+                .path("/test")
+                .auth(new BasicAuth("user", "pass".toCharArray()))
+                .body("body");
+        HttpResponse response = httpClient.execute(request.build());
+        assertThat(response.status(), equalTo(400));
+        assertThat(response.hasContent(), is(false));
+        assertThat(response.body(), nullValue());
+    }
+
 
 }

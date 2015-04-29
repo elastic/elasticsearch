@@ -24,7 +24,7 @@ public class HttpResponse implements ToXContent {
     private final BytesReference body;
 
     public HttpResponse(int status) {
-        this(status, BytesArray.EMPTY);
+        this(status, (BytesReference) null);
     }
 
     public HttpResponse(int status, String body) {
@@ -42,6 +42,10 @@ public class HttpResponse implements ToXContent {
 
     public int status() {
         return status;
+    }
+
+    public boolean hasContent() {
+        return body != null;
     }
 
     public BytesReference body() {
@@ -69,10 +73,12 @@ public class HttpResponse implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
-                .field(STATUS_FIELD.getPreferredName(), status)
-                .field(BODY_FIELD.getPreferredName(), body.toUtf8())
-                .endObject();
+        builder = builder.startObject().field(STATUS_FIELD.getPreferredName(), status);
+        if (hasContent()) {
+            builder = builder.field(BODY_FIELD.getPreferredName(), body.toUtf8());
+        }
+        builder.endObject();
+        return builder;
     }
 
     public static HttpResponse parse(XContentParser parser) throws IOException {
@@ -108,12 +114,11 @@ public class HttpResponse implements ToXContent {
         if (status < 0) {
             throw new ParseException("could not parse http response. missing [status] numeric field holding the response's http status code");
         }
-
         if (body == null) {
-            throw new ParseException("could not parse http response. missing [status] string field holding the response's body");
+            return new HttpResponse(status);
+        } else {
+            return new HttpResponse(status, body);
         }
-
-        return new HttpResponse(status, body);
     }
 
     public static class ParseException extends WatcherException {

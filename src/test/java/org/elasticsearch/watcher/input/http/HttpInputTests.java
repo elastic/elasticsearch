@@ -11,11 +11,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.netty.handler.codec.http.HttpHeaders;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.actions.ActionWrapper;
@@ -73,7 +75,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
         httpParser = new HttpInputFactory(ImmutableSettings.EMPTY, httpClient, templateEngine, new HttpRequest.Parser(registry), new HttpRequestTemplate.Parser(registry));
     }
 
-    @Test
+    @Test @Repeat(iterations = 20)
     public void testExecute() throws Exception {
         String host = "_host";
         int port = 123;
@@ -83,7 +85,28 @@ public class HttpInputTests extends ElasticsearchTestCase {
         HttpInput httpInput = InputBuilders.httpInput(request.build()).build();
         ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
 
-        HttpResponse response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(UTF8));
+        HttpResponse response;
+        switch (randomIntBetween(1, 6)) {
+            case 1:
+                response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(UTF8));
+                break;
+            case 2:
+                response = new HttpResponse(123, "---\nkey : value".getBytes(UTF8));
+                break;
+            case 3:
+                response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(UTF8), ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.JSON.restContentType() }));
+                break;
+            case 4:
+                response = new HttpResponse(123, "key: value".getBytes(UTF8), ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, new String[] { XContentType.YAML.restContentType() }));
+                break;
+            case 5:
+                response = new HttpResponse(123, "---\nkey: value".getBytes(UTF8), ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" }));
+                break;
+            default:
+                response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(UTF8), ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, new String[] { "unrecognized_content_type" }));
+                break;
+        }
+
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
 
         when(templateEngine.render(eq(Template.inline("_body").build()), any(Map.class))).thenReturn("_body");

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.input.http;
 
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -42,17 +41,25 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
         HttpRequest request = input.getRequest().render(templateEngine, model);
 
         HttpResponse response = client.execute(request);
-        final Payload payload;
+
         if (!response.hasContent()) {
-             payload = Payload.EMPTY;
-        } else if (input.getExtractKeys() != null) {
-            XContentParser parser = XContentHelper.createParser(response.body());
+            return new HttpInput.Result(Payload.EMPTY, request, response.status());
+        }
+
+        XContentType contentType = response.xContentType();
+        XContentParser parser = contentType != null ?
+                contentType.xContent().createParser(response.body()) :
+                XContentHelper.createParser(response.body());
+
+        final Payload payload;
+        if (input.getExtractKeys() != null) {
             Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser);
             payload = new Payload.Simple(filteredKeys);
         } else {
-            Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(response.body(), true);
-            payload = new Payload.Simple(result.v2());
+            Map<String, Object> map = parser.mapOrderedAndClose();
+            payload = new Payload.Simple(map);
         }
+
         return new HttpInput.Result(payload, request, response.status());
     }
 

@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
@@ -25,6 +26,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.KeyStore;
 import java.security.SecureRandom;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -126,16 +128,21 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
         }
         urlConnection.connect();
 
-        final HttpResponse response;
         final int statusCode = urlConnection.getResponseCode();
+        ImmutableMap.Builder<String, String[]> responseHeaders = ImmutableMap.builder();
+        for (Map.Entry<String, List<String>> header : urlConnection.getHeaderFields().entrySet()) {
+            // HttpURLConnection#getHeaderFields returns the first status line as a header
+            // with a `null` key (facepalm)... so we have to skip that one.
+            if (header.getKey() != null) {
+                responseHeaders.put(header.getKey(), header.getValue().toArray(new String[header.getValue().size()]));
+            }
+        }
         logger.debug("http status code [{}]", statusCode);
         if (statusCode < 400) {
             byte[] body = Streams.copyToByteArray(urlConnection.getInputStream());
-            response = new HttpResponse(statusCode, body);
-        } else {
-            response = new HttpResponse(statusCode);
+            return new HttpResponse(statusCode, body, responseHeaders.build());
         }
-        return response;
+        return new HttpResponse(statusCode, responseHeaders.build());
     }
 
     /** SSL Initialization **/

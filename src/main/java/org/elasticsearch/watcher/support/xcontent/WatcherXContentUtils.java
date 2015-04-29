@@ -21,7 +21,7 @@ public class WatcherXContentUtils {
 
     // TODO open this up in core
     public static List<Object> readList(XContentParser parser, XContentParser.Token token) throws IOException {
-        ArrayList<Object> list = new ArrayList<>();
+        List<Object> list = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             list.add(readValue(parser, token));
         }

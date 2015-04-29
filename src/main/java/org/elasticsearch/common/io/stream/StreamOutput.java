@@ -385,6 +385,9 @@ public abstract class StreamOutput extends OutputStream {
         } else if (type == double[].class) {
             writeByte((byte) 20);
             writeDoubleArray((double[]) value);
+        } else if (value instanceof BytesRef) {
+            writeByte((byte) 21);
+            writeBytesRef((BytesRef) value);
         } else {
             throw new IOException("Can't write type [" + type + "]");
         }

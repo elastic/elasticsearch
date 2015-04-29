@@ -35,7 +35,7 @@ public interface LifecycleComponent<T> extends Releasable {
 
     void removeLifecycleListener(LifecycleListener listener);
 
-    T start() throws ElasticsearchException;
+    T start();
 
-    T stop() throws ElasticsearchException;
+    T stop();
 }

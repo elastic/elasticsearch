@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.QueryCachingPolicy;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -78,7 +77,7 @@ public class GeohashCellFilter {
      */
     public static Filter create(QueryParseContext context, GeoPointFieldMapper fieldMapper, String geohash, @Nullable List<CharSequence> geohashes) {
         if (fieldMapper.geoHashStringMapper() == null) {
-            throw new ElasticsearchIllegalArgumentException("geohash filter needs geohash_prefix to be enabled");
+            throw new IllegalArgumentException("geohash filter needs geohash_prefix to be enabled");
         }
 
         StringFieldMapper geoHashMapper = fieldMapper.geoHashStringMapper();

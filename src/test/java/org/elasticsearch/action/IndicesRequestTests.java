@@ -61,8 +61,6 @@ import org.elasticsearch.action.count.CountAction;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryAction;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.exists.ExistsAction;
 import org.elasticsearch.action.exists.ExistsRequest;
 import org.elasticsearch.action.explain.ExplainAction;
@@ -117,7 +115,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = Scope.SUITE, numClientNodes = 1)
+@ClusterScope(scope = Scope.SUITE, numClientNodes = 1, minNumDataNodes = 2)
 @Slow
 public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
@@ -257,18 +255,6 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
         clearInterceptedActions();
         assertSameIndices(updateRequest, updateShardActions);
-    }
-
-    @Test
-    public void testDeleteByQuery() {
-        String[] deleteByQueryShardActions = new String[]{DeleteByQueryAction.NAME + "[s]", DeleteByQueryAction.NAME + "[s][r]"};
-        interceptTransportActions(deleteByQueryShardActions);
-
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(randomIndicesOrAliases()).source(new QuerySourceBuilder().setQuery(QueryBuilders.matchAllQuery()));
-        internalCluster().clientNodeClient().deleteByQuery(deleteByQueryRequest).actionGet();
-
-        clearInterceptedActions();
-        assertSameIndices(deleteByQueryRequest, deleteByQueryShardActions);
     }
 
     @Test

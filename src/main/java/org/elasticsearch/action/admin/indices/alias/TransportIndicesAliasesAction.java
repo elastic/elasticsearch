@@ -77,7 +77,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
     }
 
     @Override
-    protected void masterOperation(final IndicesAliasesRequest request, final ClusterState state, final ActionListener<IndicesAliasesResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final IndicesAliasesRequest request, final ClusterState state, final ActionListener<IndicesAliasesResponse> listener) {
 
         //Expand the indices names
         List<AliasActions> actions = request.aliasActions();

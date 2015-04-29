@@ -21,7 +21,6 @@ package org.elasticsearch.action.update;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -145,7 +144,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     @Override
-    protected ShardIterator shards(ClusterState clusterState, InternalRequest request) throws ElasticsearchException {
+    protected ShardIterator shards(ClusterState clusterState, InternalRequest request) {
         if (request.request().shardId() != -1) {
             return clusterState.routingTable().index(request.concreteIndex()).shard(request.request().shardId()).primaryShardIt();
         }
@@ -161,11 +160,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     @Override
-    protected void shardOperation(final InternalRequest request, final ActionListener<UpdateResponse> listener) throws ElasticsearchException {
+    protected void shardOperation(final InternalRequest request, final ActionListener<UpdateResponse> listener) {
         shardOperation(request, listener, 0);
     }
 
-    protected void shardOperation(final InternalRequest request, final ActionListener<UpdateResponse> listener, final int retryCount) throws ElasticsearchException {
+    protected void shardOperation(final InternalRequest request, final ActionListener<UpdateResponse> listener, final int retryCount) {
         IndexService indexService = indicesService.indexServiceSafe(request.concreteIndex());
         IndexShard indexShard = indexService.shardSafe(request.request().shardId());
         final UpdateHelper.Result result = updateHelper.prepare(request.request(), indexShard);
@@ -275,7 +274,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 listener.onResponse(update);
                 break;
             default:
-                throw new ElasticsearchIllegalStateException("Illegal operation " + result.operation());
+                throw new IllegalStateException("Illegal operation " + result.operation());
         }
     }
 }

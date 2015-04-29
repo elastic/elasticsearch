@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.engine;
 
+import com.google.common.base.Preconditions;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
@@ -27,11 +28,8 @@ import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -105,7 +103,7 @@ public abstract class Engine implements Closeable {
 
     /**
      * Tries to extract a segment reader from the given index reader.
-     * If no SegmentReader can be extracted an {@link org.elasticsearch.ElasticsearchIllegalStateException} is thrown.
+     * If no SegmentReader can be extracted an {@link IllegalStateException} is thrown.
      */
     protected static SegmentReader segmentReader(LeafReader reader) {
         if (reader instanceof SegmentReader) {
@@ -115,7 +113,7 @@ public abstract class Engine implements Closeable {
             return segmentReader(FilterLeafReader.unwrap(fReader));
         }
         // hard fail - we can't get a SegmentReader
-        throw new ElasticsearchIllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
+        throw new IllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
     }
 
     /**
@@ -205,6 +203,8 @@ public abstract class Engine implements Closeable {
 
     public abstract void delete(Delete delete) throws EngineException;
 
+    /** @deprecated This was removed, but we keep this API so translog can replay any DBQs on upgrade. */
+    @Deprecated
     public abstract void delete(DeleteByQuery delete) throws EngineException;
 
     final protected GetResult getFromSearcher(Get get) throws EngineException {
@@ -538,11 +538,11 @@ public abstract class Engine implements Closeable {
      */
     public static interface RecoveryHandler {
 
-        void phase1(SnapshotIndexCommit snapshot) throws ElasticsearchException;
+        void phase1(SnapshotIndexCommit snapshot);
 
-        void phase2(Translog.Snapshot snapshot) throws ElasticsearchException;
+        void phase2(Translog.Snapshot snapshot);
 
-        void phase3(Translog.Snapshot snapshot) throws ElasticsearchException;
+        void phase3(Translog.Snapshot snapshot);
     }
 
     public static class Searcher implements Releasable {
@@ -571,7 +571,7 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             // Nothing to close here
         }
     }
@@ -1043,7 +1043,7 @@ public abstract class Engine implements Closeable {
 
     protected abstract SearcherManager getSearcherManager();
 
-    protected abstract void closeNoLock(String reason) throws ElasticsearchException;
+    protected abstract void closeNoLock(String reason);
 
     public void flushAndClose() throws IOException {
         if (isClosed.get() == false) {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.delete;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
@@ -103,7 +102,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
                 if (request.request().routing() == null) {
                     if (request.request().versionType() != VersionType.INTERNAL) {
                         // TODO: implement this feature
-                        throw new ElasticsearchIllegalArgumentException("routing value is required for deleting documents of type [" + request.request().type()
+                        throw new IllegalArgumentException("routing value is required for deleting documents of type [" + request.request().type()
                                 + "] while using version_type [" + request.request().versionType() + "]");
                     }
                     throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());

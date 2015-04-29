@@ -21,7 +21,6 @@ package org.elasticsearch.transport;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
 import org.elasticsearch.cluster.settings.DynamicSettings;
@@ -160,7 +159,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         adapter.rxMetric.clear();
         adapter.txMetric.clear();
         transport.transportServiceAdapter(adapter);
@@ -173,7 +172,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         final boolean setStopped = started.compareAndSet(true, false);
         assert setStopped : "service has already been stopped";
         try {
@@ -198,7 +197,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
         transport.close();
     }
 
@@ -275,7 +274,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action, final TransportRequest request,
                                                           final TransportRequestOptions options, TransportResponseHandler<T> handler) {
         if (node == null) {
-            throw new ElasticsearchIllegalStateException("can't send request to a null node");
+            throw new IllegalStateException("can't send request to a null node");
         }
         final long requestId = newRequestId();
         final TimeoutHandler timeoutHandler;

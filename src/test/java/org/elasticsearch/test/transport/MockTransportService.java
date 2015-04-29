@@ -387,19 +387,19 @@ public class MockTransportService extends TransportService {
         }
 
         @Override
-        public Transport start() throws ElasticsearchException {
+        public Transport start() {
             transport.start();
             return this;
         }
 
         @Override
-        public Transport stop() throws ElasticsearchException {
+        public Transport stop() {
             transport.stop();
             return this;
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             transport.close();
         }
 

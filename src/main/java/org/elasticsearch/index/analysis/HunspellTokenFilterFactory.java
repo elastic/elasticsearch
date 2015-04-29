@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.analysis.hunspell.HunspellStemFilter;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -44,12 +43,12 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
 
         String locale = settings.get("locale", settings.get("language", settings.get("lang", null)));
         if (locale == null) {
-            throw new ElasticsearchIllegalArgumentException("missing [locale | language | lang] configuration for hunspell token filter");
+            throw new IllegalArgumentException("missing [locale | language | lang] configuration for hunspell token filter");
         }
 
         dictionary = hunspellService.getDictionary(locale);
         if (dictionary == null) {
-            throw new ElasticsearchIllegalArgumentException(String.format(Locale.ROOT, "Unknown hunspell dictionary for locale [%s]", locale));
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "Unknown hunspell dictionary for locale [%s]", locale));
         }
 
         dedup = settings.getAsBoolean("dedup", true);

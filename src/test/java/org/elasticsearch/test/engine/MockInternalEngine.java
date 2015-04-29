@@ -21,6 +21,7 @@ package org.elasticsearch.test.engine;
 import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherManager;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -71,12 +72,7 @@ final class MockInternalEngine extends InternalEngine {
 
     @Override
     protected Searcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) throws EngineException {
-        final AssertingIndexSearcher assertingIndexSearcher = support().newSearcher(this, source, searcher, manager);
-        assertingIndexSearcher.setSimilarity(searcher.getSimilarity());
-        // pass the original searcher to the super.newSearcher() method to make sure this is the searcher that will
-        // be released later on. If we wrap an index reader here must not pass the wrapped version to the manager
-        // on release otherwise the reader will be closed too early. - good news, stuff will fail all over the place if we don't get this right here
-        return new AssertingSearcher(assertingIndexSearcher,
-                super.newSearcher(source, searcher, manager), shardId, MockEngineSupport.INFLIGHT_ENGINE_SEARCHERS, logger);
+        final Searcher engineSearcher = super.newSearcher(source, searcher, manager);
+        return support().wrapSearcher(source, engineSearcher, searcher, manager);
     }
 }

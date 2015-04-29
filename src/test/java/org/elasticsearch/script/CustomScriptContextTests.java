@@ -21,7 +21,6 @@ package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableSet;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -89,7 +88,7 @@ public class CustomScriptContextTests extends ElasticsearchIntegrationTest {
         try {
             scriptService.compile(new Script(randomFrom(LANG_SET.toArray(new String[LANG_SET.size()])), "test", randomFrom(ScriptService.ScriptType.values()), null), new ScriptContext.Plugin("test", "unknown"));
             fail("script compilation should have been rejected");
-        } catch(ElasticsearchIllegalArgumentException e) {
+        } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("script context [test_unknown] not supported"));
         }
     }
@@ -105,7 +104,7 @@ public class CustomScriptContextTests extends ElasticsearchIntegrationTest {
                 }
             });
             fail("script compilation should have been rejected");
-        } catch(ElasticsearchIllegalArgumentException e) {
+        } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("script context [test] not supported"));
         }
     }

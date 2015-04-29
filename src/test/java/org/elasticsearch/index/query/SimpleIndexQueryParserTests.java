@@ -64,7 +64,6 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -2411,8 +2410,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         try {
             functionScoreQuery().add(factorFunction(2.0f).setWeight(2.0f));
             fail("Expect exception here because boost_factor must not have a weight");
-        } catch (ElasticsearchIllegalArgumentException e) {
-            assertThat(e.getDetailedMessage(), containsString(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE));
         }
         query = jsonBuilder().startObject().startObject("function_score")
                 .startArray("functions")
@@ -2441,7 +2440,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     }
 
     // https://github.com/elasticsearch/elasticsearch/issues/6722
-    public void testEmptyBoolSubClausesIsMatchAll() throws ElasticsearchException, IOException {
+    public void testEmptyBoolSubClausesIsMatchAll() throws IOException {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/bool-query-with-empty-clauses-for-parsing.json");
         IndexService indexService = createIndex("testidx", client().admin().indices().prepareCreate("testidx")
                 .addMapping("foo")

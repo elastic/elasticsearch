@@ -21,7 +21,6 @@ package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.netty.NettyUtils;
@@ -74,7 +73,7 @@ public class PagedBytesReference implements BytesReference {
     @Override
     public BytesReference slice(int from, int length) {
         if (from < 0 || (from + length) > length()) {
-            throw new ElasticsearchIllegalArgumentException("can't slice a buffer with length [" + length() + "], with slice parameters from [" + from + "], length [" + length + "]");
+            throw new IllegalArgumentException("can't slice a buffer with length [" + length() + "], with slice parameters from [" + from + "], length [" + length + "]");
         }
 
         return new PagedBytesReference(bigarrays, bytearray, offset + from, length);

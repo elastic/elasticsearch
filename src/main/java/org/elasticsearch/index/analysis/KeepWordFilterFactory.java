@@ -24,7 +24,6 @@ import org.apache.lucene.analysis.miscellaneous.KeepWordFilter;
 import org.apache.lucene.analysis.miscellaneous.Lucene43KeepWordFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -75,11 +74,11 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
         final String keepWordsPath = settings.get(KEEP_WORDS_PATH_KEY, null);
         if ((arrayKeepWords == null && keepWordsPath == null) || (arrayKeepWords != null && keepWordsPath != null)) {
             // we don't allow both or none
-            throw new ElasticsearchIllegalArgumentException("keep requires either `" + KEEP_WORDS_KEY + "` or `"
+            throw new IllegalArgumentException("keep requires either `" + KEEP_WORDS_KEY + "` or `"
                     + KEEP_WORDS_PATH_KEY + "` to be configured");
         }
         if (version.onOrAfter(Version.LUCENE_4_4) && settings.get(ENABLE_POS_INC_KEY) != null) {
-            throw new ElasticsearchIllegalArgumentException(ENABLE_POS_INC_KEY + " is not supported anymore. Please fix your analysis chain or use"
+            throw new IllegalArgumentException(ENABLE_POS_INC_KEY + " is not supported anymore. Please fix your analysis chain or use"
                     + " an older compatibility version (<=4.3) but beware that it might cause highlighting bugs.");
         }
         enablePositionIncrements = version.onOrAfter(Version.LUCENE_4_4) ? true : settings.getAsBoolean(ENABLE_POS_INC_KEY, true);

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Booleans;
 
 import java.util.Locale;
@@ -45,7 +44,7 @@ enum ScriptMode {
         if (SANDBOX.toString().equals(input)) {
             return SANDBOX;
         }
-        throw new ElasticsearchIllegalArgumentException("script mode [" + input + "] not supported");
+        throw new IllegalArgumentException("script mode [" + input + "] not supported");
     }
 
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.action.bulk;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -84,7 +83,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         } else if (request instanceof UpdateRequest) {
             add((UpdateRequest) request, payload);
         } else {
-            throw new ElasticsearchIllegalArgumentException("No support for request [" + request + "]");
+            throw new IllegalArgumentException("No support for request [" + request + "]");
         }
         return this;
     }
@@ -294,7 +293,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                     } else if (token.isValue()) {
                         if ("_index".equals(currentFieldName)) {
                             if (!allowExplicitIndex) {
-                                throw new ElasticsearchIllegalArgumentException("explicit index in bulk is not allowed");
+                                throw new IllegalArgumentException("explicit index in bulk is not allowed");
                             }
                             index = parser.text();
                         } else if ("_type".equals(currentFieldName)) {

@@ -65,8 +65,8 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
     @Override
     public Settings indexSettings() {
         return ImmutableSettings.builder()
-                .put("index.number_of_shards", between(1, 5))
-                .put("index.number_of_replicas", between(0, 1))
+                .put("index.number_of_shards", numberOfShards())
+                .put("index.number_of_replicas", numberOfReplicas())
                 .build();
     }
 

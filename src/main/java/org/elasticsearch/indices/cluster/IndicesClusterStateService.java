@@ -25,8 +25,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.ExceptionsHelper;
+
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -133,17 +132,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         clusterService.addFirst(this);
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         clusterService.remove(this);
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
     }
 
     @Override
@@ -509,7 +508,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         indexAliasesService.addAll(newAliases);
     }
 
-    private void applyNewOrUpdatedShards(final ClusterChangedEvent event) throws ElasticsearchException {
+    private void applyNewOrUpdatedShards(final ClusterChangedEvent event) {
         if (!indicesService.changesAllowed()) {
             return;
         }
@@ -637,7 +636,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
     }
 
-    private void applyInitializingShard(final ClusterState state, final IndexMetaData indexMetaData, final ShardRouting shardRouting) throws ElasticsearchException {
+    private void applyInitializingShard(final ClusterState state, final IndexMetaData indexMetaData, final ShardRouting shardRouting) {
         final IndexService indexService = indicesService.indexService(shardRouting.index());
         if (indexService == null) {
             // got deleted on us, ignore
@@ -783,7 +782,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 logger.trace("can't find relocation source node for shard {} because it is assigned to an unknown node [{}].", shardRouting.shardId(), shardRouting.relocatingNodeId());
             }
         } else {
-            throw new ElasticsearchIllegalStateException("trying to find source node for peer recovery when routing state means no peer recovery: " + shardRouting);
+            throw new IllegalStateException("trying to find source node for peer recovery when routing state means no peer recovery: " + shardRouting);
         }
         return sourceNode;
     }

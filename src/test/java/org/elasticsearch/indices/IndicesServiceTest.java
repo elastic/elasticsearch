@@ -19,7 +19,6 @@
 package org.elasticsearch.indices;
 
 import org.apache.lucene.store.LockObtainFailedException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -74,7 +73,7 @@ public class IndicesServiceTest extends ElasticsearchSingleNodeTest {
         try {
             indicesService.deleteIndexStore("boom", firstMetaData, clusterService.state());
             fail();
-        } catch (ElasticsearchIllegalStateException ex) {
+        } catch (IllegalStateException ex) {
             // all good
         }
 
@@ -101,7 +100,7 @@ public class IndicesServiceTest extends ElasticsearchSingleNodeTest {
         try {
             indicesService.deleteIndexStore("boom", secondMetaData, clusterService.state());
             fail();
-        } catch (ElasticsearchIllegalStateException ex) {
+        } catch (IllegalStateException ex) {
             // all good
         }
 
@@ -111,7 +110,7 @@ public class IndicesServiceTest extends ElasticsearchSingleNodeTest {
         try {
             indicesService.deleteIndexStore("boom", firstMetaData, clusterService.state());
             fail();
-        } catch (ElasticsearchIllegalStateException ex) {
+        } catch (IllegalStateException ex) {
             // all good
         }
         assertAcked(client().admin().indices().prepareOpen("test"));

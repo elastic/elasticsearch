@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.fetch.fielddata;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
@@ -47,7 +46,7 @@ public class FieldDataFieldsParseElement implements SearchParseElement {
             String fieldName = parser.text();
             context.fieldDataFields().add(new FieldDataFieldsContext.FieldDataField(fieldName));
         }  else {
-            throw new ElasticsearchIllegalStateException("Expected either a VALUE_STRING or an START_ARRAY but got " + token);
+            throw new IllegalStateException("Expected either a VALUE_STRING or an START_ARRAY but got " + token);
         }
     }
 }

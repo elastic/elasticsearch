@@ -21,7 +21,6 @@ package org.elasticsearch.index.similarity;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.similarities.*;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -76,7 +75,7 @@ public class IBSimilarityProvider extends AbstractSimilarityProvider {
         String rawDistribution = settings.get("distribution");
         Distribution distribution = DISTRIBUTION_CACHE.get(rawDistribution);
         if (distribution == null) {
-            throw new ElasticsearchIllegalArgumentException("Unsupported Distribution [" + rawDistribution + "]");
+            throw new IllegalArgumentException("Unsupported Distribution [" + rawDistribution + "]");
         }
         return distribution;
     }
@@ -91,7 +90,7 @@ public class IBSimilarityProvider extends AbstractSimilarityProvider {
         String rawLambda = settings.get("lambda");
         Lambda lambda = LAMBDA_CACHE.get(rawLambda);
         if (lambda == null) {
-            throw new ElasticsearchIllegalArgumentException("Unsupported Lambda [" + rawLambda + "]");
+            throw new IllegalArgumentException("Unsupported Lambda [" + rawLambda + "]");
         }
         return lambda;
     }

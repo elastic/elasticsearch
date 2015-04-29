@@ -26,7 +26,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -156,7 +155,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         });
     }
 
-    public void validateIndexName(String index, ClusterState state) throws ElasticsearchException {
+    public void validateIndexName(String index, ClusterState state) {
         if (state.routingTable().hasIndex(index)) {
             throw new IndexAlreadyExistsException(new Index(index));
         }
@@ -425,7 +424,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
                     for (Alias alias : request.aliases()) {
                         AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
-                            .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
+                                .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
                         indexMetaDataBuilder.putAlias(aliasMetaData);
                     }
 
@@ -444,11 +443,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
 
                     indexService.indicesLifecycle().beforeIndexAddedToCluster(new Index(request.index()),
-                        indexMetaData.settings());
+                            indexMetaData.settings());
 
                     MetaData newMetaData = MetaData.builder(currentState.metaData())
-                        .put(indexMetaData, false)
-                        .build();
+                            .put(indexMetaData, false)
+                            .build();
 
                     logger.info("[{}] creating index, cause [{}], templates {}, shards [{}]/[{}], mappings {}", request.index(), request.cause(), templateNames, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), mappings.keySet());
 
@@ -466,7 +465,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     if (request.state() == State.OPEN) {
                         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
-                            .addAsNew(updatedState.metaData().index(request.index()));
+                                .addAsNew(updatedState.metaData().index(request.index()));
                         RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(routingTableBuilder).build());
                         updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
                     }
@@ -551,7 +550,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         return templates;
     }
 
-    private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws ElasticsearchException {
+    private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
         validateIndexName(request.index(), state);
         validateIndexSettings(request.index(), request.settings());
     }
@@ -572,7 +571,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
         if (validationErrors.isEmpty() == false) {
             throw new IndexCreationException(new Index(indexName),
-                new ElasticsearchIllegalArgumentException(getMessage(validationErrors)));
+                new IllegalArgumentException(getMessage(validationErrors)));
         }
     }
 

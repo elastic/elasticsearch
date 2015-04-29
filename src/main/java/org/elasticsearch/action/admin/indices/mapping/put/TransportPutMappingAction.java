@@ -65,7 +65,7 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
     }
 
     @Override
-    protected void masterOperation(final PutMappingRequest request, final ClusterState state, final ActionListener<PutMappingResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final PutMappingRequest request, final ClusterState state, final ActionListener<PutMappingResponse> listener) {
         final String[] concreteIndices = clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices());
         PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest()
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())

@@ -117,7 +117,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
     }
 
     @Override
-    protected ShardSegments shardOperation(IndexShardSegmentRequest request) throws ElasticsearchException {
+    protected ShardSegments shardOperation(IndexShardSegmentRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.shardSafe(request.shardId().id());
         return new ShardSegments(indexShard.routingEntry(), indexShard.engine().segments(request.verbose));

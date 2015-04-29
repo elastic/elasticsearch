@@ -23,8 +23,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -172,7 +170,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         }
 
         if (locks[0] == null) {
-            throw new ElasticsearchIllegalStateException("Failed to obtain node lock, is the following location writable?: "
+            throw new IllegalStateException("Failed to obtain node lock, is the following location writable?: "
                     + Arrays.toString(environment.dataWithClusterFiles()), lastException);
         }
 
@@ -536,12 +534,12 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
 
     /**
      * Returns an array of all of the nodes data locations.
-     * @throws org.elasticsearch.ElasticsearchIllegalStateException if the node is not configured to store local locations
+     * @throws IllegalStateException if the node is not configured to store local locations
      */
     public Path[] nodeDataPaths() {
         assert assertEnvIsLocked();
         if (nodePaths == null || locks == null) {
-            throw new ElasticsearchIllegalStateException("node is not configured to store local location");
+            throw new IllegalStateException("node is not configured to store local location");
         }
         Path[] paths = new Path[nodePaths.length];
         for(int i=0;i<paths.length;i++) {
@@ -556,7 +554,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
     public NodePath[] nodePaths() {
         assert assertEnvIsLocked();
         if (nodePaths == null || locks == null) {
-            throw new ElasticsearchIllegalStateException("node is not configured to store local location");
+            throw new IllegalStateException("node is not configured to store local location");
         }
         return nodePaths;
     }
@@ -593,7 +591,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
 
     public Set<String> findAllIndices() throws IOException {
         if (nodePaths == null || locks == null) {
-            throw new ElasticsearchIllegalStateException("node is not configured to store local location");
+            throw new IllegalStateException("node is not configured to store local location");
         }
         assert assertEnvIsLocked();
         Set<String> indices = Sets.newHashSet();
@@ -643,7 +641,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
 
     /**
      * This method tries to write an empty file and moves it using an atomic move operation.
-     * This method throws an {@link ElasticsearchIllegalStateException} if this operation is
+     * This method throws an {@link IllegalStateException} if this operation is
      * not supported by the filesystem. This test is executed on each of the data directories.
      * This method cleans up all files even in the case of an error.
      */
@@ -657,7 +655,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
             try {
                 Files.move(src, target, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException ex) {
-                throw new ElasticsearchIllegalStateException("atomic_move is not supported by the filesystem on path ["
+                throw new IllegalStateException("atomic_move is not supported by the filesystem on path ["
                         + nodePath.path
                         + "] atomic_move is required for elasticsearch to work correctly.", ex);
             } finally {
@@ -703,7 +701,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
                 return PathUtils.get(customDataDir);
             }
         } else {
-            throw new ElasticsearchIllegalArgumentException("no custom " + IndexMetaData.SETTING_DATA_PATH + " setting available");
+            throw new IllegalArgumentException("no custom " + IndexMetaData.SETTING_DATA_PATH + " setting available");
         }
     }
 

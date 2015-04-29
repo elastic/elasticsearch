@@ -85,7 +85,7 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
     }
 
     @Override
-    protected void masterOperation(final PutWarmerRequest request, final ClusterState state, final ActionListener<PutWarmerResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final PutWarmerRequest request, final ClusterState state, final ActionListener<PutWarmerResponse> listener) {
         // first execute the search request, see that its ok...
         SearchRequest searchRequest = new SearchRequest(request.searchRequest(), request);
         searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {

@@ -137,7 +137,7 @@ public class NettyHttpServerPipeliningTest extends ElasticsearchTestCase {
         }
 
         @Override
-        public HttpServerTransport stop() throws ElasticsearchException {
+        public HttpServerTransport stop() {
             executorService.shutdownNow();
             return super.stop();
         }

@@ -70,7 +70,7 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeOperation
     }
 
     @Override
-    protected void masterOperation(final RestoreSnapshotRequest request, ClusterState state, final ActionListener<RestoreSnapshotResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final RestoreSnapshotRequest request, ClusterState state, final ActionListener<RestoreSnapshotResponse> listener) {
         RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(
                 "restore_snapshot[" + request.snapshot() + "]", request.repository(), request.snapshot(),
                 request.indices(), request.indicesOptions(), request.renamePattern(), request.renameReplacement(),

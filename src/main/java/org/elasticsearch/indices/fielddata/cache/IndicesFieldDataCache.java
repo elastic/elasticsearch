@@ -24,7 +24,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -80,7 +79,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         // defaults to 4, but this is a busy map for all indices, increase it a bit by default
         final int concurrencyLevel =  settings.getAsInt(FIELDDATA_CACHE_CONCURRENCY_LEVEL, 16);
         if (concurrencyLevel <= 0) {
-            throw new ElasticsearchIllegalArgumentException("concurrency_level must be > 0 but was: " + concurrencyLevel);
+            throw new IllegalArgumentException("concurrency_level must be > 0 but was: " + concurrencyLevel);
         }
         cacheBuilder.concurrencyLevel(concurrencyLevel);
         if (expire != null && expire.millis() > 0) {

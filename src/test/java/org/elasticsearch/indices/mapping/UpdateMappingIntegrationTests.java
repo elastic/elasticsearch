@@ -21,6 +21,7 @@ package org.elasticsearch.indices.mapping;
 
 import com.google.common.collect.Lists;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -28,6 +29,7 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -54,7 +56,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(randomDynamicTemplates = false)
-public class UpdateMappingTests extends ElasticsearchIntegrationTest {
+public class UpdateMappingIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void dynamicUpdates() throws Exception {
@@ -213,13 +215,13 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
 
     @SuppressWarnings("unchecked")
     @Test
-    public void updateIncludeExclude() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type",
-                jsonBuilder().startObject().startObject("type").startObject("properties")
-                        .startObject("normal").field("type", "long").endObject()
-                        .startObject("exclude").field("type", "long").endObject()
-                        .startObject("include").field("type", "long").endObject()
-                        .endObject().endObject().endObject()));
+    public void updateIncludeExcludeBackcompat() throws Exception {
+        assertAcked(prepareCreate("test").setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
+            .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+                    .startObject("normal").field("type", "long").endObject()
+                    .startObject("exclude").field("type", "long").endObject()
+                    .startObject("include").field("type", "long").endObject()
+                    .endObject().endObject().endObject()));
         ensureGreen(); // make sure that replicas are initialized so the refresh command will work them too
 
         logger.info("Index doc");
@@ -228,7 +230,6 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
                         .endObject()
         );
         refresh(); // commit it for later testing.
-
 
         logger.info("Adding exclude settings");
         PutMappingResponse putResponse = client().admin().indices().preparePutMapping("test").setType("type").setSource(
@@ -259,7 +260,6 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
         assertThat(getResponse.getSource(), not(hasKey("exclude")));
         assertThat(getResponse.getSource(), hasKey("include"));
 
-
         logger.info("Changing mapping to includes");
         putResponse = client().admin().indices().preparePutMapping("test").setType("type").setSource(
                 JsonXContent.contentBuilder().startObject().startObject("type")
@@ -278,7 +278,6 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
         assertThat((Map<String, Object>) typeMapping.getSourceAsMap().get("_source"), hasKey("excludes"));
         assertThat((ArrayList<String>) ((Map<String, Object>) typeMapping.getSourceAsMap().get("_source")).get("excludes"), emptyIterable());
 
-
         logger.info("Indexing doc yet again");
         index("test", "type", "1", JsonXContent.contentBuilder().startObject()
                         .field("normal", 3).field("exclude", 3).field("include", 3)
@@ -289,7 +288,6 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
         assertThat(getResponse.getSource(), not(hasKey("normal")));
         assertThat(getResponse.getSource(), not(hasKey("exclude")));
         assertThat(getResponse.getSource(), hasKey("include"));
-
 
         logger.info("Adding excludes, but keep includes");
         putResponse = client().admin().indices().preparePutMapping("test").setType("type").setSource(
@@ -308,8 +306,6 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
         assertThat((Map<String, Object>) typeMapping.getSourceAsMap().get("_source"), hasKey("excludes"));
         ArrayList<String> excludes = (ArrayList<String>) ((Map<String, Object>) typeMapping.getSourceAsMap().get("_source")).get("excludes");
         assertThat(excludes, contains("*.excludes"));
-
-
     }
 
     @SuppressWarnings("unchecked")

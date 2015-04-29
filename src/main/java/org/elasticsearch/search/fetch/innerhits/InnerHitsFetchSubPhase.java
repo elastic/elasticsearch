@@ -77,7 +77,7 @@ public class InnerHitsFetchSubPhase implements FetchSubPhase {
     }
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticsearchException {
+    public void hitExecute(SearchContext context, HitContext hitContext) {
         Map<String, InternalSearchHits> results = new HashMap<>();
         for (Map.Entry<String, InnerHitsContext.BaseInnerHits> entry : context.innerHits().getInnerHits().entrySet()) {
             InnerHitsContext.BaseInnerHits innerHits = entry.getValue();
@@ -117,7 +117,7 @@ public class InnerHitsFetchSubPhase implements FetchSubPhase {
     }
 
     @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticsearchException {
+    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
     }
 
     // To get around cyclic dependency issue

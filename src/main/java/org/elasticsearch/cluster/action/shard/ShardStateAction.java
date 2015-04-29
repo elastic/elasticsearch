@@ -76,7 +76,7 @@ public class ShardStateAction extends AbstractComponent {
         transportService.registerRequestHandler(SHARD_FAILED_ACTION_NAME, ShardRoutingEntry.class, ThreadPool.Names.SAME, new ShardFailedTransportHandler());
     }
 
-    public void shardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason) throws ElasticsearchException {
+    public void shardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason) {
         DiscoveryNode masterNode = clusterService.state().nodes().masterNode();
         if (masterNode == null) {
             logger.warn("can't send shard failed for {}, no master known.", shardRouting);
@@ -85,7 +85,7 @@ public class ShardStateAction extends AbstractComponent {
         innerShardFailed(shardRouting, indexUUID, reason, masterNode);
     }
 
-    public void resendShardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason, final DiscoveryNode masterNode) throws ElasticsearchException {
+    public void resendShardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason, final DiscoveryNode masterNode) {
         logger.trace("{} re-sending failed shard for {}, indexUUID [{}], reason [{}]", shardRouting.shardId(), shardRouting, indexUUID, reason);
         innerShardFailed(shardRouting, indexUUID, reason, masterNode);
     }
@@ -101,7 +101,7 @@ public class ShardStateAction extends AbstractComponent {
                 });
     }
 
-    public void shardStarted(final ShardRouting shardRouting, String indexUUID, final String reason) throws ElasticsearchException {
+    public void shardStarted(final ShardRouting shardRouting, String indexUUID, final String reason) {
         DiscoveryNode masterNode = clusterService.state().nodes().masterNode();
         if (masterNode == null) {
             logger.warn("can't send shard started for {}. no master known.", shardRouting);
@@ -110,7 +110,7 @@ public class ShardStateAction extends AbstractComponent {
         shardStarted(shardRouting, indexUUID, reason, masterNode);
     }
 
-    public void shardStarted(final ShardRouting shardRouting, String indexUUID, final String reason, final DiscoveryNode masterNode) throws ElasticsearchException {
+    public void shardStarted(final ShardRouting shardRouting, String indexUUID, final String reason, final DiscoveryNode masterNode) {
 
         ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, reason);
 

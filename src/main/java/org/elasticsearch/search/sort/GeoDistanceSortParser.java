@@ -27,7 +27,6 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoDistance.FixedSourceDistance;
@@ -136,12 +135,12 @@ public class GeoDistanceSortParser implements SortParser {
         }
 
         if (sortMode == MultiValueMode.SUM) {
-            throw new ElasticsearchIllegalArgumentException("sort_mode [sum] isn't supported for sorting by geo distance");
+            throw new IllegalArgumentException("sort_mode [sum] isn't supported for sorting by geo distance");
         }
 
         FieldMapper<?> mapper = context.smartNameFieldMapper(fieldName);
         if (mapper == null) {
-            throw new ElasticsearchIllegalArgumentException("failed to find mapper for [" + fieldName + "] for geo distance based sort");
+            throw new IllegalArgumentException("failed to find mapper for [" + fieldName + "] for geo distance based sort");
         }
         final MultiValueMode finalSortMode = sortMode; // final reference for use in the anonymous class
         final IndexGeoPointFieldData geoIndexFieldData = context.fieldData().getForField(mapper);

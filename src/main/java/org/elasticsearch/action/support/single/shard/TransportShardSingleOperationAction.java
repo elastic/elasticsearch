@@ -83,7 +83,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
         new AsyncSingleAction(request, listener).start();
     }
 
-    protected abstract Response shardOperation(Request request, ShardId shardId) throws ElasticsearchException;
+    protected abstract Response shardOperation(Request request, ShardId shardId);
 
     protected abstract Response newResponse();
 
@@ -101,7 +101,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
 
     }
 
-    protected abstract ShardIterator shards(ClusterState state, InternalRequest request) throws ElasticsearchException;
+    protected abstract ShardIterator shards(ClusterState state, InternalRequest request);
 
     class AsyncSingleAction {
 

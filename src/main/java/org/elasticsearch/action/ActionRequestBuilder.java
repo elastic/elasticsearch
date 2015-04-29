@@ -69,21 +69,21 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
     /**
      * Short version of execute().actionGet().
      */
-    public Response get() throws ElasticsearchException {
+    public Response get() {
         return execute().actionGet();
     }
 
     /**
      * Short version of execute().actionGet().
      */
-    public Response get(TimeValue timeout) throws ElasticsearchException {
+    public Response get(TimeValue timeout) {
         return execute().actionGet(timeout);
     }
 
     /**
      * Short version of execute().actionGet().
      */
-    public Response get(String timeout) throws ElasticsearchException {
+    public Response get(String timeout) {
         return execute().actionGet(timeout);
     }
 

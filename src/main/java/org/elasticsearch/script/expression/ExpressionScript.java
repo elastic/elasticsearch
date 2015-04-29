@@ -26,7 +26,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.SearchScript;
@@ -92,7 +91,7 @@ class ExpressionScript implements SearchScript {
                     // We have a new binding for the scorer so we need to reset the values
                     values = source.getValues(Collections.singletonMap("scorer", scorer), leaf);
                 } catch (IOException e) {
-                    throw new ElasticsearchIllegalStateException("Can't get values", e);
+                    throw new IllegalStateException("Can't get values", e);
                 }
             }
 

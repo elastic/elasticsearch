@@ -25,7 +25,6 @@ import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MurmurHash3;
@@ -486,7 +485,7 @@ public class BloomFilter {
             } if (type == 1) {
                 return Hashing.V1;
             } else {
-                throw new ElasticsearchIllegalArgumentException("no hashing type matching " + type);
+                throw new IllegalArgumentException("no hashing type matching " + type);
             }
         }
     }

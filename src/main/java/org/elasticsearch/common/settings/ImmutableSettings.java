@@ -25,7 +25,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Classes;
@@ -506,7 +505,7 @@ public class ImmutableSettings implements Settings {
     @Override
     public Map<String, Settings> getGroups(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException {
         if (!Strings.hasLength(settingPrefix)) {
-            throw new ElasticsearchIllegalArgumentException("illegal setting prefix " + settingPrefix);
+            throw new IllegalArgumentException("illegal setting prefix " + settingPrefix);
         }
         if (settingPrefix.charAt(settingPrefix.length() - 1) != '.') {
             settingPrefix = settingPrefix + ".";
@@ -695,7 +694,7 @@ public class ImmutableSettings implements Settings {
                 }
             }
             if ((settings.length % 2) != 0) {
-                throw new ElasticsearchIllegalArgumentException("array settings of key + value order doesn't hold correct number of arguments (" + settings.length + ")");
+                throw new IllegalArgumentException("array settings of key + value order doesn't hold correct number of arguments (" + settings.length + ")");
             }
             for (int i = 0; i < settings.length; i++) {
                 put(settings[i++].toString(), settings[i].toString());
@@ -919,7 +918,7 @@ public class ImmutableSettings implements Settings {
             for (String s : values) {
                 int index = s.indexOf('=');
                 if (index == -1) {
-                    throw new ElasticsearchIllegalArgumentException("value [" + s + "] for settings loaded with delimiter [" + delimiter + "] is malformed, missing =");
+                    throw new IllegalArgumentException("value [" + s + "] for settings loaded with delimiter [" + delimiter + "] is malformed, missing =");
                 }
                 map.put(s.substring(0, index), s.substring(index + 1));
             }

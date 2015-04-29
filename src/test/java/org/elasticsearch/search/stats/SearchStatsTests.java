@@ -46,6 +46,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
+@ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 2)
 public class SearchStatsTests extends ElasticsearchIntegrationTest {
 
     @Override

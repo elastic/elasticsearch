@@ -26,10 +26,6 @@ import org.elasticsearch.ElasticsearchException;
  */
 public class UncategorizedExecutionException extends ElasticsearchException {
 
-    public UncategorizedExecutionException(String msg) {
-        super(msg);
-    }
-
     public UncategorizedExecutionException(String msg, Throwable cause) {
         super(msg, cause);
     }

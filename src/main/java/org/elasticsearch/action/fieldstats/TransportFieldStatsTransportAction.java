@@ -23,8 +23,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Terms;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -87,7 +85,7 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastOperat
                     indexName = shardResponse.getIndex();
                 } else {
                     // should already have been catched by the FieldStatsRequest#validate(...)
-                    throw new ElasticsearchIllegalArgumentException("Illegal level option [" + request.level() + "]");
+                    throw new IllegalArgumentException("Illegal level option [" + request.level() + "]");
                 }
 
                 Map<String, FieldStats> indexMergedFieldStats = indicesMergedFieldStats.get(indexName);
@@ -100,7 +98,7 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastOperat
                     FieldStats existing = indexMergedFieldStats.get(entry.getKey());
                     if (existing != null) {
                         if (existing.getType() != entry.getValue().getType()) {
-                            throw new ElasticsearchIllegalStateException(
+                            throw new IllegalStateException(
                                     "trying to merge the field stats of field [" + entry.getKey() + "] from index [" + shardResponse.getIndex() + "] but the field type is incompatible, try to set the 'level' option to 'indices'"
                             );
                         }
@@ -126,7 +124,7 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastOperat
     }
 
     @Override
-    protected FieldStatsShardResponse shardOperation(FieldStatsShardRequest request) throws ElasticsearchException {
+    protected FieldStatsShardResponse shardOperation(FieldStatsShardRequest request) {
         ShardId shardId = request.shardId();
         Map<String, FieldStats> fieldStats = new HashMap<>();
         IndexService indexServices = indicesService.indexServiceSafe(shardId.getIndex());

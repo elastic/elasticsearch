@@ -209,7 +209,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         this.serverOpenChannels = new OpenChannelsHandler(logger);
 
         if (blockingServer) {
@@ -286,7 +286,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         if (serverChannel != null) {
             serverChannel.close().awaitUninterruptibly();
             serverChannel = null;
@@ -304,7 +304,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
     }
 
     @Override

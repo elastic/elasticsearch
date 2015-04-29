@@ -184,7 +184,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     }
 
     @Test
-    public void testSimpleTermVectors() throws ElasticsearchException, IOException {
+    public void testSimpleTermVectors() throws IOException {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
                         .startObject("field")
@@ -222,7 +222,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     }
 
     @Test
-    public void testRandomSingleTermVectors() throws ElasticsearchException, IOException {
+    public void testRandomSingleTermVectors() throws IOException {
         FieldType ft = new FieldType();
         int config = randomInt(6);
         boolean storePositions = false;
@@ -410,7 +410,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     }
 
     @Test
-    public void testRandomPayloadWithDelimitedPayloadTokenFilter() throws ElasticsearchException, IOException {
+    public void testRandomPayloadWithDelimitedPayloadTokenFilter() throws IOException {
         //create the test document
         int encoding = randomIntBetween(0, 2);
         String encodingString = "";
@@ -578,7 +578,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
 
     // like testSimpleTermVectors but we create fields with no term vectors
     @Test
-    public void testSimpleTermVectorsWithGenerate() throws ElasticsearchException, IOException {
+    public void testSimpleTermVectorsWithGenerate() throws IOException {
         String[] fieldNames = new String[10];
         for (int i = 0; i < fieldNames.length; i++) {
             fieldNames[i] = "field" + String.valueOf(i);
@@ -630,7 +630,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         }
     }
 
-    private void checkBrownFoxTermVector(Fields fields, String fieldName, boolean withPayloads) throws ElasticsearchException, IOException {
+    private void checkBrownFoxTermVector(Fields fields, String fieldName, boolean withPayloads) throws IOException {
         String[] values = {"brown", "dog", "fox", "jumps", "lazy", "over", "quick", "the"};
         int[] freq = {1, 1, 1, 1, 1, 1, 1, 2};
         int[][] pos = {{2}, {8}, {3}, {4}, {7}, {5}, {1}, {0, 6}};
@@ -671,7 +671,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     }
 
     @Test
-    public void testDuelWithAndWithoutTermVectors() throws ElasticsearchException, IOException, ExecutionException, InterruptedException {
+    public void testDuelWithAndWithoutTermVectors() throws IOException, ExecutionException, InterruptedException {
         // setup indices
         String[] indexNames = new String[] {"with_tv", "without_tv"};
         assertAcked(prepareCreate(indexNames[0])
@@ -760,7 +760,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     }
 
     @Test
-    public void testSimpleWildCards() throws ElasticsearchException, IOException {
+    public void testSimpleWildCards() throws IOException {
         int numFields = 25;
 
         XContentBuilder mapping = jsonBuilder().startObject().startObject("type1").startObject("properties");
@@ -788,7 +788,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     }
 
     @Test
-    public void testArtificialVsExisting() throws ElasticsearchException, ExecutionException, InterruptedException, IOException {
+    public void testArtificialVsExisting() throws ExecutionException, InterruptedException, IOException {
         // setup indices
         ImmutableSettings.Builder settings = settingsBuilder()
                 .put(indexSettings())
@@ -924,7 +924,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     }
 
     @Test
-    public void testPerFieldAnalyzer() throws ElasticsearchException, IOException {
+    public void testPerFieldAnalyzer() throws IOException {
         int numFields = 25;
 
         // setup mapping and document source
@@ -1021,7 +1021,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     }
 
     @Test
-    public void testDfs() throws ElasticsearchException, ExecutionException, InterruptedException, IOException {
+    public void testDfs() throws ExecutionException, InterruptedException, IOException {
         logger.info("Setting up the index ...");
         ImmutableSettings.Builder settings = settingsBuilder()
                 .put(indexSettings())

@@ -25,7 +25,6 @@ import org.apache.lucene.analysis.compound.Lucene43HyphenationCompoundWordTokenF
 import org.apache.lucene.analysis.compound.hyphenation.HyphenationTree;
 import org.apache.lucene.util.Version;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -36,8 +35,6 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.xml.sax.InputSource;
 
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 /**
  * Uses the {@link org.apache.lucene.analysis.compound.HyphenationCompoundWordTokenFilter} to decompound tokens based on hyphenation rules.
@@ -55,7 +52,7 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
 
         String hyphenationPatternsPath = settings.get("hyphenation_patterns_path", null);
         if (hyphenationPatternsPath == null) {
-            throw new ElasticsearchIllegalArgumentException("hyphenation_patterns_path is a required setting.");
+            throw new IllegalArgumentException("hyphenation_patterns_path is a required setting.");
         }
 
         URL hyphenationPatternsFile = env.resolveConfig(hyphenationPatternsPath);
@@ -63,7 +60,7 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
         try {
             hyphenationTree = HyphenationCompoundWordTokenFilter.getHyphenationTree(new InputSource(hyphenationPatternsFile.toExternalForm()));
         } catch (Exception e) {
-            throw new ElasticsearchIllegalArgumentException("Exception while reading hyphenation_patterns_path: " + e.getMessage());
+            throw new IllegalArgumentException("Exception while reading hyphenation_patterns_path: " + e.getMessage());
         }
     }
 

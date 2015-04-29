@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.cache.filter.FilterCacheModule.FilterCacheSettings;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
-import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -50,7 +49,6 @@ public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
-                .put(GroovyScriptEngineService.GROOVY_SCRIPT_SANDBOX_ENABLED, false)
                 // aggressive filter caching so that we can assert on the number of iterations of the script filters
                 .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, WeightedFilterCache.class)
                 .put(FilterCacheSettings.FILTER_CACHE_EVERYTHING, true)

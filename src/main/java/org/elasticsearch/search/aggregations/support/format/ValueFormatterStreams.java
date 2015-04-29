@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.support.format;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -39,7 +38,7 @@ public class ValueFormatterStreams {
             case ValueFormatter.Number.Pattern.ID: formatter = new ValueFormatter.Number.Pattern(); break;
             case ValueFormatter.GeoHash.ID: formatter = ValueFormatter.GEOHASH; break;
             case ValueFormatter.BooleanFormatter.ID: formatter = ValueFormatter.BOOLEAN; break;
-            default: throw new ElasticsearchIllegalArgumentException("Unknown value formatter with id [" + id + "]");
+            default: throw new IllegalArgumentException("Unknown value formatter with id [" + id + "]");
         }
         formatter.readFrom(in);
         return formatter;

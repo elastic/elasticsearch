@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.zen.fd;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -245,13 +244,13 @@ public class NodesFaultDetection extends FaultDetection {
             // if we are not the node we are supposed to be pinged, send an exception
             // this can happen when a kill -9 is sent, and another node is started using the same port
             if (!localNode.id().equals(request.nodeId)) {
-                throw new ElasticsearchIllegalStateException("Got pinged as node [" + request.nodeId + "], but I am node [" + localNode.id() + "]");
+                throw new IllegalStateException("Got pinged as node [" + request.nodeId + "], but I am node [" + localNode.id() + "]");
             }
 
             // PingRequest will have clusterName set to null if it came from a node of version <1.4.0
             if (request.clusterName != null && !request.clusterName.equals(clusterName)) {
                 // Don't introduce new exception for bwc reasons
-                throw new ElasticsearchIllegalStateException("Got pinged with cluster name [" + request.clusterName + "], but I'm part of cluster [" + clusterName + "]");
+                throw new IllegalStateException("Got pinged with cluster name [" + request.clusterName + "], but I'm part of cluster [" + clusterName + "]");
             }
 
             notifyPingReceived(request);

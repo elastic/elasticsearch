@@ -81,17 +81,17 @@ public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         jvmMonitorService.start();
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         jvmMonitorService.stop();
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
         jvmMonitorService.close();
     }
 }

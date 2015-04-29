@@ -84,7 +84,7 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
     }
 
     @Override
-    protected MultiGetShardResponse shardOperation(MultiGetShardRequest request, ShardId shardId) throws ElasticsearchException {
+    protected MultiGetShardResponse shardOperation(MultiGetShardRequest request, ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.shardSafe(shardId.id());
 

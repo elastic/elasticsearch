@@ -87,7 +87,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
     }
 
     @Override
-    protected GetFieldMappingsResponse shardOperation(final GetFieldMappingsIndexRequest request, ShardId shardId) throws ElasticsearchException {
+    protected GetFieldMappingsResponse shardOperation(final GetFieldMappingsIndexRequest request, ShardId shardId) {
         assert shardId != null;
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         Collection<String> typeIntersection;
@@ -173,7 +173,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
         }
     };
 
-    private ImmutableMap<String, FieldMappingMetaData> findFieldMappingsByType(DocumentMapper documentMapper, GetFieldMappingsIndexRequest request) throws ElasticsearchException {
+    private ImmutableMap<String, FieldMappingMetaData> findFieldMappingsByType(DocumentMapper documentMapper, GetFieldMappingsIndexRequest request) {
         MapBuilder<String, FieldMappingMetaData> fieldMappings = new MapBuilder<>();
         final DocumentFieldMappers allFieldMappers = documentMapper.mappers();
         for (String field : request.fields()) {

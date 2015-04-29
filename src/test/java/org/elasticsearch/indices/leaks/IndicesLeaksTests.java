@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.indices.leaks;
 
-import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -28,7 +27,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.Test;
 
 import java.lang.ref.WeakReference;
@@ -92,7 +90,6 @@ public class IndicesLeaksTests extends ElasticsearchIntegrationTest {
         shardInjector = null;
 
         cluster().wipeIndices("test");
-        MockDirectoryHelper.wrappers.clear(); // we need to clear this to allow the objects to recycle
 
         for (int i = 0; i < 100; i++) {
             System.gc();

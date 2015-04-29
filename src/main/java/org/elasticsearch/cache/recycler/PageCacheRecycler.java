@@ -20,7 +20,6 @@
 package org.elasticsearch.cache.recycler;
 
 import com.google.common.base.Strings;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.recycler.AbstractRecyclerC;
@@ -213,7 +212,7 @@ public class PageCacheRecycler extends AbstractComponent {
             try {
                 return Type.valueOf(type.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                throw new ElasticsearchIllegalArgumentException("no type support [" + type + "]");
+                throw new IllegalArgumentException("no type support [" + type + "]");
             }
         }
 

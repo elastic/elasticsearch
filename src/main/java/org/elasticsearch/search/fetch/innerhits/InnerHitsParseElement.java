@@ -21,7 +21,6 @@ package org.elasticsearch.search.fetch.innerhits;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -74,12 +73,12 @@ public class InnerHitsParseElement implements SearchParseElement {
         Map<String, InnerHitsContext.BaseInnerHits> innerHitsMap = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token != XContentParser.Token.FIELD_NAME) {
-                throw new ElasticsearchIllegalArgumentException("Unexpected token " + token + " in [inner_hits]: inner_hit definitions must start with the name of the inner_hit.");
+                throw new IllegalArgumentException("Unexpected token " + token + " in [inner_hits]: inner_hit definitions must start with the name of the inner_hit.");
             }
             final String innerHitName = parser.currentName();
             token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchIllegalArgumentException("Inner hit definition for [" + innerHitName + " starts with a [" + token + "], expected a [" + XContentParser.Token.START_OBJECT + "].");
+                throw new IllegalArgumentException("Inner hit definition for [" + innerHitName + " starts with a [" + token + "], expected a [" + XContentParser.Token.START_OBJECT + "].");
             }
             InnerHitsContext.BaseInnerHits innerHits = parseInnerHit(parser, parseContext, searchContext, innerHitName);
             if (innerHitsMap == null) {
@@ -93,12 +92,12 @@ public class InnerHitsParseElement implements SearchParseElement {
     private InnerHitsContext.BaseInnerHits parseInnerHit(XContentParser parser, QueryParseContext parseContext, SearchContext searchContext, String innerHitName) throws Exception {
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ElasticsearchIllegalArgumentException("Unexpected token " + token + " inside inner hit definition. Either specify [path] or [type] object");
+            throw new IllegalArgumentException("Unexpected token " + token + " inside inner hit definition. Either specify [path] or [type] object");
         }
         String fieldName = parser.currentName();
         token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchIllegalArgumentException("Inner hit definition for [" + innerHitName + " starts with a [" + token + "], expected a [" + XContentParser.Token.START_OBJECT + "].");
+            throw new IllegalArgumentException("Inner hit definition for [" + innerHitName + " starts with a [" + token + "], expected a [" + XContentParser.Token.START_OBJECT + "].");
         }
 
         String nestedPath = null;
@@ -111,16 +110,16 @@ public class InnerHitsParseElement implements SearchParseElement {
                 type = parser.currentName();
                 break;
             default:
-                throw new ElasticsearchIllegalArgumentException("Either path or type object must be defined");
+                throw new IllegalArgumentException("Either path or type object must be defined");
         }
         token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ElasticsearchIllegalArgumentException("Unexpected token " + token + " inside inner hit definition. Either specify [path] or [type] object");
+            throw new IllegalArgumentException("Unexpected token " + token + " inside inner hit definition. Either specify [path] or [type] object");
         }
         fieldName = parser.currentName();
         token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchIllegalArgumentException("Inner hit definition for [" + innerHitName + " starts with a [" + token + "], expected a [" + XContentParser.Token.START_OBJECT + "].");
+            throw new IllegalArgumentException("Inner hit definition for [" + innerHitName + " starts with a [" + token + "], expected a [" + XContentParser.Token.START_OBJECT + "].");
         }
 
         final InnerHitsContext.BaseInnerHits innerHits;
@@ -129,17 +128,17 @@ public class InnerHitsParseElement implements SearchParseElement {
         } else if (type != null) {
             innerHits = parseParentChild(parser, parseContext, searchContext, fieldName);
         } else {
-            throw new ElasticsearchIllegalArgumentException("Either [path] or [type] must be defined");
+            throw new IllegalArgumentException("Either [path] or [type] must be defined");
         }
 
         // Completely consume all json objects:
         token = parser.nextToken();
         if (token != XContentParser.Token.END_OBJECT) {
-            throw new ElasticsearchIllegalArgumentException("Expected [" + XContentParser.Token.END_OBJECT + "] token, but got a [" + token + "] token.");
+            throw new IllegalArgumentException("Expected [" + XContentParser.Token.END_OBJECT + "] token, but got a [" + token + "] token.");
         }
         token = parser.nextToken();
         if (token != XContentParser.Token.END_OBJECT) {
-            throw new ElasticsearchIllegalArgumentException("Expected [" + XContentParser.Token.END_OBJECT + "] token, but got a [" + token + "] token.");
+            throw new IllegalArgumentException("Expected [" + XContentParser.Token.END_OBJECT + "] token, but got a [" + token + "] token.");
         }
 
         return innerHits;
@@ -149,7 +148,7 @@ public class InnerHitsParseElement implements SearchParseElement {
         ParseResult parseResult = parseSubSearchContext(searchContext, parseContext, parser);
         DocumentMapper documentMapper = searchContext.mapperService().documentMapper(type);
         if (documentMapper == null) {
-            throw new ElasticsearchIllegalArgumentException("type [" + type + "] doesn't exist");
+            throw new IllegalArgumentException("type [" + type + "] doesn't exist");
         }
         return new InnerHitsContext.ParentChildInnerHits(parseResult.context(), parseResult.query(), parseResult.childInnerHits(), documentMapper);
     }
@@ -157,11 +156,11 @@ public class InnerHitsParseElement implements SearchParseElement {
     private InnerHitsContext.NestedInnerHits parseNested(XContentParser parser, QueryParseContext parseContext, SearchContext searchContext, String nestedPath) throws Exception {
         MapperService.SmartNameObjectMapper smartNameObjectMapper = searchContext.smartNameObjectMapper(nestedPath);
         if (smartNameObjectMapper == null || !smartNameObjectMapper.hasMapper()) {
-            throw new ElasticsearchIllegalArgumentException("path [" + nestedPath +"] doesn't exist");
+            throw new IllegalArgumentException("path [" + nestedPath +"] doesn't exist");
         }
         ObjectMapper childObjectMapper = smartNameObjectMapper.mapper();
         if (!childObjectMapper.nested().isNested()) {
-            throw new ElasticsearchIllegalArgumentException("path [" + nestedPath +"] isn't nested");
+            throw new IllegalArgumentException("path [" + nestedPath +"] isn't nested");
         }
         ObjectMapper parentObjectMapper = parseContext.nestedScope().nextLevel(childObjectMapper);
         ParseResult parseResult = parseSubSearchContext(searchContext, parseContext, parser);

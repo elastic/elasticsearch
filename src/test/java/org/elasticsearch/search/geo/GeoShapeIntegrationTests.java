@@ -346,47 +346,6 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         assertHitCount(result, 1);
     }
 
-    @Test // Issue 2944
-    public void testThatShapeIsReturnedEvenWhenExclusionsAreSet() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location")
-                .field("type", "geo_shape")
-                .endObject().endObject()
-                .startObject("_source")
-                .startArray("excludes").value("nonExistingField").endArray()
-                .endObject()
-                .endObject().endObject()
-                .string();
-        assertAcked(prepareCreate("test").addMapping("type1", mapping));
-        ensureGreen();
-
-        indexRandom(true,
-                client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
-                    .field("name", "Document 1")
-                    .startObject("location")
-                    .field("type", "envelope")
-                    .startArray("coordinates").startArray().value(-45.0).value(45).endArray().startArray().value(45).value(-45).endArray().endArray()
-                    .endObject()
-                    .endObject()));
-
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
-
-        Map<String, Object> indexedMap = searchResponse.getHits().getAt(0).sourceAsMap();
-        assertThat(indexedMap.get("location"), instanceOf(Map.class));
-        Map<String, Object> locationMap = (Map<String, Object>) indexedMap.get("location");
-        assertThat(locationMap.get("coordinates"), instanceOf(List.class));
-        List<List<Number>> coordinates = (List<List<Number>>) locationMap.get("coordinates");
-        assertThat(coordinates.size(), equalTo(2));
-        assertThat(coordinates.get(0).size(), equalTo(2));
-        assertThat(coordinates.get(0).get(0).doubleValue(), equalTo(-45.0));
-        assertThat(coordinates.get(0).get(1).doubleValue(), equalTo(45.0));
-        assertThat(coordinates.get(1).size(), equalTo(2));
-        assertThat(coordinates.get(1).get(0).doubleValue(), equalTo(45.0));
-        assertThat(coordinates.get(1).get(1).doubleValue(), equalTo(-45.0));
-        assertThat(locationMap.size(), equalTo(2));
-    }
-
     @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9904")
     @Test
     public void testShapeFilterWithRandomGeoCollection() throws Exception {

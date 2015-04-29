@@ -47,7 +47,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         this.threadPool = threadPool;
     }
 
-    public final ActionFuture<Response> execute(Request request) throws ElasticsearchException {
+    public final ActionFuture<Response> execute(Request request) {
         PlainActionFuture<Response> future = newFuture();
         // since we don't have a listener, and we release a possible lock with the future
         // there is no need to execute it under a listener thread

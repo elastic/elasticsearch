@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -44,7 +43,6 @@ import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -787,7 +785,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
             // throw an exception about not being able to complete
             strategy.reroute(clusterState, cmds).routingTable();
             fail("should not have been able to reroute the shard");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat("can't allocated because there isn't enough room: " + e.getMessage(),
                     e.getMessage().contains("less than required [30.0%] free disk on node, free: [26.0%]"), equalTo(true));
         }

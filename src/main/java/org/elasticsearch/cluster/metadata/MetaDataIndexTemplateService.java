@@ -23,7 +23,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.ClusterService;
@@ -111,11 +110,11 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         request.settings(updatedSettingsBuilder.build());
 
         if (request.name == null) {
-            listener.onFailure(new ElasticsearchIllegalArgumentException("index_template must provide a name"));
+            listener.onFailure(new IllegalArgumentException("index_template must provide a name"));
             return;
         }
         if (request.template == null) {
-            listener.onFailure(new ElasticsearchIllegalArgumentException("index_template must provide a template"));
+            listener.onFailure(new IllegalArgumentException("index_template must provide a template"));
             return;
         }
 
@@ -178,7 +177,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         });
     }
 
-    private void validate(PutRequest request) throws ElasticsearchException {
+    private void validate(PutRequest request) {
         if (request.name.contains(" ")) {
             throw new InvalidIndexTemplateException(request.name, "name must not contain a space");
         }

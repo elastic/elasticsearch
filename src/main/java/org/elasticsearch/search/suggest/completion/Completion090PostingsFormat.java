@@ -44,7 +44,6 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
@@ -176,7 +175,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
                 String providerName = input.readString();
                 CompletionLookupProvider completionLookupProvider = providers.get(providerName);
                 if (completionLookupProvider == null) {
-                    throw new ElasticsearchIllegalStateException("no provider with name [" + providerName + "] registered");
+                    throw new IllegalStateException("no provider with name [" + providerName + "] registered");
                 }
                 // TODO: we could clone the ReadState and make it always forward IOContext.MERGE to prevent unecessary heap usage? 
                 delegateProducer = delegatePostingsFormat.fieldsProducer(state);

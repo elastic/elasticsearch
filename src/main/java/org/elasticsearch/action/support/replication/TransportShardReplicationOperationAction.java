@@ -126,7 +126,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     protected abstract void shardOperationOnReplica(ShardId shardId, ReplicaRequest shardRequest);
 
-    protected abstract ShardIterator shards(ClusterState clusterState, InternalRequest request) throws ElasticsearchException;
+    protected abstract ShardIterator shards(ClusterState clusterState, InternalRequest request);
 
     protected abstract boolean checkWriteConsistency();
 

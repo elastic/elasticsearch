@@ -33,12 +33,12 @@ public interface TransportFuture<V> extends Future<V> {
      * Waits if necessary for the computation to complete, and then
      * retrieves its result.
      */
-    V txGet() throws ElasticsearchException;
+    V txGet();
 
     /**
      * Waits if necessary for at most the given time for the computation
      * to complete, and then retrieves its result, if available.
      */
-    V txGet(long timeout, TimeUnit unit) throws ElasticsearchException;
+    V txGet(long timeout, TimeUnit unit);
 }
 

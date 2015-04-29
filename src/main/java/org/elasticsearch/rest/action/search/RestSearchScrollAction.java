@@ -19,11 +19,9 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -84,10 +82,10 @@ public class RestSearchScrollAction extends BaseRestHandler {
         client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<SearchResponse>(channel));
     }
 
-    public static void buildFromContent(BytesReference content, SearchScrollRequest searchScrollRequest) throws ElasticsearchIllegalArgumentException {
+    public static void buildFromContent(BytesReference content, SearchScrollRequest searchScrollRequest) {
         try (XContentParser parser = XContentHelper.createParser(content)) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchIllegalArgumentException("Malforrmed content, must start with an object");
+                throw new IllegalArgumentException("Malforrmed content, must start with an object");
             } else {
                 XContentParser.Token token;
                 String currentFieldName = null;
@@ -99,12 +97,12 @@ public class RestSearchScrollAction extends BaseRestHandler {
                     } else if ("scroll".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
                         searchScrollRequest.scroll(new Scroll(TimeValue.parseTimeValue(parser.text(), null)));
                     } else {
-                        throw new ElasticsearchIllegalArgumentException("Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");
+                        throw new IllegalArgumentException("Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");
                     }
                 }
             }
         } catch (IOException e) {
-            throw new ElasticsearchIllegalArgumentException("Failed to parse request body", e);
+            throw new IllegalArgumentException("Failed to parse request body", e);
         }
     }
 }

@@ -173,7 +173,7 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
     }
 
     @Override
-    protected PercolateShardResponse shardOperation(PercolateShardRequest request) throws ElasticsearchException {
+    protected PercolateShardResponse shardOperation(PercolateShardRequest request) {
         try {
             return percolatorService.percolate(request);
         } catch (Throwable e) {

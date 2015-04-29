@@ -22,7 +22,6 @@ package org.elasticsearch.script;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -68,7 +67,7 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
         if (scriptFactory != null) {
             return scriptFactory;
         }
-        throw new ElasticsearchIllegalArgumentException("Native script [" + script + "] not found");
+        throw new IllegalArgumentException("Native script [" + script + "] not found");
     }
 
     @Override

@@ -87,22 +87,6 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < 5; i++) {
             assertThat(client().prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
         }
-
-        logger.info("--> deleting_by_query with 1 as routing, should not delete anything");
-        client().prepareDeleteByQuery().setQuery(matchAllQuery()).setRouting("1").execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
-        for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
-            assertThat(client().prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
-        }
-
-        logger.info("--> deleting_by_query with , should delete");
-        client().prepareDeleteByQuery().setQuery(matchAllQuery()).setRouting("0").execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
-        for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
-            assertThat(client().prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(false));
-        }
     }
     
     public void testSimpleSearchRouting() {

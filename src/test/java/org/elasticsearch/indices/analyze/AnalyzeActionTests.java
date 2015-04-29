@@ -19,7 +19,6 @@
 package org.elasticsearch.indices.analyze;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
@@ -53,36 +52,40 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
             assertThat(token.getTerm(), equalTo("this"));
             assertThat(token.getStartOffset(), equalTo(0));
             assertThat(token.getEndOffset(), equalTo(4));
+            assertThat(token.getPosition(), equalTo(0));
             token = analyzeResponse.getTokens().get(1);
             assertThat(token.getTerm(), equalTo("is"));
             assertThat(token.getStartOffset(), equalTo(5));
             assertThat(token.getEndOffset(), equalTo(7));
+            assertThat(token.getPosition(), equalTo(1));
             token = analyzeResponse.getTokens().get(2);
             assertThat(token.getTerm(), equalTo("a"));
             assertThat(token.getStartOffset(), equalTo(8));
             assertThat(token.getEndOffset(), equalTo(9));
+            assertThat(token.getPosition(), equalTo(2));
             token = analyzeResponse.getTokens().get(3);
             assertThat(token.getTerm(), equalTo("test"));
             assertThat(token.getStartOffset(), equalTo(10));
             assertThat(token.getEndOffset(), equalTo(14));
+            assertThat(token.getPosition(), equalTo(3));
         }
     }
     
     @Test
-    public void analyzeNumericField() throws ElasticsearchException, IOException {
+    public void analyzeNumericField() throws IOException {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("test", "long", "type=long", "double", "type=double"));
         ensureGreen("test");
 
         try {
             client().admin().indices().prepareAnalyze(indexOrAlias(), "123").setField("long").get();
             fail("shouldn't get here");
-        } catch (ElasticsearchIllegalArgumentException ex) {
+        } catch (IllegalArgumentException ex) {
             //all good
         }
         try {
             client().admin().indices().prepareAnalyze(indexOrAlias(), "123.0").setField("double").get();
             fail("shouldn't get here");
-        } catch (ElasticsearchIllegalArgumentException ex) {
+        } catch (IllegalArgumentException ex) {
             //all good
         }
     }
@@ -107,6 +110,14 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
         assertThat(token.getTerm(), equalTo("a"));
         token = analyzeResponse.getTokens().get(3);
         assertThat(token.getTerm(), equalTo("tset"));
+
+        analyzeResponse = client().admin().indices().prepareAnalyze("of course").setTokenizer("standard").setTokenFilters("stop").get();
+        assertThat(analyzeResponse.getTokens().size(), equalTo(1));
+        assertThat(analyzeResponse.getTokens().get(0).getTerm(), equalTo("course"));
+        assertThat(analyzeResponse.getTokens().get(0).getPosition(), equalTo(1));
+        assertThat(analyzeResponse.getTokens().get(0).getStartOffset(), equalTo(3));
+        assertThat(analyzeResponse.getTokens().get(0).getEndOffset(), equalTo(9));
+
     }
 
     @Test
@@ -223,7 +234,7 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
             RestAnalyzeAction.buildFromContent(invalidContent, analyzeRequest);
             fail("shouldn't get here");
         } catch (Exception e) {
-            assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(e, instanceOf(IllegalArgumentException.class));
             assertThat(e.getMessage(), equalTo("Failed to parse request body"));
         }
     }
@@ -242,7 +253,7 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
             RestAnalyzeAction.buildFromContent(invalidContent, analyzeRequest);
             fail("shouldn't get here");
         } catch (Exception e) {
-            assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(e, instanceOf(IllegalArgumentException.class));
             assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
         }
     }

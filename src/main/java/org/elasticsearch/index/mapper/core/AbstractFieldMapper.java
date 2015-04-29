@@ -40,8 +40,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
@@ -429,9 +427,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             throw new MapperParsingException("failed to parse [" + names.fullName() + "]", e);
         }
         multiFields.parse(this, context);
-        if (copyTo != null) {
-            copyTo.parse(context);
-        }
         return null;
     }
 
@@ -770,7 +765,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             case DOCS:
                 return TypeParsers.INDEX_OPTIONS_DOCS;
             default:
-                throw new ElasticsearchIllegalArgumentException("Unknown IndexOptions [" + indexOption + "]");
+                throw new IllegalArgumentException("Unknown IndexOptions [" + indexOption + "]");
         }
     }
 
@@ -837,7 +832,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     public static class MultiFields {
 
         public static MultiFields empty() {
-            return new MultiFields(Defaults.PATH_TYPE, ImmutableOpenMap.<String, Mapper>of());
+            return new MultiFields(Defaults.PATH_TYPE, ImmutableOpenMap.<String, FieldMapper>of());
         }
 
         public static class Builder {
@@ -860,7 +855,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                 if (pathType == Defaults.PATH_TYPE && mapperBuilders.isEmpty()) {
                     return empty();
                 } else if (mapperBuilders.isEmpty()) {
-                    return new MultiFields(pathType, ImmutableOpenMap.<String, Mapper>of());
+                    return new MultiFields(pathType, ImmutableOpenMap.<String, FieldMapper>of());
                 } else {
                     ContentPath.Type origPathType = context.path().pathType();
                     context.path().pathType(pathType);
@@ -869,26 +864,27 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                     for (ObjectObjectCursor<String, Mapper.Builder> cursor : this.mapperBuilders) {
                         String key = cursor.key;
                         Mapper.Builder value = cursor.value;
-                        mapperBuilders.put(key, value.build(context));
+                        Mapper mapper = value.build(context);
+                        assert mapper instanceof FieldMapper;
+                        mapperBuilders.put(key, mapper);
                     }
                     context.path().remove();
                     context.path().pathType(origPathType);
-                    ImmutableOpenMap.Builder<String, Mapper> mappers = mapperBuilders.cast();
+                    ImmutableOpenMap.Builder<String, FieldMapper> mappers = mapperBuilders.cast();
                     return new MultiFields(pathType, mappers.build());
                 }
             }
-
         }
 
         private final ContentPath.Type pathType;
-        private volatile ImmutableOpenMap<String, Mapper> mappers;
+        private volatile ImmutableOpenMap<String, FieldMapper> mappers;
 
-        public MultiFields(ContentPath.Type pathType, ImmutableOpenMap<String, Mapper> mappers) {
+        public MultiFields(ContentPath.Type pathType, ImmutableOpenMap<String, FieldMapper> mappers) {
             this.pathType = pathType;
             this.mappers = mappers;
             // we disable the all in multi-field mappers
-            for (ObjectCursor<Mapper> cursor : mappers.values()) {
-                Mapper mapper = cursor.value;
+            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
+                FieldMapper mapper = cursor.value;
                 if (mapper instanceof AllFieldMapper.IncludeInAll) {
                     ((AllFieldMapper.IncludeInAll) mapper).unsetIncludeInAll();
                 }
@@ -896,6 +892,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
 
         public void parse(AbstractFieldMapper mainField, ParseContext context) throws IOException {
+            // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part of the mappings
             if (mappers.isEmpty()) {
                 return;
             }
@@ -906,7 +903,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             context.path().pathType(pathType);
 
             context.path().add(mainField.name());
-            for (ObjectCursor<Mapper> cursor : mappers.values()) {
+            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
                 cursor.value.parse(context);
             }
             context.path().remove();
@@ -918,10 +915,10 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             AbstractFieldMapper mergeWithMultiField = (AbstractFieldMapper) mergeWith;
 
             List<FieldMapper<?>> newFieldMappers = null;
-            ImmutableOpenMap.Builder<String, Mapper> newMappersBuilder = null;
+            ImmutableOpenMap.Builder<String, FieldMapper> newMappersBuilder = null;
 
-            for (ObjectCursor<Mapper> cursor : mergeWithMultiField.multiFields.mappers.values()) {
-                Mapper mergeWithMapper = cursor.value;
+            for (ObjectCursor<FieldMapper> cursor : mergeWithMultiField.multiFields.mappers.values()) {
+                FieldMapper mergeWithMapper = cursor.value;
                 Mapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
                 if (mergeIntoMapper == null) {
                     // no mapping, simply add it if not simulating
@@ -938,7 +935,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                             if (newFieldMappers == null) {
                                 newFieldMappers = new ArrayList<>(2);
                             }
-                            newFieldMappers.add((FieldMapper) mergeWithMapper);
+                            newFieldMappers.add(mergeWithMapper);
                         }
                     }
                 } else {
@@ -957,13 +954,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
 
         public void traverse(FieldMapperListener fieldMapperListener) {
-            for (ObjectCursor<Mapper> cursor : mappers.values()) {
+            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
                 cursor.value.traverse(fieldMapperListener);
             }
         }
 
         public void close() {
-            for (ObjectCursor<Mapper> cursor : mappers.values()) {
+            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
                 cursor.value.close();
             }
         }
@@ -1002,34 +999,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             this.copyToFields = copyToFields;
         }
 
-        /**
-         * Creates instances of the fields that the current field should be copied to
-         */
-        public void parse(ParseContext context) throws IOException {
-            if (!context.isWithinCopyTo() && copyToFields.isEmpty() == false) {
-                context = context.createCopyToContext();
-                for (String field : copyToFields) {
-                    // In case of a hierarchy of nested documents, we need to figure out
-                    // which document the field should go to
-                    Document targetDoc = null;
-                    for (Document doc = context.doc(); doc != null; doc = doc.getParent()) {
-                        if (field.startsWith(doc.getPrefix())) {
-                            targetDoc = doc;
-                            break;
-                        }
-                    }
-                    assert targetDoc != null;
-                    final ParseContext copyToContext;
-                    if (targetDoc == context.doc()) {
-                        copyToContext = context;
-                    } else {
-                        copyToContext = context.switchDoc(targetDoc);
-                    }
-                    parse(field, copyToContext);
-                }
-            }
-        }
-
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (!copyToFields.isEmpty()) {
                 builder.startArray("copy_to");
@@ -1056,53 +1025,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
         public ImmutableList<String> copyToFields() {
             return copyToFields;
-        }
-
-        /**
-         * Creates an copy of the current field with given field name and boost
-         */
-        public void parse(String field, ParseContext context) throws IOException {
-            FieldMappers mappers = context.docMapper().mappers().indexName(field);
-            if (mappers != null && !mappers.isEmpty()) {
-                mappers.mapper().parse(context);
-            } else {
-                // The path of the dest field might be completely different from the current one so we need to reset it
-                context = context.overridePath(new ContentPath(0));
-
-                ObjectMapper mapper = context.root();
-                String objectPath = "";
-                String fieldPath = field;
-                int posDot = field.lastIndexOf('.');
-                if (posDot > 0) {
-                    objectPath = field.substring(0, posDot);
-                    context.path().add(objectPath);
-                    mapper = context.docMapper().objectMappers().get(objectPath);
-                    fieldPath = field.substring(posDot + 1);
-                }
-                if (mapper == null) {
-                    //TODO: Create an object dynamically?
-                    throw new MapperParsingException("attempt to copy value to non-existing object [" + field + "]");
-                }
-                ObjectMapper update = mapper.parseDynamicValue(context, fieldPath, context.parser().currentToken());
-                assert update != null; // we are parsing a dynamic value so we necessarily created a new mapping
-
-                // propagate the update to the root
-                while (objectPath.length() > 0) {
-                    String parentPath = "";
-                    ObjectMapper parent = context.root();
-                    posDot = objectPath.lastIndexOf('.');
-                    if (posDot > 0) {
-                        parentPath = objectPath.substring(0, posDot);
-                        parent = context.docMapper().objectMappers().get(parentPath);
-                    }
-                    if (parent == null) {
-                        throw new ElasticsearchIllegalStateException("[" + objectPath + "] has no parent for path [" + parentPath + "]");
-                    }
-                    update = parent.mappingUpdate(update);
-                    objectPath = parentPath;
-                }
-                context.addDynamicMappingsUpdate((RootObjectMapper) update);
-            }
         }
     }
 

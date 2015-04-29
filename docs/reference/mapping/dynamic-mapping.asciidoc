@@ -21,12 +21,8 @@ embedded within the distribution:
 --------------------------------------------------
 
 Pretty short, isn't it? Basically, everything is defaulted, especially the
-dynamic nature of the root object mapping. The default mapping
-definition can be overridden in several manners. The simplest manner is
-to simply define a file called `default-mapping.json` and to place it
-under the `config` directory (which can be configured to exist in a
-different location). It can also be explicitly set using the
-`index.mapper.default_mapping_location` setting.
+dynamic nature of the root object mapping. The default mapping can be
+overridden by specifying the `_default_` type when creating a new index.
 
 The dynamic creation of mappings for unmapped types can be completely
 disabled by setting `index.mapper.dynamic` to `false`.

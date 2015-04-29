@@ -20,8 +20,6 @@
 package org.elasticsearch.test.rest;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import com.carrotsearch.randomizedtesting.annotations.Name;
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.google.common.collect.Lists;
@@ -220,9 +218,6 @@ public abstract class ElasticsearchRestTestCase extends ElasticsearchIntegration
                 if (restApi.getMethods().contains("GET") && restApi.isBodySupported()) {
                     if (!restApi.getMethods().contains("POST")) {
                         errorMessage.append("\n- ").append(restApi.getName()).append(" supports GET with a body but doesn't support POST");
-                    }
-                    if (!restApi.getParams().contains("source")) {
-                        errorMessage.append("\n- ").append(restApi.getName()).append(" supports GET with a body but doesn't support the source query string parameter");
                     }
                 }
             }

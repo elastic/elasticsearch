@@ -175,26 +175,13 @@ public class Environment {
     }
 
     public URL resolveConfig(String path) throws FailedToResolveConfigException {
-        String origPath = path;
-        // first, try it as a path on the file system
-        Path f1 = PathUtils.get(path);
-        if (Files.exists(f1)) {
+        // first, try it as a path in the config directory
+        Path f = configFile.resolve(path);
+        if (Files.exists(f)) {
             try {
-                return f1.toUri().toURL();
+                return f.toUri().toURL();
             } catch (MalformedURLException e) {
-                throw new FailedToResolveConfigException("Failed to resolve path [" + f1 + "]", e);
-            }
-        }
-        if (path.startsWith("/")) {
-            path = path.substring(1);
-        }
-        // next, try it relative to the config location
-        Path f2 = configFile.resolve(path);
-        if (Files.exists(f2)) {
-            try {
-                return f2.toUri().toURL();
-            } catch (MalformedURLException e) {
-                throw new FailedToResolveConfigException("Failed to resolve path [" + f1 + "]", e);
+                throw new FailedToResolveConfigException("Failed to resolve path [" + f + "]", e);
             }
         }
         // try and load it from the classpath directly
@@ -209,6 +196,6 @@ public class Environment {
                 return resource;
             }
         }
-        throw new FailedToResolveConfigException("Failed to resolve config path [" + origPath + "], tried file path [" + f1 + "], path file [" + f2 + "], and classpath");
+        throw new FailedToResolveConfigException("Failed to resolve config path [" + path + "], tried config path [" + f + "] and classpath");
     }
 }

@@ -19,13 +19,18 @@
 package org.elasticsearch.action.percolate;
 
 import com.google.common.collect.ImmutableList;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.percolator.PercolateContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.reducers.ReducerStreams;
+import org.elasticsearch.search.aggregations.reducers.SiblingReducer;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.query.QuerySearchResult;
 
@@ -51,6 +56,7 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
     private int requestedSize;
 
     private InternalAggregations aggregations;
+    private List<SiblingReducer> reducers;
 
     PercolateShardResponse() {
         hls = new ArrayList<>();
@@ -69,6 +75,7 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
             if (result.aggregations() != null) {
                 this.aggregations = (InternalAggregations) result.aggregations();
             }
+            this.reducers = result.reducers();
         }
     }
 
@@ -112,6 +119,10 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         return aggregations;
     }
 
+    public List<SiblingReducer> reducers() {
+        return reducers;
+    }
+
     public byte percolatorTypeId() {
         return percolatorTypeId;
     }
@@ -144,6 +155,16 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
             hls.add(fields);
         }
         aggregations = InternalAggregations.readOptionalAggregations(in);
+        if (in.readBoolean()) {
+            int reducersSize = in.readVInt();
+            List<SiblingReducer> reducers = new ArrayList<>(reducersSize);
+            for (int i = 0; i < reducersSize; i++) {
+                BytesReference type = in.readBytesReference();
+                Reducer reducer = ReducerStreams.stream(type).readResult(in);
+                reducers.add((SiblingReducer) reducer);
+            }
+            this.reducers = reducers;
+        }
     }
 
     @Override
@@ -169,5 +190,15 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
             }
         }
         out.writeOptionalStreamable(aggregations);
+        if (reducers == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeVInt(reducers.size());
+            for (Reducer reducer : reducers) {
+                out.writeBytesReference(reducer.type().stream());
+                reducer.writeTo(out);
+            }
+        }
     }
 }

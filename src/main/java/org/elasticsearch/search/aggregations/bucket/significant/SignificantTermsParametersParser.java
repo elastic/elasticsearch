@@ -68,10 +68,12 @@ public class SignificantTermsParametersParser extends AbstractTermsParametersPar
             } else if (BACKGROUND_FILTER.match(currentFieldName)) {
                 filter = context.queryParserService().parseInnerFilter(parser).filter();
             } else {
-                throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                        + currentFieldName + "].", parser.getTokenLocation());
             }
         } else {
-            throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+            throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName
+                    + "].", parser.getTokenLocation());
         }
     }
 

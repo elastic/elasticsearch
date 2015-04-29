@@ -19,10 +19,13 @@
 
 package org.elasticsearch.common.xcontent.json;
 
+import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 
@@ -185,6 +188,15 @@ public class JsonXContentParser extends AbstractXContentParser {
     @Override
     public byte[] binaryValue() throws IOException {
         return parser.getBinaryValue();
+    }
+
+    @Override
+    public XContentLocation getTokenLocation() {
+        JsonLocation loc = parser.getTokenLocation();
+        if (loc == null) {
+            return null;
+        }
+        return new XContentLocation(loc.getLineNr(), loc.getColumnNr());
     }
 
     @Override

@@ -221,7 +221,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                MetaData.Builder.writeTo(metaData, out);
+                metaData.writeTo(out);
             }
         }
     }

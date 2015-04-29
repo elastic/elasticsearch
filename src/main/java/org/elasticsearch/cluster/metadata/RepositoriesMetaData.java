@@ -21,6 +21,8 @@ package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -39,11 +41,11 @@ import java.util.Map;
 /**
  * Contains metadata about registered snapshot repositories
  */
-public class RepositoriesMetaData implements MetaData.Custom {
+public class RepositoriesMetaData extends AbstractDiffable<Custom> implements MetaData.Custom {
 
     public static final String TYPE = "repositories";
 
-    public static final Factory FACTORY = new Factory();
+    public static final RepositoriesMetaData PROTO = new RepositoriesMetaData();
 
     private final ImmutableList<RepositoryMetaData> repositories;
 
@@ -80,122 +82,132 @@ public class RepositoriesMetaData implements MetaData.Custom {
         return null;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        RepositoriesMetaData that = (RepositoriesMetaData) o;
+
+        return repositories.equals(that.repositories);
+
+    }
+
+    @Override
+    public int hashCode() {
+        return repositories.hashCode();
+    }
+
     /**
-     * Repository metadata factory
+     * {@inheritDoc}
      */
-    public static class Factory extends MetaData.Custom.Factory<RepositoriesMetaData> {
+    @Override
+    public String type() {
+        return TYPE;
+    }
 
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public String type() {
-            return TYPE;
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Custom readFrom(StreamInput in) throws IOException {
+        RepositoryMetaData[] repository = new RepositoryMetaData[in.readVInt()];
+        for (int i = 0; i < repository.length; i++) {
+            repository[i] = RepositoryMetaData.readFrom(in);
         }
+        return new RepositoriesMetaData(repository);
+    }
 
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public RepositoriesMetaData readFrom(StreamInput in) throws IOException {
-            RepositoryMetaData[] repository = new RepositoryMetaData[in.readVInt()];
-            for (int i = 0; i < repository.length; i++) {
-                repository[i] = RepositoryMetaData.readFrom(in);
-            }
-            return new RepositoriesMetaData(repository);
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public void writeTo(RepositoriesMetaData repositories, StreamOutput out) throws IOException {
-            out.writeVInt(repositories.repositories().size());
-            for (RepositoryMetaData repository : repositories.repositories()) {
-                repository.writeTo(out);
-            }
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public RepositoriesMetaData fromXContent(XContentParser parser) throws IOException {
-            XContentParser.Token token;
-            List<RepositoryMetaData> repository = new ArrayList<>();
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    String name = parser.currentName();
-                    if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                        throw new ElasticsearchParseException("failed to parse repository [" + name + "], expected object");
-                    }
-                    String type = null;
-                    Settings settings = ImmutableSettings.EMPTY;
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            String currentFieldName = parser.currentName();
-                            if ("type".equals(currentFieldName)) {
-                                if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
-                                    throw new ElasticsearchParseException("failed to parse repository [" + name + "], unknown type");
-                                }
-                                type = parser.text();
-                            } else if ("settings".equals(currentFieldName)) {
-                                if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                                    throw new ElasticsearchParseException("failed to parse repository [" + name + "], incompatible params");
-                                }
-                                settings = ImmutableSettings.settingsBuilder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).build();
-                            } else {
-                                throw new ElasticsearchParseException("failed to parse repository [" + name + "], unknown field [" + currentFieldName + "]");
-                            }
-                        } else {
-                            throw new ElasticsearchParseException("failed to parse repository [" + name + "]");
-                        }
-                    }
-                    if (type == null) {
-                        throw new ElasticsearchParseException("failed to parse repository [" + name + "], missing repository type");
-                    }
-                    repository.add(new RepositoryMetaData(name, type, settings));
-                } else {
-                    throw new ElasticsearchParseException("failed to parse repositories");
-                }
-            }
-            return new RepositoriesMetaData(repository.toArray(new RepositoryMetaData[repository.size()]));
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public void toXContent(RepositoriesMetaData customIndexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            for (RepositoryMetaData repository : customIndexMetaData.repositories()) {
-                toXContent(repository, builder, params);
-            }
-        }
-
-        @Override
-        public EnumSet<MetaData.XContentContext> context() {
-            return MetaData.API_AND_GATEWAY;
-        }
-
-        /**
-         * Serializes information about a single repository
-         *
-         * @param repository repository metadata
-         * @param builder    XContent builder
-         * @param params     serialization parameters
-         * @throws IOException
-         */
-        public void toXContent(RepositoryMetaData repository, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject(repository.name(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field("type", repository.type());
-            builder.startObject("settings");
-            for (Map.Entry<String, String> settingEntry : repository.settings().getAsMap().entrySet()) {
-                builder.field(settingEntry.getKey(), settingEntry.getValue());
-            }
-            builder.endObject();
-
-            builder.endObject();
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(repositories.size());
+        for (RepositoryMetaData repository : repositories) {
+            repository.writeTo(out);
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public RepositoriesMetaData fromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token;
+        List<RepositoryMetaData> repository = new ArrayList<>();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                String name = parser.currentName();
+                if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                    throw new ElasticsearchParseException("failed to parse repository [" + name + "], expected object");
+                }
+                String type = null;
+                Settings settings = ImmutableSettings.EMPTY;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        String currentFieldName = parser.currentName();
+                        if ("type".equals(currentFieldName)) {
+                            if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
+                                throw new ElasticsearchParseException("failed to parse repository [" + name + "], unknown type");
+                            }
+                            type = parser.text();
+                        } else if ("settings".equals(currentFieldName)) {
+                            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                                throw new ElasticsearchParseException("failed to parse repository [" + name + "], incompatible params");
+                            }
+                            settings = ImmutableSettings.settingsBuilder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).build();
+                        } else {
+                            throw new ElasticsearchParseException("failed to parse repository [" + name + "], unknown field [" + currentFieldName + "]");
+                        }
+                    } else {
+                        throw new ElasticsearchParseException("failed to parse repository [" + name + "]");
+                    }
+                }
+                if (type == null) {
+                    throw new ElasticsearchParseException("failed to parse repository [" + name + "], missing repository type");
+                }
+                repository.add(new RepositoryMetaData(name, type, settings));
+            } else {
+                throw new ElasticsearchParseException("failed to parse repositories");
+            }
+        }
+        return new RepositoriesMetaData(repository.toArray(new RepositoryMetaData[repository.size()]));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        for (RepositoryMetaData repository : repositories) {
+            toXContent(repository, builder, params);
+        }
+        return builder;
+    }
+
+    @Override
+    public EnumSet<MetaData.XContentContext> context() {
+        return MetaData.API_AND_GATEWAY;
+    }
+
+    /**
+     * Serializes information about a single repository
+     *
+     * @param repository repository metadata
+     * @param builder    XContent builder
+     * @param params     serialization parameters
+     * @throws IOException
+     */
+    public static void toXContent(RepositoryMetaData repository, XContentBuilder builder, ToXContent.Params params) throws IOException {
+        builder.startObject(repository.name(), XContentBuilder.FieldCaseConversion.NONE);
+        builder.field("type", repository.type());
+        builder.startObject("settings");
+        for (Map.Entry<String, String> settingEntry : repository.settings().getAsMap().entrySet()) {
+            builder.field(settingEntry.getKey(), settingEntry.getValue());
+        }
+        builder.endObject();
+
+        builder.endObject();
+    }
 }

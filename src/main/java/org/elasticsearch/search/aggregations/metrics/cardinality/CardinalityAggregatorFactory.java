@@ -22,12 +22,14 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
@@ -46,16 +48,19 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<V
     }
 
     @Override
-    protected Aggregator createUnmapped(AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
-        return new CardinalityAggregator(name, null, true, precision(parent), config.formatter(), context, parent, metaData);
+    protected Aggregator createUnmapped(AggregationContext context, Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData)
+            throws IOException {
+        return new CardinalityAggregator(name, null, true, precision(parent), config.formatter(), context, parent, reducers, metaData);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
+    protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext context, Aggregator parent,
+            boolean collectsFromSingleBucket, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
         if (!(valuesSource instanceof ValuesSource.Numeric) && !rehash) {
             throw new AggregationExecutionException("Turning off rehashing for cardinality aggregation [" + name + "] on non-numeric values in not allowed");
         }
-        return new CardinalityAggregator(name, valuesSource, rehash, precision(parent), config.formatter(), context, parent, metaData);
+        return new CardinalityAggregator(name, valuesSource, rehash, precision(parent), config.formatter(), context, parent, reducers,
+                metaData);
     }
 
     /*

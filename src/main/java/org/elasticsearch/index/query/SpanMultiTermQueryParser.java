@@ -51,17 +51,17 @@ public class SpanMultiTermQueryParser implements QueryParser {
 
         Token token = parser.nextToken();
         if (!MATCH_NAME.equals(parser.currentName()) || token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext.index(), "spanMultiTerm must have [" + MATCH_NAME + "] multi term query clause");
+            throw new QueryParsingException(parseContext, "spanMultiTerm must have [" + MATCH_NAME + "] multi term query clause");
         }
 
         token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new QueryParsingException(parseContext.index(), "spanMultiTerm must have [" + MATCH_NAME + "] multi term query clause");
+            throw new QueryParsingException(parseContext, "spanMultiTerm must have [" + MATCH_NAME + "] multi term query clause");
         }
 
         Query subQuery = parseContext.parseInnerQuery();
         if (!(subQuery instanceof MultiTermQuery)) {
-            throw new QueryParsingException(parseContext.index(), "spanMultiTerm [" + MATCH_NAME + "] must be of type multi term query");
+            throw new QueryParsingException(parseContext, "spanMultiTerm [" + MATCH_NAME + "] must be of type multi term query");
         }
 
         parser.nextToken();

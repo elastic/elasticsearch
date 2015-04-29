@@ -62,10 +62,11 @@ public class CardinalityParser implements Aggregator.Parser {
                 } else if (PRECISION_THRESHOLD.match(currentFieldName)) {
                     precisionThreshold = parser.longValue();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + name + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + name + "]: [" + currentFieldName
+                            + "].", parser.getTokenLocation());
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + name + "].");
+                throw new SearchParseException(context, "Unexpected token " + token + " in [" + name + "].", parser.getTokenLocation());
             }
         }
 

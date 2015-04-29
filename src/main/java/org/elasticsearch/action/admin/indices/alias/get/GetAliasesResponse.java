@@ -74,7 +74,7 @@ public class GetAliasesResponse extends ActionResponse {
             out.writeString(entry.key);
             out.writeVInt(entry.value.size());
             for (AliasMetaData aliasMetaData : entry.value) {
-                AliasMetaData.Builder.writeTo(aliasMetaData, out);
+                aliasMetaData.writeTo(out);
             }
         }
     }

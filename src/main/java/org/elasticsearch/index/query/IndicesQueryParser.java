@@ -76,30 +76,30 @@ public class IndicesQueryParser implements QueryParser {
                 } else if ("no_match_query".equals(currentFieldName)) {
                     innerNoMatchQuery = new XContentStructure.InnerQuery(parseContext, null);
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[indices] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[indices] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("indices".equals(currentFieldName)) {
                     if (indicesFound) {
-                        throw  new QueryParsingException(parseContext.index(), "[indices] indices or index already specified");
+                        throw new QueryParsingException(parseContext, "[indices] indices or index already specified");
                     }
                     indicesFound = true;
                     Collection<String> indices = new ArrayList<>();
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         String value = parser.textOrNull();
                         if (value == null) {
-                            throw new QueryParsingException(parseContext.index(), "[indices] no value specified for 'indices' entry");
+                            throw new QueryParsingException(parseContext, "[indices] no value specified for 'indices' entry");
                         }
                         indices.add(value);
                     }
                     currentIndexMatchesIndices = matchesIndices(parseContext.index().name(), indices.toArray(new String[indices.size()]));
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[indices] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[indices] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("index".equals(currentFieldName)) {
                     if (indicesFound) {
-                        throw  new QueryParsingException(parseContext.index(), "[indices] indices or index already specified");
+                        throw new QueryParsingException(parseContext, "[indices] indices or index already specified");
                     }
                     indicesFound = true;
                     currentIndexMatchesIndices = matchesIndices(parseContext.index().name(), parser.text());
@@ -113,15 +113,15 @@ public class IndicesQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[indices] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[indices] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (!queryFound) {
-            throw new QueryParsingException(parseContext.index(), "[indices] requires 'query' element");
+            throw new QueryParsingException(parseContext, "[indices] requires 'query' element");
         }
         if (!indicesFound) {
-            throw new QueryParsingException(parseContext.index(), "[indices] requires 'indices' or 'index' element");
+            throw new QueryParsingException(parseContext, "[indices] requires 'indices' or 'index' element");
         }
 
         Query chosenQuery;

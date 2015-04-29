@@ -123,7 +123,7 @@ public class NestedAggregatorTest extends ElasticsearchSingleNodeTest {
         AggregationContext context = new AggregationContext(searchContext);
 
         AggregatorFactories.Builder builder = AggregatorFactories.builder();
-        builder.add(new NestedAggregator.Factory("test", "nested_field", QueryCachingPolicy.ALWAYS_CACHE));
+        builder.addAggregator(new NestedAggregator.Factory("test", "nested_field", QueryCachingPolicy.ALWAYS_CACHE));
         AggregatorFactories factories = builder.build();
         searchContext.aggregations(new SearchContextAggregations(factories));
         Aggregator[] aggs = factories.createTopLevelAggregators(context);

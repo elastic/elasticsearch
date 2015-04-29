@@ -66,7 +66,8 @@ public class GeoPointParser {
                     lat = parser.doubleValue();
                 } else {
                     throw new SearchParseException(context, "malformed [" + currentFieldName + "] geo point array in [" +
-                            aggName + "] " + aggType + " aggregation. a geo point array must be of the form [lon, lat]");
+                            aggName + "] " + aggType + " aggregation. a geo point array must be of the form [lon, lat]", 
+                            parser.getTokenLocation());
                 }
             }
             point = new GeoPoint(lat, lon);
@@ -88,7 +89,7 @@ public class GeoPointParser {
             }
             if (Double.isNaN(lat) || Double.isNaN(lon)) {
                 throw new SearchParseException(context, "malformed [" + currentFieldName + "] geo point object. either [lat] or [lon] (or both) are " +
-                        "missing in [" + aggName + "] " + aggType + " aggregation");
+                        "missing in [" + aggName + "] " + aggType + " aggregation", parser.getTokenLocation());
             }
             point = new GeoPoint(lat, lon);
             return true;

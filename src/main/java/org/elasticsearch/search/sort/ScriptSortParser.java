@@ -118,15 +118,15 @@ public class ScriptSortParser implements SortParser {
         }
 
         if (script == null) {
-            throw new SearchParseException(context, "_script sorting requires setting the script to sort by");
+            throw new SearchParseException(context, "_script sorting requires setting the script to sort by", parser.getTokenLocation());
         }
         if (type == null) {
-            throw new SearchParseException(context, "_script sorting requires setting the type of the script");
+            throw new SearchParseException(context, "_script sorting requires setting the type of the script", parser.getTokenLocation());
         }
         final SearchScript searchScript = context.scriptService().search(context.lookup(), new Script(scriptLang, script, scriptType, params), ScriptContext.Standard.SEARCH);
 
         if (STRING_SORT_TYPE.equals(type) && (sortMode == MultiValueMode.SUM || sortMode == MultiValueMode.AVG)) {
-            throw new SearchParseException(context, "type [string] doesn't support mode [" + sortMode + "]");
+            throw new SearchParseException(context, "type [string] doesn't support mode [" + sortMode + "]", parser.getTokenLocation());
         }
 
         if (sortMode == null) {
@@ -196,7 +196,7 @@ public class ScriptSortParser implements SortParser {
                 };
                 break;
             default:
-                throw new SearchParseException(context, "custom script sort type [" + type + "] not supported");
+            throw new SearchParseException(context, "custom script sort type [" + type + "] not supported", parser.getTokenLocation());
         }
 
         return new SortField("_script", fieldComparatorSource, reverse);

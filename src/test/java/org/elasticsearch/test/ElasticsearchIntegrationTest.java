@@ -166,6 +166,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.XContentTestUtils.convertToMap;
+import static org.elasticsearch.test.XContentTestUtils.mapsEqualIgnoringArrayOrder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -357,7 +359,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * Creates a randomized index template. This template is used to pass in randomized settings on a
      * per index basis. Allows to enable/disable the randomization for number of shards and replicas
      */
-    private void randomIndexTemplate() throws IOException {
+    public void randomIndexTemplate() throws IOException {
 
         // TODO move settings for random directory etc here into the index based randomized settings.
         if (cluster().size() > 0) {
@@ -647,6 +649,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                             .transientSettings().getAsMap().size(), equalTo(0));
                     }
                     ensureClusterSizeConsistency();
+                    ensureClusterStateConsistency();
                     cluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
                     if (afterClass || currentClusterScope == Scope.TEST) {
                         cluster().close();
@@ -1085,8 +1088,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     public void setMinimumMasterNodes(int n) {
         assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-            settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, n))
-            .get().isAcknowledged());
+                settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, n))
+                .get().isAcknowledged());
     }
 
     /**
@@ -1131,6 +1134,50 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             logger.trace("Check consistency for [{}] nodes", cluster().size());
             assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(cluster().size())).get());
         }
+    }
+
+    /**
+     * Verifies that all nodes that have the same version of the cluster state as master have same cluster state
+     */
+    protected void ensureClusterStateConsistency() throws IOException {
+        if (cluster() != null) {
+            boolean getResolvedAddress = InetSocketTransportAddress.getResolveAddress();
+            try {
+                InetSocketTransportAddress.setResolveAddress(false);
+                ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
+                byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
+                // remove local node reference
+                masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null);
+                Map<String, Object> masterStateMap = convertToMap(masterClusterState);
+                int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
+                String masterId = masterClusterState.nodes().masterNodeId();
+                for (Client client : cluster()) {
+                    ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
+                    byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
+                    // remove local node reference
+                    localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null);
+                    Map<String, Object> localStateMap = convertToMap(localClusterState);
+                    int localClusterStateSize = localClusterStateBytes.length;
+                    // Check that the non-master node has the same version of the cluster state as the master and that this node didn't disconnect from the master
+                    if (masterClusterState.version() == localClusterState.version() && localClusterState.nodes().nodes().containsKey(masterId)) {
+                        try {
+                            assertThat(masterClusterState.uuid(), equalTo(localClusterState.uuid()));
+                            // We cannot compare serialization bytes since serialization order of maps is not guaranteed
+                            // but we can compare serialization sizes - they should be the same
+                            assertThat(masterClusterStateSize, equalTo(localClusterStateSize));
+                            // Compare JSON serialization
+                            assertThat(mapsEqualIgnoringArrayOrder(masterStateMap, localStateMap), equalTo(true));
+                        } catch (AssertionError error) {
+                            logger.error("Cluster state from master:\n{}\nLocal cluster state:\n{}", masterClusterState.toString(), localClusterState.toString());
+                            throw error;
+                        }
+                    }
+                }
+            } finally {
+                InetSocketTransportAddress.setResolveAddress(getResolvedAddress);
+            }
+        }
+
     }
 
     /**

@@ -272,7 +272,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             if (existing == null) {
                                 customs.put(type, custom);
                             } else {
-                                IndexMetaData.Custom merged = IndexMetaData.lookupFactorySafe(type).merge(existing, custom);
+                                IndexMetaData.Custom merged = existing.mergeWith(custom);
                                 customs.put(type, merged);
                             }
                         }

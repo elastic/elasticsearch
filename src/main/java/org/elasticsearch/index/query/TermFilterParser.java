@@ -81,7 +81,7 @@ public class TermFilterParser implements FilterParser {
                         } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                             cacheKey = new HashedBytesRef(parser.text());
                         } else {
-                            throw new QueryParsingException(parseContext.index(), "[term] filter does not support [" + currentFieldName + "]");
+                            throw new QueryParsingException(parseContext, "[term] filter does not support [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -100,11 +100,11 @@ public class TermFilterParser implements FilterParser {
         }
 
         if (fieldName == null) {
-            throw new QueryParsingException(parseContext.index(), "No field specified for term filter");
+            throw new QueryParsingException(parseContext, "No field specified for term filter");
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext.index(), "No value specified for term filter");
+            throw new QueryParsingException(parseContext, "No value specified for term filter");
         }
 
         Filter filter = null;

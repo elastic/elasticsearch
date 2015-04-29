@@ -134,7 +134,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                     // we try to parse a score function. If there is no score
                     // function for the current field name,
                     // functionParserMapper.get() will throw an Exception.
-                    scoreFunction = functionParserMapper.get(parseContext.index(), currentFieldName).parse(parseContext, parser);
+                    scoreFunction = functionParserMapper.get(parseContext, currentFieldName).parse(parseContext, parser);
                 }
                 if (functionArrayFound) {
                     String errorString = "Found \"functions\": [...] already, now encountering \"" + currentFieldName + "\".";
@@ -202,8 +202,8 @@ public class FunctionScoreQueryParser implements QueryParser {
             ScoreFunction scoreFunction = null;
             Float functionWeight = null;
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new QueryParsingException(parseContext.index(), NAME + ": malformed query, expected a "
-                        + XContentParser.Token.START_OBJECT + " while parsing functions but got a " + token);
+                throw new QueryParsingException(parseContext, NAME + ": malformed query, expected a " + XContentParser.Token.START_OBJECT
+                        + " while parsing functions but got a " + token);
             } else {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -217,7 +217,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                             // do not need to check null here,
                             // functionParserMapper throws exception if parser
                             // non-existent
-                            ScoreFunctionParser functionParser = functionParserMapper.get(parseContext.index(), currentFieldName);
+                            ScoreFunctionParser functionParser = functionParserMapper.get(parseContext, currentFieldName);
                             scoreFunction = functionParser.parse(parseContext, parser);
                         }
                     }
@@ -253,7 +253,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         } else if ("first".equals(scoreMode)) {
             return FiltersFunctionScoreQuery.ScoreMode.First;
         } else {
-            throw new QueryParsingException(parseContext.index(), NAME + " illegal score_mode [" + scoreMode + "]");
+            throw new QueryParsingException(parseContext, NAME + " illegal score_mode [" + scoreMode + "]");
         }
     }
 
@@ -261,7 +261,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         String boostMode = parser.text();
         CombineFunction cf = combineFunctionsMap.get(boostMode);
         if (cf == null) {
-            throw new QueryParsingException(parseContext.index(), NAME + " illegal boost_mode [" + boostMode + "]");
+            throw new QueryParsingException(parseContext, NAME + " illegal boost_mode [" + boostMode + "]");
         }
         return cf;
     }

@@ -22,7 +22,6 @@ package org.elasticsearch.discovery.zen;
 import com.google.common.base.Objects;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -329,12 +328,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
 
     @Override
-    public void publish(ClusterState clusterState, AckListener ackListener) {
-        if (!clusterState.getNodes().localNodeMaster()) {
+    public void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener) {
+        if (!clusterChangedEvent.state().getNodes().localNodeMaster()) {
             throw new IllegalStateException("Shouldn't publish state when not master");
         }
-        nodesFD.updateNodesAndPing(clusterState);
-        publishClusterState.publish(clusterState, ackListener);
+        nodesFD.updateNodesAndPing(clusterChangedEvent.state());
+        publishClusterState.publish(clusterChangedEvent, ackListener);
     }
 
     /**

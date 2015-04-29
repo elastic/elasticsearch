@@ -61,7 +61,7 @@ public class HttpClient extends AbstractComponent {
 
     public HttpResponse execute(HttpRequest request) throws IOException {
         String queryString = null;
-        if (request.params() != null) {
+        if (request.params() != null && !request.params().isEmpty()) {
             StringBuilder builder = new StringBuilder();
             for (Map.Entry<String, String> entry : request.params().entrySet()) {
                 if (builder.length() != 0) {

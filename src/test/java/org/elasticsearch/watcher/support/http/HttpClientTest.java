@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
@@ -99,6 +100,22 @@ public class HttpClientTest extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testNoQueryString() throws Exception {
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
+        HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webPort)
+                .method(HttpMethod.GET)
+                .path("/test");
+
+        HttpResponse response = httpClient.execute(requestBuilder.build());
+        assertThat(response.status(), equalTo(200));
+        assertThat(response.body().toUtf8(), equalTo("body"));
+
+        RecordedRequest recordedRequest = webServer.takeRequest();
+        assertThat(recordedRequest.getPath(), equalTo("/test"));
+        assertThat(recordedRequest.getBody().readUtf8Line(), nullValue());
+    }
+
+    @Test
     public void testBasicAuth() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequest.Builder request = HttpRequest.builder("localhost", webPort)
@@ -110,6 +127,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
         assertThat(response.status(), equalTo(200));
         assertThat(response.body().toUtf8(), equalTo("body"));
         RecordedRequest recordedRequest = webServer.takeRequest();
+        assertThat(recordedRequest.getPath(), equalTo("/test"));
         assertThat(recordedRequest.getHeader("Authorization"), equalTo("Basic dXNlcjpwYXNz"));
     }
 
@@ -132,6 +150,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
         assertThat(response.status(), equalTo(200));
         assertThat(response.body().toUtf8(), equalTo("body"));
         RecordedRequest recordedRequest = webServer.takeRequest();
+        assertThat(recordedRequest.getPath(), equalTo("/test"));
         assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("body"));
     }
 

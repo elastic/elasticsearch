@@ -111,7 +111,7 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
 
         assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
         RecordedRequest recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getPath(), equalTo("/test/_id?"));
+        assertThat(recordedRequest.getPath(), equalTo("/test/_id"));
         assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("{key=value}"));
 
         SearchResponse response = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
@@ -146,7 +146,7 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
 
         assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
         RecordedRequest recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getPath(), equalTo("/test/_id?"));
+        assertThat(recordedRequest.getPath(), equalTo("/test/_id"));
         assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("{key=value}"));
         assertThat(recordedRequest.getHeader("Authorization"), equalTo("Basic X3VzZXJuYW1lOl9wYXNzd29yZA=="));
     }

@@ -22,7 +22,6 @@ package org.elasticsearch.discovery.zen;
 import com.google.common.base.Objects;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -51,14 +50,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.discovery.zen.fd.MasterFaultDetection;
-import org.elasticsearch.discovery.zen.fd.NodesFaultDetection;
-import org.elasticsearch.discovery.zen.membership.MembershipAction;
-import org.elasticsearch.discovery.zen.ping.PingContextProvider;
-import org.elasticsearch.discovery.zen.ping.ZenPing;
-import org.elasticsearch.discovery.zen.ping.ZenPingService;
-import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -309,7 +300,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         return clusterName.value() + "/" + clusterService.localNode().id();
     }
 
-    /** start of {@link org.elasticsearch.discovery.zen.ping.PingContextProvider } implementation */
+    /** start of {@link PingContextProvider } implementation */
     @Override
     public DiscoveryNodes nodes() {
         return clusterService.state().nodes();
@@ -325,7 +316,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         return clusterJoinsCounter.get() > 0;
     }
 
-    /** end of {@link org.elasticsearch.discovery.zen.ping.PingContextProvider } implementation */
+    /** end of {@link PingContextProvider } implementation */
 
 
     @Override

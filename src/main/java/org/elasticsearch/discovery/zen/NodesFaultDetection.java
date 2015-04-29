@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen.fd;
+package org.elasticsearch.discovery.zen;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;

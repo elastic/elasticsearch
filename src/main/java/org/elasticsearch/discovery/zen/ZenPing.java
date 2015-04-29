@@ -17,9 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen.ping;
+package org.elasticsearch.discovery.zen;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;

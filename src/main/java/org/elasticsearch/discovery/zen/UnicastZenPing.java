@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen.ping.unicast;
+package org.elasticsearch.discovery.zen;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Lists;
@@ -38,9 +38,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.discovery.zen.ping.PingContextProvider;
-import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -55,7 +52,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
-import static org.elasticsearch.discovery.zen.ping.ZenPing.PingResponse.readPingResponse;
 
 /**
  *
@@ -503,7 +499,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
             super.readFrom(in);
             id = in.readInt();
             timeout = readTimeValue(in);
-            pingResponse = readPingResponse(in);
+            pingResponse = PingResponse.readPingResponse(in);
         }
 
         @Override
@@ -534,7 +530,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
             id = in.readInt();
             pingResponses = new PingResponse[in.readVInt()];
             for (int i = 0; i < pingResponses.length; i++) {
-                pingResponses[i] = readPingResponse(in);
+                pingResponses[i] = PingResponse.readPingResponse(in);
             }
         }
 

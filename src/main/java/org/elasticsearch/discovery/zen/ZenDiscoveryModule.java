@@ -23,9 +23,6 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.discovery.zen.ping.ZenPingService;
-import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
 
 import java.util.List;
 

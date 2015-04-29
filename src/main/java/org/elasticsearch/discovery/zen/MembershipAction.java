@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen.membership;
+package org.elasticsearch.discovery.zen;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;

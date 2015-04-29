@@ -17,10 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen.ping;
+package org.elasticsearch.discovery.zen;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Nullable;
@@ -30,10 +29,6 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.discovery.zen.ping.multicast.MulticastZenPing;
-import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 

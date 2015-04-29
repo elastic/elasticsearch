@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.DummyTransportAddress;
-import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 

@@ -49,7 +49,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.repositories.RepositoryMissingException;

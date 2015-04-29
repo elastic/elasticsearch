@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen.elect;
+package org.elasticsearch.discovery.zen;
 
 import com.carrotsearch.hppc.ObjectContainer;
 import com.google.common.collect.Lists;

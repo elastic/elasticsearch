@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen.publish;
+package org.elasticsearch.discovery.zen;
 
 import com.google.common.collect.Maps;
 import org.elasticsearch.Version;

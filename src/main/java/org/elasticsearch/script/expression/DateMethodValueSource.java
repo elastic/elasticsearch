@@ -19,54 +19,62 @@
 
 package org.elasticsearch.script.expression;
 
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.queries.function.FunctionValues;
-import org.apache.lucene.queries.function.ValueSource;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- * A {@link ValueSource} wrapper for field data.
- */
-class FieldDataValueSource extends ValueSource {
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.queries.function.FunctionValues;
 
-    protected IndexFieldData<?> fieldData;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 
-    protected FieldDataValueSource(IndexFieldData<?> d) {
-        Objects.requireNonNull(d);
+class DateMethodValueSource extends FieldDataValueSource {
 
-        fieldData = d;
-    }
+    protected final String methodName;
+    protected final int calendarType;
 
-    @Override
-    public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
-        AtomicFieldData leafData = fieldData.load(leaf);
-        assert(leafData instanceof AtomicNumericFieldData);
-        return new FieldDataFunctionValues(this, (AtomicNumericFieldData)leafData);
+    DateMethodValueSource(IndexFieldData<?> indexFieldData, String methodName, int calendarType) {
+        super(indexFieldData);
+
+        Objects.requireNonNull(methodName);
+
+        this.methodName = methodName;
+        this.calendarType = calendarType;
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
+        if (!super.equals(o)) return false;
 
-        FieldDataValueSource that = (FieldDataValueSource) o;
+        DateMethodValueSource that = (DateMethodValueSource) o;
 
-        return fieldData.equals(that.fieldData);
+        if (calendarType != that.calendarType) return false;
+        return methodName.equals(that.methodName);
+
     }
 
     @Override
     public int hashCode() {
-        return fieldData.hashCode();
+        int result = super.hashCode();
+        result = 31 * result + methodName.hashCode();
+        result = 31 * result + calendarType;
+        return result;
+    }
+
+    @Override
+    public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
+        AtomicFieldData leafData = fieldData.load(leaf);
+        assert(leafData instanceof AtomicNumericFieldData);
+
+        return new DateMethodFunctionValues(this, (AtomicNumericFieldData)leafData, calendarType);
     }
 
     @Override
     public String description() {
-        return "field(" + fieldData.getFieldNames().toString() + ")";
+        return methodName + ": field(" + fieldData.getFieldNames().toString() + ")";
     }
 }

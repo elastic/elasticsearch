@@ -389,8 +389,22 @@ for details on what operators and functions are available.
 Variables in `expression` scripts are available to access:
 
 * Single valued document fields, e.g. `doc['myfield'].value`
+* Single valued document fields can also be accessed without `.value` e.g. `doc['myfield']`
 * Parameters passed into the script, e.g. `mymodifier`
 * The current document's score, `_score` (only available when used in a `script_score`)
+
+Variables in `expression` scripts that are of type `date` may use the following member methods:
+
+* getYear()
+* getMonth()
+* getDayOfMonth()
+* getHourOfDay()
+* getMinutes()
+* getSeconds()
+
+The following example shows the difference in years between the `date` fields date0 and date1:
+
+`doc['date1'].getYear() - doc['date0'].getYear()`
 
 There are a few limitations relative to other script languages:
 

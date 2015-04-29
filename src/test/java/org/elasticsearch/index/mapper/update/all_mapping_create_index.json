@@ -2,7 +2,6 @@
   "mappings": {
     "type": {
       "_all": {
-        "auto_boost": true,
         "store": true,
         "store_term_vectors": true,
         "store_term_vector_offsets": true,

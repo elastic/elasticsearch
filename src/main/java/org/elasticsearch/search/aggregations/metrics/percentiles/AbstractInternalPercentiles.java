@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -83,7 +82,7 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
         if (in.getVersion().before(Version.V_1_2_0)) {
             final byte id = in.readByte();
             if (id != 0) {
-                throw new ElasticsearchIllegalArgumentException("Unexpected percentiles aggregator id [" + id + "]");
+                throw new IllegalArgumentException("Unexpected percentiles aggregator id [" + id + "]");
             }
         }
         keys = new double[in.readInt()];
@@ -116,7 +115,7 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
                 String key = String.valueOf(keys[i]);
                 double value = value(keys[i]);
                 builder.field(key, value);
-                if (valueFormatter != null) {
+                if (valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
                     builder.field(key + "_as_string", valueFormatter.format(value));
                 }
             }
@@ -128,7 +127,7 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
                 builder.startObject();
                 builder.field(CommonFields.KEY, keys[i]);
                 builder.field(CommonFields.VALUE, value);
-                if (valueFormatter != null) {
+                if (valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
                     builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(value));
                 }
                 builder.endObject();

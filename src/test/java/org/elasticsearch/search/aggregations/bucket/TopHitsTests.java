@@ -63,13 +63,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.emptyArray;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -526,7 +520,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                     ).get();
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("No mapping found for [xyz] in order to sort on"));
+            assertThat(e.toString(), containsString("No mapping found for [xyz] in order to sort on"));
         }
     }
 
@@ -559,7 +553,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                     .get();
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
+            assertThat(e.toString(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
         }
     }
 
@@ -819,14 +813,14 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
         // Can't explain nested hit with the main query, since both are in a different scopes, also the nested doc may not even have matched with the main query
         // If top_hits would have a query option then we can explain that query
         Explanation explanation = searchHit.explanation();
-        assertThat(explanation.toString(), containsString("Not a match"));
+        assertFalse(explanation.isMatch());
 
         // Returns the version of the root document. Nested docs don't have a separate version
         long version = searchHit.version();
         assertThat(version, equalTo(1l));
 
         // Can't use named queries for the same reason explain doesn't work:
-        assertThat(searchHit.matchedQueries(), emptyArray());
+        assertThat(searchHit.matchedQueries(), arrayContaining("test"));
 
         SearchHitField field = searchHit.field("comments.user");
         assertThat(field.getValue().toString(), equalTo("a"));

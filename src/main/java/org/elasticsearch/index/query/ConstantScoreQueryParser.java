@@ -21,8 +21,8 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterCachingPolicy;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.HashedBytesRef;
@@ -55,7 +55,7 @@ public class ConstantScoreQueryParser implements QueryParser {
         Query query = null;
         boolean queryFound = false;
         float boost = 1.0f;
-        FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
+        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
         HashedBytesRef cacheKey = null;
 
         String currentFieldName = null;
@@ -71,7 +71,7 @@ public class ConstantScoreQueryParser implements QueryParser {
                     query = parseContext.parseInnerQuery();
                     queryFound = true;
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[constant_score] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[constant_score] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("boost".equals(currentFieldName)) {
@@ -81,12 +81,12 @@ public class ConstantScoreQueryParser implements QueryParser {
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new HashedBytesRef(parser.text());
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[constant_score] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[constant_score] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (!filterFound && !queryFound) {
-            throw new QueryParsingException(parseContext.index(), "[constant_score] requires either 'filter' or 'query' element");
+            throw new QueryParsingException(parseContext, "[constant_score] requires either 'filter' or 'query' element");
         }
 
         if (query == null && filter == null) {

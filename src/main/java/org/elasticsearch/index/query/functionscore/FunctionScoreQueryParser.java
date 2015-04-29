@@ -21,6 +21,7 @@ package org.elasticsearch.index.query.functionscore;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
+
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
@@ -29,7 +30,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.MatchAllDocsFilter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
@@ -134,7 +134,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                     // we try to parse a score function. If there is no score
                     // function for the current field name,
                     // functionParserMapper.get() will throw an Exception.
-                    scoreFunction = functionParserMapper.get(parseContext.index(), currentFieldName).parse(parseContext, parser);
+                    scoreFunction = functionParserMapper.get(parseContext, currentFieldName).parse(parseContext, parser);
                 }
                 if (functionArrayFound) {
                     String errorString = "Found \"functions\": [...] already, now encountering \"" + currentFieldName + "\".";
@@ -165,7 +165,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         }
         // handle cases where only one score function and no filter was
         // provided. In this case we create a FunctionScoreQuery.
-        if (filterFunctions.size() == 0 || filterFunctions.size() == 1 && (filterFunctions.get(0).filter == null || filterFunctions.get(0).filter instanceof MatchAllDocsFilter)) {
+        if (filterFunctions.size() == 0 || filterFunctions.size() == 1 && (filterFunctions.get(0).filter == null || Queries.isConstantMatchAllQuery(filterFunctions.get(0).filter))) {
             ScoreFunction function = filterFunctions.size() == 0 ? null : filterFunctions.get(0).function;
             FunctionScoreQuery theQuery = new FunctionScoreQuery(query, function, minScore);
             if (combineFunction != null) {
@@ -202,8 +202,8 @@ public class FunctionScoreQueryParser implements QueryParser {
             ScoreFunction scoreFunction = null;
             Float functionWeight = null;
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new QueryParsingException(parseContext.index(), NAME + ": malformed query, expected a "
-                        + XContentParser.Token.START_OBJECT + " while parsing functions but got a " + token);
+                throw new QueryParsingException(parseContext, NAME + ": malformed query, expected a " + XContentParser.Token.START_OBJECT
+                        + " while parsing functions but got a " + token);
             } else {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -217,7 +217,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                             // do not need to check null here,
                             // functionParserMapper throws exception if parser
                             // non-existent
-                            ScoreFunctionParser functionParser = functionParserMapper.get(parseContext.index(), currentFieldName);
+                            ScoreFunctionParser functionParser = functionParserMapper.get(parseContext, currentFieldName);
                             scoreFunction = functionParser.parse(parseContext, parser);
                         }
                     }
@@ -227,7 +227,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                 }
             }
             if (filter == null) {
-                filter = Queries.MATCH_ALL_FILTER;
+                filter = Queries.newMatchAllFilter();
             }
             if (scoreFunction == null) {
                 throw new ElasticsearchParseException("function_score: One entry in functions list is missing a function.");
@@ -253,7 +253,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         } else if ("first".equals(scoreMode)) {
             return FiltersFunctionScoreQuery.ScoreMode.First;
         } else {
-            throw new QueryParsingException(parseContext.index(), NAME + " illegal score_mode [" + scoreMode + "]");
+            throw new QueryParsingException(parseContext, NAME + " illegal score_mode [" + scoreMode + "]");
         }
     }
 
@@ -261,7 +261,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         String boostMode = parser.text();
         CombineFunction cf = combineFunctionsMap.get(boostMode);
         if (cf == null) {
-            throw new QueryParsingException(parseContext.index(), NAME + " illegal boost_mode [" + boostMode + "]");
+            throw new QueryParsingException(parseContext, NAME + " illegal boost_mode [" + boostMode + "]");
         }
         return cf;
     }

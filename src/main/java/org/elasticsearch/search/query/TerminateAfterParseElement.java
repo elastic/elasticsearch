@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.query;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
@@ -35,7 +34,7 @@ public class TerminateAfterParseElement implements SearchParseElement {
         if (token == XContentParser.Token.VALUE_NUMBER) {
             int terminateAfterCount = parser.intValue();
             if (terminateAfterCount <= 0) {
-                throw new ElasticsearchIllegalArgumentException("terminateAfter must be > 0");
+                throw new IllegalArgumentException("terminateAfter must be > 0");
             }
             context.terminateAfter(parser.intValue());
         }

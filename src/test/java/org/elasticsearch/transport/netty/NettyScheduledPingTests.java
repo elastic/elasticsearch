@@ -30,8 +30,6 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
-import org.hamcrest.Matchers;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -75,17 +73,7 @@ public class NettyScheduledPingTests extends ElasticsearchTestCase {
         assertThat(nettyA.scheduledPing.failedPings.count(), equalTo(0l));
         assertThat(nettyB.scheduledPing.failedPings.count(), equalTo(0l));
 
-        serviceA.registerHandler("sayHello", new BaseTransportRequestHandler<TransportRequest.Empty>() {
-            @Override
-            public TransportRequest.Empty newInstance() {
-                return TransportRequest.Empty.INSTANCE;
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
-
+        serviceA.registerRequestHandler("sayHello", TransportRequest.Empty.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<TransportRequest.Empty>() {
             @Override
             public void messageReceived(TransportRequest.Empty request, TransportChannel channel) {
                 try {

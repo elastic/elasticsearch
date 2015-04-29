@@ -55,28 +55,14 @@ public class TransportNodesSnapshotsStatus extends TransportNodesOperationAction
 
     @Inject
     public TransportNodesSnapshotsStatus(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, SnapshotsService snapshotsService, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
+        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+                Request.class, NodeRequest.class, ThreadPool.Names.GENERIC);
         this.snapshotsService = snapshotsService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.GENERIC;
     }
 
     @Override
     protected boolean transportCompress() {
         return true; // compress since the metadata can become large
-    }
-
-    @Override
-    protected Request newRequest() {
-        return new Request();
-    }
-
-    @Override
-    protected NodeRequest newNodeRequest() {
-        return new NodeRequest();
     }
 
     @Override
@@ -108,7 +94,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesOperationAction
     }
 
     @Override
-    protected NodeSnapshotStatus nodeOperation(NodeRequest request) throws ElasticsearchException {
+    protected NodeSnapshotStatus nodeOperation(NodeRequest request) {
         ImmutableMap.Builder<SnapshotId, ImmutableMap<ShardId, SnapshotIndexShardStatus>> snapshotMapBuilder = ImmutableMap.builder();
         try {
             String nodeId = clusterService.localNode().id();

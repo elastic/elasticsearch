@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -52,7 +51,7 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.store.MockDirectoryHelper;
+import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.*;
 import org.junit.Test;
@@ -427,7 +426,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         logger.info("--> create repository");
         assertAcked(client().admin().cluster().preparePutRepository(REPO_NAME)
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                                .put("location", newTempDir(LifecycleScope.SUITE))
+                                .put("location", createTempDir())
                                 .put("compress", false)
                 ).get());
 
@@ -522,7 +521,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
                 .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT, "1s")
                 .put("cluster.routing.schedule", "100ms") // aggressive reroute post shard failures
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
-                .put(MockDirectoryHelper.RANDOM_PREVENT_DOUBLE_WRITE, false) // restarted recoveries will delete temp files and write them again
+                .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE, false) // restarted recoveries will delete temp files and write them again
                 .build();
         // start a master node
         internalCluster().startNode(nodeSettings);

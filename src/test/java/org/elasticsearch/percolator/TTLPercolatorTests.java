@@ -20,6 +20,7 @@
 package org.elasticsearch.percolator;
 
 import com.google.common.base.Predicate;
+
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;

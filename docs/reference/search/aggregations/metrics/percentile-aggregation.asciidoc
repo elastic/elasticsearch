@@ -113,6 +113,8 @@ a script to convert them on-the-fly:
 script to generate values which percentiles are calculated on
 <2> Scripting supports parameterized input just like any other script
 
+TIP: The `script` parameter expects an inline script. Use `script_id` for indexed scripts and `script_file` for scripts in the `config/scripts/` directory.
+
 [[search-aggregations-metrics-percentile-aggregation-approximation]]
 ==== Percentiles are (usually) approximate
 
@@ -153,7 +155,7 @@ it. It would not be the case on more skewed distributions.
 [[search-aggregations-metrics-percentile-aggregation-compression]]
 ==== Compression
 
-experimental[]
+experimental[The `compression` parameter is specific to the current internal implementation of percentiles, and may change in the future]
 
 Approximate algorithms must balance memory utilization with estimation accuracy.
 This balance can be controlled using a `compression` parameter:

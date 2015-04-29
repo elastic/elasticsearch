@@ -26,9 +26,7 @@ import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.custom.TransportSingleCustomOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -47,8 +45,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -60,7 +56,6 @@ import java.util.List;
 public class TransportAnalyzeAction extends TransportSingleCustomOperationAction<AnalyzeRequest, AnalyzeResponse> {
 
     private final IndicesService indicesService;
-
     private final IndicesAnalysisService indicesAnalysisService;
 
     private static final Settings DEFAULT_SETTINGS = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
@@ -68,20 +63,9 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
     @Inject
     public TransportAnalyzeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                   IndicesService indicesService, IndicesAnalysisService indicesAnalysisService, ActionFilters actionFilters) {
-        super(settings, AnalyzeAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, AnalyzeAction.NAME, threadPool, clusterService, transportService, actionFilters, AnalyzeRequest.class, ThreadPool.Names.INDEX);
         this.indicesService = indicesService;
         this.indicesAnalysisService = indicesAnalysisService;
-        transportService.registerHandler(AnalyzeAction.NAME, new TransportHandler());
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.INDEX;
-    }
-
-    @Override
-    protected AnalyzeRequest newRequest() {
-        return new AnalyzeRequest();
     }
 
     @Override
@@ -112,7 +96,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
     }
 
     @Override
-    protected AnalyzeResponse shardOperation(AnalyzeRequest request, ShardId shardId) throws ElasticsearchException {
+    protected AnalyzeResponse shardOperation(AnalyzeRequest request, ShardId shardId) {
         IndexService indexService = null;
         if (shardId != null) {
             indexService = indicesService.indexServiceSafe(shardId.getIndex());
@@ -122,12 +106,12 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
         String field = null;
         if (request.field() != null) {
             if (indexService == null) {
-                throw new ElasticsearchIllegalArgumentException("No index provided, and trying to analyzer based on a specific field which requires the index parameter");
+                throw new IllegalArgumentException("No index provided, and trying to analyzer based on a specific field which requires the index parameter");
             }
             FieldMapper<?> fieldMapper = indexService.mapperService().smartNameFieldMapper(request.field());
             if (fieldMapper != null) {
                 if (fieldMapper.isNumeric()) {
-                    throw new ElasticsearchIllegalArgumentException("Can't process field [" + request.field() + "], Analysis requests are not supported on numeric fields");
+                    throw new IllegalArgumentException("Can't process field [" + request.field() + "], Analysis requests are not supported on numeric fields");
                 }
                 analyzer = fieldMapper.indexAnalyzer();
                 field = fieldMapper.names().indexName();
@@ -148,20 +132,20 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
                 analyzer = indexService.analysisService().analyzer(request.analyzer());
             }
             if (analyzer == null) {
-                throw new ElasticsearchIllegalArgumentException("failed to find analyzer [" + request.analyzer() + "]");
+                throw new IllegalArgumentException("failed to find analyzer [" + request.analyzer() + "]");
             }
         } else if (request.tokenizer() != null) {
             TokenizerFactory tokenizerFactory;
             if (indexService == null) {
                 TokenizerFactoryFactory tokenizerFactoryFactory = indicesAnalysisService.tokenizerFactoryFactory(request.tokenizer());
                 if (tokenizerFactoryFactory == null) {
-                    throw new ElasticsearchIllegalArgumentException("failed to find global tokenizer under [" + request.tokenizer() + "]");
+                    throw new IllegalArgumentException("failed to find global tokenizer under [" + request.tokenizer() + "]");
                 }
                 tokenizerFactory = tokenizerFactoryFactory.create(request.tokenizer(), DEFAULT_SETTINGS);
             } else {
                 tokenizerFactory = indexService.analysisService().tokenizer(request.tokenizer());
                 if (tokenizerFactory == null) {
-                    throw new ElasticsearchIllegalArgumentException("failed to find tokenizer under [" + request.tokenizer() + "]");
+                    throw new IllegalArgumentException("failed to find tokenizer under [" + request.tokenizer() + "]");
                 }
             }
 
@@ -173,17 +157,17 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
                     if (indexService == null) {
                         TokenFilterFactoryFactory tokenFilterFactoryFactory = indicesAnalysisService.tokenFilterFactoryFactory(tokenFilterName);
                         if (tokenFilterFactoryFactory == null) {
-                            throw new ElasticsearchIllegalArgumentException("failed to find global token filter under [" + tokenFilterName + "]");
+                            throw new IllegalArgumentException("failed to find global token filter under [" + tokenFilterName + "]");
                         }
                         tokenFilterFactories[i] = tokenFilterFactoryFactory.create(tokenFilterName, DEFAULT_SETTINGS);
                     } else {
                         tokenFilterFactories[i] = indexService.analysisService().tokenFilter(tokenFilterName);
                         if (tokenFilterFactories[i] == null) {
-                            throw new ElasticsearchIllegalArgumentException("failed to find token filter under [" + tokenFilterName + "]");
+                            throw new IllegalArgumentException("failed to find token filter under [" + tokenFilterName + "]");
                         }
                     }
                     if (tokenFilterFactories[i] == null) {
-                        throw new ElasticsearchIllegalArgumentException("failed to find token filter under [" + tokenFilterName + "]");
+                        throw new IllegalArgumentException("failed to find token filter under [" + tokenFilterName + "]");
                     }
                 }
             }
@@ -196,17 +180,17 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
                     if (indexService == null) {
                         CharFilterFactoryFactory charFilterFactoryFactory = indicesAnalysisService.charFilterFactoryFactory(charFilterName);
                         if (charFilterFactoryFactory == null) {
-                            throw new ElasticsearchIllegalArgumentException("failed to find global char filter under [" + charFilterName + "]");
+                            throw new IllegalArgumentException("failed to find global char filter under [" + charFilterName + "]");
                         }
                         charFilterFactories[i] = charFilterFactoryFactory.create(charFilterName, DEFAULT_SETTINGS);
                     } else {
                         charFilterFactories[i] = indexService.analysisService().charFilter(charFilterName);
                         if (charFilterFactories[i] == null) {
-                            throw new ElasticsearchIllegalArgumentException("failed to find token char under [" + charFilterName + "]");
+                            throw new IllegalArgumentException("failed to find token char under [" + charFilterName + "]");
                         }
                     }
                     if (charFilterFactories[i] == null) {
-                        throw new ElasticsearchIllegalArgumentException("failed to find token char under [" + charFilterName + "]");
+                        throw new IllegalArgumentException("failed to find token char under [" + charFilterName + "]");
                     }
                 }
             }
@@ -221,7 +205,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
             }
         }
         if (analyzer == null) {
-            throw new ElasticsearchIllegalArgumentException("failed to find analyzer");
+            throw new IllegalArgumentException("failed to find analyzer");
         }
 
         List<AnalyzeResponse.AnalyzeToken> tokens = Lists.newArrayList();
@@ -234,7 +218,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
             OffsetAttribute offset = stream.addAttribute(OffsetAttribute.class);
             TypeAttribute type = stream.addAttribute(TypeAttribute.class);
 
-            int position = 0;
+            int position = -1;
             while (stream.incrementToken()) {
                 int increment = posIncr.getPositionIncrement();
                 if (increment > 0) {
@@ -259,45 +243,5 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
         }
 
         return new AnalyzeResponse(tokens);
-    }
-
-    private class TransportHandler extends BaseTransportRequestHandler<AnalyzeRequest> {
-
-        @Override
-        public AnalyzeRequest newInstance() {
-            return newRequest();
-        }
-
-        @Override
-        public void messageReceived(AnalyzeRequest request, final TransportChannel channel) throws Exception {
-            // no need to have a threaded listener since we just send back a response
-            request.listenerThreaded(false);
-            // if we have a local operation, execute it on a thread since we don't spawn
-            request.operationThreaded(true);
-            execute(request, new ActionListener<AnalyzeResponse>() {
-                @Override
-                public void onResponse(AnalyzeResponse result) {
-                    try {
-                        channel.sendResponse(result);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send response for get", e1);
-                    }
-                }
-            });
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
     }
 }

@@ -190,7 +190,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             // no-op
         }
     }
@@ -220,7 +220,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             // no-op
         }
 
@@ -297,7 +297,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             Releasables.close(visitedOrds);
         }
 

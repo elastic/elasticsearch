@@ -94,11 +94,6 @@ This syntax applies to Elasticsearch 1.0 and later:
 
 * Shut down a single node within the cluster.
 
-[source,sh]
---------------------------------------------
-curl -XPOST 'http://localhost:9200/_cluster/nodes/_local/_shutdown'
---------------------------------------------
-
 * Confirm that all shards are correctly reallocated to the remaining running nodes.
 
 * Upgrade the stopped node.  To upgrade using a zip or compressed tarball from elasticsearch.org:
@@ -149,11 +144,6 @@ This syntax is from versions prior to 1.0:
 --------------------------------------------------
 
 * Stop all Elasticsearch services on all nodes in the cluster.
-[source,sh]
-------------------------------------------------------
-	curl -XPOST 'http://localhost:9200/_shutdown'
-------------------------------------------------------
-
 * On the first node to be upgraded, extract the archive or install the new package as described above in the Rolling Upgrades section.  Repeat for all nodes.
 
 * After upgrading Elasticsearch on all nodes is complete, the cluster can be started by starting each node individually.

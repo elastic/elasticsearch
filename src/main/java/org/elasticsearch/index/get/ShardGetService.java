@@ -24,7 +24,6 @@ import com.google.common.collect.Sets;
 
 import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -99,7 +98,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
     }
 
     public GetResult get(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext, boolean ignoreErrorsOnGeneratedFields)
-            throws ElasticsearchException {
+            {
         currentMetric.inc();
         try {
             long now = System.nanoTime();
@@ -167,7 +166,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
         return FetchSourceContext.DO_NOT_FETCH_SOURCE;
     }
 
-    public GetResult innerGet(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext, boolean ignoreErrorsOnGeneratedFields) throws ElasticsearchException {
+    public GetResult innerGet(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext, boolean ignoreErrorsOnGeneratedFields) {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
 
         boolean loadSource = (gFields != null && gFields.length > 0) || fetchSourceContext.fetchSource();
@@ -247,7 +246,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                             if (fieldMapper == null) {
                                 if (docMapper.objectMappers().get(field) != null) {
                                     // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
-                                    throw new ElasticsearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
+                                    throw new IllegalArgumentException("field [" + field + "] isn't a leaf field");
                                 }
                             } else if (shouldGetFromSource(ignoreErrorsOnGeneratedFields, docMapper, fieldMapper)) {
                                 List<Object> values = searchLookup.source().extractRawValues(field);
@@ -363,13 +362,13 @@ public class ShardGetService extends AbstractIndexShardComponent {
             SearchLookup searchLookup = null;
             for (String field : gFields) {
                 Object value = null;
-                FieldMappers fieldMapper = docMapper.mappers().smartName(field);
+                FieldMapper fieldMapper = docMapper.mappers().smartNameFieldMapper(field);
                 if (fieldMapper == null) {
                     if (docMapper.objectMappers().get(field) != null) {
                         // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
-                        throw new ElasticsearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
+                        throw new IllegalArgumentException("field [" + field + "] isn't a leaf field");
                     }
-                } else if (!fieldMapper.mapper().fieldType().stored() && !fieldMapper.mapper().isGenerated()) {
+                } else if (!fieldMapper.fieldType().stored() && !fieldMapper.isGenerated()) {
                     if (searchLookup == null) {
                         searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
                         LeafSearchLookup leafSearchLookup = searchLookup.getLeafSearchLookup(docIdAndVersion.context);
@@ -380,7 +379,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     List<Object> values = searchLookup.source().extractRawValues(field);
                     if (!values.isEmpty()) {
                         for (int i = 0; i < values.size(); i++) {
-                            values.set(i, fieldMapper.mapper().valueForSearch(values.get(i)));
+                            values.set(i, fieldMapper.valueForSearch(values.get(i)));
                         }
                         value = values;
                     }

@@ -1,4 +1,4 @@
-= Resiliency Status
+= Elasticsearch Resiliency Status
 
 :JIRA: https://issues.apache.org/jira/browse/LUCENE-
 :GIT:  https://github.com/elasticsearch/elasticsearch/issues/
@@ -54,6 +54,14 @@ resilient.
 If you encounter an issue, https://github.com/elasticsearch/elasticsearch/issues[please report it]!
 
 We are committed to tracking down and fixing all the issues that are posted.
+
+[float]
+=== Make index creation more user friendly (STATUS: ONGOING)
+
+Today, Elasticsearch returns as soon as a create-index request has been processed,
+but before the shards are allocated.  Users should wait for a `green` cluster health
+before continuing, but we can make this easier for users by waiting for a quorum
+of shards to be allocated before returning.  See {GIT}9126[#9126]
 
 [float]
 === Better request retry mechanism when nodes are disconnected (STATUS: ONGOING)
@@ -131,18 +139,13 @@ If the node hosts a primary shard at the moment of partition, and ends up being 
 A test to replicate this condition was added in {GIT}7493[#7493].
 
 [float]
-=== Prevent use of known-bad Java versions (STATUS: ONGOING)
-
-Certain versions of the JVM are known to have bugs which can cause index corruption.  {GIT}7580[#7580] prevents Elasticsearch startup if known bad versions are in use.
-
-[float]
 === Lucene checksums phase 3 (STATUS:ONGOING)
 
 Almost all files in Elasticsearch now have checksums which are validated before use.  A few changes remain:
 
 * {GIT}7586[#7586] adds checksums for cluster and index state files. (STATUS: DONE, Fixed in v1.5.0)
 * {GIT}9183[#9183] supports validating the checksums on all files when starting a node. (STATUS: DONE, Fixed in v2.0.0)
-* {JIRA}5894[LUCENE-5894] lays the groundwork for extending more efficient checksum validation to all files during optimized bulk merges. (STATUS: ONGOING, Fixed in Lucene 5.0)
+* {JIRA}5894[LUCENE-5894] lays the groundwork for extending more efficient checksum validation to all files during optimized bulk merges. (STATUS: DONE, Fixed in v2.0.0)
 * {GIT}8403[#8403] to add validation of checksums on Lucene `segments_N` files. (STATUS: NOT STARTED)
 
 [float]
@@ -154,32 +157,6 @@ Almost all files in Elasticsearch now have checksums which are validated before 
 === Report shard-level statuses on write operations (STATUS: ONGOING)
 
 Make write calls return the number of total/successful/missing shards in the same way that we do in search, which ensures transparency in the consistency of write operations. {GIT}7994[#7994]. (STATUS: DONE, v2.0.0)
-
-[float]
-=== Simplify and harden shard recovery and allocation (STATUS: ONGOING)
-
-Randomized testing combined with chaotic failures has revealed corner cases
-where the recovery and allocation of shards in a concurrent manner can result
-in shard corruption.  There is an ongoing effort to reduce the complexity of
-these operations in order to make them more deterministic.  These include:
-
-* Introduce shard level locks to prevent concurrent shard modifications {GIT}8436[#8436]. (STATUS: DONE, Fixed in v1.5.0)
-* Delete shard contents under a lock {GIT}9083[#9083]. (STATUS: DONE, Fixed in v1.5.0)
-* Delete shard under a lock {GIT}8579[#8579]. (STATUS: DONE, Fixed in v1.5.0)
-* Refactor RecoveryTarget state management {GIT}8092[#8092]. (STATUS: DONE, Fixed in v1.5.0)
-* Cancelling a recovery may leave temporary files behind {GIT}7893[#7893]. (STATUS: DONE, Fixed in v1.5.0)
-* Quick cluster state processing can result in both shard copies being deleted {GIT}9503[#9503]. (STATUS: DONE, Fixed in v1.5.0)
-* Rapid creation and deletion of an index can cause reuse of old index metadata {GIT}9489[#9489]. (STATUS: DONE, Fixed in v1.5.0)
-* Flush immediately after the last concurrent recovery finishes to clear out the translog before a new recovery starts {GIT}9439[#9439]. (STATUS: DONE, Fixed in v1.5.0)
-
-[float]
-=== Prevent setting minimum_master_nodes to more than the current node count (STATUS: ONGOING)
-
-Setting `zen.discovery.minimum_master_nodes` to a value higher than the current node count
-effectively leaves the cluster without a master and unable to process requests.  The only
-way to fix this is to add more master-eligibile nodes.  {GIT}8321[#8321] adds a mechanism
-to validate settings before applying them, and {GIT}9051[#9051] extends this validation
-support to settings applied during a cluster restore. (STATUS: DONE, Fixed in v1.5.0)
 
 [float]
 === Jepsen Test Failures (STATUS: ONGOING)
@@ -199,15 +176,81 @@ Commonly used filters are cached in Elasticsearch. That cache is limited in size
 
 While we are working on a longer term solution ({GIT}9176[#9176]), we introduced a minimum weight of 1k for each cache entry. This puts an effective limit on the number of entries in the cache. See {GIT}8304[#8304] (STATUS: DONE, fixed in v1.4.0)
 
-[float]
-=== Make recovery be more resilient to partial network partitions (STATUS: ONGOING, Fixed in v1.5.0)
-
-When a node is experience network issues, the master detects it and removes the node from the cluster. That causes all ongoing recoveries from and to that node to be stopped and a new location is found for the relevant shards. However, in the of case partial network partition, where there are connectivity issues between the source and target nodes of a recovery but not between those nodes and the current master things may go wrong. While the nodes successfully restore the connection, the on going recoveries may have encountered issues. In {GIT}8720[#8720], we added test simulations for these and solved several issues that were flagged by them.
-
 == Completed
 
 [float]
-=== Validate quorum before accepting a write request (STATUS: DONE)
+=== Ensure shard state ID is incremental (STATUS: DONE, v1.5.1)
+
+It is possible in very extreme cases during a complicated full cluster restart,
+that the current shard state ID can be reset or even go backwards.
+Elasticsearch now ensures that the state ID always moves
+forwards, and throws an exception when a legacy ID is higher than the
+current ID.  See {GIT}10316[#10316] (STATUS: DONE, v1.5.1)
+
+[float]
+=== Verification of index UUIDs (STATUS: DONE, v1.5.0)
+
+When deleting and recreating indices rapidly, it is possible that cluster state
+updates can arrive out of sync and old states can be merged incorrectly.  Instead,
+Elasticsearch now checks the index UUID to ensure that cluster state updates
+refer to the same index version that is present on the local node.
+See {GIT}9541[#9541] and {GIT}10200[#10200] (STATUS: DONE, Fixed in v1.5.0)
+
+[float]
+=== Disable recovery from known buggy versions (STATUS: DONE, v1.5.0)
+
+Corruptions have been known to occur when doing a rolling restart from older, buggy versions.
+Now, shards from versions before v1.4.0 are copied over in full and recovery from versions
+before v1.3.2 are disabled entirely. See {GIT}9925[#9925] (STATUS: DONE, Fixed in v1.5.0)
+
+
+[float]
+=== Upgrade 3.x segments metadata on engine startup (STATUS: DONE, v1.5.0)
+
+Upgrading the metadata of old 3.x segments on node upgrade can be error prone
+and can result in corruption when merges are being run concurrently. Instead,
+Elasticsearch will now upgrade the metadata of 3.x segments before the engine
+starts.  See {GIT}9899[#9899] (STATUS; DONE, fixed in v1.5.0)
+
+[float]
+=== Prevent setting minimum_master_nodes to more than the current node count (STATUS: DONE, v1.5.0)
+
+Setting `zen.discovery.minimum_master_nodes` to a value higher than the current node count
+effectively leaves the cluster without a master and unable to process requests.  The only
+way to fix this is to add more master-eligibile nodes.  {GIT}8321[#8321] adds a mechanism
+to validate settings before applying them, and {GIT}9051[#9051] extends this validation
+support to settings applied during a cluster restore. (STATUS: DONE, Fixed in v1.5.0)
+
+[float]
+=== Simplify and harden shard recovery and allocation (STATUS: DONE, v1.5.0)
+
+Randomized testing combined with chaotic failures has revealed corner cases
+where the recovery and allocation of shards in a concurrent manner can result
+in shard corruption.  There is an ongoing effort to reduce the complexity of
+these operations in order to make them more deterministic.  These include:
+
+* Introduce shard level locks to prevent concurrent shard modifications {GIT}8436[#8436]. (STATUS: DONE, Fixed in v1.5.0)
+* Delete shard contents under a lock {GIT}9083[#9083]. (STATUS: DONE, Fixed in v1.5.0)
+* Delete shard under a lock {GIT}8579[#8579]. (STATUS: DONE, Fixed in v1.5.0)
+* Refactor RecoveryTarget state management {GIT}8092[#8092]. (STATUS: DONE, Fixed in v1.5.0)
+* Cancelling a recovery may leave temporary files behind {GIT}7893[#7893]. (STATUS: DONE, Fixed in v1.5.0)
+* Quick cluster state processing can result in both shard copies being deleted {GIT}9503[#9503]. (STATUS: DONE, Fixed in v1.5.0)
+* Rapid creation and deletion of an index can cause reuse of old index metadata {GIT}9489[#9489]. (STATUS: DONE, Fixed in v1.5.0)
+* Flush immediately after the last concurrent recovery finishes to clear out the translog before a new recovery starts {GIT}9439[#9439]. (STATUS: DONE, Fixed in v1.5.0)
+
+[float]
+=== Prevent use of known-bad Java versions (STATUS: DONE, v1.5.0)
+
+Certain versions of the JVM are known to have bugs which can cause index corruption.  {GIT}7580[#7580] prevents Elasticsearch startup if known bad versions are in use.
+
+[float]
+=== Make recovery be more resilient to partial network partitions (STATUS: DONE, v1.5.0)
+
+When a node is experience network issues, the master detects it and removes the node from the cluster. That causes all ongoing recoveries from and to that node to be stopped and a new location is found for the relevant shards. However, in the of case partial network partition, where there are connectivity issues between the source and target nodes of a recovery but not between those nodes and the current master things may go wrong. While the nodes successfully restore the connection, the on going recoveries may have encountered issues. In {GIT}8720[#8720], we added test simulations for these and solved several issues that were flagged by them.
+
+
+[float]
+=== Validate quorum before accepting a write request (STATUS: DONE, v1.4.0)
 
 Today, when a node holding a primary shard receives an index request, it checks the local cluster state to see whether a quorum of shards is available before it accepts the request. However, it can take some time before an unresponsive node is removed from the cluster state. We are adding an optional live check, where the primary node tries to contact its replicas to confirm that they are still responding before accepting any changes. See {GIT}6937[#6937].
 

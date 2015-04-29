@@ -19,12 +19,10 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
@@ -68,7 +66,7 @@ public class PatternCaptureTokenFilterTests extends ElasticsearchTokenStreamTest
     }
     
     
-    @Test(expected=ElasticsearchIllegalArgumentException.class)
+    @Test(expected=IllegalArgumentException.class)
     public void testNoPatterns() {
         new PatternCaptureGroupTokenFilterFactory(new Index("test"), settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(), "pattern_capture", settingsBuilder().put("pattern", "foobar").build());
     }

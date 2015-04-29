@@ -60,7 +60,7 @@
 
 
   - do:
-      catch: /ElasticsearchIllegalArgumentException.Unable.to.parse.*/
+      catch: /Unable.to.parse.*/
       put_script:
         id: "1"
         lang: "groovy"
@@ -74,7 +74,7 @@
         body: { "script" :  "_score * doc[\"myParent.weight\"].value" }
 
   - do:
-      catch: /ElasticsearchIllegalArgumentException.script_lang.not.supported/
+      catch: /script_lang.not.supported/
       put_script:
         id: "1"
         lang: "foobar"

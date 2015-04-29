@@ -20,20 +20,16 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 
-import com.google.common.base.Charsets;
-
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.file.*;
-import java.util.Collections;
+import java.nio.file.FileStore;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 
 import static org.elasticsearch.common.Strings.cleanPath;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
@@ -47,10 +43,6 @@ public class Environment {
 
     private final Path homeFile;
 
-    private final Path workFile;
-
-    private final Path workWithClusterFile;
-
     private final Path[] dataFiles;
 
     private final Path[] dataWithClusterFiles;
@@ -61,6 +53,22 @@ public class Environment {
 
     private final Path logsFile;
 
+    /** List of filestores on the system */
+    private static final FileStore[] fileStores;
+
+    /**
+     * We have to do this in clinit instead of init, because ES code is pretty messy,
+     * and makes these environments, throws them away, makes them again, etc.
+     */
+    static {
+        // gather information about filesystems
+        ArrayList<FileStore> allStores = new ArrayList<>();
+        for (FileStore store : PathUtils.getDefaultFileSystem().getFileStores()) {
+            allStores.add(new ESFileStore(store));
+        }
+        fileStores = allStores.toArray(new ESFileStore[allStores.size()]);
+    }
+
     public Environment() {
         this(EMPTY_SETTINGS);
     }
@@ -68,36 +76,29 @@ public class Environment {
     public Environment(Settings settings) {
         this.settings = settings;
         if (settings.get("path.home") != null) {
-            homeFile = Paths.get(cleanPath(settings.get("path.home")));
+            homeFile = PathUtils.get(cleanPath(settings.get("path.home")));
         } else {
-            homeFile = Paths.get(System.getProperty("user.dir"));
+            homeFile = PathUtils.get(System.getProperty("user.dir"));
         }
 
         if (settings.get("path.conf") != null) {
-            configFile = Paths.get(cleanPath(settings.get("path.conf")));
+            configFile = PathUtils.get(cleanPath(settings.get("path.conf")));
         } else {
             configFile = homeFile.resolve("config");
         }
 
         if (settings.get("path.plugins") != null) {
-            pluginsFile = Paths.get(cleanPath(settings.get("path.plugins")));
+            pluginsFile = PathUtils.get(cleanPath(settings.get("path.plugins")));
         } else {
             pluginsFile = homeFile.resolve("plugins");
         }
-
-        if (settings.get("path.work") != null) {
-            workFile = Paths.get(cleanPath(settings.get("path.work")));
-        } else {
-            workFile = homeFile.resolve("work");
-        }
-        workWithClusterFile = workFile.resolve(ClusterName.clusterNameFromSettings(settings).value());
 
         String[] dataPaths = settings.getAsArray("path.data");
         if (dataPaths.length > 0) {
             dataFiles = new Path[dataPaths.length];
             dataWithClusterFiles = new Path[dataPaths.length];
             for (int i = 0; i < dataPaths.length; i++) {
-                dataFiles[i] = Paths.get(dataPaths[i]);
+                dataFiles[i] = PathUtils.get(dataPaths[i]);
                 dataWithClusterFiles[i] = dataFiles[i].resolve(ClusterName.clusterNameFromSettings(settings).value());
             }
         } else {
@@ -106,7 +107,7 @@ public class Environment {
         }
 
         if (settings.get("path.logs") != null) {
-            logsFile = Paths.get(cleanPath(settings.get("path.logs")));
+            logsFile = PathUtils.get(cleanPath(settings.get("path.logs")));
         } else {
             logsFile = homeFile.resolve("logs");
         }
@@ -124,26 +125,6 @@ public class Environment {
      */
     public Path homeFile() {
         return homeFile;
-    }
-
-    /**
-     * The work location, path to temp files.
-     *
-     * Note, currently, we don't use it in ES at all, we should strive to see if we can keep it like that,
-     * but if we do, we have the infra for it.
-     */
-    public Path workFile() {
-        return workFile;
-    }
-
-    /**
-     * The work location with the cluster name as a sub directory.
-     *
-     * Note, currently, we don't use it in ES at all, we should strive to see if we can keep it like that,
-     * but if we do, we have the infra for it.
-     */
-    public Path workWithClusterFile() {
-        return workWithClusterFile;
     }
 
     /**
@@ -175,10 +156,28 @@ public class Environment {
         return logsFile;
     }
 
+    /**
+     * Looks up the filestore associated with a Path.
+     * <p>
+     * This is an enhanced version of {@link Files#getFileStore(Path)}:
+     * <ul>
+     *   <li>On *nix systems, the store returned for the root filesystem will contain
+     *       the actual filesystem type (e.g. {@code ext4}) instead of {@code rootfs}.
+     *   <li>On some systems, the custom attribute {@code lucene:spins} is supported
+     *       via the {@link FileStore#getAttribute(String)} method.
+     *   <li>Only requires the security permissions of {@link Files#getFileStore(Path)},
+     *       no permissions to the actual mount point are required.
+     *   <li>Exception handling has the same semantics as {@link Files#getFileStore(Path)}.
+     * </ul>
+     */
+    public FileStore getFileStore(Path path) throws IOException {
+        return ESFileStore.getMatchingFileStore(path, fileStores);
+    }
+
     public URL resolveConfig(String path) throws FailedToResolveConfigException {
         String origPath = path;
         // first, try it as a path on the file system
-        Path f1 = Paths.get(path);
+        Path f1 = PathUtils.get(path);
         if (Files.exists(f1)) {
             try {
                 return f1.toUri().toURL();

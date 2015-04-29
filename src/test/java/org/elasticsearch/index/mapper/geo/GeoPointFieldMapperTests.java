@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
@@ -30,7 +31,6 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -486,11 +486,11 @@ public class GeoPointFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
         DocumentMapper stage2 = parser.parse(stage2Mapping);
 
-        DocumentMapper.MergeResult mergeResult = stage1.merge(stage2, mergeFlags().simulate(false));
+        MergeResult mergeResult = stage1.merge(stage2.mapping(), false);
         assertThat(mergeResult.hasConflicts(), equalTo(true));
-        assertThat(mergeResult.conflicts().length, equalTo(2));
+        assertThat(mergeResult.buildConflicts().length, equalTo(2));
         // todo better way of checking conflict?
-        assertThat("mapper [point] has different validate_lat", isIn(new ArrayList<>(Arrays.asList(mergeResult.conflicts()))));
+        assertThat("mapper [point] has different validate_lat", isIn(new ArrayList<>(Arrays.asList(mergeResult.buildConflicts()))));
 
         // correct mapping and ensure no failures
         stage2Mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -498,7 +498,7 @@ public class GeoPointFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .field("validate", true).field("normalize", true).endObject().endObject()
                 .endObject().endObject().string();
         stage2 = parser.parse(stage2Mapping);
-        mergeResult = stage1.merge(stage2, mergeFlags().simulate(false));
+        mergeResult = stage1.merge(stage2.mapping(), false);
         assertThat(mergeResult.hasConflicts(), equalTo(false));
     }
 }

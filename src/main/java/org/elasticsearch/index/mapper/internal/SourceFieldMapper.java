@@ -26,6 +26,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -166,7 +167,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                 } else if ("format".equals(fieldName)) {
                     builder.format(nodeStringValue(fieldNode, null));
                     iterator.remove();
-                } else if (fieldName.equals("includes")) {
+                } else if (fieldName.equals("includes") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                     List<Object> values = (List<Object>) fieldNode;
                     String[] includes = new String[values.size()];
                     for (int i = 0; i < includes.length; i++) {
@@ -174,7 +175,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                     }
                     builder.includes(includes);
                     iterator.remove();
-                } else if (fieldName.equals("excludes")) {
+                } else if (fieldName.equals("excludes") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                     List<Object> values = (List<Object>) fieldNode;
                     String[] excludes = new String[values.size()];
                     for (int i = 0; i < excludes.length; i++) {
@@ -251,8 +252,9 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public Mapper parse(ParseContext context) throws IOException {
         // nothing to do here, we will call it in pre parse
+        return null;
     }
 
     @Override
@@ -416,9 +418,9 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         SourceFieldMapper sourceMergeWith = (SourceFieldMapper) mergeWith;
-        if (!mergeContext.mergeFlags().simulate()) {
+        if (!mergeResult.simulate()) {
             if (sourceMergeWith.compress != null) {
                 this.compress = sourceMergeWith.compress;
             }

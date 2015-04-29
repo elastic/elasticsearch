@@ -33,7 +33,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.nio.file.Path;
-import java.nio.file.Paths;
 
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -52,11 +51,14 @@ public class TribeUnitTests extends ElasticsearchTestCase {
 
     @BeforeClass
     public static void createTribes() {
-        tribe1 = NodeBuilder.nodeBuilder().settings(ImmutableSettings.builder().put("config.ignore_system_properties", true).put("http.enabled", false)
-                .put("node.mode", NODE_MODE).put("cluster.name", "tribe1").put("node.name", "tribe1_node")).node();
-        tribe2 = NodeBuilder.nodeBuilder().settings(ImmutableSettings.builder().put("config.ignore_system_properties", true).put("http.enabled", false)
-                .put("node.mode", NODE_MODE).put("cluster.name", "tribe2").put("node.name", "tribe2_node")).node();
+        Settings baseSettings = ImmutableSettings.builder()
+            .put("config.ignore_system_properties", true)
+            .put("http.enabled", false)
+            .put("node.mode", NODE_MODE)
+            .put("path.home", createTempDir()).build();
 
+        tribe1 = NodeBuilder.nodeBuilder().settings(ImmutableSettings.builder().put(baseSettings).put("cluster.name", "tribe1").put("node.name", "tribe1_node")).node();
+        tribe2 = NodeBuilder.nodeBuilder().settings(ImmutableSettings.builder().put(baseSettings).put("cluster.name", "tribe2").put("node.name", "tribe2_node")).node();
     }
 
     @AfterClass
@@ -84,7 +86,7 @@ public class TribeUnitTests extends ElasticsearchTestCase {
 
     @Test
     public void testThatTribeClientsIgnoreGlobalConfig() throws Exception {
-        Path pathConf = Paths.get(TribeUnitTests.class.getResource("elasticsearch.yml").toURI()).getParent();
+        Path pathConf = getDataPath("elasticsearch.yml").getParent();
         Settings settings = ImmutableSettings.builder().put("config.ignore_system_properties", true).put("path.conf", pathConf).build();
         assertTribeNodeSuccesfullyCreated(settings);
     }

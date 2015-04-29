@@ -23,8 +23,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -140,13 +138,12 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
      * These paths don't contain actual translog files they are
      * directories holding the transaction logs.
      */
-    public Path[] locations();
+    public Path location();
 
     /**
-     * Returns the translog file with the given id as a Path. This
-     * will return a relative path.
+     * Returns the translog filename for the given id.
      */
-    Path getPath(long translogId);
+    String getFilename(long translogId);
 
     /**
      * return stats
@@ -157,6 +154,22 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
      * Returns the largest translog id present in all locations or <tt>-1</tt> if no translog is present.
      */
     long findLargestPresentTranslogId() throws IOException;
+
+    /**
+     * Returns an OperationIterator to iterate over all translog entries in the given translog ID.
+     * @throws java.io.FileNotFoundException if the file for the translog ID can not be found
+     */
+    OperationIterator openIterator(long translogId) throws IOException;
+
+    /**
+     * Iterator for translog operations.
+     */
+    public static interface OperationIterator extends Releasable {
+        /**
+         * Returns the next operation in the translog or <code>null</code> if we reached the end of the stream.
+         */
+        public Translog.Operation next() throws IOException;
+    }
 
     static class Location implements Accountable {
 
@@ -189,7 +202,7 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
     /**
      * A snapshot of the transaction log, allows to iterate over all the transaction log operations.
      */
-    static interface Snapshot extends Releasable {
+    static interface Snapshot extends OperationIterator {
 
         /**
          * The id of the translog the snapshot was taken with.
@@ -210,11 +223,6 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
          * The total number of operations in the translog.
          */
         int estimatedTotalOperations();
-
-        /**
-         * Returns the next operation, or null when no more operations are found
-         */
-        Operation next();
 
         /**
          * Seek to the specified position in the translog stream
@@ -259,7 +267,7 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
                     case 4:
                         return DELETE_BY_QUERY;
                     default:
-                        throw new ElasticsearchIllegalArgumentException("No type mapped for [" + id + "]");
+                        throw new IllegalArgumentException("No type mapped for [" + id + "]");
                 }
             }
         }
@@ -625,7 +633,7 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
 
         @Override
         public Source getSource(){
-            throw new ElasticsearchIllegalStateException("trying to read doc source from delete operation");
+            throw new IllegalStateException("trying to read doc source from delete operation");
         }
 
         @Override
@@ -652,6 +660,8 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
         }
     }
 
+    /** @deprecated Delete-by-query is removed in 2.0, but we keep this so translog can replay on upgrade. */
+    @Deprecated
     static class DeleteByQuery implements Operation {
 
         public static final int SERIALIZATION_FORMAT = 2;
@@ -697,7 +707,7 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
 
         @Override
         public Source getSource() {
-            throw new ElasticsearchIllegalStateException("trying to read doc source from delete_by_query operation");
+            throw new IllegalStateException("trying to read doc source from delete_by_query operation");
         }
 
         @Override

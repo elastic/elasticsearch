@@ -1,0 +1,204 @@
+[[search-field-stats]]
+== Field stats API
+
+experimental[]
+
+The field stats api allows one to find statistical properties of a field without executing a search, but
+looking up measurements that are natively available in the Lucene index. This can be useful to explore a dataset which
+you don't know much about. For example, this allows creating a histogram aggregation with meaningful intervals.
+
+The field stats api by defaults executes on all indices, but can execute on specific indices too.
+
+All indices:
+
+[source,js]
+--------------------------------------------------
+curl -XGET "http://localhost:9200/_field_stats?fields=rating"
+--------------------------------------------------
+
+Specific indices:
+
+[source,js]
+--------------------------------------------------
+curl -XGET "http://localhost:9200/index1,index2/_field_stats?fields=rating"
+--------------------------------------------------
+
+Supported request options:
+
+[horizontal]
+`fields`::
+
+A list of fields to compute stats for.
+
+`level`::
+
+Defines if field stats should be returned on a per index level or on a cluster
+wide level. Valid values are `indices` and `cluster`. Defaults to `cluster`.
+
+=== Field statistics
+
+The field stats api is supported on string based, number based and date based fields and can return the following statistics per field:
+
+[horizontal]
+`max_doc`::
+
+The total number of documents.
+
+`doc_count`::
+
+The number of documents that have at least one term for this field, or -1 if
+this measurement isn't available on one or more shards.
+
+`density`::
+
+The percentage of documents that have at least one value for this field. This
+is a derived statistic and is based on the `max_doc` and `doc_count`.
+
+`sum_doc_freq`::
+
+The sum of each term's document frequency in this field, or -1 if this
+measurement isn't available on one or more shards. Document frequency is the
+number of documents containing a particular term.
+
+`sum_total_term_freq`::
+
+The sum of the term frequencies of all terms in this field across all
+documents, or `-1` if this measurement isn't available on one or more shards.
+Term frequency is the total number of occurrences of a term in a particular
+document and field.
+
+`min_value`::
+
+The lowest value in the field represented in a displayable form.
+
+`max_value`::
+
+The highest value in the field represented in a displayable form.
+
+NOTE: For all the mentioned statistics, documents marked as deleted aren't taken into account. The documents marked
+as deleted are are only taken into account when the segments these documents reside on are merged away.
+
+[float]
+=== Example
+
+[source,js]
+--------------------------------------------------
+curl -XGET "http://localhost:9200/_field_stats?fields=rating,answer_count,creation_date,display_name"
+--------------------------------------------------
+
+[source,js]
+--------------------------------------------------
+{
+   "_shards": {
+      "total": 1,
+      "successful": 1,
+      "failed": 0
+   },
+   "indices": {
+      "_all": { <1>
+         "fields": {
+            "creation_date": {
+               "max_doc": 1326564,
+               "doc_count": 564633,
+               "density": 42,
+               "sum_doc_freq": 2258532,
+               "sum_total_term_freq": -1,
+               "min_value": "2008-08-01T16:37:51.513Z",
+               "max_value": "2013-06-02T03:23:11.593Z"
+            },
+            "display_name": {
+               "max_doc": 1326564,
+               "doc_count": 126741,
+               "density": 9,
+               "sum_doc_freq": 166535,
+               "sum_total_term_freq": 166616,
+               "min_value": "0",
+               "max_value": "정혜선"
+            },
+            "answer_count": {
+               "max_doc": 1326564,
+               "doc_count": 139885,
+               "density": 10,
+               "sum_doc_freq": 559540,
+               "sum_total_term_freq": -1,
+               "min_value": 0,
+               "max_value": 160
+            },
+            "rating": {
+               "max_doc": 1326564,
+               "doc_count": 437892,
+               "density": 33,
+               "sum_doc_freq": 1751568,
+               "sum_total_term_freq": -1,
+               "min_value": -14,
+               "max_value": 1277
+            }
+         }
+      }
+   }
+}
+--------------------------------------------------
+
+<1> The `_all` key indicates that it contains the field stats of all indices in the cluster.
+
+With level set to `indices`:
+
+[source,js]
+--------------------------------------------------
+curl -XGET "http://localhost:9200/_field_stats?fields=rating,answer_count,creation_date,display_name&level=indices"
+--------------------------------------------------
+
+[source,js]
+--------------------------------------------------
+{
+   "_shards": {
+      "total": 1,
+      "successful": 1,
+      "failed": 0
+   },
+   "indices": {
+      "stack": { <1>
+         "fields": {
+            "creation_date": {
+               "max_doc": 1326564,
+               "doc_count": 564633,
+               "density": 42,
+               "sum_doc_freq": 2258532,
+               "sum_total_term_freq": -1,
+               "min_value": "2008-08-01T16:37:51.513Z",
+               "max_value": "2013-06-02T03:23:11.593Z"
+            },
+            "display_name": {
+               "max_doc": 1326564,
+               "doc_count": 126741,
+               "density": 9,
+               "sum_doc_freq": 166535,
+               "sum_total_term_freq": 166616,
+               "min_value": "0",
+               "max_value": "정혜선"
+            },
+            "answer_count": {
+               "max_doc": 1326564,
+               "doc_count": 139885,
+               "density": 10,
+               "sum_doc_freq": 559540,
+               "sum_total_term_freq": -1,
+               "min_value": 0,
+               "max_value": 160
+            },
+            "rating": {
+               "max_doc": 1326564,
+               "doc_count": 437892,
+               "density": 33,
+               "sum_doc_freq": 1751568,
+               "sum_total_term_freq": -1,
+               "min_value": -14,
+               "max_value": 1277
+            }
+         }
+      }
+   }
+}
+--------------------------------------------------
+
+<1> The `stack` key means it contains all field stats for the `stack` index.

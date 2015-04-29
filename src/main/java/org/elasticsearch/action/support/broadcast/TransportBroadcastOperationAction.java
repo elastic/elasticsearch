@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -45,25 +45,23 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  *
  */
 public abstract class TransportBroadcastOperationAction<Request extends BroadcastOperationRequest, Response extends BroadcastOperationResponse, ShardRequest extends BroadcastShardOperationRequest, ShardResponse extends BroadcastShardOperationResponse>
-        extends TransportAction<Request, Response> {
+        extends HandledTransportAction<Request, Response> {
 
     protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
     protected final TransportService transportService;
 
     final String transportShardAction;
-    final String executor;
 
-    protected TransportBroadcastOperationAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
-        super(settings, actionName, threadPool, actionFilters);
+    protected TransportBroadcastOperationAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
+                                                Class<Request> request, Class<ShardRequest> shardRequest, String shardExecutor) {
+        super(settings, actionName, threadPool, transportService, actionFilters, request);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.threadPool = threadPool;
         this.transportShardAction = actionName + "[s]";
-        this.executor = executor();
 
-        transportService.registerHandler(actionName, new TransportHandler());
-        transportService.registerHandler(transportShardAction, new ShardTransportHandler());
+        transportService.registerRequestHandler(transportShardAction, shardRequest, shardExecutor, new ShardTransportHandler());
     }
 
     @Override
@@ -71,19 +69,13 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         new AsyncBroadcastAction(request, listener).start();
     }
 
-    protected abstract String executor();
-
-    protected abstract Request newRequest();
-
     protected abstract Response newResponse(Request request, AtomicReferenceArray shardsResponses, ClusterState clusterState);
-
-    protected abstract ShardRequest newShardRequest();
 
     protected abstract ShardRequest newShardRequest(int numShards, ShardRouting shard, Request request);
 
     protected abstract ShardResponse newShardResponse();
 
-    protected abstract ShardResponse shardOperation(ShardRequest request) throws ElasticsearchException;
+    protected abstract ShardResponse shardOperation(ShardRequest request);
 
     /**
      * Determines the shards this operation will be executed on. The operation is executed once per shard iterator, typically
@@ -162,45 +154,32 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             } else {
                 try {
                     final ShardRequest shardRequest = newShardRequest(shardIt.size(), shard, request);
-                    if (shard.currentNodeId().equals(nodes.localNodeId())) {
-                        threadPool.executor(executor).execute(new Runnable() {
+                    DiscoveryNode node = nodes.get(shard.currentNodeId());
+                    if (node == null) {
+                        // no node connected, act as failure
+                        onOperation(shard, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
+                    } else {
+                        transportService.sendRequest(node, transportShardAction, shardRequest, new BaseTransportResponseHandler<ShardResponse>() {
                             @Override
-                            public void run() {
-                                try {
-                                    onOperation(shard, shardIndex, shardOperation(shardRequest));
-                                } catch (Throwable e) {
-                                    onOperation(shard, shardIt, shardIndex, e);
-                                }
+                            public ShardResponse newInstance() {
+                                return newShardResponse();
+                            }
+
+                            @Override
+                            public String executor() {
+                                return ThreadPool.Names.SAME;
+                            }
+
+                            @Override
+                            public void handleResponse(ShardResponse response) {
+                                onOperation(shard, shardIndex, response);
+                            }
+
+                            @Override
+                            public void handleException(TransportException e) {
+                                onOperation(shard, shardIt, shardIndex, e);
                             }
                         });
-                    } else {
-                        DiscoveryNode node = nodes.get(shard.currentNodeId());
-                        if (node == null) {
-                            // no node connected, act as failure
-                            onOperation(shard, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
-                        } else {
-                            transportService.sendRequest(node, transportShardAction, shardRequest, new BaseTransportResponseHandler<ShardResponse>() {
-                                @Override
-                                public ShardResponse newInstance() {
-                                    return newShardResponse();
-                                }
-
-                                @Override
-                                public String executor() {
-                                    return ThreadPool.Names.SAME;
-                                }
-
-                                @Override
-                                public void handleResponse(ShardResponse response) {
-                                    onOperation(shard, shardIndex, response);
-                                }
-
-                                @Override
-                                public void handleException(TransportException e) {
-                                    onOperation(shard, shardIt, shardIndex, e);
-                                }
-                            });
-                        }
                     }
                 } catch (Throwable e) {
                     onOperation(shard, shardIt, shardIndex, e);
@@ -283,55 +262,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         }
     }
 
-    class TransportHandler extends BaseTransportRequestHandler<Request> {
-
-        @Override
-        public Request newInstance() {
-            return newRequest();
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
-        @Override
-        public void messageReceived(Request request, final TransportChannel channel) throws Exception {
-            // we just send back a response, no need to fork a listener
-            request.listenerThreaded(false);
-            execute(request, new ActionListener<Response>() {
-                @Override
-                public void onResponse(Response response) {
-                    try {
-                        channel.sendResponse(response);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send response", e1);
-                    }
-                }
-            });
-        }
-    }
-
-    class ShardTransportHandler extends BaseTransportRequestHandler<ShardRequest> {
-
-        @Override
-        public ShardRequest newInstance() {
-            return newShardRequest();
-        }
-
-        @Override
-        public String executor() {
-            return executor;
-        }
+    class ShardTransportHandler implements TransportRequestHandler<ShardRequest> {
 
         @Override
         public void messageReceived(final ShardRequest request, final TransportChannel channel) throws Exception {

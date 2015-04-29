@@ -20,12 +20,21 @@ package org.elasticsearch.index.search.child;
 
 import com.carrotsearch.hppc.IntIntOpenHashMap;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.*;
-import org.apache.lucene.queries.TermFilter;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.index.SlowCompositeReaderWrapper;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryUtils;
@@ -35,6 +44,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
@@ -54,8 +64,13 @@ import java.util.NavigableSet;
 import java.util.Random;
 import java.util.TreeSet;
 
-import static org.elasticsearch.index.query.FilterBuilders.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.FilterBuilders.hasParentFilter;
+import static org.elasticsearch.index.query.FilterBuilders.notFilter;
+import static org.elasticsearch.index.query.FilterBuilders.termFilter;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
+import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 
 /**
  */
@@ -63,7 +78,6 @@ public class ParentConstantScoreQueryTests extends AbstractChildTests {
 
     @BeforeClass
     public static void before() throws IOException {
-        forceDefaultCodec();
         SearchContext.setCurrent(createSearchContext("test", "parent", "child"));
     }
 
@@ -79,7 +93,7 @@ public class ParentConstantScoreQueryTests extends AbstractChildTests {
         Query parentQuery = new TermQuery(new Term("field", "value"));
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        BitDocIdSetFilter childrenFilter = wrapWithBitSetFilter(new TermFilter(new Term(TypeFieldMapper.NAME, "child")));
+        BitDocIdSetFilter childrenFilter = wrapWithBitSetFilter(Queries.wrap(new TermQuery(new Term(TypeFieldMapper.NAME, "child"))));
         Query query = new ParentConstantScoreQuery(parentChildIndexFieldData, parentQuery, "parent", childrenFilter);
         QueryUtils.check(query);
     }
@@ -211,7 +225,7 @@ public class ParentConstantScoreQueryTests extends AbstractChildTests {
                 Terms terms = slowLeafReader.terms(UidFieldMapper.NAME);
                 if (terms != null) {
                     NavigableSet<String> childIds = parentValueToChildDocIds.lget();
-                    TermsEnum termsEnum = terms.iterator(null);
+                    TermsEnum termsEnum = terms.iterator();
                     PostingsEnum docsEnum = null;
                     for (String id : childIds) {
                         TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil(Uid.createUidAsBytes("child", id));

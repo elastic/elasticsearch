@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.basic;
 
-import com.carrotsearch.randomizedtesting.annotations.Nightly;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -43,6 +42,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTi
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+@ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 2)
 public class SearchWhileRelocatingTests extends ElasticsearchIntegrationTest {
 
 // @LuceneTestCase.AwaitsFix(bugUrl = "problem with search searching on 1 shard (no replica), " +

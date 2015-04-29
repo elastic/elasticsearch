@@ -30,17 +30,7 @@ import java.io.IOException;
  */
 public class MatchAllQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<MatchAllQueryBuilder> {
 
-    private String normsField;
-
     private float boost = -1;
-
-    /**
-     * Field used for normalization factor (document boost). Defaults to no field.
-     */
-    public MatchAllQueryBuilder normsField(String normsField) {
-        this.normsField = normsField;
-        return this;
-    }
 
     /**
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
@@ -57,9 +47,6 @@ public class MatchAllQueryBuilder extends BaseQueryBuilder implements BoostableQ
         builder.startObject(MatchAllQueryParser.NAME);
         if (boost != -1) {
             builder.field("boost", boost);
-        }
-        if (normsField != null) {
-            builder.field("norms_field", normsField);
         }
         builder.endObject();
     }

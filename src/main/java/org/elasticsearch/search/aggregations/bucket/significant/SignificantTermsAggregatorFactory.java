@@ -24,7 +24,6 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
@@ -107,7 +106,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     return mode;
                 }
             }
-            throw new ElasticsearchIllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of " + values());
+            throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of " + values());
         }
 
         private final ParseField parseField;
@@ -267,7 +266,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void close() {
         try {
             if (termsEnum instanceof Releasable) {
                 ((Releasable) termsEnum).close();

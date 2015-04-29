@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -32,8 +31,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
 import org.elasticsearch.search.suggest.context.CategoryContextMapping;
 import org.elasticsearch.search.suggest.context.GeolocationContextMapping;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
-import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 /**
  * Defines how to perform suggesting. This builders allows a number of global options to be specified and
@@ -288,7 +285,7 @@ public class SuggestBuilder implements ToXContent {
         @SuppressWarnings("unchecked")
         public T size(int size) {
             if (size <= 0) {
-                throw new ElasticsearchIllegalArgumentException("Size must be positive");
+                throw new IllegalArgumentException("Size must be positive");
             }
             this.size = size;
             return (T)this;

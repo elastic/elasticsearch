@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 
 import java.io.IOException;
 import java.util.Random;
@@ -62,7 +61,7 @@ class RandomBasedUUIDGenerator implements UUIDGenerator {
             assert encoded[encoded.length - 2] == '=';
             return new String(encoded, 0, encoded.length - 2, Base64.PREFERRED_ENCODING);
         } catch (IOException e) {
-            throw new ElasticsearchIllegalStateException("should not be thrown");
+            throw new IllegalStateException("should not be thrown");
         }
     }
 }

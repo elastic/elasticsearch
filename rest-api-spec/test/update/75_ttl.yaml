@@ -81,7 +81,7 @@
 # with timestamp
 
  - do:
-      catch: /AlreadyExpiredException/
+      catch: /already_expired_exception/
       index:
           index:     test_1
           type:      test

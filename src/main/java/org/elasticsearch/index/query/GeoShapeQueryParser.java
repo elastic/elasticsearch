@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
@@ -27,13 +28,11 @@ import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -94,7 +93,7 @@ public class GeoShapeQueryParser implements QueryParser {
                         } else if ("relation".equals(currentFieldName)) {
                             shapeRelation = ShapeRelation.getRelationByName(parser.text());
                             if (shapeRelation == null) {
-                                throw new QueryParsingException(parseContext.index(), "Unknown shape operation [" + parser.text() + " ]");
+                                throw new QueryParsingException(parseContext, "Unknown shape operation [" + parser.text() + " ]");
                             }
                         } else if ("indexed_shape".equals(currentFieldName) || "indexedShape".equals(currentFieldName)) {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -113,13 +112,13 @@ public class GeoShapeQueryParser implements QueryParser {
                                 }
                             }
                             if (id == null) {
-                                throw new QueryParsingException(parseContext.index(), "ID for indexed shape not provided");
+                                throw new QueryParsingException(parseContext, "ID for indexed shape not provided");
                             } else if (type == null) {
-                                throw new QueryParsingException(parseContext.index(), "Type for indexed shape not provided");
+                                throw new QueryParsingException(parseContext, "Type for indexed shape not provided");
                             }
                             shape = fetchService.fetch(id, type, index, shapePath);
                         } else {
-                            throw new QueryParsingException(parseContext.index(), "[geo_shape] query does not support [" + currentFieldName + "]");
+                            throw new QueryParsingException(parseContext, "[geo_shape] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -129,26 +128,26 @@ public class GeoShapeQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[geo_shape] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[geo_shape] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (shape == null) {
-            throw new QueryParsingException(parseContext.index(), "No Shape defined");
+            throw new QueryParsingException(parseContext, "No Shape defined");
         } else if (shapeRelation == null) {
-            throw new QueryParsingException(parseContext.index(), "No Shape Relation defined");
+            throw new QueryParsingException(parseContext, "No Shape Relation defined");
         }
 
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers == null || !smartNameFieldMappers.hasMapper()) {
-            throw new QueryParsingException(parseContext.index(), "Failed to find geo_shape field [" + fieldName + "]");
+            throw new QueryParsingException(parseContext, "Failed to find geo_shape field [" + fieldName + "]");
         }
 
         FieldMapper fieldMapper = smartNameFieldMappers.mapper();
         // TODO: This isn't the nicest way to check this
         if (!(fieldMapper instanceof GeoShapeFieldMapper)) {
-            throw new QueryParsingException(parseContext.index(), "Field [" + fieldName + "] is not a geo_shape");
+            throw new QueryParsingException(parseContext, "Field [" + fieldName + "] is not a geo_shape");
         }
 
         GeoShapeFieldMapper shapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
@@ -161,7 +160,7 @@ public class GeoShapeQueryParser implements QueryParser {
         if (strategy instanceof RecursivePrefixTreeStrategy && shapeRelation == ShapeRelation.DISJOINT) {
             // this strategy doesn't support disjoint anymore: but it did before, including creating lucene fieldcache (!)
             // in this case, execute disjoint as exists && !intersects
-            XBooleanFilter bool = new XBooleanFilter();
+            BooleanQuery bool = new BooleanQuery();
             Filter exists = ExistsFilterParser.newFilter(parseContext, fieldName, null);
             Filter intersects = strategy.makeFilter(getArgs(shape, ShapeRelation.INTERSECTS));
             bool.add(exists, BooleanClause.Occur.MUST);
@@ -191,7 +190,7 @@ public class GeoShapeQueryParser implements QueryParser {
         case WITHIN:
             return new SpatialArgs(SpatialOperation.IsWithin, shape.build());
         default:
-            throw new ElasticsearchIllegalArgumentException("");
+            throw new IllegalArgumentException("");
         
         }
     }

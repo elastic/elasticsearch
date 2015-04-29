@@ -406,7 +406,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
     }
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void close() {
         Releasables.close(runLens, hashSet.sizes);
     }
 

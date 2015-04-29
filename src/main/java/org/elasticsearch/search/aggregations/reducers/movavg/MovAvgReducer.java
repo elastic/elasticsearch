@@ -23,13 +23,16 @@ import com.google.common.base.Function;
 import com.google.common.collect.EvictingQueue;
 import com.google.common.collect.Lists;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
@@ -211,16 +214,16 @@ public class MovAvgReducer extends Reducer {
         @Override
         public void doValidate(AggregatorFactory parent, AggregatorFactory[] aggFactories, List<ReducerFactory> reducerFactories) {
             if (bucketsPaths.length != 1) {
-                throw new ElasticsearchIllegalStateException(Reducer.Parser.BUCKETS_PATH.getPreferredName()
+                throw new IllegalStateException(Reducer.Parser.BUCKETS_PATH.getPreferredName()
                         + " must contain a single entry for reducer [" + name + "]");
             }
             if (!(parent instanceof HistogramAggregator.Factory)) {
-                throw new ElasticsearchIllegalStateException("derivative reducer [" + name
+                throw new IllegalStateException("derivative reducer [" + name
                         + "] must have a histogram or date_histogram as parent");
             } else {
                 HistogramAggregator.Factory histoParent = (HistogramAggregator.Factory) parent;
                 if (histoParent.minDocCount() != 0) {
-                    throw new ElasticsearchIllegalStateException("parent histogram of derivative reducer [" + name
+                    throw new IllegalStateException("parent histogram of derivative reducer [" + name
                             + "] must have min_doc_count of 0");
                 }
             }

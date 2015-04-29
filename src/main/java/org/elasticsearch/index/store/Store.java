@@ -27,7 +27,6 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.*;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -50,7 +49,6 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.distributor.Distributor;
 
 import java.io.*;
 import java.nio.file.NoSuchFileException;
@@ -106,18 +104,17 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     };
 
-    public Store(ShardId shardId, @IndexSettings Settings indexSettings, DirectoryService directoryService, Distributor distributor, ShardLock shardLock) throws IOException {
-        this(shardId, indexSettings, directoryService, distributor, shardLock, OnClose.EMPTY);
+    public Store(ShardId shardId, @IndexSettings Settings indexSettings, DirectoryService directoryService, ShardLock shardLock) throws IOException {
+        this(shardId, indexSettings, directoryService, shardLock, OnClose.EMPTY);
     }
 
     @Inject
-    public Store(ShardId shardId, @IndexSettings Settings indexSettings, DirectoryService directoryService, Distributor distributor, ShardLock shardLock, OnClose onClose) throws IOException {
+    public Store(ShardId shardId, @IndexSettings Settings indexSettings, DirectoryService directoryService, ShardLock shardLock, OnClose onClose) throws IOException {
         super(shardId, indexSettings);
-        this.directory = new StoreDirectory(directoryService.newFromDistributor(distributor), Loggers.getLogger("index.store.deletes", indexSettings, shardId));
+        this.directory = new StoreDirectory(directoryService.newDirectory(), Loggers.getLogger("index.store.deletes", indexSettings, shardId));
         this.shardLock = shardLock;
         this.onClose = onClose;
         final TimeValue refreshInterval = indexSettings.getAsTime(INDEX_STORE_STATS_REFRESH_INTERVAL, TimeValue.timeValueSeconds(10));
-
         this.statsCache = new StoreStatsCache(refreshInterval, directory, directoryService);
         logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
 
@@ -159,7 +156,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     }
 
-    final void ensureOpen() { // for testing
+    final void ensureOpen() {
         if (this.refCounter.refCount() <= 0) {
             throw new AlreadyClosedException("store is already closed");
         }
@@ -171,6 +168,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @throws CorruptIndexException if the lucene index is corrupted. This can be caused by a checksum mismatch or an
      *                               unexpected exception when opening the index reading the segments file.
+     * @throws IndexFormatTooOldException  if the lucene index is too old to be opened.
+     * @throws IndexFormatTooNewException  if the lucene index is too new to be opened.
      */
     public MetadataSnapshot getMetadataOrEmpty() throws IOException {
         try {
@@ -188,6 +187,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @throws CorruptIndexException  if the lucene index is corrupted. This can be caused by a checksum mismatch or an
      *                                unexpected exception when opening the index reading the segments file.
+     * @throws IndexFormatTooOldException  if the lucene index is too old to be opened.
+     * @throws IndexFormatTooNewException  if the lucene index is too new to be opened.
      * @throws FileNotFoundException  if one or more files referenced by a commit are not present.
      * @throws NoSuchFileException    if one or more files referenced by a commit are not present.
      * @throws IndexNotFoundException if no index / valid commit-point can be found in this store
@@ -202,6 +203,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @throws CorruptIndexException  if the lucene index is corrupted. This can be caused by a checksum mismatch or an
      *                                unexpected exception when opening the index reading the segments file.
+     * @throws IndexFormatTooOldException  if the lucene index is too old to be opened.
+     * @throws IndexFormatTooNewException  if the lucene index is too new to be opened.
      * @throws FileNotFoundException  if one or more files referenced by a commit are not present.
      * @throws NoSuchFileException    if one or more files referenced by a commit are not present.
      * @throws IndexNotFoundException if the commit point can't be found in this store
@@ -359,21 +362,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @throws IOException if the index we try to read is corrupted
      */
-    public static MetadataSnapshot readMetadataSnapshot(Path[] indexLocations, ESLogger logger) throws IOException {
-        final Directory[] dirs = new Directory[indexLocations.length];
-        try {
-            for (int i = 0; i < indexLocations.length; i++) {
-                dirs[i] = new SimpleFSDirectory(indexLocations[i]);
-            }
-            DistributorDirectory dir = new DistributorDirectory(dirs);
+    public static MetadataSnapshot readMetadataSnapshot(Path indexLocation, ESLogger logger) throws IOException {
+        try (Directory dir = new SimpleFSDirectory(indexLocation)){
             failIfCorrupted(dir, new ShardId("", 1));
             return new MetadataSnapshot(null, dir, logger);
         } catch (IndexNotFoundException ex) {
             // that's fine - happens all the time no need to log
         } catch (FileNotFoundException | NoSuchFileException ex) {
             logger.info("Failed to open / find files while reading metadata snapshot");
-        } finally {
-            IOUtils.close(dirs);
         }
         return MetadataSnapshot.EMPTY;
     }
@@ -535,10 +531,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @param reason         the reason for this cleanup operation logged for each deleted file
      * @param sourceMetaData the metadata used for cleanup. all files in this metadata should be kept around.
      * @throws IOException                        if an IOException occurs
-     * @throws ElasticsearchIllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
+     * @throws IllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
      */
     public void cleanupAndVerify(String reason, MetadataSnapshot sourceMetaData) throws IOException {
-        failIfCorrupted();
         metadataLock.writeLock().lock();
         try (Lock writeLock = directory.makeLock(IndexWriter.WRITE_LOCK_NAME)) {
             if (!writeLock.obtain(IndexWriterConfig.getDefaultWriteLockTimeout())) { // obtain write lock
@@ -557,7 +552,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                         || existingFile.equals(IndexFileNames.OLD_SEGMENTS_GEN)) {
                         // TODO do we need to also fail this if we can't delete the pending commit file?
                         // if one of those files can't be deleted we better fail the cleanup otherwise we might leave an old commit point around?
-                        throw new ElasticsearchIllegalStateException("Can't delete " + existingFile + " - cleanup failed", ex);
+                        throw new IllegalStateException("Can't delete " + existingFile + " - cleanup failed", ex);
                     }
                     logger.debug("failed to delete file [{}]", ex, existingFile);
                     // ignore, we don't really care, will get deleted later on
@@ -596,12 +591,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     final boolean consistent = hashAndLengthEqual || same;
                     if (consistent == false) {
                         logger.debug("Files are different on the recovery target: {} ", recoveryDiff);
-                        throw new ElasticsearchIllegalStateException("local version: " + local + " is different from remote version after recovery: " + remote, null);
+                        throw new IllegalStateException("local version: " + local + " is different from remote version after recovery: " + remote, null);
                     }
                 }
             } else {
                 logger.debug("Files are missing on the recovery target: {} ", recoveryDiff);
-                throw new ElasticsearchIllegalStateException("Files are missing on the recovery target: [different="
+                throw new IllegalStateException("Files are missing on the recovery target: [different="
                         + recoveryDiff.different + ", missing=" + recoveryDiff.missing + ']', null);
             }
         }

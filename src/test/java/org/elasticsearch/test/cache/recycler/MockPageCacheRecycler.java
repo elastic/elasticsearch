@@ -78,7 +78,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
         return new V<T>() {
 
             @Override
-            public void close() throws ElasticsearchException {
+            public void close() {
                 final Throwable t = ACQUIRED_PAGES.remove(v);
                 if (t == null) {
                     throw new IllegalStateException("Releasing a page that has not been acquired");

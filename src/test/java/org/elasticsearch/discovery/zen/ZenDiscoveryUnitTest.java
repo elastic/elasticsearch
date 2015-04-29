@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.zen;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -75,7 +74,7 @@ public class ZenDiscoveryUnitTest extends ElasticsearchTestCase {
         try {
             shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build());
             fail("should ignore, because current state's master is not equal to new state's master");
-        } catch (ElasticsearchIllegalStateException e) {
+        } catch (IllegalStateException e) {
             assertThat(e.getMessage(), containsString("cluster state from a different master then the current one, rejecting"));
         }
 
@@ -105,7 +104,7 @@ public class ZenDiscoveryUnitTest extends ElasticsearchTestCase {
         int numUpdates = scaledRandomIntBetween(50, 100);
         LinkedList<ProcessClusterState> queue = new LinkedList<>();
         for (int i = 0; i < numUpdates; i++) {
-            queue.add(new ProcessClusterState(ClusterState.builder(clusterName).version(i).nodes(nodes).build(), null));
+            queue.add(new ProcessClusterState(ClusterState.builder(clusterName).version(i).nodes(nodes).build()));
         }
         ProcessClusterState mostRecent = queue.get(numUpdates - 1);
         Collections.shuffle(queue, getRandom());
@@ -121,15 +120,15 @@ public class ZenDiscoveryUnitTest extends ElasticsearchTestCase {
         DiscoveryNodes nodes2 = DiscoveryNodes.builder().masterNodeId("b").build();
 
         LinkedList<ProcessClusterState> queue = new LinkedList<>();
-        ProcessClusterState thirdMostRecent = new ProcessClusterState(ClusterState.builder(clusterName).version(1).nodes(nodes1).build(), null);
+        ProcessClusterState thirdMostRecent = new ProcessClusterState(ClusterState.builder(clusterName).version(1).nodes(nodes1).build());
         queue.offer(thirdMostRecent);
-        ProcessClusterState secondMostRecent = new ProcessClusterState(ClusterState.builder(clusterName).version(2).nodes(nodes1).build(), null);
+        ProcessClusterState secondMostRecent = new ProcessClusterState(ClusterState.builder(clusterName).version(2).nodes(nodes1).build());
         queue.offer(secondMostRecent);
-        ProcessClusterState mostRecent = new ProcessClusterState(ClusterState.builder(clusterName).version(3).nodes(nodes1).build(), null);
+        ProcessClusterState mostRecent = new ProcessClusterState(ClusterState.builder(clusterName).version(3).nodes(nodes1).build());
         queue.offer(mostRecent);
         Collections.shuffle(queue, getRandom());
-        queue.offer(new ProcessClusterState(ClusterState.builder(clusterName).version(4).nodes(nodes2).build(), null));
-        queue.offer(new ProcessClusterState(ClusterState.builder(clusterName).version(5).nodes(nodes1).build(), null));
+        queue.offer(new ProcessClusterState(ClusterState.builder(clusterName).version(4).nodes(nodes2).build()));
+        queue.offer(new ProcessClusterState(ClusterState.builder(clusterName).version(5).nodes(nodes1).build()));
 
 
         assertThat(ZenDiscovery.selectNextStateToProcess(queue), sameInstance(mostRecent.clusterState));

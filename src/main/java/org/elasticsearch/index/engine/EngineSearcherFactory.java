@@ -39,7 +39,7 @@ public class EngineSearcherFactory extends SearcherFactory {
     }
 
     @Override
-    public IndexSearcher newSearcher(IndexReader reader) throws IOException {
+    public IndexSearcher newSearcher(IndexReader reader, IndexReader previousReader) throws IOException {
         IndexSearcher searcher = new IndexSearcher(reader);
         searcher.setSimilarity(engineConfig.getSimilarity());
         return searcher;

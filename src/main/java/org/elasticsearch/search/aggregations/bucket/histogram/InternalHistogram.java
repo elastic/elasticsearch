@@ -22,7 +22,6 @@ import com.google.common.collect.Lists;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -71,7 +70,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
             Factory<?> factory = (Factory<?>) context.attributes().get("factory");
             if (factory == null) {
-                throw new ElasticsearchIllegalStateException("No factory found for histogram buckets");
+                throw new IllegalStateException("No factory found for histogram buckets");
             }
             Bucket histogram = new Bucket(context.keyed(), context.formatter(), factory);
             histogram.readFrom(in);
@@ -498,7 +497,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         } else if (factoryType.equals(TYPE.name())) {
             return new Factory<>();
         } else {
-            throw new ElasticsearchIllegalStateException("Invalid histogram factory type [" + factoryType + "]");
+            throw new IllegalStateException("Invalid histogram factory type [" + factoryType + "]");
         }
     }
 

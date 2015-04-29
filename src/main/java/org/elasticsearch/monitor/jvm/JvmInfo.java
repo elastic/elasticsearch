@@ -208,76 +208,40 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         }
     }
 
-    public String vmName() {
-        return vmName;
-    }
-
     public String getVmName() {
-        return vmName;
-    }
-
-    public String vmVersion() {
-        return vmVersion;
+        return this.vmName;
     }
 
     public String getVmVersion() {
-        return vmVersion;
-    }
-
-    public String vmVendor() {
-        return vmVendor;
+        return this.vmVersion;
     }
 
     public String getVmVendor() {
-        return vmVendor;
-    }
-
-    public long startTime() {
-        return startTime;
+        return this.vmVendor;
     }
 
     public long getStartTime() {
-        return startTime;
-    }
-
-    public Mem mem() {
-        return mem;
+        return this.startTime;
     }
 
     public Mem getMem() {
-        return mem();
-    }
-
-    public String[] inputArguments() {
-        return inputArguments;
+        return this.mem;
     }
 
     public String[] getInputArguments() {
-        return inputArguments;
-    }
-
-    public String bootClassPath() {
-        return bootClassPath;
+        return this.inputArguments;
     }
 
     public String getBootClassPath() {
-        return bootClassPath;
-    }
-
-    public String classPath() {
-        return classPath;
+        return this.bootClassPath;
     }
 
     public String getClassPath() {
-        return classPath;
-    }
-
-    public Map<String, String> systemProperties() {
-        return systemProperties;
+        return this.classPath;
     }
 
     public Map<String, String> getSystemProperties() {
-        return systemProperties;
+        return this.systemProperties;
     }
 
     @Override
@@ -396,50 +360,24 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         Mem() {
         }
 
-        public ByteSizeValue heapInit() {
+        public ByteSizeValue getHeapInit() {
             return new ByteSizeValue(heapInit);
         }
 
-        public ByteSizeValue getHeapInit() {
-            return heapInit();
-        }
-
-        public ByteSizeValue heapMax() {
+        public ByteSizeValue getHeapMax() {
             return new ByteSizeValue(heapMax);
         }
 
-        public ByteSizeValue getHeapMax() {
-            return heapMax();
-        }
-
-        public ByteSizeValue nonHeapInit() {
+        public ByteSizeValue getNonHeapInit() {
             return new ByteSizeValue(nonHeapInit);
         }
 
-        public ByteSizeValue getNonHeapInit() {
-            return nonHeapInit();
-        }
-
-        public ByteSizeValue nonHeapMax() {
+        public ByteSizeValue getNonHeapMax() {
             return new ByteSizeValue(nonHeapMax);
         }
 
-        public ByteSizeValue getNonHeapMax() {
-            return nonHeapMax();
-        }
-
-        public ByteSizeValue directMemoryMax() {
-            return new ByteSizeValue(directMemoryMax);
-        }
-
         public ByteSizeValue getDirectMemoryMax() {
-            return directMemoryMax();
-        }
-
-        public static Mem readMem(StreamInput in) throws IOException {
-            Mem mem = new Mem();
-            mem.readFrom(in);
-            return mem;
+            return new ByteSizeValue(directMemoryMax);
         }
 
         @Override

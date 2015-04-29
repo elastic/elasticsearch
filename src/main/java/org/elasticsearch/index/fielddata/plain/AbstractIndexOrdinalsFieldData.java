@@ -81,7 +81,7 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
     }
 
     protected TermsEnum filter(Terms terms, LeafReader reader) throws IOException {
-        TermsEnum iterator = terms.iterator(null);
+        TermsEnum iterator = terms.iterator();
         if (iterator == null) {
             return null;
         }

@@ -62,7 +62,7 @@ public class GetTermVectorsCheckDocFreqTests extends ElasticsearchIntegrationTes
     }
 
     @Test
-    public void testSimpleTermVectors() throws ElasticsearchException, IOException {
+    public void testSimpleTermVectors() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
                         .startObject("field")
@@ -108,7 +108,7 @@ public class GetTermVectorsCheckDocFreqTests extends ElasticsearchIntegrationTes
         assertThat(terms.getSumTotalTermFreq(), Matchers.equalTo((long) -1));
         assertThat(terms.getDocCount(), Matchers.equalTo(-1));
         assertThat(terms.getSumDocFreq(), equalTo((long) -1));
-        TermsEnum iterator = terms.iterator(null);
+        TermsEnum iterator = terms.iterator();
         for (int j = 0; j < values.length; j++) {
             String string = values[j];
             BytesRef next = iterator.next();
@@ -168,7 +168,7 @@ public class GetTermVectorsCheckDocFreqTests extends ElasticsearchIntegrationTes
         assertThat(terms.getSumTotalTermFreq(), Matchers.equalTo((long) (9 * numDocs)));
         assertThat(terms.getDocCount(), Matchers.equalTo(numDocs));
         assertThat(terms.getSumDocFreq(), equalTo((long) numDocs * values.length));
-        TermsEnum iterator = terms.iterator(null);
+        TermsEnum iterator = terms.iterator();
         for (int j = 0; j < values.length; j++) {
             String string = values[j];
             BytesRef next = iterator.next();
@@ -225,7 +225,7 @@ public class GetTermVectorsCheckDocFreqTests extends ElasticsearchIntegrationTes
         assertThat(terms.getSumTotalTermFreq(), Matchers.equalTo((long) (9 * numDocs)));
         assertThat(terms.getDocCount(), Matchers.equalTo(numDocs));
         assertThat(terms.getSumDocFreq(), equalTo((long) numDocs * values.length));
-        TermsEnum iterator = terms.iterator(null);
+        TermsEnum iterator = terms.iterator();
         for (int j = 0; j < values.length; j++) {
             String string = values[j];
             BytesRef next = iterator.next();

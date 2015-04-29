@@ -842,7 +842,7 @@ public final class XMoreLikeThis {
      * @param fieldName Optional field name of the terms for skip terms
      */
     private void addTermFrequencies(Map<String, Int> termFreqMap, Terms vector, @Nullable String fieldName) throws IOException {
-        final TermsEnum termsEnum = vector.iterator(null);
+        final TermsEnum termsEnum = vector.iterator();
         final CharsRefBuilder spare = new CharsRefBuilder();
         BytesRef text;
         while((text = termsEnum.next()) != null) {

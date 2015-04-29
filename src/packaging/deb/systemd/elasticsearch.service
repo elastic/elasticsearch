@@ -5,7 +5,12 @@ Wants=network-online.target
 After=network-online.target
 
 [Service]
-EnvironmentFile=/etc/default/elasticsearch
+Environment=CONF_FILE=${packaging.elasticsearch.conf.dir}/elasticsearch.yml
+Environment=ES_HOME=${packaging.elasticsearch.home.dir}
+Environment=LOG_DIR=${packaging.elasticsearch.log.dir}
+Environment=DATA_DIR=${packaging.elasticsearch.data.dir}
+Environment=CONF_DIR=${packaging.elasticsearch.conf.dir}
+EnvironmentFile=-${packaging.env.file}
 User=elasticsearch
 Group=elasticsearch
 ExecStart=/usr/share/elasticsearch/bin/elasticsearch            \
@@ -13,7 +18,6 @@ ExecStart=/usr/share/elasticsearch/bin/elasticsearch            \
                             -Des.default.path.home=$ES_HOME     \
                             -Des.default.path.logs=$LOG_DIR     \
                             -Des.default.path.data=$DATA_DIR    \
-                            -Des.default.path.work=$WORK_DIR    \
                             -Des.default.path.conf=$CONF_DIR
 # See MAX_OPEN_FILES in sysconfig
 LimitNOFILE=65535

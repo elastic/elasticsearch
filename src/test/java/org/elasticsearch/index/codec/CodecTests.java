@@ -36,23 +36,17 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.test.ElasticsearchSingleNodeLuceneTestCase;
-import org.junit.Before;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class CodecTests extends ElasticsearchSingleNodeLuceneTestCase {
-    
-    @Override
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        forceDefaultCodec(); // we test against default codec so never get a random one here!
-    }
+@SuppressCodecs("*") // we test against default codec so never get a random one here!
+public class CodecTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testResolveDefaultCodecs() throws Exception {

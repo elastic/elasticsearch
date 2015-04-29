@@ -65,18 +65,16 @@ import static org.elasticsearch.action.exists.ExistsRequest.DEFAULT_MIN_SCORE;
 public class TransportExistsAction extends TransportBroadcastOperationAction<ExistsRequest, ExistsResponse, ShardExistsRequest, ShardExistsResponse> {
 
     private final IndicesService indicesService;
-
     private final ScriptService scriptService;
-
     private final PageCacheRecycler pageCacheRecycler;
-
     private final BigArrays bigArrays;
 
     @Inject
     public TransportExistsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                 IndicesService indicesService, ScriptService scriptService,
                                 PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters) {
-        super(settings, ExistsAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, ExistsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                ExistsRequest.class, ShardExistsRequest.class, ThreadPool.Names.SEARCH);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.pageCacheRecycler = pageCacheRecycler;
@@ -87,21 +85,6 @@ public class TransportExistsAction extends TransportBroadcastOperationAction<Exi
     protected void doExecute(ExistsRequest request, ActionListener<ExistsResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
         new ExistsAsyncBroadcastAction(request, listener).start();
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SEARCH;
-    }
-
-    @Override
-    protected ExistsRequest newRequest() {
-        return new ExistsRequest();
-    }
-
-    @Override
-    protected ShardExistsRequest newShardRequest() {
-        return new ShardExistsRequest();
     }
 
     @Override
@@ -161,7 +144,7 @@ public class TransportExistsAction extends TransportBroadcastOperationAction<Exi
     }
 
     @Override
-    protected ShardExistsResponse shardOperation(ShardExistsRequest request) throws ElasticsearchException {
+    protected ShardExistsResponse shardOperation(ShardExistsRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.shardSafe(request.shardId().id());
 

@@ -40,24 +40,20 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
-import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.percolator.PercolatorService;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.*;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
-
 /**
  * Service responsible for submitting mapping changes
  */
 public class MetaDataMappingService extends AbstractComponent {
 
-    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
 
@@ -68,9 +64,8 @@ public class MetaDataMappingService extends AbstractComponent {
     private long refreshOrUpdateProcessedInsertOrder;
 
     @Inject
-    public MetaDataMappingService(Settings settings, ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService) {
+    public MetaDataMappingService(Settings settings, ClusterService clusterService, IndicesService indicesService) {
         super(settings);
-        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
     }
@@ -97,15 +92,13 @@ public class MetaDataMappingService extends AbstractComponent {
     static class UpdateTask extends MappingTask {
         final String type;
         final CompressedString mappingSource;
-        final long order; // -1 for unknown
         final String nodeId; // null fr unknown
         final ActionListener<ClusterStateUpdateResponse> listener;
 
-        UpdateTask(String index, String indexUUID, String type, CompressedString mappingSource, long order, String nodeId, ActionListener<ClusterStateUpdateResponse> listener) {
+        UpdateTask(String index, String indexUUID, String type, CompressedString mappingSource, String nodeId, ActionListener<ClusterStateUpdateResponse> listener) {
             super(index, indexUUID);
             this.type = type;
             this.mappingSource = mappingSource;
-            this.order = order;
             this.nodeId = nodeId;
             this.listener = listener;
         }
@@ -176,35 +169,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     logger.debug("[{}] ignoring task [{}] - index meta data doesn't match task uuid", index, task);
                     continue;
                 }
-                boolean add = true;
-                // if its an update task, make sure we only process the latest ordered one per node
-                if (task instanceof UpdateTask) {
-                    UpdateTask uTask = (UpdateTask) task;
-                    // we can only do something to compare if we have the order && node
-                    if (uTask.order != -1 && uTask.nodeId != null) {
-                        for (int i = 0; i < tasks.size(); i++) {
-                            MappingTask existing = tasks.get(i);
-                            if (existing instanceof UpdateTask) {
-                                UpdateTask eTask = (UpdateTask) existing;
-                                if (eTask.type.equals(uTask.type)) {
-                                    // if we have the order, and the node id, then we can compare, and replace if applicable
-                                    if (eTask.order != -1 && eTask.nodeId != null) {
-                                        if (eTask.nodeId.equals(uTask.nodeId) && uTask.order > eTask.order) {
-                                            // a newer update task, we can replace so we execute it one!
-                                            tasks.set(i, uTask);
-                                            add = false;
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (add) {
-                    tasks.add(task);
-                }
+                tasks.add(task);
             }
 
             // construct the actual index if needed, and make sure the relevant mappings are there
@@ -365,47 +330,6 @@ public class MetaDataMappingService extends AbstractComponent {
         });
     }
 
-    public void updateMapping(final String index, final String indexUUID, final String type, final CompressedString mappingSource, final long order, final String nodeId, final ActionListener<ClusterStateUpdateResponse> listener) {
-        final long insertOrder;
-        synchronized (refreshOrUpdateMutex) {
-            insertOrder = ++refreshOrUpdateInsertOrder;
-            refreshOrUpdateQueue.add(new UpdateTask(index, indexUUID, type, mappingSource, order, nodeId, listener));
-        }
-        clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "] / node [" + nodeId + "], order [" + order + "]", Priority.HIGH, new ProcessedClusterStateUpdateTask() {
-            private volatile List<MappingTask> allTasks;
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                listener.onFailure(t);
-            }
-
-            @Override
-            public ClusterState execute(final ClusterState currentState) throws Exception {
-                Tuple<ClusterState, List<MappingTask>> tuple = executeRefreshOrUpdate(currentState, insertOrder);
-                this.allTasks = tuple.v2();
-                return tuple.v1();
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                if (allTasks == null) {
-                    return;
-                }
-                for (Object task : allTasks) {
-                    if (task instanceof UpdateTask) {
-                        UpdateTask uTask = (UpdateTask) task;
-                        ClusterStateUpdateResponse response = new ClusterStateUpdateResponse(true);
-                        try {
-                            uTask.listener.onResponse(response);
-                        } catch (Throwable t) {
-                            logger.debug("failed ot ping back on response of mapping processing for task [{}]", t, uTask.listener);
-                        }
-                    }
-                }
-            }
-        });
-    }
-
     public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
 
         clusterService.submitStateUpdateTask("put-mapping [" + request.type() + "]", Priority.HIGH, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
@@ -457,10 +381,10 @@ public class MetaDataMappingService extends AbstractComponent {
                             newMapper = indexService.mapperService().parse(request.type(), new CompressedString(request.source()), existingMapper == null);
                             if (existingMapper != null) {
                                 // first, simulate
-                                DocumentMapper.MergeResult mergeResult = existingMapper.merge(newMapper, mergeFlags().simulate(true));
+                                MergeResult mergeResult = existingMapper.merge(newMapper.mapping(), true);
                                 // if we have conflicts, and we are not supposed to ignore them, throw an exception
                                 if (!request.ignoreConflicts() && mergeResult.hasConflicts()) {
-                                    throw new MergeMappingException(mergeResult.conflicts());
+                                    throw new MergeMappingException(mergeResult.buildConflicts());
                                 }
                             }
                         }

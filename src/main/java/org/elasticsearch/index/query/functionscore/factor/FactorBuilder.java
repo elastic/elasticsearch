@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.functionscore.factor;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
@@ -58,7 +57,7 @@ public class FactorBuilder extends ScoreFunctionBuilder {
 
     @Override
     public ScoreFunctionBuilder setWeight(float weight) {
-        throw new ElasticsearchIllegalArgumentException(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE);
+        throw new IllegalArgumentException(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE);
     }
 
     @Override

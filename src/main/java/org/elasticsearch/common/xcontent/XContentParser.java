@@ -241,4 +241,12 @@ public interface XContentParser extends Releasable {
      *
      */
     byte[] binaryValue() throws IOException;
+
+    /**
+     * Used for error reporting to highlight where syntax errors occur in
+     * content being parsed.
+     * 
+     * @return last token's location or null if cannot be determined
+     */
+    XContentLocation getTokenLocation();
 }

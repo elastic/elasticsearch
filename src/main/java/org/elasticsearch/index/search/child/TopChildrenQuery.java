@@ -25,7 +25,6 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.*;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
@@ -111,11 +110,6 @@ public class TopChildrenQuery extends Query {
     }
 
     @Override
-    public void extractTerms(Set<Term> terms) {
-        rewrittenChildQuery.extractTerms(terms);
-    }
-
-    @Override
     public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
         ObjectObjectOpenHashMap<Object, ParentDoc[]> parentDocs = new ObjectObjectOpenHashMap<>();
         SearchContext searchContext = SearchContext.current();
@@ -196,7 +190,7 @@ public class TopChildrenQuery extends Query {
                 if (terms == null) {
                     continue;
                 }
-                TermsEnum termsEnum = terms.iterator(null);
+                TermsEnum termsEnum = terms.iterator();
                 if (!termsEnum.seekExact(Uid.createUidAsBytes(parentType, parentId))) {
                     continue;
                 }
@@ -306,6 +300,10 @@ public class TopChildrenQuery extends Query {
         }
 
         @Override
+        public void extractTerms(Set<Term> terms) {
+        }
+
+        @Override
         public float getValueForNormalization() throws IOException {
             float sum = queryWeight.getValueForNormalization();
             sum *= getBoost() * getBoost();
@@ -318,7 +316,7 @@ public class TopChildrenQuery extends Query {
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
         }
 
         @Override
@@ -362,14 +360,14 @@ public class TopChildrenQuery extends Query {
 
                     };
                 }
-                throw new ElasticsearchIllegalStateException("No support for score type [" + scoreType + "]");
+                throw new IllegalStateException("No support for score type [" + scoreType + "]");
             }
             return new EmptyScorer(this);
         }
 
         @Override
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-            return new Explanation(getBoost(), "not implemented yet...");
+            return Explanation.match(getBoost(), "not implemented yet...");
         }
     }
 

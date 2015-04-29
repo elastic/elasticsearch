@@ -40,7 +40,7 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
 
     @Inject
     public TransportGetMappingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, GetMappingsAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, GetMappingsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetMappingsRequest.class);
     }
 
     @Override
@@ -51,12 +51,7 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
 
     @Override
     protected ClusterBlockException checkBlock(GetMappingsRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
-    }
-
-    @Override
-    protected GetMappingsRequest newRequest() {
-        return new GetMappingsRequest();
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override
@@ -65,7 +60,7 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
     }
 
     @Override
-    protected void doMasterOperation(final GetMappingsRequest request, String[] concreteIndices, final ClusterState state, final ActionListener<GetMappingsResponse> listener) throws ElasticsearchException {
+    protected void doMasterOperation(final GetMappingsRequest request, String[] concreteIndices, final ClusterState state, final ActionListener<GetMappingsResponse> listener) {
         logger.trace("serving getMapping request based on version {}", state.version());
         ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> result = state.metaData().findMappings(
                 concreteIndices, request.types()

@@ -18,20 +18,17 @@
  */
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.collect.Iterators;
 
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.SimpleFSDirectory;
-import org.apache.lucene.util.TestRuleMarkFailure;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -44,10 +41,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Assert;
 import org.junit.Test;
 
-import java.io.Closeable;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -72,6 +67,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
+@LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to work with ExtrasFS
 public class MetaDataStateFormatTest extends ElasticsearchTestCase {
 
 
@@ -91,7 +87,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
                 return MetaData.Builder.fromXContent(parser);
             }
         };
-        Path tmp = newTempDirPath();
+        Path tmp = createTempDir();
         final InputStream resource = this.getClass().getResourceAsStream("global-3.st");
         assertThat(resource, notNullValue());
         Path dst = tmp.resolve("global-3.st");
@@ -105,7 +101,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
     public void testReadWriteState() throws IOException {
         Path[] dirs = new Path[randomIntBetween(1, 5)];
         for (int i = 0; i < dirs.length; i++) {
-            dirs[i] = newTempDirPath(LifecycleScope.TEST);
+            dirs[i] = createTempDir();
         }
         final long id = addDummyFiles("foo-", dirs);
         Format format = new Format(randomFrom(XContentType.values()), "foo-");
@@ -147,7 +143,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
     public void testVersionMismatch() throws IOException {
         Path[] dirs = new Path[randomIntBetween(1, 5)];
         for (int i = 0; i < dirs.length; i++) {
-            dirs[i] = newTempDirPath(LifecycleScope.TEST);
+            dirs[i] = createTempDir();
         }
         final long id = addDummyFiles("foo-", dirs);
 
@@ -172,7 +168,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
     public void testCorruption() throws IOException {
         Path[] dirs = new Path[randomIntBetween(1, 5)];
         for (int i = 0; i < dirs.length; i++) {
-            dirs[i] = newTempDirPath(LifecycleScope.TEST);
+            dirs[i] = createTempDir();
         }
         final long id = addDummyFiles("foo-", dirs);
         Format format = new Format(randomFrom(XContentType.values()), "foo-");
@@ -246,8 +242,8 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         final ToXContent.Params params = ToXContent.EMPTY_PARAMS;
         MetaDataStateFormat<MetaData> format = MetaStateService.globalStateFormat(randomFrom(XContentType.values()), params);
         final Path[] dirs = new Path[2];
-        dirs[0] = newTempDirPath(LifecycleScope.TEST);
-        dirs[1] = newTempDirPath(LifecycleScope.TEST);
+        dirs[0] = createTempDir();
+        dirs[1] = createTempDir();
         for (Path dir : dirs) {
             Files.createDirectories(dir.resolve(MetaDataStateFormat.STATE_DIR_NAME));
         }
@@ -271,7 +267,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         try {
             format.loadLatestState(logger, dirs);
             fail("latest version can not be read");
-        } catch (ElasticsearchIllegalStateException ex) {
+        } catch (IllegalStateException ex) {
             assertThat(ex.getMessage(), startsWith("Could not find a state file to recover from among "));
         }
         // write the next state file in the new format and ensure it get's a higher ID
@@ -291,8 +287,8 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         final ToXContent.Params params = ToXContent.EMPTY_PARAMS;
         MetaDataStateFormat<MetaData> format = MetaStateService.globalStateFormat(randomFrom(XContentType.values()), params);
         final Path[] dirs = new Path[2];
-        dirs[0] = newTempDirPath(LifecycleScope.TEST);
-        dirs[1] = newTempDirPath(LifecycleScope.TEST);
+        dirs[0] = createTempDir();
+        dirs[1] = createTempDir();
         for (Path dir : dirs) {
             Files.createDirectories(dir.resolve(MetaDataStateFormat.STATE_DIR_NAME));
         }
@@ -333,7 +329,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         Set<Path> corruptedFiles = new HashSet<>();
         MetaDataStateFormat<MetaData> format = MetaStateService.globalStateFormat(randomFrom(XContentType.values()), params);
         for (int i = 0; i < dirs.length; i++) {
-            dirs[i] = newTempDirPath(LifecycleScope.TEST);
+            dirs[i] = createTempDir();
             Files.createDirectories(dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME));
             for (int j = 0; j < numLegacy; j++) {
                 XContentType type = format.format();
@@ -428,7 +424,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         @Override
         protected Directory newDirectory(Path dir) throws IOException {
             MockDirectoryWrapper  mock = new MockDirectoryWrapper(getRandom(), super.newDirectory(dir));
-            closeAfterSuite(new CloseableDirectory(mock, suiteFailureMarker));
+            closeAfterSuite(mock);
             return mock;
         }
     }
@@ -534,33 +530,6 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
                 }
             }
             return this;
-        }
-    }
-
-    // copied from lucene - it's package private
-    final class CloseableDirectory implements Closeable {
-        private final BaseDirectoryWrapper dir;
-        private final TestRuleMarkFailure failureMarker;
-
-        public CloseableDirectory(BaseDirectoryWrapper dir,
-                                  TestRuleMarkFailure failureMarker) {
-            this.dir = dir;
-            this.failureMarker = failureMarker;
-        }
-
-        @Override
-        public void close() throws IOException {
-            // We only attempt to check open/closed state if there were no other test
-            // failures.
-            try {
-                if (failureMarker.wasSuccessful() && dir.isOpen()) {
-                    Assert.fail("Directory not closed: " + dir);
-                }
-            } finally {
-                if (dir.isOpen()) {
-                    dir.close();
-                }
-            }
         }
     }
 

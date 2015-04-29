@@ -23,6 +23,7 @@ import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 /**
  */
@@ -42,11 +43,11 @@ public class UidAndRoutingFieldsVisitor extends FieldsVisitor {
     }
 
     @Override
-    public void stringField(FieldInfo fieldInfo, String value) throws IOException {
+    public void stringField(FieldInfo fieldInfo, byte[] bytes) throws IOException {
         if (RoutingFieldMapper.NAME.equals(fieldInfo.name)) {
-            routing = value;
+            routing = new String(bytes, StandardCharsets.UTF_8);;
         } else {
-            super.stringField(fieldInfo, value);
+            super.stringField(fieldInfo, bytes);
         }
     }
 

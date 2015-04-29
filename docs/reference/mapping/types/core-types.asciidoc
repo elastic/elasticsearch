@@ -426,6 +426,9 @@ and it can be retrieved from it).
 in `_source`, have `include_in_all` enabled, or `store` be set to
 `true` for this to be useful.
 
+|`doc_values` |Set to `true` to store field values in a column-stride fashion.
+Automatically set to `true` when the fielddata format is `doc_values`.
+
 |`boost` |The boost value. Defaults to `1.0`.
 
 |`null_value` |When there is a (JSON) null value for the field, use the

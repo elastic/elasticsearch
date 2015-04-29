@@ -21,7 +21,6 @@ package org.elasticsearch.common.xcontent;
 
 import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
 import com.fasterxml.jackson.dataformat.smile.SmileConstants;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -111,7 +110,7 @@ public class XContentFactory {
         } else if (type == XContentType.CBOR) {
             return cborBuilder(outputStream);
         }
-        throw new ElasticsearchIllegalArgumentException("No matching content type for " + type);
+        throw new IllegalArgumentException("No matching content type for " + type);
     }
 
     /**
@@ -127,7 +126,7 @@ public class XContentFactory {
         } else if (type == XContentType.CBOR) {
             return CborXContent.contentBuilder();
         }
-        throw new ElasticsearchIllegalArgumentException("No matching content type for " + type);
+        throw new IllegalArgumentException("No matching content type for " + type);
     }
 
     /**

@@ -52,9 +52,7 @@ public class BoostScoreFunction extends ScoreFunction {
 
             @Override
             public Explanation explainScore(int docId, Explanation subQueryScore) {
-                Explanation exp = new Explanation(boost, "static boost factor");
-                exp.addDetail(new Explanation(boost, "boostFactor"));
-                return exp;
+                return Explanation.match(boost, "static boost factor", Explanation.match(boost, "boostFactor"));
             }
         };
     }

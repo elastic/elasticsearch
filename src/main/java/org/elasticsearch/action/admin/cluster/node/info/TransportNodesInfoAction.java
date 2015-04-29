@@ -49,13 +49,9 @@ public class TransportNodesInfoAction extends TransportNodesOperationAction<Node
     public TransportNodesInfoAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                     ClusterService clusterService, TransportService transportService,
                                     NodeService nodeService, ActionFilters actionFilters) {
-        super(settings, NodesInfoAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
+        super(settings, NodesInfoAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+                NodesInfoRequest.class, NodeInfoRequest.class, ThreadPool.Names.MANAGEMENT);
         this.nodeService = nodeService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
     }
 
     @Override
@@ -71,16 +67,6 @@ public class TransportNodesInfoAction extends TransportNodesOperationAction<Node
     }
 
     @Override
-    protected NodesInfoRequest newRequest() {
-        return new NodesInfoRequest();
-    }
-
-    @Override
-    protected NodeInfoRequest newNodeRequest() {
-        return new NodeInfoRequest();
-    }
-
-    @Override
     protected NodeInfoRequest newNodeRequest(String nodeId, NodesInfoRequest request) {
         return new NodeInfoRequest(nodeId, request);
     }
@@ -91,7 +77,7 @@ public class TransportNodesInfoAction extends TransportNodesOperationAction<Node
     }
 
     @Override
-    protected NodeInfo nodeOperation(NodeInfoRequest nodeRequest) throws ElasticsearchException {
+    protected NodeInfo nodeOperation(NodeInfoRequest nodeRequest) {
         NodesInfoRequest request = nodeRequest.request;
         return nodeService.info(request.settings(), request.os(), request.process(), request.jvm(), request.threadPool(),
                 request.network(), request.transport(), request.http(), request.plugins());

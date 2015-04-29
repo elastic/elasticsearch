@@ -29,7 +29,6 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -127,7 +126,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
             try {
                 return DocValues.getSortedNumeric(reader, field);
             } catch (IOException e) {
-                throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
+                throw new IllegalStateException("Cannot load doc values", e);
             }
         }
         
@@ -176,7 +175,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
                     return new MultiFloatValues(raw);
                 }
             } catch (IOException e) {
-                throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
+                throw new IllegalStateException("Cannot load doc values", e);
             }
         }
         
@@ -261,7 +260,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
                 SortedNumericDocValues raw = DocValues.getSortedNumeric(reader, field);
                 return FieldData.sortableLongBitsToDoubles(raw);
             } catch (IOException e) {
-                throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
+                throw new IllegalStateException("Cannot load doc values", e);
             }
         }
         

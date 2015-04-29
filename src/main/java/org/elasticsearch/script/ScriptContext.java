@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 
 /**
@@ -75,10 +74,10 @@ public interface ScriptContext {
          */
         public Plugin(String pluginName, String operation) {
             if (Strings.hasLength(pluginName) == false) {
-                throw new ElasticsearchIllegalArgumentException("plugin name cannot be empty when registering a custom script context");
+                throw new IllegalArgumentException("plugin name cannot be empty when registering a custom script context");
             }
             if (Strings.hasLength(operation) == false) {
-                throw new ElasticsearchIllegalArgumentException("operation name cannot be empty when registering a custom script context");
+                throw new IllegalArgumentException("operation name cannot be empty when registering a custom script context");
             }
             this.pluginName = pluginName;
             this.operation = operation;

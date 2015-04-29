@@ -20,11 +20,12 @@
 package org.elasticsearch.search.aggregations.reducers.movavg.models;
 
 import com.google.common.collect.EvictingQueue;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
 
 public abstract class MovAvgModel {
 
@@ -57,7 +58,7 @@ public abstract class MovAvgModel {
 
         // special case for one prediction, avoids allocation
         if (numPredictions < 1) {
-            throw new ElasticsearchIllegalArgumentException("numPredictions may not be less than 1.");
+            throw new IllegalArgumentException("numPredictions may not be less than 1.");
         } else if (numPredictions == 1){
             predictions[0] = next(values);
             return predictions;

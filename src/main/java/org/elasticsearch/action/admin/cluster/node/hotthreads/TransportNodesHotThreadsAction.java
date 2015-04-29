@@ -46,12 +46,8 @@ public class TransportNodesHotThreadsAction extends TransportNodesOperationActio
     @Inject
     public TransportNodesHotThreadsAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                           ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
-        super(settings, NodesHotThreadsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.GENERIC;
+        super(settings, NodesHotThreadsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+                NodesHotThreadsRequest.class, NodeRequest.class, ThreadPool.Names.GENERIC);
     }
 
     @Override
@@ -67,16 +63,6 @@ public class TransportNodesHotThreadsAction extends TransportNodesOperationActio
     }
 
     @Override
-    protected NodesHotThreadsRequest newRequest() {
-        return new NodesHotThreadsRequest();
-    }
-
-    @Override
-    protected NodeRequest newNodeRequest() {
-        return new NodeRequest();
-    }
-
-    @Override
     protected NodeRequest newNodeRequest(String nodeId, NodesHotThreadsRequest request) {
         return new NodeRequest(nodeId, request);
     }
@@ -87,7 +73,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesOperationActio
     }
 
     @Override
-    protected NodeHotThreads nodeOperation(NodeRequest request) throws ElasticsearchException {
+    protected NodeHotThreads nodeOperation(NodeRequest request) {
         HotThreads hotThreads = new HotThreads()
                 .busiestThreads(request.request.threads)
                 .type(request.request.type)

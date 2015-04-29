@@ -20,7 +20,7 @@
 package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -55,7 +55,7 @@ public class CustomScriptContextTests extends ElasticsearchIntegrationTest {
         for (String lang : LANG_SET) {
             for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
                 try {
-                    scriptService.compile(lang, "test", scriptType, new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"));
+                    scriptService.compile(new Script(lang, "test", scriptType, null), new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"));
                     fail("script compilation should have been rejected");
                 } catch(ScriptException e) {
                     assertThat(e.getMessage(), containsString("scripts of type [" + scriptType + "], operation [" + PLUGIN_NAME + "_custom_globally_disabled_op] and lang [" + lang + "] are disabled"));
@@ -64,20 +64,20 @@ public class CustomScriptContextTests extends ElasticsearchIntegrationTest {
         }
 
         try {
-            scriptService.compile("expression", "1", ScriptService.ScriptType.INLINE, new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"));
+            scriptService.compile(new Script("expression", "1", ScriptService.ScriptType.INLINE, null), new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"));
             fail("script compilation should have been rejected");
         } catch(ScriptException e) {
             assertThat(e.getMessage(), containsString("scripts of type [inline], operation [" + PLUGIN_NAME + "_custom_exp_disabled_op] and lang [expression] are disabled"));
         }
 
-        CompiledScript compiledScript = scriptService.compile("expression", "1", ScriptService.ScriptType.INLINE, randomFrom(ScriptContext.Standard.values()));
+        CompiledScript compiledScript = scriptService.compile(new Script("expression", "1", ScriptService.ScriptType.INLINE, null), randomFrom(ScriptContext.Standard.values()));
         assertThat(compiledScript, notNullValue());
 
-        compiledScript = scriptService.compile("mustache", "1", ScriptService.ScriptType.INLINE, new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"));
+        compiledScript = scriptService.compile(new Script("mustache", "1", ScriptService.ScriptType.INLINE, null), new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"));
         assertThat(compiledScript, notNullValue());
 
         for (String lang : LANG_SET) {
-            compiledScript = scriptService.compile(lang, "1", ScriptService.ScriptType.INLINE, new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"));
+            compiledScript = scriptService.compile(new Script(lang, "1", ScriptService.ScriptType.INLINE, null), new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"));
             assertThat(compiledScript, notNullValue());
         }
     }
@@ -86,9 +86,9 @@ public class CustomScriptContextTests extends ElasticsearchIntegrationTest {
     public void testCompileNonRegisteredPluginContext() {
         ScriptService scriptService = internalCluster().getInstance(ScriptService.class);
         try {
-            scriptService.compile(randomFrom(LANG_SET.toArray(new String[LANG_SET.size()])), "test", randomFrom(ScriptService.ScriptType.values()), new ScriptContext.Plugin("test", "unknown"));
+            scriptService.compile(new Script(randomFrom(LANG_SET.toArray(new String[LANG_SET.size()])), "test", randomFrom(ScriptService.ScriptType.values()), null), new ScriptContext.Plugin("test", "unknown"));
             fail("script compilation should have been rejected");
-        } catch(ElasticsearchIllegalArgumentException e) {
+        } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("script context [test_unknown] not supported"));
         }
     }
@@ -97,14 +97,14 @@ public class CustomScriptContextTests extends ElasticsearchIntegrationTest {
     public void testCompileNonRegisteredScriptContext() {
         ScriptService scriptService = internalCluster().getInstance(ScriptService.class);
         try {
-            scriptService.compile(randomFrom(LANG_SET.toArray(new String[LANG_SET.size()])), "test", randomFrom(ScriptService.ScriptType.values()), new ScriptContext() {
+            scriptService.compile(new Script(randomFrom(LANG_SET.toArray(new String[LANG_SET.size()])), "test", randomFrom(ScriptService.ScriptType.values()), null), new ScriptContext() {
                 @Override
                 public String getKey() {
                     return "test";
                 }
             });
             fail("script compilation should have been rejected");
-        } catch(ElasticsearchIllegalArgumentException e) {
+        } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("script context [test] not supported"));
         }
     }

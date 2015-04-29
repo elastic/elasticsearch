@@ -44,12 +44,14 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         public static final boolean ONLY_EXPUNGE_DELETES = false;
         public static final boolean FLUSH = true;
         public static final boolean UPGRADE = false;
+        public static final boolean UPGRADE_ONLY_ANCIENT_SEGMENTS = false;
     }
     
     private int maxNumSegments = Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;
     private boolean upgrade = Defaults.UPGRADE;
+    private boolean upgradeOnlyAncientSegments = Defaults.UPGRADE_ONLY_ANCIENT_SEGMENTS;
 
     /**
      * Constructs an optimization request over one or more indices.
@@ -136,6 +138,7 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
         upgrade = in.readBoolean();
+        upgradeOnlyAncientSegments = in.readBoolean();
     }
 
     @Override
@@ -145,6 +148,23 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
         out.writeBoolean(upgrade);
+        out.writeBoolean(upgradeOnlyAncientSegments);
+    }
+
+    /**
+     * Should the merge upgrade only the ancient (older major version of Lucene) segments?
+     * Defaults to <tt>false</tt>.
+     */
+    public boolean upgradeOnlyAncientSegments() {
+        return upgradeOnlyAncientSegments;
+    }
+
+    /**
+     * See {@link #upgradeOnlyAncientSegments()}
+     */
+    public OptimizeRequest upgradeOnlyAncientSegments(boolean upgradeOnlyAncientSegments) {
+        this.upgradeOnlyAncientSegments = upgradeOnlyAncientSegments;
+        return this;
     }
 
     @Override
@@ -154,6 +174,7 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
                 ", onlyExpungeDeletes=" + onlyExpungeDeletes +
                 ", flush=" + flush +
                 ", upgrade=" + upgrade +
+                ", upgradeOnlyAncientSegments=" + upgradeOnlyAncientSegments +
                 '}';
     }
 }

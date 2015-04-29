@@ -27,7 +27,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -83,7 +82,7 @@ public class MultiMatchQuery extends MatchQuery {
                 queryBuilder = new CrossFieldsQueryBuilder(tieBreaker);
                 break;
             default:
-                throw new ElasticsearchIllegalStateException("No such type: " + type);
+                throw new IllegalStateException("No such type: " + type);
         }
         final List<? extends Query> queries = queryBuilder.buildGroupedQueries(type, fieldNames, value, minimumShouldMatch);
         return queryBuilder.conbineGrouped(queries);

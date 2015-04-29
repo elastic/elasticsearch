@@ -56,10 +56,10 @@ public class DerivativeParser implements Reducer.Parser {
                 } else if (BUCKETS_PATH.match(currentFieldName)) {
                     bucketsPaths = new String[] { parser.text() };
                 } else if (GAP_POLICY.match(currentFieldName)) {
-                    gapPolicy = GapPolicy.parse(context, parser.text());
+                    gapPolicy = GapPolicy.parse(context, parser.text(), parser.getTokenLocation());
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
-                            + currentFieldName + "].");
+                            + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (BUCKETS_PATH.match(currentFieldName)) {
@@ -71,16 +71,17 @@ public class DerivativeParser implements Reducer.Parser {
                     bucketsPaths = paths.toArray(new String[paths.size()]);
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
-                            + currentFieldName + "].");
+                            + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + reducerName + "].");
+                throw new SearchParseException(context, "Unexpected token " + token + " in [" + reducerName + "].",
+                        parser.getTokenLocation());
             }
         }
 
         if (bucketsPaths == null) {
             throw new SearchParseException(context, "Missing required field [" + BUCKETS_PATH.getPreferredName()
-                    + "] for derivative aggregation [" + reducerName + "]");
+                    + "] for derivative aggregation [" + reducerName + "]", parser.getTokenLocation());
         }
 
         ValueFormatter formatter = null;

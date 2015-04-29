@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -44,7 +43,7 @@ public class DiscoverySettings extends AbstractComponent {
     public final static int NO_MASTER_BLOCK_ID = 2;
 
     public final static ClusterBlock NO_MASTER_BLOCK_ALL = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
-    public final static ClusterBlock NO_MASTER_BLOCK_WRITES = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, false, RestStatus.SERVICE_UNAVAILABLE, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA));
+    public final static ClusterBlock NO_MASTER_BLOCK_WRITES = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, false, RestStatus.SERVICE_UNAVAILABLE, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
 
     private volatile ClusterBlock noMasterBlock;
     private volatile TimeValue publishTimeout = DEFAULT_PUBLISH_TIMEOUT;
@@ -95,7 +94,7 @@ public class DiscoverySettings extends AbstractComponent {
             case "write":
                 return NO_MASTER_BLOCK_WRITES;
             default:
-                throw new ElasticsearchIllegalArgumentException("invalid master block [" + value + "]");
+                throw new IllegalArgumentException("invalid master block [" + value + "]");
         }
     }
 }

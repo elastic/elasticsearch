@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.create;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -105,14 +104,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         ActionRequestValidationException validationException = null;
         if (index == null) {
             validationException = addValidationError("index is missing", validationException);
-        }
-        Integer number_of_primaries = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
-        Integer number_of_replicas = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null);
-        if (number_of_primaries != null && number_of_primaries <= 0) {
-            validationException = addValidationError("index must have 1 or more primary shards", validationException);
-        }
-        if (number_of_replicas != null && number_of_replicas < 0) {
-            validationException = addValidationError("index must have 0 or more replica shards", validationException);
         }
         return validationException;
     }
@@ -247,7 +238,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         try {
             mappings.put(type, source.string());
         } catch (IOException e) {
-            throw new ElasticsearchIllegalArgumentException("Failed to build json for mapping request", e);
+            throw new IllegalArgumentException("Failed to build json for mapping request", e);
         }
         return this;
     }

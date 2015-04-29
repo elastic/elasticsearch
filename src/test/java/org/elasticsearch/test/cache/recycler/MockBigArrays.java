@@ -30,7 +30,6 @@ import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
@@ -87,18 +86,16 @@ public class MockBigArrays extends BigArrays {
     }
 
     private final Random random;
-    private final Settings settings;
     private final PageCacheRecycler recycler;
     private final CircuitBreakerService breakerService;
 
     @Inject
-    public MockBigArrays(Settings settings, PageCacheRecycler recycler, CircuitBreakerService breakerService) {
-        this(settings, recycler, breakerService, false);
+    public MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService) {
+        this(recycler, breakerService, false);
     }
 
-    public MockBigArrays(Settings settings, PageCacheRecycler recycler, CircuitBreakerService breakerService, boolean checkBreaker) {
-        super(settings, recycler, breakerService, checkBreaker);
-        this.settings = settings;
+    public MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService, boolean checkBreaker) {
+        super(recycler, breakerService, checkBreaker);
         this.recycler = recycler;
         this.breakerService = breakerService;
         long seed;
@@ -114,7 +111,7 @@ public class MockBigArrays extends BigArrays {
 
     @Override
     public BigArrays withCircuitBreaking() {
-        return new MockBigArrays(this.settings, this.recycler, this.breakerService, true);
+        return new MockBigArrays(this.recycler, this.breakerService, true);
     }
 
     @Override

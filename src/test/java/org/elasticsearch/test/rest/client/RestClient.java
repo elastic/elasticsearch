@@ -25,6 +25,7 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
@@ -54,7 +55,7 @@ public class RestClient implements Closeable {
     private final CloseableHttpClient httpClient;
     private final Headers headers;
     private final InetSocketAddress[] addresses;
-    private final String esVersion;
+    private final Version esVersion;
 
     public RestClient(RestSpec restSpec, Settings settings, InetSocketAddress[] addresses) throws IOException, RestException {
         assert addresses.length > 0;
@@ -66,7 +67,7 @@ public class RestClient implements Closeable {
         logger.info("REST client initialized {}, elasticsearch version: [{}]", addresses, esVersion);
     }
 
-    private String readAndCheckVersion() throws IOException, RestException {
+    private Version readAndCheckVersion() throws IOException, RestException {
         //we make a manual call here without using callApi method, mainly because we are initializing
         //and the randomized context doesn't exist for the current thread (would be used to choose the method otherwise)
         RestApi restApi = restApi("info");
@@ -93,10 +94,10 @@ public class RestClient implements Closeable {
                 }
             }
         }
-        return version;
+        return Version.fromString(version);
     }
 
-    public String getEsVersion() {
+    public Version getEsVersion() {
         return esVersion;
     }
 

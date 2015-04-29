@@ -18,10 +18,7 @@
  */
 package org.elasticsearch.index.store;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
-
 import org.apache.lucene.store.*;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -32,11 +29,11 @@ import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.*;
 
-public class DirectoryUtilsTest extends ElasticsearchLuceneTestCase {
+public class DirectoryUtilsTest extends ElasticsearchTestCase {
 
     @Test
     public void testGetLeave() throws IOException {
-        Path file = ElasticsearchTestCase.newTempDirPath(LifecycleScope.TEST);
+        Path file = createTempDir();
         final int iters = scaledRandomIntBetween(10, 100);
         for (int i = 0; i < iters; i++) {
             {

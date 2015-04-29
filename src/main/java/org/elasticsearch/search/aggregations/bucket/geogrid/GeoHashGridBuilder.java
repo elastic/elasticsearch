@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 
@@ -56,7 +55,7 @@ public class GeoHashGridBuilder extends AggregationBuilder<GeoHashGridBuilder> {
      */
     public GeoHashGridBuilder precision(int precision) {
         if ((precision < 1) || (precision > 12)) {
-            throw new ElasticsearchIllegalArgumentException("Invalid geohash aggregation precision of " + precision
+            throw new IllegalArgumentException("Invalid geohash aggregation precision of " + precision
                     + "must be between 1 and 12");
         }
         this.precision = precision;

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.settings.Validator;
@@ -58,7 +56,7 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
             try {
                 ClusterRebalanceType.parseString(value);
                 return null;
-            } catch (ElasticsearchIllegalArgumentException e) {
+            } catch (IllegalArgumentException e) {
                 return "the value of " + setting + " must be one of: [always, indices_primaries_active, indices_all_active]";
             }
         }
@@ -89,7 +87,7 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
             } else if ("indices_all_active".equalsIgnoreCase(typeString) || "indicesAllActive".equalsIgnoreCase(typeString)) {
                 return ClusterRebalanceType.INDICES_ALL_ACTIVE;
             }
-            throw new ElasticsearchIllegalArgumentException("Illegal value for " + CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE + ": " + typeString);
+            throw new IllegalArgumentException("Illegal value for " + CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE + ": " + typeString);
         }
     }
 
@@ -101,7 +99,7 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
         String allowRebalance = settings.get(CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "indices_all_active");
         try {
             type = ClusterRebalanceType.parseString(allowRebalance);
-        } catch (ElasticsearchIllegalStateException e) {
+        } catch (IllegalStateException e) {
             logger.warn("[{}] has a wrong value {}, defaulting to 'indices_all_active'", CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, allowRebalance);
             type = ClusterRebalanceType.INDICES_ALL_ACTIVE;
         }
@@ -119,7 +117,7 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
                 ClusterRebalanceType newType = null;
                 try {
                     newType = ClusterRebalanceType.parseString(newAllowRebalance);
-                } catch (ElasticsearchIllegalArgumentException e) {
+                } catch (IllegalArgumentException e) {
                     // ignore
                 }
 

@@ -23,13 +23,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.zip.Adler32;
 
 import org.apache.lucene.index.CorruptIndexException;
-
 import org.apache.lucene.store.IndexOutput;
-
 import org.apache.lucene.store.IOContext;
-
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 
 /** 
  * Simple tests for LegacyVerification (old segments)
@@ -37,7 +34,7 @@ import org.elasticsearch.test.ElasticsearchLuceneTestCase;
  *             segments is not longer needed. 
  */
 @Deprecated
-public class LegacyVerificationTests extends ElasticsearchLuceneTestCase {
+public class LegacyVerificationTests extends ElasticsearchTestCase {
     
     public void testAdler32() throws Exception {
         Adler32 expected = new Adler32();

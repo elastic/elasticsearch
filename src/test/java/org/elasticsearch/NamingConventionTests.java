@@ -20,9 +20,12 @@ package org.elasticsearch;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Sets;
+
 import junit.framework.TestCase;
+
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
 import org.junit.Ignore;
@@ -51,10 +54,10 @@ public class NamingConventionTests extends ElasticsearchTestCase {
         String[] packages = {"org.elasticsearch", "org.apache.lucene"};
         for (final String packageName : packages) {
             final String path = "/" + packageName.replace('.', '/');
-            final Path startPath = Paths.get(NamingConventionTests.class.getResource(path).toURI());
-            final Set<Path> ignore = Sets.newHashSet(Paths.get("/org/elasticsearch/stresstest"), Paths.get("/org/elasticsearch/benchmark/stress"));
+            final Path startPath = getDataPath(path);
+            final Set<Path> ignore = Sets.newHashSet(PathUtils.get("/org/elasticsearch/stresstest"), PathUtils.get("/org/elasticsearch/benchmark/stress"));
             Files.walkFileTree(startPath, new FileVisitor<Path>() {
-                private Path pkgPrefix = Paths.get(path).getParent();
+                private Path pkgPrefix = PathUtils.get(path).getParent();
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
                     Path next =  pkgPrefix.resolve(dir.getFileName());
@@ -101,7 +104,7 @@ public class NamingConventionTests extends ElasticsearchTestCase {
                 }
 
                 private boolean isTestCase(Class<?> clazz) {
-                    return ElasticsearchTestCase.class.isAssignableFrom(clazz) || ElasticsearchLuceneTestCase.class.isAssignableFrom(clazz) || ElasticsearchTokenStreamTestCase.class.isAssignableFrom(clazz) || LuceneTestCase.class.isAssignableFrom(clazz);
+                    return ElasticsearchTestCase.class.isAssignableFrom(clazz) || ElasticsearchTestCase.class.isAssignableFrom(clazz) || ElasticsearchTokenStreamTestCase.class.isAssignableFrom(clazz) || LuceneTestCase.class.isAssignableFrom(clazz);
                 }
 
                 private Class<?> loadClass(String filename) throws ClassNotFoundException {
@@ -135,7 +138,7 @@ public class NamingConventionTests extends ElasticsearchTestCase {
 
         String classesToSubclass = Joiner.on(',').join(
                 ElasticsearchTestCase.class.getSimpleName(),
-                ElasticsearchLuceneTestCase.class.getSimpleName(),
+                ElasticsearchTestCase.class.getSimpleName(),
                 ElasticsearchTokenStreamTestCase.class.getSimpleName(),
                 LuceneTestCase.class.getSimpleName());
         assertTrue("Not all subclasses of " + ElasticsearchTestCase.class.getSimpleName() +
@@ -158,7 +161,7 @@ public class NamingConventionTests extends ElasticsearchTestCase {
 
     public static final class WrongName extends ElasticsearchTestCase {}
 
-    public static final class WrongNameTheSecond extends ElasticsearchLuceneTestCase {}
+    public static final class WrongNameTheSecond extends ElasticsearchTestCase {}
 
     public static final class PlainUnit extends TestCase {}
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.util.English;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -52,17 +53,17 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
-
+@Slow
 public class SearchQueryTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -482,14 +483,14 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                     client().prepareSearch().setQuery(matchQuery("field1", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).get();
                     fail("SearchPhaseExecutionException should have been thrown");
                 } catch (SearchPhaseExecutionException e) {
-                    assertTrue(e.getMessage().contains("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery"));
+                    assertTrue(e.toString().contains("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery"));
                 }
                 cluster().wipeIndices("test");
             } catch (MapperParsingException ex) {
                 assertThat(version.toString(), version.onOrAfter(Version.V_1_0_0_RC2), equalTo(true));
                 assertThat(ex.getCause().getMessage(), equalTo("'omit_term_freq_and_positions' is not supported anymore - use ['index_options' : 'docs']  instead"));
             }
-            version = randomVersion();
+            version = randomVersion(random());
         }
     }
 
@@ -562,7 +563,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
             fail("expected SearchPhaseExecutionException (total failure)");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-            assertThat(e.getMessage(), containsString("unit [D] not supported for date math"));
+            assertThat(e.toString(), containsString("unit [D] not supported for date math"));
         }
     }
 
@@ -1459,7 +1460,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test // see #2926
-    public void testMustNot() throws ElasticsearchException, IOException, ExecutionException, InterruptedException {
+    public void testMustNot() throws IOException, ExecutionException, InterruptedException {
         assertAcked(prepareCreate("test")
                 //issue manifested only with shards>=2
                 .setSettings(SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS)));
@@ -1482,7 +1483,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test // see #2994
-    public void testSimpleSpan() throws ElasticsearchException, IOException, ExecutionException, InterruptedException {
+    public void testSimpleSpan() throws IOException, ExecutionException, InterruptedException {
         createIndex("test");
         ensureGreen();
 
@@ -1504,7 +1505,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testSpanMultiTermQuery() throws ElasticsearchException, IOException {
+    public void testSpanMultiTermQuery() throws IOException {
         createIndex("test");
         ensureGreen();
 
@@ -1537,7 +1538,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testSpanNot() throws ElasticsearchException, IOException, ExecutionException, InterruptedException {
+    public void testSpanNot() throws IOException, ExecutionException, InterruptedException {
         createIndex("test");
         ensureGreen();
 
@@ -1576,7 +1577,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testSimpleDFSQuery() throws ElasticsearchException, IOException {
+    public void testSimpleDFSQuery() throws IOException {
         assertAcked(prepareCreate("test")
             .addMapping("s", jsonBuilder()
                 .startObject()
@@ -2492,8 +2493,8 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                     .get();
             fail("query is invalid and should have produced a parse exception");
         } catch (Exception e) {
-            assertThat("query could not be parsed due to bad format: " + e.getMessage(),
-                    e.getMessage().contains("Illegal value for id, expecting a string or number, got: START_ARRAY"),
+            assertThat("query could not be parsed due to bad format: " + e.toString(),
+                    e.toString().contains("Illegal value for id, expecting a string or number, got: START_ARRAY"),
                     equalTo(true));
         }
     }

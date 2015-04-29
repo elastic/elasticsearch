@@ -24,15 +24,16 @@ import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocValuesDocIdSet;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterCachingPolicy;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptParameterParser;
-import org.elasticsearch.script.*;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
@@ -66,7 +67,7 @@ public class ScriptFilterParser implements FilterParser {
 
         XContentParser.Token token;
 
-        FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
+        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
         HashedBytesRef cacheKey = null;
         // also, when caching, since its isCacheable is false, will result in loading all bit set...
         String script = null;
@@ -84,7 +85,7 @@ public class ScriptFilterParser implements FilterParser {
                 if ("params".equals(currentFieldName)) {
                     params = parser.map();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[script] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[script] filter does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
@@ -94,7 +95,7 @@ public class ScriptFilterParser implements FilterParser {
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new HashedBytesRef(parser.text());
                 } else if (!scriptParameterParser.token(currentFieldName, token, parser)){
-                    throw new QueryParsingException(parseContext.index(), "[script] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[script] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
@@ -107,7 +108,7 @@ public class ScriptFilterParser implements FilterParser {
         scriptLang = scriptParameterParser.lang();
 
         if (script == null) {
-            throw new QueryParsingException(parseContext.index(), "script must be provided with a [script] filter");
+            throw new QueryParsingException(parseContext, "script must be provided with a [script] filter");
         }
         if (params == null) {
             params = newHashMap();
@@ -134,7 +135,7 @@ public class ScriptFilterParser implements FilterParser {
         public ScriptFilter(String scriptLang, String script, ScriptService.ScriptType scriptType, Map<String, Object> params, ScriptService scriptService, SearchLookup searchLookup) {
             this.script = script;
             this.params = params;
-            this.searchScript = scriptService.search(searchLookup, scriptLang, script, scriptType, ScriptContext.Standard.SEARCH, newHashMap(params));
+            this.searchScript = scriptService.search(searchLookup, new Script(scriptLang, script, scriptType, newHashMap(params)), ScriptContext.Standard.SEARCH);
         }
 
         @Override
@@ -195,7 +196,7 @@ public class ScriptFilterParser implements FilterParser {
                 if (val instanceof Number) {
                     return ((Number) val).longValue() != 0;
                 }
-                throw new ElasticsearchIllegalArgumentException("Can't handle type [" + val + "] in script filter");
+                throw new IllegalArgumentException("Can't handle type [" + val + "] in script filter");
             }
 
             @Override

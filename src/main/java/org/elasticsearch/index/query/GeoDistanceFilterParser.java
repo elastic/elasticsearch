@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterCachingPolicy;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -64,7 +64,7 @@ public class GeoDistanceFilterParser implements FilterParser {
 
         XContentParser.Token token;
 
-        FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
+        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
         HashedBytesRef cacheKey = null;
         String filterName = null;
         String currentFieldName = null;
@@ -98,7 +98,8 @@ public class GeoDistanceFilterParser implements FilterParser {
                         } else if (currentName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
                             GeoHashUtils.decode(parser.text(), point);
                         } else {
-                            throw new QueryParsingException(parseContext.index(), "[geo_distance] filter does not support [" + currentFieldName + "]");
+                            throw new QueryParsingException(parseContext, "[geo_distance] filter does not support [" + currentFieldName
+                                    + "]");
                         }
                     }
                 }
@@ -141,7 +142,7 @@ public class GeoDistanceFilterParser implements FilterParser {
         }
 
         if (vDistance == null) {
-            throw new QueryParsingException(parseContext.index(), "geo_distance requires 'distance' to be specified");
+            throw new QueryParsingException(parseContext, "geo_distance requires 'distance' to be specified");
         } else if (vDistance instanceof Number) {
             distance = DistanceUnit.DEFAULT.convert(((Number) vDistance).doubleValue(), unit);
         } else {
@@ -155,11 +156,11 @@ public class GeoDistanceFilterParser implements FilterParser {
 
         MapperService.SmartNameFieldMappers smartMappers = parseContext.smartFieldMappers(fieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new QueryParsingException(parseContext.index(), "failed to find geo_point field [" + fieldName + "]");
+            throw new QueryParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
         }
         FieldMapper<?> mapper = smartMappers.mapper();
         if (!(mapper instanceof GeoPointFieldMapper)) {
-            throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
+            throw new QueryParsingException(parseContext, "field [" + fieldName + "] is not a geo_point field");
         }
         GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper) mapper);
 

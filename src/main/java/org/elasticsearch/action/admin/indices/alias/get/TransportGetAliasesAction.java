@@ -41,7 +41,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadOperationA
 
     @Inject
     public TransportGetAliasesAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, GetAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, GetAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, GetAliasesRequest.class);
     }
 
     @Override
@@ -52,12 +52,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadOperationA
 
     @Override
     protected ClusterBlockException checkBlock(GetAliasesRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
-    }
-
-    @Override
-    protected GetAliasesRequest newRequest() {
-        return new GetAliasesRequest();
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override
@@ -66,7 +61,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadOperationA
     }
 
     @Override
-    protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
         String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
         @SuppressWarnings("unchecked") // ImmutableList to List results incompatible type
                 ImmutableOpenMap<String, List<AliasMetaData>> result = (ImmutableOpenMap) state.metaData().findAliases(request.aliases(), concreteIndices);

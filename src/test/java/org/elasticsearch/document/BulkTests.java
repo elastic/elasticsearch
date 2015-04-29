@@ -133,7 +133,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         assertThat(bulkResponse.getItems()[1].getResponse(), nullValue());
         assertThat(bulkResponse.getItems()[1].getFailure().getIndex(), equalTo("test"));
         assertThat(bulkResponse.getItems()[1].getFailure().getId(), equalTo("7"));
-        assertThat(bulkResponse.getItems()[1].getFailure().getMessage(), containsString("DocumentMissingException"));
+        assertThat(bulkResponse.getItems()[1].getFailure().getMessage(), containsString("document missing"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getId(), equalTo("2"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getIndex(), equalTo("test"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(3l));
@@ -173,7 +173,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                 .add(client().prepareUpdate("test", "type", "2").setDoc("field", "2"))
                 .add(client().prepareUpdate("test", "type", "1").setVersion(2l).setDoc("field", "3")).get();
 
-        assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("Version"));
+        assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("version conflict"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(2l));
         assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(3l));
 
@@ -194,7 +194,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                 .add(client().prepareUpdate("test", "type", "e1").setDoc("field", "3").setVersion(20).setVersionType(VersionType.FORCE))
                 .add(client().prepareUpdate("test", "type", "e1").setDoc("field", "3").setVersion(20).setVersionType(VersionType.INTERNAL)).get();
 
-        assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("Version"));
+        assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("version conflict"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(20l));
         assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(21l));
     }
@@ -325,7 +325,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
             int id = i + (numDocs / 2);
             if (i >= (numDocs / 2)) {
                 assertThat(response.getItems()[i].getFailure().getId(), equalTo(Integer.toString(id)));
-                assertThat(response.getItems()[i].getFailure().getMessage(), containsString("DocumentMissingException"));
+                assertThat(response.getItems()[i].getFailure().getMessage(), containsString("document missing"));
             } else {
                 assertThat(response.getItems()[i].getId(), equalTo(Integer.toString(id)));
                 assertThat(response.getItems()[i].getVersion(), equalTo(3l));

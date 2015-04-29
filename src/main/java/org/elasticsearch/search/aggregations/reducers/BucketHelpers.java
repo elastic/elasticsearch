@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.aggregations.reducers;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -62,14 +62,14 @@ public class BucketHelpers {
          * @param text    GapPolicy in string format (e.g. "ignore")
          * @return        GapPolicy enum
          */
-        public static GapPolicy parse(SearchContext context, String text) {
+        public static GapPolicy parse(SearchContext context, String text, XContentLocation tokenLocation) {
             GapPolicy result = null;
             for (GapPolicy policy : values()) {
                 if (policy.parseField.match(text)) {
                     if (result == null) {
                         result = policy;
                     } else {
-                        throw new ElasticsearchIllegalStateException("Text can be parsed to 2 different gap policies: text=[" + text
+                        throw new IllegalStateException("Text can be parsed to 2 different gap policies: text=[" + text
                                 + "], " + "policies=" + Arrays.asList(result, policy));
                     }
                 }
@@ -79,7 +79,7 @@ public class BucketHelpers {
                 for (GapPolicy policy : values()) {
                     validNames.add(policy.getName());
                 }
-                throw new SearchParseException(context, "Invalid gap policy: [" + text + "], accepted values: " + validNames);
+                throw new SearchParseException(context, "Invalid gap policy: [" + text + "], accepted values: " + validNames, tokenLocation);
             }
             return result;
         }

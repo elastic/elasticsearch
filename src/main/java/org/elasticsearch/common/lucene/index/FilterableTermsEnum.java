@@ -31,7 +31,6 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 
@@ -69,7 +68,7 @@ public class FilterableTermsEnum extends TermsEnum {
 
     public FilterableTermsEnum(IndexReader reader, String field, int docsEnumFlag, @Nullable final Filter filter) throws IOException {
         if ((docsEnumFlag != PostingsEnum.FREQS) && (docsEnumFlag != PostingsEnum.NONE)) {
-            throw new ElasticsearchIllegalArgumentException("invalid docsEnumFlag of " + docsEnumFlag);
+            throw new IllegalArgumentException("invalid docsEnumFlag of " + docsEnumFlag);
         }
         this.docsEnumFlag = docsEnumFlag;
         if (filter == null) {
@@ -84,7 +83,7 @@ public class FilterableTermsEnum extends TermsEnum {
             if (terms == null) {
                 continue;
             }
-            TermsEnum termsEnum = terms.iterator(null);
+            TermsEnum termsEnum = terms.iterator();
             if (termsEnum == null) {
                 continue;
             }

@@ -116,9 +116,9 @@ public interface FetchSubPhase {
     /**
      * Executes the hit level phase, with a reader and doc id (note, its a low level reader, and the matching doc).
      */
-    void hitExecute(SearchContext context, HitContext hitContext) throws ElasticsearchException;
+    void hitExecute(SearchContext context, HitContext hitContext);
 
     boolean hitsExecutionNeeded(SearchContext context);
 
-    void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticsearchException;
+    void hitsExecute(SearchContext context, InternalSearchHit[] hits);
 }

@@ -45,23 +45,14 @@ public class TransportShardMultiTermsVectorAction extends TransportShardSingleOp
     @Inject
     public TransportShardMultiTermsVectorAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                                 IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
+                MultiTermVectorsShardRequest.class, ThreadPool.Names.GET);
         this.indicesService = indicesService;
     }
 
     @Override
     protected boolean isSubAction() {
         return true;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.GET;
-    }
-
-    @Override
-    protected MultiTermVectorsShardRequest newRequest() {
-        return new MultiTermVectorsShardRequest();
     }
 
     @Override
@@ -81,7 +72,7 @@ public class TransportShardMultiTermsVectorAction extends TransportShardSingleOp
     }
 
     @Override
-    protected MultiTermVectorsShardResponse shardOperation(MultiTermVectorsShardRequest request, ShardId shardId) throws ElasticsearchException {
+    protected MultiTermVectorsShardResponse shardOperation(MultiTermVectorsShardRequest request, ShardId shardId) {
         MultiTermVectorsShardResponse response = new MultiTermVectorsShardResponse();
         for (int i = 0; i < request.locations.size(); i++) {
             TermVectorsRequest termVectorsRequest = request.requests.get(i);

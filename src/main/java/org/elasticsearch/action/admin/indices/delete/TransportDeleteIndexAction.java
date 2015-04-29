@@ -48,7 +48,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
     public TransportDeleteIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, MetaDataDeleteIndexService deleteIndexService,
                                       NodeSettingsService nodeSettingsService, ActionFilters actionFilters) {
-        super(settings, DeleteIndexAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, DeleteIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, DeleteIndexRequest.class);
         this.deleteIndexService = deleteIndexService;
         this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
     }
@@ -56,11 +56,6 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected DeleteIndexRequest newRequest() {
-        return new DeleteIndexRequest();
     }
 
     @Override
@@ -76,11 +71,11 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
 
     @Override
     protected ClusterBlockException checkBlock(DeleteIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override
-    protected void masterOperation(final DeleteIndexRequest request, final ClusterState state, final ActionListener<DeleteIndexResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final DeleteIndexRequest request, final ClusterState state, final ActionListener<DeleteIndexResponse> listener) {
         String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
         if (concreteIndices.length == 0) {
             listener.onResponse(new DeleteIndexResponse(true));

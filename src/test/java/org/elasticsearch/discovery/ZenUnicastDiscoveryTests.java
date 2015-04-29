@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -36,6 +37,7 @@ import java.util.concurrent.ExecutionException;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
+@Slow
 public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
 
     private ClusterDiscoveryConfiguration discoveryConfig;
@@ -79,8 +81,9 @@ public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
     // can't be satisfied.
     public void testMinimumMasterNodes() throws Exception {
         int currentNumNodes = randomIntBetween(3, 5);
-        int currentNumOfUnicastHosts = randomIntBetween(1, currentNumNodes);
-        final Settings settings = ImmutableSettings.settingsBuilder().put("discovery.zen.minimum_master_nodes", currentNumNodes / 2 + 1).build();
+        final int min_master_nodes = currentNumNodes / 2 + 1;
+        int currentNumOfUnicastHosts = randomIntBetween(min_master_nodes, currentNumNodes);
+        final Settings settings = ImmutableSettings.settingsBuilder().put("discovery.zen.minimum_master_nodes", min_master_nodes).build();
         discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(currentNumNodes, currentNumOfUnicastHosts, settings);
 
         List<String> nodes = internalCluster().startNodesAsync(currentNumNodes).get();

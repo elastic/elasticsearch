@@ -49,13 +49,9 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
     public TransportNodesStatsAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                      ClusterService clusterService, TransportService transportService,
                                      NodeService nodeService, ActionFilters actionFilters) {
-        super(settings, NodesStatsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
+        super(settings, NodesStatsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+                NodesStatsRequest.class, NodeStatsRequest.class, ThreadPool.Names.MANAGEMENT);
         this.nodeService = nodeService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
     }
 
     @Override
@@ -71,16 +67,6 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
     }
 
     @Override
-    protected NodesStatsRequest newRequest() {
-        return new NodesStatsRequest();
-    }
-
-    @Override
-    protected NodeStatsRequest newNodeRequest() {
-        return new NodeStatsRequest();
-    }
-
-    @Override
     protected NodeStatsRequest newNodeRequest(String nodeId, NodesStatsRequest request) {
         return new NodeStatsRequest(nodeId, request);
     }
@@ -91,7 +77,7 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
     }
 
     @Override
-    protected NodeStats nodeOperation(NodeStatsRequest nodeStatsRequest) throws ElasticsearchException {
+    protected NodeStats nodeOperation(NodeStatsRequest nodeStatsRequest) {
         NodesStatsRequest request = nodeStatsRequest.request;
         return nodeService.stats(request.indices(), request.os(), request.process(), request.jvm(), request.threadPool(), request.network(),
                 request.fs(), request.transport(), request.http(), request.breaker());

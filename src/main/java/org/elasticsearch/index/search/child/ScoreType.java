@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 /**
  * Defines how scores from child documents are mapped into the parent document.
@@ -66,7 +65,7 @@ public enum ScoreType {
         } else if ("total".equals(type)) { // This name is consistent with: ScoreMode.Total
             return SUM;
         }
-        throw new ElasticsearchIllegalArgumentException("No score type for child query [" + type + "] found");
+        throw new IllegalArgumentException("No score type for child query [" + type + "] found");
     }
 
 }

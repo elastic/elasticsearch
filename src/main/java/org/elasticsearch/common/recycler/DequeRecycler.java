@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.recycler;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 
 import java.util.Deque;
 
@@ -89,7 +88,7 @@ public class DequeRecycler<T> extends AbstractRecycler<T> {
         @Override
         public void close() {
             if (value == null) {
-                throw new ElasticsearchIllegalStateException("recycler entry already released...");
+                throw new IllegalStateException("recycler entry already released...");
             }
             final boolean recycle = beforeRelease();
             if (recycle) {

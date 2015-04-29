@@ -17,7 +17,6 @@
 
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -285,7 +284,7 @@ public class GeoHashUtils {
             case 'z':
                 return 31;
             default:
-                throw new ElasticsearchIllegalArgumentException("the character '" + geo + "' is not a valid geohash character");
+                throw new IllegalArgumentException("the character '" + geo + "' is not a valid geohash character");
         }
     }
 
@@ -354,7 +353,7 @@ public class GeoHashUtils {
     public static long encodeAsLong(double latitude, double longitude, int precision) {
         if((precision>12)||(precision<1))
         {
-            throw new ElasticsearchIllegalArgumentException("Illegal precision length of "+precision+
+            throw new IllegalArgumentException("Illegal precision length of "+precision+
                     ". Long-based geohashes only support precisions between 1 and 12");
         }
         double latInterval0 = -90.0;

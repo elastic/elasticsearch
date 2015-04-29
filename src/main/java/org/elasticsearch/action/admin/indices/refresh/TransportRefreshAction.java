@@ -53,18 +53,9 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
     @Inject
     public TransportRefreshAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                   TransportService transportService, IndicesService indicesService, ActionFilters actionFilters) {
-        super(settings, RefreshAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, RefreshAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                RefreshRequest.class, ShardRefreshRequest.class, ThreadPool.Names.REFRESH);
         this.indicesService = indicesService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.REFRESH;
-    }
-
-    @Override
-    protected RefreshRequest newRequest() {
-        return new RefreshRequest();
     }
 
     @Override
@@ -90,11 +81,6 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
     }
 
     @Override
-    protected ShardRefreshRequest newShardRequest() {
-        return new ShardRefreshRequest();
-    }
-
-    @Override
     protected ShardRefreshRequest newShardRequest(int numShards, ShardRouting shard, RefreshRequest request) {
         return new ShardRefreshRequest(shard.shardId(), request);
     }
@@ -105,7 +91,7 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
     }
 
     @Override
-    protected ShardRefreshResponse shardOperation(ShardRefreshRequest request) throws ElasticsearchException {
+    protected ShardRefreshResponse shardOperation(ShardRefreshRequest request) {
         IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).shardSafe(request.shardId().id());
         indexShard.refresh("api");
         logger.trace("{} refresh request executed", indexShard.shardId());
@@ -122,11 +108,11 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, RefreshRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, RefreshRequest countRequest, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, concreteIndices);
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
     }
 }

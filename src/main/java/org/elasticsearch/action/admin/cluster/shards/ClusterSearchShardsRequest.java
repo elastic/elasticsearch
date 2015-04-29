@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.shards;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -61,11 +60,11 @@ public class ClusterSearchShardsRequest extends MasterNodeReadOperationRequest<C
     @Override
     public ClusterSearchShardsRequest indices(String... indices) {
         if (indices == null) {
-            throw new ElasticsearchIllegalArgumentException("indices must not be null");
+            throw new IllegalArgumentException("indices must not be null");
         } else {
             for (int i = 0; i < indices.length; i++) {
                 if (indices[i] == null) {
-                    throw new ElasticsearchIllegalArgumentException("indices[" + i + "] must not be null");
+                    throw new IllegalArgumentException("indices[" + i + "] must not be null");
                 }
             }
         }

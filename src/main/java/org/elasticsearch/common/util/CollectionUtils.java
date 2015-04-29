@@ -23,8 +23,8 @@ import com.carrotsearch.hppc.DoubleArrayList;
 import com.carrotsearch.hppc.FloatArrayList;
 import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.ObjectArrayList;
+import com.google.common.base.Preconditions;
 import org.apache.lucene.util.*;
-import org.elasticsearch.common.Preconditions;
 
 import java.util.*;
 

@@ -83,15 +83,15 @@ public class RiversRouter extends AbstractLifecycleComponent<RiversRouter> imple
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
     }
 
     @Override

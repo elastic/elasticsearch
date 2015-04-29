@@ -56,7 +56,7 @@ public class IndicesFilterParser implements FilterParser {
         XContentParser parser = parseContext.parser();
 
         Filter filter = null;
-        Filter noMatchFilter = Queries.MATCH_ALL_FILTER;
+        Filter noMatchFilter = Queries.newMatchAllFilter();
         boolean filterFound = false;
         boolean indicesFound = false;
         boolean currentIndexMatchesIndices = false;
@@ -83,52 +83,52 @@ public class IndicesFilterParser implements FilterParser {
                         noMatchFilter = parseContext.parseInnerFilter();
                     }
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[indices] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[indices] filter does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("indices".equals(currentFieldName)) {
                     if (indicesFound) {
-                        throw  new QueryParsingException(parseContext.index(), "[indices] indices or index already specified");
+                        throw new QueryParsingException(parseContext, "[indices] indices or index already specified");
                     }
                     indicesFound = true;
                     Collection<String> indices = new ArrayList<>();
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         String value = parser.textOrNull();
                         if (value == null) {
-                            throw new QueryParsingException(parseContext.index(), "[indices] no value specified for 'indices' entry");
+                            throw new QueryParsingException(parseContext, "[indices] no value specified for 'indices' entry");
                         }
                         indices.add(value);
                     }
                     currentIndexMatchesIndices = matchesIndices(parseContext.index().name(), indices.toArray(new String[indices.size()]));
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[indices] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[indices] filter does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("index".equals(currentFieldName)) {
                     if (indicesFound) {
-                        throw  new QueryParsingException(parseContext.index(), "[indices] indices or index already specified");
+                        throw new QueryParsingException(parseContext, "[indices] indices or index already specified");
                     }
                     indicesFound = true;
                     currentIndexMatchesIndices = matchesIndices(parseContext.index().name(), parser.text());
                 } else if ("no_match_filter".equals(currentFieldName)) {
                     String type = parser.text();
                     if ("all".equals(type)) {
-                        noMatchFilter = Queries.MATCH_ALL_FILTER;
+                        noMatchFilter = Queries.newMatchAllFilter();
                     } else if ("none".equals(type)) {
-                        noMatchFilter = Queries.MATCH_NO_FILTER;
+                        noMatchFilter = Queries.newMatchNoDocsFilter();
                     }
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[indices] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[indices] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (!filterFound) {
-            throw new QueryParsingException(parseContext.index(), "[indices] requires 'filter' element");
+            throw new QueryParsingException(parseContext, "[indices] requires 'filter' element");
         }
         if (!indicesFound) {
-            throw new QueryParsingException(parseContext.index(), "[indices] requires 'indices' or 'index' element");
+            throw new QueryParsingException(parseContext, "[indices] requires 'indices' or 'index' element");
         }
 
         Filter chosenFilter;

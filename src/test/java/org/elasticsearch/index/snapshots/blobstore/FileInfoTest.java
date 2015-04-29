@@ -19,6 +19,7 @@
 package org.elasticsearch.index.snapshots.blobstore;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -43,7 +44,7 @@ public class FileInfoTest extends ElasticsearchTestCase {
             for (int i = 0; i < hash.length; i++) {
                 hash.bytes[i] = randomByte();
             }
-            StoreFileMetaData meta = new StoreFileMetaData("foobar", randomInt(), randomAsciiOfLengthBetween(1, 10), TEST_VERSION_CURRENT, hash);
+            StoreFileMetaData meta = new StoreFileMetaData("foobar", randomInt(), randomAsciiOfLengthBetween(1, 10), Version.LATEST, hash);
             ByteSizeValue size = new ByteSizeValue(Math.max(0,Math.abs(randomLong())));
             BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("_foobar", meta, size);
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
@@ -62,7 +63,7 @@ public class FileInfoTest extends ElasticsearchTestCase {
             assertThat(info.partBytes(), equalTo(parsedInfo.partBytes()));
             assertThat(parsedInfo.metadata().hash().length, equalTo(hash.length));
             assertThat(parsedInfo.metadata().hash(), equalTo(hash));
-            assertThat(parsedInfo.metadata().writtenBy(), equalTo(TEST_VERSION_CURRENT));
+            assertThat(parsedInfo.metadata().writtenBy(), equalTo(Version.LATEST));
             assertThat(parsedInfo.isSame(info.metadata()), is(true));
         }
     }

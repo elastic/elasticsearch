@@ -19,15 +19,12 @@
 
 package org.elasticsearch.search.simple;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -49,14 +46,14 @@ public class SimpleSearchTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareSearch((String) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
 
         }
 
         try {
             client().prepareSearch((String[]) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
 
         }
     }
@@ -234,7 +231,7 @@ public class SimpleSearchTests extends ElasticsearchIntegrationTest {
             client().prepareSearch("idx").setFrom(Integer.MAX_VALUE).get();
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("Result window is too large, from + size must be less than or equal to:"));
+            assertThat(e.toString(), containsString("Result window is too large, from + size must be less than or equal to:"));
         }
     }
 }

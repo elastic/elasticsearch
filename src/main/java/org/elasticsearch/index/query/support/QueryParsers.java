@@ -19,17 +19,9 @@
 
 package org.elasticsearch.index.query.support;
 
-import com.google.common.collect.ImmutableList;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.search.AndFilter;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryParseContext;
 
 /**
  *
@@ -90,7 +82,7 @@ public final class QueryParsers {
             int size = Integer.parseInt(rewriteMethod.substring("topTerms".length()));
             return new MultiTermQuery.TopTermsScoringBooleanQueryRewrite(size);
         }
-        throw new ElasticsearchIllegalArgumentException("Failed to parse rewrite_method [" + rewriteMethod + "]");
+        throw new IllegalArgumentException("Failed to parse rewrite_method [" + rewriteMethod + "]");
     }
     
 }

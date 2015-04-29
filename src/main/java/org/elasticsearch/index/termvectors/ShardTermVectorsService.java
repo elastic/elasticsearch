@@ -20,9 +20,15 @@
 package org.elasticsearch.index.termvectors;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.termvectors.TermVectorsFilter;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.termvectors.dfs.DfsOnlyRequest;
@@ -39,18 +45,30 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
 
@@ -82,8 +100,10 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
 
         Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), uidTerm).version(request.version()).versionType(request.versionType()));
 
+        Fields termVectorsByField = null;
         boolean docFromTranslog = get.source() != null;
         AggregatedDfs dfs = null;
+        TermVectorsFilter termVectorsFilter = null;
 
         /* fetched from translog is treated as an artificial document */
         if (docFromTranslog) {
@@ -102,22 +122,18 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
             Versions.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
             /* from an artificial document */
             if (request.doc() != null) {
-                Fields termVectorsByField = generateTermVectorsFromDoc(request, !docFromTranslog);
+                termVectorsByField = generateTermVectorsFromDoc(request, !docFromTranslog);
                 // if no document indexed in shard, take the queried document itself for stats
                 if (topLevelFields == null) {
                     topLevelFields = termVectorsByField;
                 }
-                if (termVectorsByField != null && useDfs(request)) {
-                    dfs = getAggregatedDfs(termVectorsByField, request);
-                }
-                termVectorsResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs);
-                termVectorsResponse.setExists(true);
                 termVectorsResponse.setArtificial(!docFromTranslog);
+                termVectorsResponse.setExists(true);
             }
             /* or from an existing document */
             else if (docIdAndVersion != null) {
                 // fields with stored term vectors
-                Fields termVectorsByField = docIdAndVersion.context.reader().getTermVectors(docIdAndVersion.docId);
+                termVectorsByField = docIdAndVersion.context.reader().getTermVectors(docIdAndVersion.docId);
                 Set<String> selectedFields = request.selectedFields();
                 // generate tvs for fields where analyzer is overridden
                 if (selectedFields == null && request.perFieldAnalyzer() != null) {
@@ -127,14 +143,30 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
                 if (selectedFields != null) {
                     termVectorsByField = addGeneratedTermVectors(get, termVectorsByField, request, selectedFields);
                 }
-                if (termVectorsByField != null && useDfs(request)) {
-                    dfs = getAggregatedDfs(termVectorsByField, request);
-                }
-                termVectorsResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs);
                 termVectorsResponse.setDocVersion(docIdAndVersion.version);
                 termVectorsResponse.setExists(true);
-            } else {
+            }
+            /* no term vectors generated or found */
+            else {
                 termVectorsResponse.setExists(false);
+            }
+            /* if there are term vectors, optional compute dfs and/or terms filtering */
+            if (termVectorsByField != null) {
+                if (useDfs(request)) {
+                    dfs = getAggregatedDfs(termVectorsByField, request);
+                }
+
+                if (request.filterSettings() != null) {
+                    termVectorsFilter = new TermVectorsFilter(termVectorsByField, topLevelFields, request.selectedFields(), dfs);
+                    termVectorsFilter.setSettings(request.filterSettings());
+                    try {
+                        termVectorsFilter.selectBestTerms();
+                    } catch (IOException e) {
+                        throw new ElasticsearchException("failed to select best terms", e);
+                    }
+                }
+                // write term vectors
+                termVectorsResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs, termVectorsFilter);
             }
         } catch (Throwable ex) {
             throw new ElasticsearchException("failed to execute term vector request", ex);
@@ -237,7 +269,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
         return MultiFields.getFields(index.createSearcher().getIndexReader());
     }
 
-    private Fields generateTermVectorsFromDoc(TermVectorsRequest request, boolean doAllFields) throws IOException {
+    private Fields generateTermVectorsFromDoc(TermVectorsRequest request, boolean doAllFields) throws Throwable {
         // parse the document, at the moment we do update the mapping, just like percolate
         ParsedDocument parsedDocument = parseDocument(indexShard.shardId().getIndex(), request.type(), request.doc());
 
@@ -268,15 +300,17 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
         return generateTermVectors(getFields, request.offsets(), request.perFieldAnalyzer());
     }
 
-    private ParsedDocument parseDocument(String index, String type, BytesReference doc) {
+    private ParsedDocument parseDocument(String index, String type, BytesReference doc) throws Throwable {
         MapperService mapperService = indexShard.mapperService();
-        IndexService indexService = indexShard.indexService();
 
         // TODO: make parsing not dynamically create fields not in the original mapping
-        Tuple<DocumentMapper, Boolean> docMapper = mapperService.documentMapperWithAutoCreate(type);
-        ParsedDocument parsedDocument = docMapper.v1().parse(source(doc).type(type).flyweight(true)).setMappingsModified(docMapper);
-        if (parsedDocument.mappingsModified()) {
-            mappingUpdatedAction.updateMappingOnMaster(index, docMapper.v1(), indexService.indexUUID());
+        Tuple<DocumentMapper, Mapping> docMapper = mapperService.documentMapperWithAutoCreate(type);
+        ParsedDocument parsedDocument = docMapper.v1().parse(source(doc).type(type).flyweight(true));
+        if (docMapper.v2() != null) {
+            parsedDocument.addDynamicMappingsUpdate(docMapper.v2());
+        }
+        if (parsedDocument.dynamicMappingsUpdate() != null) {
+            mappingUpdatedAction.updateMappingOnMasterSynchronously(index, type, parsedDocument.dynamicMappingsUpdate());
         }
         return parsedDocument;
     }

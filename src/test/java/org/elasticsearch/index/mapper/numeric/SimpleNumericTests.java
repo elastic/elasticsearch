@@ -26,8 +26,13 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -39,7 +44,10 @@ import org.junit.Test;
 import java.io.IOException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
@@ -51,7 +59,9 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
                 .field("numeric_detection", true)
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        IndexService index = createIndex("test");
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
+        DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -59,6 +69,8 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
                 .field("s_double", "100.0")
                 .endObject()
                 .bytes());
+        assertNotNull(doc.dynamicMappingsUpdate());
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get();
 
         FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("s_long");
         assertThat(mapper, instanceOf(LongFieldMapper.class));
@@ -72,7 +84,9 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        IndexService index = createIndex("test");
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
+        DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -80,6 +94,8 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
                 .field("s_double", "100.0")
                 .endObject()
                 .bytes());
+        assertNotNull(doc.dynamicMappingsUpdate());
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get());
 
         FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("s_long");
         assertThat(mapper, instanceOf(StringFieldMapper.class));

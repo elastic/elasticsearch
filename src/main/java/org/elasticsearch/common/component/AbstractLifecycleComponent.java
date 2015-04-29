@@ -59,7 +59,7 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public T start() throws ElasticsearchException {
+    public T start() {
         if (!lifecycle.canMoveToStarted()) {
             return (T) this;
         }
@@ -74,11 +74,11 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
         return (T) this;
     }
 
-    protected abstract void doStart() throws ElasticsearchException;
+    protected abstract void doStart();
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public T stop() throws ElasticsearchException {
+    public T stop() {
         if (!lifecycle.canMoveToStopped()) {
             return (T) this;
         }
@@ -93,10 +93,10 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
         return (T) this;
     }
 
-    protected abstract void doStop() throws ElasticsearchException;
+    protected abstract void doStop();
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void close() {
         if (lifecycle.started()) {
             stop();
         }
@@ -113,5 +113,5 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
         }
     }
 
-    protected abstract void doClose() throws ElasticsearchException;
+    protected abstract void doClose();
 }

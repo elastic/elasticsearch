@@ -108,11 +108,8 @@ public class ExplainableScriptTests extends ElasticsearchIntegrationTest {
 
         @Override
         public Explanation explain(Explanation subQueryScore) throws IOException {
-            Explanation exp = new Explanation((float) (runAsDouble()), "This script returned " + runAsDouble());
-            Explanation scoreExp = new Explanation(subQueryScore.getValue(), "_score: ");
-            scoreExp.addDetail(subQueryScore);
-            exp.addDetail(scoreExp);
-            return exp;
+            Explanation scoreExp = Explanation.match(subQueryScore.getValue(), "_score: ", subQueryScore);
+            return Explanation.match((float) (runAsDouble()), "This script returned " + runAsDouble(), scoreExp);
         }
 
         @Override

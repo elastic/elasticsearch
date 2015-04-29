@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.math;
 
+import org.elasticsearch.common.SuppressForbidden;
+
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -456,18 +458,22 @@ public class UnboxedMathUtils {
         return ThreadLocalRandom.current().nextLong(l);
     }
 
+    @SuppressForbidden(reason = "Math#abs is trappy")
     public static int abs(Integer a) {
         return Math.abs(a);
     }
 
+    @SuppressForbidden(reason = "Math#abs is trappy")
     public static long abs(Long a) {
         return Math.abs(a);
     }
 
+    @SuppressForbidden(reason = "Math#abs is trappy")
     public static float abs(Float a) {
         return Math.abs(a);
     }
 
+    @SuppressForbidden(reason = "Math#abs is trappy")
     public static double abs(Double a) {
         return Math.abs(a);
     }

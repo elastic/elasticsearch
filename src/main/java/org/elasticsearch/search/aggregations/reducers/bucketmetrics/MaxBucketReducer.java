@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.reducers.bucketmetrics;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -141,7 +140,7 @@ public class MaxBucketReducer extends SiblingReducer {
         @Override
         public void doValidate(AggregatorFactory parent, AggregatorFactory[] aggFactories, List<ReducerFactory> reducerFactories) {
             if (bucketsPaths.length != 1) {
-                throw new ElasticsearchIllegalStateException(Reducer.Parser.BUCKETS_PATH.getPreferredName()
+                throw new IllegalStateException(Reducer.Parser.BUCKETS_PATH.getPreferredName()
                         + " must contain a single entry for reducer [" + name + "]");
             }
         }

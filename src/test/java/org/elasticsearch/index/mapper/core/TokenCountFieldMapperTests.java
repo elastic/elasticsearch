@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
@@ -32,7 +33,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlags;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -64,15 +64,15 @@ public class TokenCountFieldMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
         DocumentMapper stage2 = parser.parse(stage2Mapping);
 
-        DocumentMapper.MergeResult mergeResult = stage1.merge(stage2, mergeFlags().simulate(true));
+        MergeResult mergeResult = stage1.merge(stage2.mapping(), true);
         assertThat(mergeResult.hasConflicts(), equalTo(false));
         // Just simulated so merge hasn't happened yet
-        assertThat(((TokenCountFieldMapper) stage1.mappers().smartName("tc").mapper()).analyzer(), equalTo("keyword"));
+        assertThat(((TokenCountFieldMapper) stage1.mappers().smartNameFieldMapper("tc")).analyzer(), equalTo("keyword"));
 
-        mergeResult = stage1.merge(stage2, mergeFlags().simulate(false));
+        mergeResult = stage1.merge(stage2.mapping(), false);
         assertThat(mergeResult.hasConflicts(), equalTo(false));
         // Just simulated so merge hasn't happened yet
-        assertThat(((TokenCountFieldMapper) stage1.mappers().smartName("tc").mapper()).analyzer(), equalTo("standard"));
+        assertThat(((TokenCountFieldMapper) stage1.mappers().smartNameFieldMapper("tc")).analyzer(), equalTo("standard"));
     }
 
     @Test

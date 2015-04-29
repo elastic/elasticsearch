@@ -19,24 +19,64 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.internal.SearchContext;
+
+import java.io.IOException;
 
 /**
  *
  */
 public class SearchParseException extends SearchContextException {
 
-    public SearchParseException(SearchContext context, String msg) {
-        super(context, "Parse Failure [" + msg + "]");
+    public static final int UNKNOWN_POSITION = -1;
+    private int lineNumber = UNKNOWN_POSITION;
+    private int columnNumber = UNKNOWN_POSITION;
+
+    public SearchParseException(SearchContext context, String msg, @Nullable XContentLocation location) {
+        this(context, msg, location, null);
     }
 
-    public SearchParseException(SearchContext context, String msg, Throwable cause) {
-        super(context, "Parse Failure [" + msg + "]", cause);
+    public SearchParseException(SearchContext context, String msg, @Nullable XContentLocation location, Throwable cause) {
+        super(context, msg, cause);
+        if (location != null) {
+            lineNumber = location.lineNumber;
+            columnNumber = location.columnNumber;
+        }
     }
 
     @Override
     public RestStatus status() {
         return RestStatus.BAD_REQUEST;
+    }
+
+    @Override
+    protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        if (lineNumber != UNKNOWN_POSITION) {
+            builder.field("line", lineNumber);
+            builder.field("col", columnNumber);
+        }
+        super.innerToXContent(builder, params);
+    }
+
+    /**
+     * Line number of the location of the error
+     * 
+     * @return the line number or -1 if unknown
+     */
+    public int getLineNumber() {
+        return lineNumber;
+    }
+
+    /**
+     * Column number of the location of the error
+     * 
+     * @return the column number or -1 if unknown
+     */
+    public int getColumnNumber() {
+        return columnNumber;
     }
 }

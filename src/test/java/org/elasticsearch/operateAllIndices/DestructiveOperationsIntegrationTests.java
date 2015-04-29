@@ -19,11 +19,9 @@
 
 package org.elasticsearch.operateAllIndices;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -54,12 +52,14 @@ public class DestructiveOperationsIntegrationTests extends ElasticsearchIntegrat
             // should fail since index1 is the only index.
             client().admin().indices().prepareDelete("i*").get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {}
+        } catch (IllegalArgumentException e) {
+        }
 
         try {
             client().admin().indices().prepareDelete("_all").get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {}
+        } catch (IllegalArgumentException e) {
+        }
 
         settings = ImmutableSettings.builder()
                 .put(DestructiveOperations.REQUIRES_NAME, false)
@@ -85,20 +85,22 @@ public class DestructiveOperationsIntegrationTests extends ElasticsearchIntegrat
         try {
             client().admin().indices().prepareClose("_all").get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {}
+        } catch (IllegalArgumentException e) {
+        }
         try {
             assertAcked(client().admin().indices().prepareOpen("_all").get());
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
         }
         try {
             client().admin().indices().prepareClose("*").get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {}
+        } catch (IllegalArgumentException e) {
+        }
         try {
             assertAcked(client().admin().indices().prepareOpen("*").get());
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
         }
 
         settings = ImmutableSettings.builder()
@@ -110,40 +112,5 @@ public class DestructiveOperationsIntegrationTests extends ElasticsearchIntegrat
 
         // end close index:
         client().admin().indices().prepareDelete("_all").get();
-        // delete_by_query:
-        settings = ImmutableSettings.builder()
-                .put(DestructiveOperations.REQUIRES_NAME, true)
-                .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
-
-        assertAcked(client().admin().indices().prepareCreate("index1").get());
-        assertAcked(client().admin().indices().prepareCreate("1index").get());
-
-        // Should succeed, since no wildcards
-        client().prepareDeleteByQuery("1index").setQuery(QueryBuilders.matchAllQuery()).get();
-
-        try {
-            client().prepareDeleteByQuery("_all").setQuery(QueryBuilders.matchAllQuery()).get();
-            fail();
-        } catch (ElasticsearchIllegalArgumentException e) {}
-
-        try {
-            client().prepareDeleteByQuery().setQuery(QueryBuilders.matchAllQuery()).get();
-            fail();
-        } catch (ElasticsearchIllegalArgumentException e) {}
-
-        settings = ImmutableSettings.builder()
-                .put(DestructiveOperations.REQUIRES_NAME, false)
-                .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
-
-        client().prepareDeleteByQuery().setQuery(QueryBuilders.matchAllQuery()).get();
-        client().prepareDeleteByQuery("_all").setQuery(QueryBuilders.matchAllQuery()).get();
-
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
-        client().prepareDeleteByQuery().setQuery(QueryBuilders.matchAllQuery()).get();
-        // end delete_by_query:
-        client().admin().indices().prepareDelete("_all").get();
     }
-
 }

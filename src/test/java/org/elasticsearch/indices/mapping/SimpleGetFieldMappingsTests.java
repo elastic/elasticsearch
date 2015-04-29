@@ -21,16 +21,21 @@ package org.elasticsearch.indices.mapping;
 
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.*;
 
 public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
@@ -173,5 +178,30 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
         prettyJsonBuilder.copyCurrentStructure(XContentFactory.xContent(responseStrings).createParser(responseStrings));
         assertThat(responseStrings, not(equalTo(prettyJsonBuilder.string())));
 
+    }
+
+    @Test
+    public void testGetFieldMappingsWithBlocks() throws Exception {
+        assertAcked(prepareCreate("test")
+                .addMapping("typeA", getMappingForType("typeA"))
+                .addMapping("typeB", getMappingForType("typeB")));
+        ensureYellow();
+
+        for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {
+            try {
+                enableIndexBlock("test", block);
+                GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("test").setTypes("typeA").setFields("field1", "obj.subfield").get();
+                assertThat(response.fieldMappings("test", "typeA", "field1").fullName(), equalTo("field1"));
+            } finally {
+                disableIndexBlock("test", block);
+            }
+        }
+
+        try {
+            enableIndexBlock("test", SETTING_BLOCKS_METADATA);
+            assertBlocked(client().admin().indices().prepareGetMappings(), INDEX_METADATA_BLOCK);
+        } finally {
+            disableIndexBlock("test", SETTING_BLOCKS_METADATA);
+        }
     }
 }

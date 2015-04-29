@@ -45,7 +45,6 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -96,12 +95,12 @@ public class RecoveryTarget extends AbstractComponent {
         this.clusterService = clusterService;
         this.onGoingRecoveries = new RecoveriesCollection(logger, threadPool);
 
-        transportService.registerHandler(Actions.FILES_INFO, new FilesInfoRequestHandler());
-        transportService.registerHandler(Actions.FILE_CHUNK, new FileChunkTransportRequestHandler());
-        transportService.registerHandler(Actions.CLEAN_FILES, new CleanFilesRequestHandler());
-        transportService.registerHandler(Actions.PREPARE_TRANSLOG, new PrepareForTranslogOperationsRequestHandler());
-        transportService.registerHandler(Actions.TRANSLOG_OPS, new TranslogOperationsRequestHandler());
-        transportService.registerHandler(Actions.FINALIZE, new FinalizeRecoveryRequestHandler());
+        transportService.registerRequestHandler(Actions.FILES_INFO, RecoveryFilesInfoRequest.class, ThreadPool.Names.GENERIC, new FilesInfoRequestHandler());
+        transportService.registerRequestHandler(Actions.FILE_CHUNK, RecoveryFileChunkRequest.class, ThreadPool.Names.GENERIC, new FileChunkTransportRequestHandler());
+        transportService.registerRequestHandler(Actions.CLEAN_FILES, RecoveryCleanFilesRequest.class, ThreadPool.Names.GENERIC, new CleanFilesRequestHandler());
+        transportService.registerRequestHandler(Actions.PREPARE_TRANSLOG, RecoveryPrepareForTranslogOperationsRequest.class, ThreadPool.Names.GENERIC, new PrepareForTranslogOperationsRequestHandler());
+        transportService.registerRequestHandler(Actions.TRANSLOG_OPS, RecoveryTranslogOperationsRequest.class, ThreadPool.Names.GENERIC, new TranslogOperationsRequestHandler());
+        transportService.registerRequestHandler(Actions.FINALIZE, RecoveryFinalizeRecoveryRequest.class, ThreadPool.Names.GENERIC, new FinalizeRecoveryRequestHandler());
 
         indicesLifecycle.addListener(new IndicesLifecycle.Listener() {
             @Override
@@ -156,11 +155,15 @@ public class RecoveryTarget extends AbstractComponent {
         assert recoveryStatus.sourceNode() != null : "can't do a recovery without a source node";
 
         logger.trace("collecting local files for {}", recoveryStatus);
-        final Map<String, StoreFileMetaData> existingFiles;
+        Map<String, StoreFileMetaData> existingFiles;
         try {
             existingFiles = recoveryStatus.store().getMetadataOrEmpty().asMap();
+        } catch (IOException e) {
+            logger.warn("error while listing local files, recover as if there are none", e);
+            existingFiles = Store.MetadataSnapshot.EMPTY.asMap();
         } catch (Exception e) {
-            logger.debug("error while listing local files, recovery as if there are none", e);
+            // this will be logged as warning later on...
+            logger.trace("unexpected error while listing local files, failing recovery", e);
             onGoingRecoveries.failRecovery(recoveryStatus.recoveryId(),
                     new RecoveryFailedException(recoveryStatus.state(), "failed to list local files", e), true);
             return;
@@ -264,40 +267,20 @@ public class RecoveryTarget extends AbstractComponent {
         void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure);
     }
 
-    class PrepareForTranslogOperationsRequestHandler extends BaseTransportRequestHandler<RecoveryPrepareForTranslogOperationsRequest> {
-
-        @Override
-        public RecoveryPrepareForTranslogOperationsRequest newInstance() {
-            return new RecoveryPrepareForTranslogOperationsRequest();
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.GENERIC;
-        }
+    class PrepareForTranslogOperationsRequestHandler implements TransportRequestHandler<RecoveryPrepareForTranslogOperationsRequest> {
 
         @Override
         public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryStatus recoveryStatus = statusRef.status();
                 recoveryStatus.state().getTranslog().totalOperations(request.totalTranslogOps());
-                recoveryStatus.indexShard().prepareForTranslogRecovery();
+                recoveryStatus.indexShard().skipTranslogRecovery();
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 
-    class FinalizeRecoveryRequestHandler extends BaseTransportRequestHandler<RecoveryFinalizeRecoveryRequest> {
-
-        @Override
-        public RecoveryFinalizeRecoveryRequest newInstance() {
-            return new RecoveryFinalizeRecoveryRequest();
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.GENERIC;
-        }
+    class FinalizeRecoveryRequestHandler implements TransportRequestHandler<RecoveryFinalizeRecoveryRequest> {
 
         @Override
         public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel) throws Exception {
@@ -309,18 +292,7 @@ public class RecoveryTarget extends AbstractComponent {
         }
     }
 
-    class TranslogOperationsRequestHandler extends BaseTransportRequestHandler<RecoveryTranslogOperationsRequest> {
-
-
-        @Override
-        public RecoveryTranslogOperationsRequest newInstance() {
-            return new RecoveryTranslogOperationsRequest();
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.GENERIC;
-        }
+    class TranslogOperationsRequestHandler implements TransportRequestHandler<RecoveryTranslogOperationsRequest> {
 
         @Override
         public void messageReceived(RecoveryTranslogOperationsRequest request, TransportChannel channel) throws Exception {
@@ -328,27 +300,15 @@ public class RecoveryTarget extends AbstractComponent {
                 final RecoveryStatus recoveryStatus = statusRef.status();
                 final RecoveryState.Translog translog = recoveryStatus.state().getTranslog();
                 translog.totalOperations(request.totalTranslogOps());
-                for (Translog.Operation operation : request.operations()) {
-                    recoveryStatus.indexShard().performRecoveryOperation(operation);
-                    translog.incrementRecoveredOperations();
-                }
+                assert recoveryStatus.indexShard().recoveryState() == recoveryStatus.state();
+                recoveryStatus.indexShard().performBatchRecovery(request.operations());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
 
         }
     }
 
-    class FilesInfoRequestHandler extends BaseTransportRequestHandler<RecoveryFilesInfoRequest> {
-
-        @Override
-        public RecoveryFilesInfoRequest newInstance() {
-            return new RecoveryFilesInfoRequest();
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.GENERIC;
-        }
+    class FilesInfoRequestHandler implements TransportRequestHandler<RecoveryFilesInfoRequest> {
 
         @Override
         public void messageReceived(RecoveryFilesInfoRequest request, TransportChannel channel) throws Exception {
@@ -369,17 +329,7 @@ public class RecoveryTarget extends AbstractComponent {
         }
     }
 
-    class CleanFilesRequestHandler extends BaseTransportRequestHandler<RecoveryCleanFilesRequest> {
-
-        @Override
-        public RecoveryCleanFilesRequest newInstance() {
-            return new RecoveryCleanFilesRequest();
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.GENERIC;
-        }
+    class CleanFilesRequestHandler implements TransportRequestHandler<RecoveryCleanFilesRequest> {
 
         @Override
         public void messageReceived(RecoveryCleanFilesRequest request, TransportChannel channel) throws Exception {
@@ -418,20 +368,10 @@ public class RecoveryTarget extends AbstractComponent {
         }
     }
 
-    class FileChunkTransportRequestHandler extends BaseTransportRequestHandler<RecoveryFileChunkRequest> {
+    class FileChunkTransportRequestHandler implements TransportRequestHandler<RecoveryFileChunkRequest> {
 
         // How many bytes we've copied since we last called RateLimiter.pause
         final AtomicLong bytesSinceLastPause = new AtomicLong();
-
-        @Override
-        public RecoveryFileChunkRequest newInstance() {
-            return new RecoveryFileChunkRequest();
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.GENERIC;
-        }
 
         @Override
         public void messageReceived(final RecoveryFileChunkRequest request, TransportChannel channel) throws Exception {

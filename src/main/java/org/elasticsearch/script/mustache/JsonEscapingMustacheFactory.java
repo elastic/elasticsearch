@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.script.mustache;
 
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import com.github.mustachejava.DefaultMustacheFactory;
 import com.github.mustachejava.MustacheException;
 
@@ -28,40 +29,14 @@ import java.io.Writer;
  * A MustacheFactory that does simple JSON escaping.
  */
 public final class JsonEscapingMustacheFactory extends DefaultMustacheFactory {
-
+    
     @Override
     public void encode(String value, Writer writer) {
         try {
-            escape(value, writer);
+            JsonStringEncoder utils = new JsonStringEncoder();
+            writer.write(utils.quoteAsString(value));;
         } catch (IOException e) {
             throw new MustacheException("Failed to encode value: " + value);
         }
     }
-
-    public static Writer escape(String value, Writer writer) throws IOException {
-        for (int i = 0; i < value.length(); i++) {
-            final char character = value.charAt(i);
-            if (isEscapeChar(character)) {
-                writer.write('\\');
-            }
-            writer.write(character);
-        }
-        return writer;
-    }
-
-    public static boolean isEscapeChar(char c) {
-        switch(c) {
-            case '\b':
-            case '\f':
-            case '\n':
-            case '\r':
-            case '"':
-            case '\\':
-            case '\u000B': // vertical tab
-            case '\t':
-                return true;
-        }
-        return false;
-    }
-
 }

@@ -20,22 +20,15 @@
 package org.elasticsearch.index.store;
 
 import com.google.common.collect.ImmutableList;
-import org.apache.lucene.store.MMapDirectory;
-import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.Modules;
-import org.elasticsearch.common.inject.SpawnModules;
+import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.store.fs.DefaultFsIndexStoreModule;
-import org.elasticsearch.index.store.fs.MmapFsIndexStoreModule;
-import org.elasticsearch.index.store.fs.NioFsIndexStoreModule;
-import org.elasticsearch.index.store.fs.SimpleFsIndexStoreModule;
 
 /**
  *
  */
 public class IndexStoreModule extends AbstractModule implements SpawnModules {
+
+    public static final String STORE_TYPE = "index.store.type";
 
     private final Settings settings;
 
@@ -75,36 +68,23 @@ public class IndexStoreModule extends AbstractModule implements SpawnModules {
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        Class<? extends Module> indexStoreModule = NioFsIndexStoreModule.class;
-        if ((Constants.WINDOWS || Constants.SUN_OS || Constants.LINUX)
-                && Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
-            if (Constants.WINDOWS) {
-                indexStoreModule = MmapFsIndexStoreModule.class;
-            } else {
-                // on linux and friends we only mmap dedicated files
-                indexStoreModule = DefaultFsIndexStoreModule.class;
+        final String storeType = settings.get(STORE_TYPE, Type.DEFAULT.name());
+        for (Type type : Type.values()) {
+            if (type.match(storeType)) {
+                return ImmutableList.of(new DefaultStoreModule());
             }
-        } else if (Constants.WINDOWS) {
-            indexStoreModule = SimpleFsIndexStoreModule.class;
         }
-        String storeType = settings.get("index.store.type");
-        if (Type.FS.match(storeType)) {
-            // nothing to set here ... (we default to fs)
-        } else if (Type.SIMPLEFS.match(storeType)) {
-            indexStoreModule = SimpleFsIndexStoreModule.class;
-        } else if (Type.NIOFS.match(storeType)) {
-            indexStoreModule = NioFsIndexStoreModule.class;
-        } else if (Type.MMAPFS.match(storeType)) {
-            indexStoreModule = MmapFsIndexStoreModule.class;
-        } else if (Type.DEFAULT.match(storeType)) {
-            indexStoreModule = DefaultFsIndexStoreModule.class;
-        } else if (storeType != null) {
-            indexStoreModule = settings.getAsClass("index.store.type", indexStoreModule, "org.elasticsearch.index.store.", "IndexStoreModule");
-        }
+        final Class<? extends Module> indexStoreModule = settings.getAsClass(STORE_TYPE, null, "org.elasticsearch.index.store.", "IndexStoreModule");
         return ImmutableList.of(Modules.createModule(indexStoreModule, settings));
     }
 
     @Override
-    protected void configure() {
+    protected void configure() {}
+
+    private static class DefaultStoreModule extends AbstractModule {
+        @Override
+        protected void configure() {
+            bind(IndexStore.class).asEagerSingleton();
+        }
     }
 }

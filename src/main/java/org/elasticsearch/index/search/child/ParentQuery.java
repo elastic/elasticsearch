@@ -18,17 +18,27 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.NoopCollector;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.LongHash;
@@ -108,11 +118,6 @@ public class ParentQuery extends Query {
     }
 
     @Override
-    public void extractTerms(Set<Term> terms) {
-        rewrittenParentQuery.extractTerms(terms);
-    }
-
-    @Override
     public Query clone() {
         ParentQuery q = (ParentQuery) super.clone();
         q.originalParentQuery = originalParentQuery.clone();
@@ -131,7 +136,7 @@ public class ParentQuery extends Query {
         IndexParentChildFieldData globalIfd = parentChildIndexFieldData.loadGlobal(searcher.getIndexReader());
         if (globalIfd == null) {
             // No docs of the specified type don't exist on this shard
-            return Queries.newMatchNoDocsQuery().createWeight(searcher, needsScores);
+            return new BooleanQuery().createWeight(searcher, needsScores);
         }
 
         try {
@@ -143,7 +148,7 @@ public class ParentQuery extends Query {
             indexSearcher.setSimilarity(searcher.getSimilarity());
             indexSearcher.search(parentQuery, collector);
             if (collector.parentCount() == 0) {
-                return Queries.newMatchNoDocsQuery().createWeight(searcher, needsScores);
+                return new BooleanQuery().createWeight(searcher, needsScores);
             }
             childWeight = new ChildWeight(this, parentQuery.createWeight(searcher, needsScores), childrenFilter, collector, globalIfd);
             releaseCollectorResource = false;
@@ -204,7 +209,7 @@ public class ParentQuery extends Query {
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             Releasables.close(parentIdxs, scores);
         }
 
@@ -232,8 +237,12 @@ public class ParentQuery extends Query {
         }
 
         @Override
+        public void extractTerms(Set<Term> terms) {
+        }
+
+        @Override
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-            return new Explanation(getBoost(), "not implemented yet...");
+            return Explanation.match(getBoost(), "not implemented yet...");
         }
 
         @Override

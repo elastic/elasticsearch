@@ -20,13 +20,11 @@ package org.elasticsearch.search.child;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.count.CountResponse;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -38,8 +36,8 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.cache.filter.AutoFilterCachingPolicy;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
+import org.elasticsearch.index.cache.filter.FilterCacheModule.FilterCacheSettings;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
@@ -108,14 +106,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -128,7 +119,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 // aggressive filter caching so that we can assert on the filter cache size
                 .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, WeightedFilterCache.class)
-                .put(AutoFilterCachingPolicy.AGGRESSIVE_CACHING_SETTINGS)
+                .put(FilterCacheSettings.FILTER_CACHE_EVERYTHING, true)
                 .build();
     }
 
@@ -188,7 +179,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     // see #6722
-    public void test6722() throws ElasticsearchException, IOException {
+    public void test6722() throws IOException {
         assertAcked(prepareCreate("test")
                 .addMapping("foo")
                 .addMapping("test", "_parent", "type=foo"));
@@ -207,7 +198,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     // see #2744
-    public void test2744() throws ElasticsearchException, IOException {
+    public void test2744() throws IOException {
         assertAcked(prepareCreate("test")
                 .addMapping("foo")
                 .addMapping("test", "_parent", "type=foo"));
@@ -852,7 +843,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreType("max"))
                 .get();
         assertThat(explainResponse.isExists(), equalTo(true));
-        assertThat(explainResponse.getExplanation().getDescription(), equalTo("not implemented yet..."));
+        assertThat(explainResponse.getExplanation().toString(), equalTo("1.0 = sum of:\n  1.0 = not implemented yet...\n  0.0 = match on required clause, product of:\n    0.0 = # clause\n    0.0 = Match on id 0\n"));
     }
 
     List<IndexRequestBuilder> createDocBuilders() {
@@ -1115,7 +1106,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                     )).get();
             assertSearchHit(searchResponse, 1, hasId("1"));
             // Can't start with ConstantScore(cache(BooleanFilter(
-            assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), startsWith("ConstantScore(BooleanFilter("));
+            assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), startsWith("ConstantScore(CustomQueryWrappingFilter("));
 
             searchResponse = client().prepareSearch("test")
                     .setExplain(true)
@@ -1125,7 +1116,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                     )).get();
             assertSearchHit(searchResponse, 1, hasId("1"));
             // Can't start with ConstantScore(cache(BooleanFilter(
-            assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), startsWith("ConstantScore(BooleanFilter("));
+            assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), startsWith("ConstantScore(CustomQueryWrappingFilter("));
         }
     }
 
@@ -1349,7 +1340,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testHasChildNotBeingCached() throws ElasticsearchException, IOException {
+    public void testHasChildNotBeingCached() throws IOException {
         assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
@@ -1386,99 +1377,6 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
     }
 
-    @Test
-    public void testDeleteByQuery_has_child() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings(
-                        settingsBuilder().put(indexSettings())
-                                .put("index.refresh_interval", "-1")
-                )
-                .addMapping("parent")
-                .addMapping("child", "_parent", "type=parent"));
-        ensureGreen();
-
-        // index simple data
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
-        client().prepareIndex("test", "child", "c1").setSource("c_field", "red").setParent("p1").get();
-        client().prepareIndex("test", "child", "c2").setSource("c_field", "yellow").setParent("p1").get();
-        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").get();
-        client().admin().indices().prepareFlush("test").get();
-        client().prepareIndex("test", "child", "c3").setSource("c_field", "blue").setParent("p2").get();
-        client().prepareIndex("test", "child", "c4").setSource("c_field", "red").setParent("p2").get();
-        client().prepareIndex("test", "parent", "p3").setSource("p_field", "p_value3").get();
-        client().admin().indices().prepareFlush("test").get();
-        client().prepareIndex("test", "child", "c5").setSource("c_field", "blue").setParent("p3").get();
-        client().prepareIndex("test", "child", "c6").setSource("c_field", "red").setParent("p3").get();
-        client().admin().indices().prepareRefresh().get();
-        // p4 will not be found via search api, but will be deleted via delete_by_query api!
-        client().prepareIndex("test", "parent", "p4").setSource("p_field", "p_value4").get();
-        client().prepareIndex("test", "child", "c7").setSource("c_field", "blue").setParent("p4").get();
-        client().prepareIndex("test", "child", "c8").setSource("c_field", "red").setParent("p4").get();
-
-        SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(randomHasChild("child", "c_field", "blue"))
-                .get();
-        assertHitCount(searchResponse, 2l);
-
-        // Delete by query doesn't support p/c queries. If the delete by query has a different execution mode
-        // that doesn't rely on IW#deleteByQuery() then this test can be changed.
-        DeleteByQueryResponse deleteByQueryResponse = client().prepareDeleteByQuery("test").setQuery(randomHasChild("child", "c_field", "blue")).get();
-        assertThat(deleteByQueryResponse.getIndex("test").getShardInfo().getSuccessful(), equalTo(0));
-        assertThat(deleteByQueryResponse.getIndex("test").getShardInfo().getFailures().length, equalTo(getNumShards("test").numPrimaries));
-        assertThat(deleteByQueryResponse.getIndex("test").getShardInfo().getFailures()[0].reason(), containsString("[has_child] query and filter unsupported in delete_by_query api"));
-        client().admin().indices().prepareRefresh("test").get();
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(randomHasChild("child", "c_field", "blue"))
-                .get();
-        assertHitCount(searchResponse, 3l);
-    }
-
-    @Test
-    public void testDeleteByQuery_has_child_SingleRefresh() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings(
-                        settingsBuilder()
-                                .put(indexSettings())
-                                .put("index.refresh_interval", "-1")
-                )
-                .addMapping("parent")
-                .addMapping("child", "_parent", "type=parent"));
-        ensureGreen();
-
-        // index simple data
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
-        client().prepareIndex("test", "child", "c1").setSource("c_field", "red").setParent("p1").get();
-        client().prepareIndex("test", "child", "c2").setSource("c_field", "yellow").setParent("p1").get();
-        client().admin().indices().prepareFlush().get();
-        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").get();
-        client().prepareIndex("test", "child", "c3").setSource("c_field", "blue").setParent("p2").get();
-        client().prepareIndex("test", "child", "c4").setSource("c_field", "red").setParent("p2").get();
-        client().prepareIndex("test", "parent", "p3").setSource("p_field", "p_value3").get();
-        client().prepareIndex("test", "child", "c5").setSource("c_field", "blue").setParent("p3").get();
-        client().prepareIndex("test", "child", "c6").setSource("c_field", "red").setParent("p3").get();
-        client().prepareIndex("test", "parent", "p4").setSource("p_field", "p_value4").get();
-        client().prepareIndex("test", "child", "c7").setSource("c_field", "blue").setParent("p4").get();
-        client().prepareIndex("test", "child", "c8").setSource("c_field", "red").setParent("p4").get();
-        client().admin().indices().prepareRefresh().get();
-
-        SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(randomHasChild("child", "c_field", "blue"))
-                .get();
-        assertHitCount(searchResponse, 3l);
-
-        DeleteByQueryResponse deleteByQueryResponse = client().prepareDeleteByQuery("test").setQuery(randomHasChild("child", "c_field", "blue")).get();
-        assertThat(deleteByQueryResponse.getIndex("test").getShardInfo().getSuccessful(), equalTo(0));
-        assertThat(deleteByQueryResponse.getIndex("test").getShardInfo().getFailures().length, equalTo(getNumShards("test").numPrimaries));
-        assertThat(deleteByQueryResponse.getIndex("test").getShardInfo().getFailures()[0].reason(), containsString("[has_child] query and filter unsupported in delete_by_query api"));
-        client().admin().indices().prepareRefresh("test").get();
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(randomHasChild("child", "c_field", "blue"))
-                .get();
-        assertHitCount(searchResponse, 3l);
-    }
-
     private QueryBuilder randomHasChild(String type, String field, String value) {
         if (randomBoolean()) {
             if (randomBoolean()) {
@@ -1489,49 +1387,6 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         } else {
             return hasChildQuery(type, termQuery(field, value));
         }
-    }
-
-    @Test
-    public void testDeleteByQuery_has_parent() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings(
-                        settingsBuilder()
-                                .put(indexSettings())
-                                .put("index.refresh_interval", "-1")
-                )
-                .addMapping("parent")
-                .addMapping("child", "_parent", "type=parent"));
-        ensureGreen();
-
-        // index simple data
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
-        client().prepareIndex("test", "child", "c1").setSource("c_field", "red").setParent("p1").get();
-        client().prepareIndex("test", "child", "c2").setSource("c_field", "yellow").setParent("p1").get();
-        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").get();
-        client().admin().indices().prepareFlush("test").get();
-        client().prepareIndex("test", "child", "c3").setSource("c_field", "blue").setParent("p2").get();
-        client().prepareIndex("test", "child", "c4").setSource("c_field", "red").setParent("p2").get();
-        client().admin().indices().prepareRefresh().get();
-
-        SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(randomHasParent("parent", "p_field", "p_value2"))
-                .get();
-        assertHitCount(searchResponse, 2l);
-
-        DeleteByQueryResponse deleteByQueryResponse = client().prepareDeleteByQuery("test")
-                .setQuery(randomHasParent("parent", "p_field", "p_value2"))
-                .get();
-        assertThat(deleteByQueryResponse.getIndex("test").getShardInfo().getSuccessful(), equalTo(0));
-        assertThat(deleteByQueryResponse.getIndex("test").getShardInfo().getFailures().length, equalTo(getNumShards("test").numPrimaries));
-        assertThat(deleteByQueryResponse.getIndex("test").getShardInfo().getFailures()[0].reason(), containsString("[has_parent] query and filter unsupported in delete_by_query api"));
-        client().admin().indices().prepareRefresh("test").get();
-        client().admin().indices().prepareRefresh("test").get();
-        client().admin().indices().prepareRefresh("test").get();
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(randomHasParent("parent", "p_field", "p_value2"))
-                .get();
-        assertHitCount(searchResponse, 2l);
     }
 
     private QueryBuilder randomHasParent(String type, String field, String value) {
@@ -1601,7 +1456,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void indexChildDocWithNoParentMapping() throws ElasticsearchException, IOException {
+    public void indexChildDocWithNoParentMapping() throws IOException {
         assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child1"));
@@ -1611,21 +1466,21 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareIndex("test", "child1", "c1").setParent("p1").setSource("c_field", "blue").get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Can't specify parent if no parent field has been configured"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.toString(), containsString("Can't specify parent if no parent field has been configured"));
         }
         try {
             client().prepareIndex("test", "child2", "c2").setParent("p1").setSource("c_field", "blue").get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Can't specify parent if no parent field has been configured"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.toString(), containsString("Can't specify parent if no parent field has been configured"));
         }
 
         refresh();
     }
 
     @Test
-    public void testAddingParentToExistingMapping() throws ElasticsearchException, IOException {
+    public void testAddingParentToExistingMapping() throws IOException {
         createIndex("test");
         ensureGreen();
 
@@ -1645,11 +1500,11 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                     .endObject().endObject()).get();
             fail();
         } catch (MergeMappingException e) {
-            assertThat(e.getMessage(), equalTo("Merge failed with failures {[The _parent field's type option can't be changed]}"));
+            assertThat(e.toString(), containsString("Merge failed with failures {[The _parent field's type option can't be changed: [null]->[parent]]}"));
         }
     }
 
-    @Test
+    @Test @Slow
     // The SimpleIdReaderTypeCache#docById method used lget, which can't be used if a map is shared.
     public void testTopChildrenBug_concurrencyIssue() throws Exception {
         assertAcked(prepareCreate("test")
@@ -2332,7 +2187,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
             response = minMaxQuery("none", 3, 2, cutoff);
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("[has_child] 'max_children' is less than 'min_children'"));
+            assertThat(e.toString(), containsString("[has_child] 'max_children' is less than 'min_children'"));
         }
 
         // Score mode = SUM
@@ -2412,7 +2267,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
             response = minMaxQuery("sum", 3, 2, cutoff);
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("[has_child] 'max_children' is less than 'min_children'"));
+            assertThat(e.toString(), containsString("[has_child] 'max_children' is less than 'min_children'"));
         }
 
         // Score mode = MAX
@@ -2492,7 +2347,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
             response = minMaxQuery("max", 3, 2, cutoff);
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("[has_child] 'max_children' is less than 'min_children'"));
+            assertThat(e.toString(), containsString("[has_child] 'max_children' is less than 'min_children'"));
         }
 
         // Score mode = AVG
@@ -2572,7 +2427,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
             response = minMaxQuery("avg", 3, 2, cutoff);
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("[has_child] 'max_children' is less than 'min_children'"));
+            assertThat(e.toString(), containsString("[has_child] 'max_children' is less than 'min_children'"));
         }
 
         // HasChildFilter
@@ -2652,7 +2507,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
             response = minMaxFilter(3, 2, cutoff);
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("[has_child] 'max_children' is less than 'min_children'"));
+            assertThat(e.toString(), containsString("[has_child] 'max_children' is less than 'min_children'"));
         }
 
     }

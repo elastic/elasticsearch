@@ -77,7 +77,6 @@ import java.nio.channels.CancelledKeyException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -185,19 +184,19 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         // we want to have at least 1 for reg/state/ping
         if (this.connectionsPerNodeReg == 0) {
-            throw new ElasticsearchIllegalArgumentException("can't set [connection_per_node.reg] to 0");
+            throw new IllegalArgumentException("can't set [connection_per_node.reg] to 0");
         }
         if (this.connectionsPerNodePing == 0) {
-            throw new ElasticsearchIllegalArgumentException("can't set [connection_per_node.ping] to 0");
+            throw new IllegalArgumentException("can't set [connection_per_node.ping] to 0");
         }
         if (this.connectionsPerNodeState == 0) {
-            throw new ElasticsearchIllegalArgumentException("can't set [connection_per_node.state] to 0");
+            throw new IllegalArgumentException("can't set [connection_per_node.state] to 0");
         }
 
         long defaultReceiverPredictor = 512 * 1024;
-        if (JvmInfo.jvmInfo().mem().directMemoryMax().bytes() > 0) {
+        if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes() > 0) {
             // we can guess a better default...
-            long l = (long) ((0.3 * JvmInfo.jvmInfo().mem().directMemoryMax().bytes()) / workerCount);
+            long l = (long) ((0.3 * JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes()) / workerCount);
             defaultReceiverPredictor = Math.min(defaultReceiverPredictor, Math.max(l, 64 * 1024));
         }
 
@@ -235,7 +234,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         boolean success = false;
         try {
             clientBootstrap = createClientBootstrap();
@@ -488,7 +487,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         final CountDownLatch latch = new CountDownLatch(1);
         // make sure we run it on another thread than a possible IO handler thread
         threadPool.generic().execute(new Runnable() {
@@ -560,7 +559,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
     }
 
     @Override
@@ -737,7 +736,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     public void connectToNode(DiscoveryNode node, boolean light) {
         if (!lifecycle.started()) {
-            throw new ElasticsearchIllegalStateException("can't add nodes to a stopped transport");
+            throw new IllegalStateException("can't add nodes to a stopped transport");
         }
         if (node == null) {
             throw new ConnectTransportException(null, "can't connect to a null node");
@@ -747,7 +746,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             connectionLock.acquire(node.id());
             try {
                 if (!lifecycle.started()) {
-                    throw new ElasticsearchIllegalStateException("can't add nodes to a stopped transport");
+                    throw new IllegalStateException("can't add nodes to a stopped transport");
                 }
                 NodeChannels nodeChannels = connectedNodes.get(node);
                 if (nodeChannels != null) {
@@ -1108,7 +1107,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             } else if (type == TransportRequestOptions.Type.RECOVERY) {
                 return recovery[MathUtils.mod(recoveryCounter.incrementAndGet(), recovery.length)];
             } else {
-                throw new ElasticsearchIllegalArgumentException("no type channel for [" + type + "]");
+                throw new IllegalArgumentException("no type channel for [" + type + "]");
             }
         }
 

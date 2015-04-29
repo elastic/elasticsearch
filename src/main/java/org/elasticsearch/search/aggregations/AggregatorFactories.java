@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -140,8 +138,7 @@ public class AggregatorFactories {
 
         public Builder addAggregator(AggregatorFactory factory) {
             if (!names.add(factory.name)) {
-                throw new ElasticsearchIllegalArgumentException("Two sibling aggregations cannot have the same name: [" + factory.name
-                        + "]");
+                throw new IllegalArgumentException("Two sibling aggregations cannot have the same name: [" + factory.name + "]");
             }
             factories.add(factory);
             return this;
@@ -183,7 +180,7 @@ public class AggregatorFactories {
                 List<ReducerFactory> orderedReducers, List<ReducerFactory> unmarkedFactories, Set<ReducerFactory> temporarilyMarked,
                 ReducerFactory factory) {
             if (temporarilyMarked.contains(factory)) {
-                throw new ElasticsearchIllegalStateException("Cyclical dependancy found with reducer [" + factory.getName() + "]");
+                throw new IllegalStateException("Cyclical dependancy found with reducer [" + factory.getName() + "]");
             } else if (unmarkedFactories.contains(factory)) {
                 temporarilyMarked.add(factory);
                 String[] bucketsPaths = factory.getBucketsPaths();
@@ -198,7 +195,7 @@ public class AggregatorFactories {
                             resolveReducerOrder(aggFactoryNames, reducerFactoriesMap, orderedReducers, unmarkedFactories,
                                     temporarilyMarked, matchingFactory);
                         } else {
-                            throw new ElasticsearchIllegalStateException("No aggregation found for path [" + bucketsPath + "]");
+                            throw new IllegalStateException("No aggregation found for path [" + bucketsPath + "]");
                         }
                     }
                 }

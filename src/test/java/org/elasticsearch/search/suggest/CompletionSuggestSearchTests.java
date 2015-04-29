@@ -21,7 +21,8 @@ package org.elasticsearch.search.suggest;
 import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Lists;
-import org.elasticsearch.ExceptionsHelper;
+
+import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
@@ -48,7 +49,6 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionFuzzyBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -67,6 +67,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.*;
 
+@SuppressCodecs("*") // requires custom completion format
 public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     private final String INDEX = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
@@ -174,7 +175,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
             ).get();
             fail("Indexing with a float weight was successful, but should not be");
         } catch (MapperParsingException e) {
-            assertThat(ExceptionsHelper.detailedMessage(e), containsString("2.5"));
+            assertThat(e.toString(), containsString("2.5"));
         }
     }
 
@@ -218,7 +219,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
             ).get();
             fail("Indexing with a non-number representing string as weight was successful, but should not be");
         } catch (MapperParsingException e) {
-            assertThat(ExceptionsHelper.detailedMessage(e), containsString("thisIsNotValid"));
+            assertThat(e.toString(), containsString("thisIsNotValid"));
         }
     }
 
@@ -236,7 +237,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
             ).get();
             fail("Indexing with weight string representing value > Int.MAX_VALUE was successful, but should not be");
         } catch (MapperParsingException e) {
-            assertThat(ExceptionsHelper.detailedMessage(e), containsString(weight));
+            assertThat(e.toString(), containsString(weight));
         }
     }
 
@@ -771,7 +772,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
             fail("Expected an exception due to trying to sort on completion field, but did not happen");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.status().getStatus(), is(400));
-            assertThat(e.getMessage(), containsString("Sorting not supported for field[" + FIELD + "]"));
+            assertThat(e.toString(), containsString("Sorting not supported for field[" + FIELD + "]"));
         }
     }
 
@@ -1093,7 +1094,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
             // Exception must be thrown
             assertFalse(true);
         } catch (SearchPhaseExecutionException e) {
-            assertTrue(e.getDetailedMessage().contains("found no fielddata type for field [" + FIELD + "]"));
+            assertTrue(e.toString().contains("found no fielddata type for field [" + FIELD + "]"));
         }
     }
 

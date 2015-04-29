@@ -73,7 +73,7 @@ import java.util.Set;
  */
 public class TribeService extends AbstractLifecycleComponent<TribeService> {
 
-    public static final ClusterBlock TRIBE_METADATA_BLOCK = new ClusterBlock(10, "tribe node, metadata not allowed", false, false, RestStatus.BAD_REQUEST, EnumSet.of(ClusterBlockLevel.METADATA));
+    public static final ClusterBlock TRIBE_METADATA_BLOCK = new ClusterBlock(10, "tribe node, metadata not allowed", false, false, RestStatus.BAD_REQUEST, EnumSet.of(ClusterBlockLevel.METADATA_READ, ClusterBlockLevel.METADATA_WRITE));
     public static final ClusterBlock TRIBE_WRITE_BLOCK = new ClusterBlock(11, "tribe node, write not allowed", false, false, RestStatus.BAD_REQUEST, EnumSet.of(ClusterBlockLevel.WRITE));
 
     public static Settings processSettings(Settings settings) {
@@ -164,7 +164,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         for (Node node : nodes) {
             try {
                 node.start();
@@ -186,12 +186,12 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         doClose();
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
         for (Node node : nodes) {
             try {
                 node.close();

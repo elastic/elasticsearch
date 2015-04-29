@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -48,7 +47,7 @@ public class AliasValidator extends AbstractComponent {
     /**
      * Allows to validate an {@link org.elasticsearch.cluster.metadata.AliasAction} and make sure
      * it's valid before it gets added to the index metadata. Doesn't validate the alias filter.
-     * @throws org.elasticsearch.ElasticsearchIllegalArgumentException if the alias is not valid
+     * @throws IllegalArgumentException if the alias is not valid
      */
     public void validateAliasAction(AliasAction aliasAction, MetaData metaData) {
         validateAlias(aliasAction.alias(), aliasAction.index(), aliasAction.indexRouting(), metaData);
@@ -57,7 +56,7 @@ public class AliasValidator extends AbstractComponent {
     /**
      * Allows to validate an {@link org.elasticsearch.action.admin.indices.alias.Alias} and make sure
      * it's valid before it gets added to the index metadata. Doesn't validate the alias filter.
-     * @throws org.elasticsearch.ElasticsearchIllegalArgumentException if the alias is not valid
+     * @throws IllegalArgumentException if the alias is not valid
      */
     public void validateAlias(Alias alias, String index, MetaData metaData) {
         validateAlias(alias.name(), index, alias.indexRouting(), metaData);
@@ -66,7 +65,7 @@ public class AliasValidator extends AbstractComponent {
     /**
      * Allows to validate an {@link org.elasticsearch.cluster.metadata.AliasMetaData} and make sure
      * it's valid before it gets added to the index metadata. Doesn't validate the alias filter.
-     * @throws org.elasticsearch.ElasticsearchIllegalArgumentException if the alias is not valid
+     * @throws IllegalArgumentException if the alias is not valid
      */
     public void validateAliasMetaData(AliasMetaData aliasMetaData, String index, MetaData metaData) {
         validateAlias(aliasMetaData.alias(), index, aliasMetaData.indexRouting(), metaData);
@@ -77,7 +76,7 @@ public class AliasValidator extends AbstractComponent {
      * Useful with index templates containing aliases. Checks also that it is possible to parse
      * the alias filter via {@link org.elasticsearch.common.xcontent.XContentParser},
      * without validating it as a filter though.
-     * @throws org.elasticsearch.ElasticsearchIllegalArgumentException if the alias is not valid
+     * @throws IllegalArgumentException if the alias is not valid
      */
     public void validateAliasStandalone(Alias alias) {
         validateAliasStandalone(alias.name(), alias.indexRouting());
@@ -86,7 +85,7 @@ public class AliasValidator extends AbstractComponent {
                 XContentParser parser = XContentFactory.xContent(alias.filter()).createParser(alias.filter());
                 parser.mapAndClose();
             } catch (Throwable e) {
-                throw new ElasticsearchIllegalArgumentException("failed to parse filter for alias [" + alias.name() + "]", e);
+                throw new IllegalArgumentException("failed to parse filter for alias [" + alias.name() + "]", e);
             }
         }
     }
@@ -95,7 +94,7 @@ public class AliasValidator extends AbstractComponent {
         validateAliasStandalone(alias, indexRouting);
 
         if (!Strings.hasText(index)) {
-            throw new ElasticsearchIllegalArgumentException("index name is required");
+            throw new IllegalArgumentException("index name is required");
         }
 
         assert metaData != null;
@@ -106,17 +105,17 @@ public class AliasValidator extends AbstractComponent {
 
     private void validateAliasStandalone(String alias, String indexRouting) {
         if (!Strings.hasText(alias)) {
-            throw new ElasticsearchIllegalArgumentException("alias name is required");
+            throw new IllegalArgumentException("alias name is required");
         }
         if (indexRouting != null && indexRouting.indexOf(',') != -1) {
-            throw new ElasticsearchIllegalArgumentException("alias [" + alias + "] has several index routing values associated with it");
+            throw new IllegalArgumentException("alias [" + alias + "] has several index routing values associated with it");
         }
     }
 
     /**
      * Validates an alias filter by parsing it using the
      * provided {@link org.elasticsearch.index.query.IndexQueryParserService}
-     * @throws org.elasticsearch.ElasticsearchIllegalArgumentException if the filter is not valid
+     * @throws IllegalArgumentException if the filter is not valid
      */
     public void validateAliasFilter(String alias, String filter, IndexQueryParserService indexQueryParserService) {
         assert indexQueryParserService != null;
@@ -124,14 +123,14 @@ public class AliasValidator extends AbstractComponent {
             XContentParser parser = XContentFactory.xContent(filter).createParser(filter);
             validateAliasFilter(parser, indexQueryParserService);
         } catch (Throwable e) {
-            throw new ElasticsearchIllegalArgumentException("failed to parse filter for alias [" + alias + "]", e);
+            throw new IllegalArgumentException("failed to parse filter for alias [" + alias + "]", e);
         }
     }
 
     /**
      * Validates an alias filter by parsing it using the
      * provided {@link org.elasticsearch.index.query.IndexQueryParserService}
-     * @throws org.elasticsearch.ElasticsearchIllegalArgumentException if the filter is not valid
+     * @throws IllegalArgumentException if the filter is not valid
      */
     public void validateAliasFilter(String alias, byte[] filter, IndexQueryParserService indexQueryParserService) {
         assert indexQueryParserService != null;
@@ -139,7 +138,7 @@ public class AliasValidator extends AbstractComponent {
             XContentParser parser = XContentFactory.xContent(filter).createParser(filter);
             validateAliasFilter(parser, indexQueryParserService);
         } catch (Throwable e) {
-            throw new ElasticsearchIllegalArgumentException("failed to parse filter for alias [" + alias + "]", e);
+            throw new IllegalArgumentException("failed to parse filter for alias [" + alias + "]", e);
         }
     }
 

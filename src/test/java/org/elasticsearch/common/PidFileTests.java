@@ -20,7 +20,6 @@
 package org.elasticsearch.common;
 
 import com.google.common.base.Charsets;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -35,9 +34,9 @@ import java.nio.file.StandardOpenOption;
  */
 public class PidFileTests extends ElasticsearchTestCase {
 
-    @Test(expected = ElasticsearchIllegalArgumentException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testParentIsFile() throws IOException {
-        Path dir = newTempDirPath();
+        Path dir = createTempDir();
         Path parent = dir.resolve("foo");
         try(BufferedWriter stream = Files.newBufferedWriter(parent, Charsets.UTF_8, StandardOpenOption.CREATE_NEW)) {
             stream.write("foo");
@@ -48,7 +47,7 @@ public class PidFileTests extends ElasticsearchTestCase {
 
     @Test
     public void testPidFile() throws IOException {
-        Path dir = newTempDirPath();
+        Path dir = createTempDir();
         Path parent = dir.resolve("foo");
         if (randomBoolean()) {
             Files.createDirectories(parent);

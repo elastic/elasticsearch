@@ -23,10 +23,12 @@ import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Charsets;
 import com.google.common.base.Predicate;
+
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.*;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -45,6 +47,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -66,6 +69,7 @@ import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.*;
@@ -108,20 +112,19 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
      * Tests that we can actually recover from a corruption on the primary given that we have replica shards around.
      */
     @Test
+    @TestLogging("indices.recovery:TRACE")
     public void testCorruptFileAndRecover() throws ExecutionException, InterruptedException, IOException {
         int numDocs = scaledRandomIntBetween(100, 1000);
-        assertThat(cluster().numDataNodes(), greaterThanOrEqualTo(2));
-
-        while (cluster().numDataNodes() < 4) {
-            /**
-             * We need 4 nodes since if we have 2 replicas and only 3 nodes we can't get into green state since
-             * the corrupted node will never be used reallocate a replica since it's marked as corrupted
-             */
-            internalCluster().startNode(ImmutableSettings.builder().put("node.data", true).put("node.client", false).put("node.master", false));
+        // have enough space for 3 copies
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        if (cluster().numDataNodes() == 3) {
+            logger.info("--> cluster has [3] data nodes, corrupted primary will be overwritten");
         }
+
         assertThat(cluster().numDataNodes(), greaterThanOrEqualTo(3));
 
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
                         .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
                         .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
@@ -142,7 +145,8 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         assertHitCount(countResponse, numDocs);
 
         final int numShards = numShards("test");
-        ShardRouting corruptedShardRouting = corruptRandomFile();
+        ShardRouting corruptedShardRouting = corruptRandomPrimaryFile();
+        logger.info("--> {} corrupted", corruptedShardRouting);
         enableAllocation("test");
          /*
          * we corrupted the primary shard - now lets make sure we never recover from it successfully
@@ -224,7 +228,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
     @Test
     public void testCorruptPrimaryNoReplica() throws ExecutionException, InterruptedException, IOException {
         int numDocs = scaledRandomIntBetween(100, 1000);
-        assertThat(cluster().numDataNodes(), greaterThanOrEqualTo(2));
+        internalCluster().ensureAtLeastNumDataNodes(2);
 
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
@@ -245,7 +249,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         CountResponse countResponse = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);
 
-        ShardRouting shardRouting = corruptRandomFile();
+        ShardRouting shardRouting = corruptRandomPrimaryFile();
         /*
          * we corrupted the primary shard - now lets make sure we never recover from it successfully
          */
@@ -356,7 +360,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
     @Test
     public void testCorruptionOnNetworkLayer() throws ExecutionException, InterruptedException {
         int numDocs = scaledRandomIntBetween(100, 1000);
-        assertThat(cluster().numDataNodes(), greaterThanOrEqualTo(2));
+        internalCluster().ensureAtLeastNumDataNodes(2);
         if (cluster().numDataNodes() < 3) {
             internalCluster().startNode(ImmutableSettings.builder().put("node.data", true).put("node.client", false).put("node.master", false));
         }
@@ -455,7 +459,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
     @Test
     public void testCorruptFileThenSnapshotAndRestore() throws ExecutionException, InterruptedException, IOException {
         int numDocs = scaledRandomIntBetween(100, 1000);
-        assertThat(cluster().numDataNodes(), greaterThanOrEqualTo(2));
+        internalCluster().ensureAtLeastNumDataNodes(2);
 
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0") // no replicas for this test
@@ -476,14 +480,14 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         CountResponse countResponse = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);
 
-        ShardRouting shardRouting = corruptRandomFile(false);
+        ShardRouting shardRouting = corruptRandomPrimaryFile(false);
         // we don't corrupt segments.gen since S/R doesn't snapshot this file
         // the other problem here why we can't corrupt segments.X files is that the snapshot flushes again before
         // it snapshots and that will write a new segments.X+1 file
         logger.info("-->  creating repository");
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(settingsBuilder()
-                        .put("location", newTempDirPath(LifecycleScope.SUITE).toAbsolutePath())
+                        .put("location", createTempDir().toAbsolutePath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000))));
         logger.info("--> snapshot");
@@ -508,11 +512,11 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
     }
 
 
-    private ShardRouting corruptRandomFile() throws IOException {
-        return corruptRandomFile(true);
+    private ShardRouting corruptRandomPrimaryFile() throws IOException {
+        return corruptRandomPrimaryFile(true);
     }
 
-    private ShardRouting corruptRandomFile(final boolean includePerCommitFiles) throws IOException {
+    private ShardRouting corruptRandomPrimaryFile(final boolean includePerCommitFiles) throws IOException {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         GroupShardsIterator shardIterators = state.getRoutingNodes().getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
         List<ShardIterator> iterators = Lists.newArrayList(shardIterators);
@@ -527,12 +531,14 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         for (FsStats.Info info : nodeStatses.getNodes()[0].getFs()) {
             String path = info.getPath();
             final String relativeDataLocationPath = "indices/test/" + Integer.toString(shardRouting.getId()) + "/index";
-            Path file = Paths.get(path).resolve(relativeDataLocationPath);
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
-                for (Path item : stream) {
-                    if (Files.isRegularFile(item) && "write.lock".equals(item.getFileName().toString()) == false) {
-                        if (includePerCommitFiles || isPerSegmentFile(item.getFileName().toString())) {
-                            files.add(item);
+            Path file = PathUtils.get(path).resolve(relativeDataLocationPath);
+            if (Files.exists(file)) { // multi data path might only have one path in use
+                try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
+                    for (Path item : stream) {
+                        if (Files.isRegularFile(item) && "write.lock".equals(item.getFileName().toString()) == false) {
+                            if (includePerCommitFiles || isPerSegmentFile(item.getFileName().toString())) {
+                                files.add(item);
+                            }
                         }
                     }
                 }
@@ -554,12 +560,12 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                     ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
                     raf.read(bb);
                     bb.flip();
-                    
+
                     // corrupt
                     byte oldValue = bb.get(0);
                     byte newValue = (byte) (oldValue + 1);
                     bb.put(0, newValue);
-                    
+
                     // rewrite
                     raf.position(filePointer);
                     raf.write(bb);
@@ -636,10 +642,12 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         List<Path> files = new ArrayList<>();
         for (FsStats.Info info : nodeStatses.getNodes()[0].getFs()) {
             String path = info.getPath();
-            Path file = Paths.get(path).resolve("indices/test/" + Integer.toString(routing.getId()) + "/index");
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
-                for (Path item : stream) {
-                    files.add(item);
+            Path file = PathUtils.get(path).resolve("indices/test/" + Integer.toString(routing.getId()) + "/index");
+            if (Files.exists(file)) { // multi data path might only have one path in use
+                try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
+                    for (Path item : stream) {
+                        files.add(item);
+                    }
                 }
             }
         }

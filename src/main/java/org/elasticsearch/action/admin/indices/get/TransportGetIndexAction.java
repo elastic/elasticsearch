@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.get;
 import com.google.common.collect.ImmutableList;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.support.ActionFilters;
@@ -49,7 +48,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
     @Inject
     public TransportGetIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, GetIndexAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, GetIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, GetIndexRequest.class);
     }
 
     @Override
@@ -60,12 +59,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
 
     @Override
     protected ClusterBlockException checkBlock(GetIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
-    }
-
-    @Override
-    protected GetIndexRequest newRequest() {
-        return new GetIndexRequest();
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override
@@ -75,7 +69,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
 
     @Override
     protected void doMasterOperation(final GetIndexRequest request, String[] concreteIndices, final ClusterState state,
-                                     final ActionListener<GetIndexResponse> listener) throws ElasticsearchException {
+                                     final ActionListener<GetIndexResponse> listener) {
         ImmutableOpenMap<String, ImmutableList<Entry>> warmersResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, ImmutableList<AliasMetaData>> aliasesResult = ImmutableOpenMap.of();
@@ -117,7 +111,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                     break;
 
                 default:
-                    throw new ElasticsearchIllegalStateException("feature [" + feature + "] is not valid");
+                    throw new IllegalStateException("feature [" + feature + "] is not valid");
             }
         }
         listener.onResponse(new GetIndexResponse(concreteIndices, warmersResult, mappingsResult, aliasesResult, settings));

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.basic;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.English;
 import org.elasticsearch.ElasticsearchException;
@@ -37,10 +38,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.engine.MockInternalEngine;
+import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.Test;
 
@@ -54,6 +54,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTest {
 
     @Test
+    @Slow // maybe due to all the logging?
     @TestLogging("action.search.type:TRACE,index.shard:TRACE")
     public void testRandomDirectoryIOExceptions() throws IOException, InterruptedException, ExecutionException {
         String mapping = XContentFactory.jsonBuilder().
@@ -92,7 +93,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
 
         if (createIndexWithoutErrors) {
             Builder settings = settingsBuilder()
-                    .put("index.number_of_replicas", randomIntBetween(0, 1));
+                    .put("index.number_of_replicas", numberOfReplicas());
             logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
             client().admin().indices().prepareCreate("test")
                     .setSettings(settings)
@@ -106,15 +107,15 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
             client().admin().indices().prepareFlush("test").setWaitIfOngoing(true).execute().get();
             client().admin().indices().prepareClose("test").execute().get();
             client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder()
-                    .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE, exceptionRate)
-                    .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, exceptionOnOpenRate));
+                    .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE, exceptionRate)
+                    .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, exceptionOnOpenRate));
             client().admin().indices().prepareOpen("test").execute().get();
         } else {
             Builder settings = settingsBuilder()
                     .put("index.number_of_replicas", randomIntBetween(0, 1))
                     .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
-                    .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE, exceptionRate)
-                    .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, exceptionOnOpenRate); // we cannot expect that the index will be valid
+                    .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE, exceptionRate)
+                    .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, exceptionOnOpenRate); // we cannot expect that the index will be valid
             logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
             client().admin().indices().prepareCreate("test")
                     .setSettings(settings)
@@ -188,8 +189,8 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
             // check the index still contains the records that we indexed without errors
             client().admin().indices().prepareClose("test").execute().get();
             client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder()
-                    .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE, 0)
-                    .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, 0));
+                    .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE, 0)
+                    .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, 0));
             client().admin().indices().prepareOpen("test").execute().get();
             ensureGreen();
             SearchResponse searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchQuery("test", "init")).get();
@@ -248,10 +249,10 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
 
         Builder settings = settingsBuilder()
                 .put(indexSettings())
-                .put(MockInternalEngine.READER_WRAPPER_TYPE, RandomExceptionDirectoryReaderWrapper.class.getName())
+                .put(MockEngineSupport.READER_WRAPPER_TYPE, RandomExceptionDirectoryReaderWrapper.class.getName())
                 .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)
                 .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
-                .put(MockInternalEngine.WRAP_READER_RATIO, 1.0d);
+                .put(MockEngineSupport.WRAP_READER_RATIO, 1.0d);
         logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
@@ -307,10 +308,10 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
     public static final String EXCEPTION_LOW_LEVEL_RATIO_KEY = "index.engine.exception.ratio.low";
 
 
-    public static class RandomExceptionDirectoryReaderWrapper extends MockInternalEngine.DirectoryReaderWrapper {
+    public static class RandomExceptionDirectoryReaderWrapper extends MockEngineSupport.DirectoryReaderWrapper {
         private final Settings settings;
 
-        static class ThrowingSubReaderWrapper extends SubReaderWrapper implements ThrowingLeafReaderWrapper.Thrower {
+        static class ThrowingSubReaderWrapper extends FilterDirectoryReader.SubReaderWrapper implements ThrowingLeafReaderWrapper.Thrower {
             private final Random random;
             private final double topLevelRatio;
             private final double lowLevelRatio;

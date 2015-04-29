@@ -23,12 +23,17 @@ import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
@@ -48,12 +53,20 @@ public class RestClearScrollAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         String scrollIds = request.param("scroll_id");
-        if (scrollIds == null) {
-            scrollIds = RestActions.getRestContent(request).toUtf8();
-        }
-
         ClearScrollRequest clearRequest = new ClearScrollRequest();
         clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
+        if (RestActions.hasBodyContent(request)) {
+            XContentType type = RestActions.guessBodyContentType(request);
+           if (type == null) {
+               scrollIds = RestActions.getRestContent(request).toUtf8();
+               clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
+           } else {
+               // NOTE: if rest request with xcontent body has request parameters, these parameters does not override xcontent value
+               clearRequest.setScrollIds(null);
+               buildFromContent(RestActions.getRestContent(request), clearRequest);
+           }
+        }
+
         client.clearScroll(clearRequest, new RestStatusToXContentListener<ClearScrollResponse>(channel));
     }
 
@@ -63,4 +76,32 @@ public class RestClearScrollAction extends BaseRestHandler {
         }
         return Strings.splitStringByCommaToArray(scrollIds);
     }
+
+    public static void buildFromContent(BytesReference content, ClearScrollRequest clearScrollRequest) {
+        try (XContentParser parser = XContentHelper.createParser(content)) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new IllegalArgumentException("Malformed content, must start with an object");
+            } else {
+                XContentParser.Token token;
+                String currentFieldName = null;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else if ("scroll_id".equals(currentFieldName) && token == XContentParser.Token.START_ARRAY) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (token.isValue() == false) {
+                                throw new IllegalArgumentException("scroll_id array element should only contain scroll_id");
+                            }
+                            clearScrollRequest.addScrollId(parser.text());
+                        }
+                    } else {
+                        throw new IllegalArgumentException("Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to parse request body", e);
+        }
+    }
+
 }

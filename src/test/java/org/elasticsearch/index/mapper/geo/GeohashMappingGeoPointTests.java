@@ -99,7 +99,7 @@ public class GeohashMappingGeoPointTests extends ElasticsearchSingleNodeTest {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("geohash_precision", 10).endObject().endObject()
                 .endObject().endObject().string();
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
-        FieldMapper mapper = defaultMapper.mappers().smartName("point").mapper();
+        FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("point");
         assertThat(mapper, instanceOf(GeoPointFieldMapper.class));
         GeoPointFieldMapper geoPointFieldMapper = (GeoPointFieldMapper) mapper;
         assertThat(geoPointFieldMapper.geoHashPrecision(), is(10));
@@ -111,7 +111,7 @@ public class GeohashMappingGeoPointTests extends ElasticsearchSingleNodeTest {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("geohash_precision", "5m").endObject().endObject()
                 .endObject().endObject().string();
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
-        FieldMapper mapper = defaultMapper.mappers().smartName("point").mapper();
+        FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("point");
         assertThat(mapper, instanceOf(GeoPointFieldMapper.class));
         GeoPointFieldMapper geoPointFieldMapper = (GeoPointFieldMapper) mapper;
         assertThat(geoPointFieldMapper.geoHashPrecision(), is(10));

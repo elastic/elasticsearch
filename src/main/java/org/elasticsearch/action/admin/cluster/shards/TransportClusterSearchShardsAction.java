@@ -47,7 +47,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadO
 
     @Inject
     public TransportClusterSearchShardsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, ClusterSearchShardsAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, ClusterSearchShardsAction.NAME, transportService, clusterService, threadPool, actionFilters, ClusterSearchShardsRequest.class);
     }
 
     @Override
@@ -58,12 +58,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadO
 
     @Override
     protected ClusterBlockException checkBlock(ClusterSearchShardsRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
-    }
-
-    @Override
-    protected ClusterSearchShardsRequest newRequest() {
-        return new ClusterSearchShardsRequest();
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override
@@ -72,7 +67,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadO
     }
 
     @Override
-    protected void masterOperation(final ClusterSearchShardsRequest request, final ClusterState state, final ActionListener<ClusterSearchShardsResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final ClusterSearchShardsRequest request, final ClusterState state, final ActionListener<ClusterSearchShardsResponse> listener) {
         ClusterState clusterState = clusterService.state();
         String[] concreteIndices = clusterState.metaData().concreteIndices(request.indicesOptions(), request.indices());
         Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());

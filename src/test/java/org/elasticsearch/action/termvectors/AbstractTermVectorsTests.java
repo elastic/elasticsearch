@@ -340,8 +340,8 @@ public abstract class AbstractTermVectorsTests extends ElasticsearchIntegrationT
             assertNotNull(esTerms);
 
             Terms luceneTerms = luceneFields.terms(field.name);
-            TermsEnum esTermEnum = esTerms.iterator(null);
-            TermsEnum luceneTermEnum = luceneTerms.iterator(null);
+            TermsEnum esTermEnum = esTerms.iterator();
+            TermsEnum luceneTermEnum = luceneTerms.iterator();
 
             while (esTermEnum.next() != null) {
                 assertNotNull(luceneTermEnum.next());

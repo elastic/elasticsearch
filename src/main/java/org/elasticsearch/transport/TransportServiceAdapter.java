@@ -52,7 +52,7 @@ public interface TransportServiceAdapter {
      */
     void onRequestReceived(long requestId, String action);
 
-    TransportRequestHandler handler(String action);
+    RequestHandlerRegistry getRequestHandler(String action);
 
     void raiseNodeConnected(DiscoveryNode node);
 

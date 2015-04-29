@@ -35,7 +35,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
@@ -273,8 +273,9 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public Mapper parse(ParseContext context) throws IOException {
         // nothing to do here, we call the parent in preParse
+        return null;
     }
 
     @Override
@@ -351,10 +352,10 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         TimestampFieldMapper timestampFieldMapperMergeWith = (TimestampFieldMapper) mergeWith;
-        super.merge(mergeWith, mergeContext);
-        if (!mergeContext.mergeFlags().simulate()) {
+        super.merge(mergeWith, mergeResult);
+        if (!mergeResult.simulate()) {
             if (timestampFieldMapperMergeWith.enabledState != enabledState && !timestampFieldMapperMergeWith.enabledState.unset()) {
                 this.enabledState = timestampFieldMapperMergeWith.enabledState;
             }
@@ -363,18 +364,18 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
                 return;
             }
             if (defaultTimestamp == null) {
-                mergeContext.addConflict("Cannot update default in _timestamp value. Value is null now encountering " + timestampFieldMapperMergeWith.defaultTimestamp());
+                mergeResult.addConflict("Cannot update default in _timestamp value. Value is null now encountering " + timestampFieldMapperMergeWith.defaultTimestamp());
             } else if (timestampFieldMapperMergeWith.defaultTimestamp() == null) {
-                mergeContext.addConflict("Cannot update default in _timestamp value. Value is \" + defaultTimestamp.toString() + \" now encountering null");
+                mergeResult.addConflict("Cannot update default in _timestamp value. Value is \" + defaultTimestamp.toString() + \" now encountering null");
             } else if (!timestampFieldMapperMergeWith.defaultTimestamp().equals(defaultTimestamp)) {
-                mergeContext.addConflict("Cannot update default in _timestamp value. Value is " + defaultTimestamp.toString() + " now encountering " + timestampFieldMapperMergeWith.defaultTimestamp());
+                mergeResult.addConflict("Cannot update default in _timestamp value. Value is " + defaultTimestamp.toString() + " now encountering " + timestampFieldMapperMergeWith.defaultTimestamp());
             }
             if (this.path != null) {
                 if (path.equals(timestampFieldMapperMergeWith.path()) == false) {
-                    mergeContext.addConflict("Cannot update path in _timestamp value. Value is " + path + " path in merged mapping is " + (timestampFieldMapperMergeWith.path() == null ? "missing" : timestampFieldMapperMergeWith.path()));
+                    mergeResult.addConflict("Cannot update path in _timestamp value. Value is " + path + " path in merged mapping is " + (timestampFieldMapperMergeWith.path() == null ? "missing" : timestampFieldMapperMergeWith.path()));
                 }
             } else if (timestampFieldMapperMergeWith.path() != null) {
-                mergeContext.addConflict("Cannot update path in _timestamp value. Value is " + path + " path in merged mapping is missing");
+                mergeResult.addConflict("Cannot update path in _timestamp value. Value is " + path + " path in merged mapping is missing");
             }
         }
     }

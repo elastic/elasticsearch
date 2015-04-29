@@ -77,7 +77,7 @@ class SingleDocumentPercolatorIndex implements PercolatorIndex {
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             try {
                 this.reader().close();
                 memoryIndex.reset();

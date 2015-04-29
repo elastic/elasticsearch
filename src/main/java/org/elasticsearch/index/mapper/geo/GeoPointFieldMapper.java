@@ -28,8 +28,6 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -50,7 +48,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapperListener;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ObjectMapperListener;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -301,7 +299,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         public static final Encoding of(int numBytesPerValue) {
             final Encoding instance = INSTANCES[numBytesPerValue];
             if (instance == null) {
-                throw new ElasticsearchIllegalStateException("No encoding for " + numBytesPerValue + " bytes per value");
+                throw new IllegalStateException("No encoding for " + numBytesPerValue + " bytes per value");
             }
             return instance;
         }
@@ -515,7 +513,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public Mapper parse(ParseContext context) throws IOException {
         ContentPath.Type origPathType = context.path().pathType();
         context.path().pathType(pathType);
         context.path().add(name());
@@ -565,6 +563,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
 
         context.path().remove();
         context.path().pathType(origPathType);
+        return null;
     }
 
     private void parseGeohashField(ParseContext context, String geohash) throws IOException {
@@ -592,12 +591,12 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
 
         if (validateLat) {
             if (point.lat() > 90.0 || point.lat() < -90.0) {
-                throw new ElasticsearchIllegalArgumentException("illegal latitude value [" + point.lat() + "] for " + name());
+                throw new IllegalArgumentException("illegal latitude value [" + point.lat() + "] for " + name());
             }
         }
         if (validateLon) {
             if (point.lon() > 180.0 || point.lon() < -180) {
-                throw new ElasticsearchIllegalArgumentException("illegal longitude value [" + point.lon() + "] for " + name());
+                throw new IllegalArgumentException("illegal longitude value [" + point.lon() + "] for " + name());
             }
         }
 
@@ -642,39 +641,39 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        super.merge(mergeWith, mergeContext);
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+        super.merge(mergeWith, mergeResult);
         if (!this.getClass().equals(mergeWith.getClass())) {
             return;
         }
         GeoPointFieldMapper fieldMergeWith = (GeoPointFieldMapper) mergeWith;
 
         if (this.enableLatLon != fieldMergeWith.enableLatLon) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different lat_lon");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different lat_lon");
         }
         if (this.enableGeoHash != fieldMergeWith.enableGeoHash) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different geohash");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different geohash");
         }
         if (this.geoHashPrecision != fieldMergeWith.geoHashPrecision) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different geohash_precision");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different geohash_precision");
         }
         if (this.enableGeohashPrefix != fieldMergeWith.enableGeohashPrefix) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different geohash_prefix");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different geohash_prefix");
         }
         if (this.normalizeLat != fieldMergeWith.normalizeLat) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different normalize_lat");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different normalize_lat");
         }
         if (this.normalizeLon != fieldMergeWith.normalizeLon) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different normalize_lon");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different normalize_lon");
         }
         if (!Objects.equal(this.precisionStep, fieldMergeWith.precisionStep)) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different precision_step");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different precision_step");
         }
         if (this.validateLat != fieldMergeWith.validateLat) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different validate_lat");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different validate_lat");
         }
         if (this.validateLon != fieldMergeWith.validateLon) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different validate_lon");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different validate_lon");
         }
     }
 

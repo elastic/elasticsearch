@@ -23,21 +23,21 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -93,7 +93,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         @Override
         public Builder tokenized(boolean tokenized) {
             if (tokenized) {
-                throw new ElasticsearchIllegalArgumentException("bool field can't be tokenized");
+                throw new IllegalArgumentException("bool field can't be tokenized");
             }
             return super.tokenized(tokenized);
         }
@@ -205,7 +205,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         if (nullValue == null) {
             return null;
         }
-        return new TermFilter(names().createIndexNameTerm(nullValue ? Values.TRUE : Values.FALSE));
+        return Queries.wrap(new TermQuery(names().createIndexNameTerm(nullValue ? Values.TRUE : Values.FALSE)));
     }
 
     @Override
@@ -236,13 +236,13 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        super.merge(mergeWith, mergeContext);
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+        super.merge(mergeWith, mergeResult);
         if (!this.getClass().equals(mergeWith.getClass())) {
             return;
         }
 
-        if (!mergeContext.mergeFlags().simulate()) {
+        if (!mergeResult.simulate()) {
             this.nullValue = ((BooleanFieldMapper) mergeWith).nullValue;
         }
     }

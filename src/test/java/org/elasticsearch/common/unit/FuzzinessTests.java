@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.unit;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -173,6 +174,7 @@ public class FuzzinessTests extends ElasticsearchTestCase {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/10638")
     public void testSimilarityToDistance() {
         assertThat(Fuzziness.fromSimilarity(0.5f).asDistance("ab"), equalTo(1));
         assertThat(Fuzziness.fromSimilarity(0.66f).asDistance("abcefg"), equalTo(2));

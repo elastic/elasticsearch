@@ -21,9 +21,8 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -31,7 +30,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.HashFunction;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedString;
@@ -109,18 +107,18 @@ public class IndexMetaData {
         return customFactories.get(type);
     }
 
-    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) throws ElasticsearchIllegalArgumentException {
+    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) {
         Custom.Factory<T> factory = customFactories.get(type);
         if (factory == null) {
-            throw new ElasticsearchIllegalArgumentException("No custom index metadata factoy registered for type [" + type + "]");
+            throw new IllegalArgumentException("No custom index metadata factoy registered for type [" + type + "]");
         }
         return factory;
     }
 
-    public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(5, "index read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA));
+    public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(5, "index read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
     public static final ClusterBlock INDEX_READ_BLOCK = new ClusterBlock(7, "index read (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.READ));
     public static final ClusterBlock INDEX_WRITE_BLOCK = new ClusterBlock(8, "index write (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE));
-    public static final ClusterBlock INDEX_METADATA_BLOCK = new ClusterBlock(9, "index metadata (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.METADATA));
+    public static final ClusterBlock INDEX_METADATA_BLOCK = new ClusterBlock(9, "index metadata (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.METADATA_READ));
 
     public static enum State {
         OPEN((byte) 0),
@@ -142,7 +140,7 @@ public class IndexMetaData {
             } else if (id == 1) {
                 return CLOSE;
             }
-            throw new ElasticsearchIllegalStateException("No state match for id [" + id + "]");
+            throw new IllegalStateException("No state match for id [" + id + "]");
         }
 
         public static State fromString(String state) {
@@ -151,7 +149,7 @@ public class IndexMetaData {
             } else if ("close".equals(state)) {
                 return CLOSE;
             }
-            throw new ElasticsearchIllegalStateException("No state match for [" + state + "]");
+            throw new IllegalStateException("No state match for [" + state + "]");
         }
     }
     public static final String INDEX_SETTING_PREFIX = "index.";
@@ -237,7 +235,7 @@ public class IndexMetaData {
             try {
                 routingHashFunction = hashFunctionClass.newInstance();
             } catch (InstantiationException | IllegalAccessException e) {
-                throw new ElasticsearchIllegalStateException("Cannot instantiate hash function", e);
+                throw new IllegalStateException("Cannot instantiate hash function", e);
             }
         }
         useTypeForRouting = settings.getAsBoolean(SETTING_LEGACY_ROUTING_USE_TYPE, false);

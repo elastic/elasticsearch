@@ -19,16 +19,23 @@
 package org.elasticsearch.index.fieldvisitor;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldMappers;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -88,7 +95,8 @@ public abstract class FieldsVisitor extends StoredFieldVisitor {
     }
 
     @Override
-    public void stringField(FieldInfo fieldInfo, String value) throws IOException {
+    public void stringField(FieldInfo fieldInfo, byte[] bytes) throws IOException {
+        final String value = new String(bytes, StandardCharsets.UTF_8);
         if (UidFieldMapper.NAME.equals(fieldInfo.name)) {
             uid = Uid.createUid(value);
         } else {

@@ -27,16 +27,21 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
-import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.script.LeafSearchScript;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchParseException;
@@ -113,15 +118,15 @@ public class ScriptSortParser implements SortParser {
         }
 
         if (script == null) {
-            throw new SearchParseException(context, "_script sorting requires setting the script to sort by");
+            throw new SearchParseException(context, "_script sorting requires setting the script to sort by", parser.getTokenLocation());
         }
         if (type == null) {
-            throw new SearchParseException(context, "_script sorting requires setting the type of the script");
+            throw new SearchParseException(context, "_script sorting requires setting the type of the script", parser.getTokenLocation());
         }
-        final SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, ScriptContext.Standard.SEARCH, params);
+        final SearchScript searchScript = context.scriptService().search(context.lookup(), new Script(scriptLang, script, scriptType, params), ScriptContext.Standard.SEARCH);
 
         if (STRING_SORT_TYPE.equals(type) && (sortMode == MultiValueMode.SUM || sortMode == MultiValueMode.AVG)) {
-            throw new SearchParseException(context, "type [string] doesn't support mode [" + sortMode + "]");
+            throw new SearchParseException(context, "type [string] doesn't support mode [" + sortMode + "]", parser.getTokenLocation());
         }
 
         if (sortMode == null) {
@@ -131,7 +136,7 @@ public class ScriptSortParser implements SortParser {
         // If nested_path is specified, then wrap the `fieldComparatorSource` in a `NestedFieldComparatorSource`
         final Nested nested;
         if (nestedHelper != null && nestedHelper.getPath() != null) {
-            BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE);
+            BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter());
             Filter innerDocumentsFilter;
             if (nestedHelper.filterFound()) {
                 innerDocumentsFilter = context.filterCache().cache(nestedHelper.getInnerFilter(), null, context.queryParserService().autoFilterCachePolicy());
@@ -191,7 +196,7 @@ public class ScriptSortParser implements SortParser {
                 };
                 break;
             default:
-                throw new SearchParseException(context, "custom script sort type [" + type + "] not supported");
+            throw new SearchParseException(context, "custom script sort type [" + type + "] not supported", parser.getTokenLocation());
         }
 
         return new SortField("_script", fieldComparatorSource, reverse);

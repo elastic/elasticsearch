@@ -62,7 +62,8 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
     public TransportPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                     TransportService transportService, PercolatorService percolatorService,
                                     TransportGetAction getAction, ActionFilters actionFilters) {
-        super(settings, PercolateAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, PercolateAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                PercolateRequest.class, PercolateShardRequest.class, ThreadPool.Names.PERCOLATE);
         this.percolatorService = percolatorService;
         this.getAction = getAction;
     }
@@ -93,16 +94,6 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
         } else {
             super.doExecute(request, listener);
         }
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.PERCOLATE;
-    }
-
-    @Override
-    protected PercolateRequest newRequest() {
-        return new PercolateRequest();
     }
 
     @Override
@@ -166,11 +157,6 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
     }
 
     @Override
-    protected PercolateShardRequest newShardRequest() {
-        return new PercolateShardRequest();
-    }
-
-    @Override
     protected PercolateShardRequest newShardRequest(int numShards, ShardRouting shard, PercolateRequest request) {
         return new PercolateShardRequest(shard.shardId(), numShards, request);
     }
@@ -187,7 +173,7 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
     }
 
     @Override
-    protected PercolateShardResponse shardOperation(PercolateShardRequest request) throws ElasticsearchException {
+    protected PercolateShardResponse shardOperation(PercolateShardRequest request) {
         try {
             return percolatorService.percolate(request);
         } catch (Throwable e) {

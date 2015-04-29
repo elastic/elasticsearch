@@ -69,6 +69,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
     public void setup() throws IOException {
         Path genericConfigFolder = createTempDir();
         baseSettings = settingsBuilder()
+                .put("path.home", createTempDir().toString())
                 .put("path.conf", genericConfigFolder)
                 .build();
         resourceWatcherService = new ResourceWatcherService(baseSettings, null);

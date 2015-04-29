@@ -44,11 +44,20 @@ public class InternalSettingsPreparerTests extends ElasticsearchTestCase {
 
     @Test
     public void testIgnoreSystemProperties() {
-        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(settingsBuilder().put("node.zone", "bar").build(), true);
+        Settings settings = settingsBuilder()
+                .put("node.zone", "bar")
+                .put("path.home", createTempDir().toString())
+                .build();
+        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(settings, true);
         // Should use setting from the system property
         assertThat(tuple.v1().get("node.zone"), equalTo("foo"));
 
-        tuple = InternalSettingsPreparer.prepareSettings(settingsBuilder().put("config.ignore_system_properties", true).put("node.zone", "bar").build(), true);
+        settings = settingsBuilder()
+                .put("config.ignore_system_properties", true)
+                .put("node.zone", "bar")
+                .put("path.home", createTempDir().toString())
+                .build();
+        tuple = InternalSettingsPreparer.prepareSettings(settings, true);
         // Should use setting from the system property
         assertThat(tuple.v1().get("node.zone"), equalTo("bar"));
     }

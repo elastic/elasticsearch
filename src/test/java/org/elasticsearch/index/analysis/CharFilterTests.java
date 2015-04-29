@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
@@ -49,6 +50,7 @@ public class CharFilterTests extends ElasticsearchTokenStreamTestCase {
                 .putArray("index.analysis.char_filter.my_mapping.mappings", "ph=>f", "qu=>q")
                 .put("index.analysis.analyzer.custom_with_char_filter.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.custom_with_char_filter.char_filter", "my_mapping")
+                .put("path.home", createTempDir().toString())
                 .build();
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings)), new IndicesAnalysisModule()).createInjector();
         Injector injector = new ModulesBuilder().add(
@@ -74,6 +76,7 @@ public class CharFilterTests extends ElasticsearchTokenStreamTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.analysis.analyzer.custom_with_char_filter.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.custom_with_char_filter.char_filter", "html_strip")
+                .put("path.home", createTempDir().toString())
                 .build();
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings)), new IndicesAnalysisModule()).createInjector();
         Injector injector = new ModulesBuilder().add(

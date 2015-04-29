@@ -77,8 +77,11 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
         return injector.getInstance(AnalysisService.class);
     }
 
-    private static Settings loadFromClasspath(String path) {
-        return settingsBuilder().loadFromClasspath(path).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+    private Settings loadFromClasspath(String path) {
+        return settingsBuilder().loadFromClasspath(path)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put("path.home", createTempDir().toString())
+                .build();
 
     }
 
@@ -103,8 +106,11 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
 
     @Test
     public void testVersionedAnalyzers() throws Exception {
-        Settings settings2 = settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/test1.yml")
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_0).build();
+        Settings settings2 = settingsBuilder()
+                .loadFromClasspath("org/elasticsearch/index/analysis/test1.yml")
+                .put("path.home", createTempDir().toString())
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_0)
+                .build();
         AnalysisService analysisService2 = getAnalysisService(settings2);
 
         // indicesanalysisservice always has the current version
@@ -202,11 +208,14 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
 
     @Test
     public void testWordListPath() throws Exception {
-        Environment env = new Environment(ImmutableSettings.Builder.EMPTY_SETTINGS);
+        Settings settings = ImmutableSettings.builder()
+                               .put("path.home", createTempDir().toString())
+                               .build();
+        Environment env = new Environment(settings);
         String[] words = new String[]{"donau", "dampf", "schiff", "spargel", "creme", "suppe"};
 
         Path wordListFile = generateWordList(words);
-        Settings settings = settingsBuilder().loadFromSource("index: \n  word_list_path: " + wordListFile.toAbsolutePath()).build();
+        settings = settingsBuilder().loadFromSource("index: \n  word_list_path: " + wordListFile.toAbsolutePath()).build();
 
         Set<?> wordList = Analysis.getWordSet(env, settings, "index.word_list");
         MatcherAssert.assertThat(wordList.size(), equalTo(6));

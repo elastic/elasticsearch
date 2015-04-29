@@ -88,7 +88,11 @@ public abstract class AbstractClientHeadersTests extends ElasticsearchTestCase {
 
     @Before
     public void initClient() {
-        client = buildClient(HEADER_SETTINGS, ACTIONS);
+        Settings settings = ImmutableSettings.builder()
+                .put(HEADER_SETTINGS)
+                .put("path.home", createTempDir().toString())
+                .build();
+        client = buildClient(settings, ACTIONS);
     }
 
     @After

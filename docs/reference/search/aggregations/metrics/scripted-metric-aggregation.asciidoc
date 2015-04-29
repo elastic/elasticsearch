@@ -84,24 +84,28 @@ $ curl -XPUT 'http://localhost:9200/transactions/stock/1' -d '
     "type": "sale",
     "amount": 80
 }
+'
 
 $ curl -XPUT 'http://localhost:9200/transactions/stock/2' -d '
 {
     "type": "cost",
     "amount": 10
 }
+'
 
 $ curl -XPUT 'http://localhost:9200/transactions/stock/3' -d '
 {
     "type": "cost",
     "amount": 30
 }
+'
 
 $ curl -XPUT 'http://localhost:9200/transactions/stock/4' -d '
 {
     "type": "sale",
     "amount": 130
 }
+'
 --------------------------------------------------
 
 Lets say that documents 1 and 3 end up on shard A and documents 2 and 4 end up on shard B. The following is a breakdown of what the aggregation result is 

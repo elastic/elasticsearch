@@ -63,7 +63,7 @@ public abstract class TransportSearchHelper {
         } else if (searchType == SearchType.SCAN) {
             return buildScrollId(ParsedScrollId.SCAN, searchPhaseResults, attributes);
         } else {
-            throw new ElasticsearchIllegalStateException();
+            throw new ElasticsearchIllegalStateException("search_type [" + searchType + "] not supported");
         }
     }
 
@@ -95,7 +95,6 @@ public abstract class TransportSearchHelper {
             throw new ElasticsearchIllegalArgumentException("Failed to decode scrollId", e);
         }
         String[] elements = Strings.splitStringToArray(spare.get(), ';');
-        System.out.println(Arrays.toString(elements));
         if (elements.length < 2) {
             throw new ElasticsearchIllegalArgumentException("Malformed scrollId [" + scrollId + "], type and size parameters not provided");
         }

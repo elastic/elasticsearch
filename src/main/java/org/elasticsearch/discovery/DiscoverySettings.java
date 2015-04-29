@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.component.AbstractComponent;

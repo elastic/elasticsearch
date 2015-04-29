@@ -29,7 +29,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.FastCharArrayReader;
 import org.elasticsearch.common.xcontent.XContentParser;

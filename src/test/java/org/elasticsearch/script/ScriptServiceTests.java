@@ -20,7 +20,6 @@ package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ImmutableSettings;

@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.metrics.stats;
 
 import org.apache.lucene.index.LeafReaderContext;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;

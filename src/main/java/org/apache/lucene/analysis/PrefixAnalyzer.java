@@ -21,7 +21,6 @@ package org.apache.lucene.analysis;
 
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
-import java.lang.IllegalArgumentException;
 
 import java.io.IOException;
 import java.util.Collections;

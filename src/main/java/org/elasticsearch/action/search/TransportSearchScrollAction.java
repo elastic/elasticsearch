@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.type.ParsedScrollId;
 import org.elasticsearch.action.search.type.TransportSearchScrollQueryAndFetchAction;

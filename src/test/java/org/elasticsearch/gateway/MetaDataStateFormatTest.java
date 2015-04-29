@@ -29,7 +29,6 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;

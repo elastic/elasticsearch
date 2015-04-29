@@ -124,7 +124,7 @@ public class TransportRecoveryAction extends TransportBroadcastOperationAction<R
     }
 
     @Override
-    protected ShardRecoveryResponse shardOperation(ShardRecoveryRequest request) throws ElasticsearchException {
+    protected ShardRecoveryResponse shardOperation(ShardRecoveryRequest request) {
 
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.shardSafe(request.shardId().id());

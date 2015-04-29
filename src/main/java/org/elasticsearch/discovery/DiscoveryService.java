@@ -78,7 +78,7 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         initialStateListener = new InitialStateListener();
         discovery.addListener(initialStateListener);
         discovery.start();
@@ -97,7 +97,7 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         if (initialStateListener != null) {
             discovery.removeListener(initialStateListener);
         }
@@ -105,7 +105,7 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
         discovery.close();
     }
 

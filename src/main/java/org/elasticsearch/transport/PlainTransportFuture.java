@@ -20,7 +20,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 
@@ -40,7 +39,7 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
     }
 
     @Override
-    public V txGet() throws ElasticsearchException {
+    public V txGet() {
         try {
             return get();
         } catch (InterruptedException e) {
@@ -56,7 +55,7 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
     }
 
     @Override
-    public V txGet(long timeout, TimeUnit unit) throws ElasticsearchException {
+    public V txGet(long timeout, TimeUnit unit) {
         try {
             return get(timeout, unit);
         } catch (TimeoutException e) {

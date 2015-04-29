@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.delete;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;

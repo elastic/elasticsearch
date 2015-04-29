@@ -99,7 +99,7 @@ public class IndexStore extends AbstractIndexComponent implements Closeable {
     }
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void close() {
         settingsService.removeListener(applySettings);
     }
 

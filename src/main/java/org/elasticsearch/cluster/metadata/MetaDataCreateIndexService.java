@@ -26,7 +26,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -156,7 +155,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         });
     }
 
-    public void validateIndexName(String index, ClusterState state) throws ElasticsearchException {
+    public void validateIndexName(String index, ClusterState state) {
         if (state.routingTable().hasIndex(index)) {
             throw new IndexAlreadyExistsException(new Index(index));
         }
@@ -551,7 +550,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         return templates;
     }
 
-    private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws ElasticsearchException {
+    private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
         validateIndexName(request.index(), state);
         validateIndexSettings(request.index(), request.settings());
     }

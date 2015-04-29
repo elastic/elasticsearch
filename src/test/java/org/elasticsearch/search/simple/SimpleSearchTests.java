@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.simple;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;

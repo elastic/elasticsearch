@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.search.shape;
 
-import java.lang.IllegalArgumentException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;

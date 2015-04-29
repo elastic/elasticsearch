@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.rescore;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;

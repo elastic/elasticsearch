@@ -26,7 +26,6 @@ import org.apache.lucene.search.DocValuesDocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.util.Bits;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.HashedBytesRef;

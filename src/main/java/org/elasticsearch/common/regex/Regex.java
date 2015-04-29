@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.regex;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Strings;
 
 import java.util.Locale;

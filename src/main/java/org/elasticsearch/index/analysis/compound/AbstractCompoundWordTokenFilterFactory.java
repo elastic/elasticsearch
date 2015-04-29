@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis.compound;
 
 import org.apache.lucene.analysis.compound.CompoundWordTokenFilterBase;
 import org.apache.lucene.analysis.util.CharArraySet;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;

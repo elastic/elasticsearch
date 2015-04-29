@@ -61,8 +61,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalArgumentException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;

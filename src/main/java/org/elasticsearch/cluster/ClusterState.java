@@ -22,7 +22,6 @@ package org.elasticsearch.cluster;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableSet;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -103,7 +102,7 @@ public class ClusterState implements ToXContent {
         return customFactories.get(type);
     }
 
-    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) throws IllegalArgumentException {
+    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) {
         Custom.Factory<T> factory = customFactories.get(type);
         if (factory == null) {
             throw new IllegalArgumentException("No custom state factory registered for type [" + type + "]");

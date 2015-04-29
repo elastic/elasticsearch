@@ -21,8 +21,6 @@ package org.elasticsearch.rest;
 
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalArgumentException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -63,15 +61,15 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
         for (RestFilter filter : filters) {
             filter.close();
         }

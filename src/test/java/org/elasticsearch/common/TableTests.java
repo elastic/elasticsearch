@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common;
 
-import java.lang.IllegalStateException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 

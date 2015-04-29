@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;

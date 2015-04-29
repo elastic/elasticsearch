@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport;
 
-import java.lang.IllegalStateException;
 
 import java.lang.reflect.Constructor;
 

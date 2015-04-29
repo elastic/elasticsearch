@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.ParseField;
 
 /**
@@ -109,7 +108,7 @@ public enum SearchType {
      * one of "dfs_query_then_fetch"/"dfsQueryThenFetch", "dfs_query_and_fetch"/"dfsQueryAndFetch",
      * "query_then_fetch"/"queryThenFetch", "query_and_fetch"/"queryAndFetch", and "scan".
      */
-    public static SearchType fromString(String searchType) throws IllegalArgumentException {
+    public static SearchType fromString(String searchType) {
         if (searchType == null) {
             return SearchType.DEFAULT;
         }

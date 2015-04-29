@@ -20,7 +20,6 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.*;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.settings.Settings;
 
 /**

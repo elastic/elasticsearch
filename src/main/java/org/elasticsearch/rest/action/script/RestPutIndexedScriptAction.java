@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.rest.action.script;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;

@@ -42,7 +42,7 @@ public interface ActionFuture<T> extends Future<T> {
      * from {@link org.elasticsearch.transport.RemoteTransportException}. The root failure is
      * still accessible using {@link #getRootFailure()}.
      */
-    T actionGet() throws ElasticsearchException;
+    T actionGet();
 
     /**
      * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just catching the {@link InterruptedException} and throwing
@@ -53,7 +53,7 @@ public interface ActionFuture<T> extends Future<T> {
      * from {@link org.elasticsearch.transport.RemoteTransportException}. The root failure is
      * still accessible using {@link #getRootFailure()}.
      */
-    T actionGet(String timeout) throws ElasticsearchException;
+    T actionGet(String timeout);
 
     /**
      * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just catching the {@link InterruptedException} and throwing
@@ -66,7 +66,7 @@ public interface ActionFuture<T> extends Future<T> {
      *
      * @param timeoutMillis Timeout in millis
      */
-    T actionGet(long timeoutMillis) throws ElasticsearchException;
+    T actionGet(long timeoutMillis);
 
     /**
      * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just catching the {@link InterruptedException} and throwing
@@ -77,7 +77,7 @@ public interface ActionFuture<T> extends Future<T> {
      * from {@link org.elasticsearch.transport.RemoteTransportException}. The root failure is
      * still accessible using {@link #getRootFailure()}.
      */
-    T actionGet(long timeout, TimeUnit unit) throws ElasticsearchException;
+    T actionGet(long timeout, TimeUnit unit);
 
     /**
      * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just catching the {@link InterruptedException} and throwing
@@ -88,7 +88,7 @@ public interface ActionFuture<T> extends Future<T> {
      * from {@link org.elasticsearch.transport.RemoteTransportException}. The root failure is
      * still accessible using {@link #getRootFailure()}.
      */
-    T actionGet(TimeValue timeout) throws ElasticsearchException;
+    T actionGet(TimeValue timeout);
 
     /**
      * The root (possibly) wrapped failure.

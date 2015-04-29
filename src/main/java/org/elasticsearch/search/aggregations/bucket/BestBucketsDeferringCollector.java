@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
-import java.lang.IllegalStateException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;

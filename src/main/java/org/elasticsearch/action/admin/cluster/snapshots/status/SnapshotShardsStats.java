@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;

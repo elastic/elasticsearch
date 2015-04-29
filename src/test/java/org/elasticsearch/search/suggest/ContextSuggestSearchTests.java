@@ -20,7 +20,6 @@ package org.elasticsearch.search.suggest;
 
 import com.google.common.collect.Sets;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;

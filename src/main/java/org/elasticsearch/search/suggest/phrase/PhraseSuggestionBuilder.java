@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;

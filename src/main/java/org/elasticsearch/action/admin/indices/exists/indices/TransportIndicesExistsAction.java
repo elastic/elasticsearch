@@ -64,7 +64,7 @@ public class TransportIndicesExistsAction extends TransportMasterNodeReadOperati
     }
 
     @Override
-    protected void masterOperation(final IndicesExistsRequest request, final ClusterState state, final ActionListener<IndicesExistsResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final IndicesExistsRequest request, final ClusterState state, final ActionListener<IndicesExistsResponse> listener) {
         boolean exists;
         try {
             // Similar as the previous behaviour, but now also aliases and wildcards are supported.

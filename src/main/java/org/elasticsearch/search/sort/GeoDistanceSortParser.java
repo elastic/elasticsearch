@@ -27,7 +27,6 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitSet;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoDistance.FixedSourceDistance;

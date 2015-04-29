@@ -25,7 +25,6 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.*;
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
@@ -317,7 +316,7 @@ public class TopChildrenQuery extends Query {
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
         }
 
         @Override

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.functionscore;
 
-import java.lang.IllegalArgumentException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;

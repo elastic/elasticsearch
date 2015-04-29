@@ -20,7 +20,6 @@
 package org.elasticsearch.common.collect;
 
 import com.google.common.collect.ImmutableSet;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.util.HashSet;

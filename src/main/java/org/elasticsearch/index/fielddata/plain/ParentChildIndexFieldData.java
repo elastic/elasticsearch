@@ -39,7 +39,6 @@ import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -427,7 +426,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             List<Releasable> closeables = new ArrayList<>();
             for (OrdinalMapAndAtomicFieldData fds : atomicFD.values()) {
                 closeables.addAll(Arrays.asList(fds.fieldData));

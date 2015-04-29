@@ -38,7 +38,6 @@ import com.google.common.util.concurrent.SettableFuture;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.ip;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;

@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;

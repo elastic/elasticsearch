@@ -19,7 +19,6 @@
 package org.apache.lucene.store;
 
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
@@ -42,7 +41,7 @@ public class StoreRateLimiting {
         MERGE,
         ALL;
 
-        public static Type fromString(String type) throws IllegalArgumentException {
+        public static Type fromString(String type) {
             if ("none".equalsIgnoreCase(type)) {
                 return NONE;
             } else if ("merge".equalsIgnoreCase(type)) {
@@ -88,7 +87,7 @@ public class StoreRateLimiting {
         this.type = type;
     }
 
-    public void setType(String type) throws IllegalArgumentException {
+    public void setType(String type) {
         this.type = Type.fromString(type);
     }
 }

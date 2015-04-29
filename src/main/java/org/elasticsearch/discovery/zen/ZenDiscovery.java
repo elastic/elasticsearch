@@ -23,8 +23,6 @@ import com.google.common.base.Objects;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalArgumentException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -227,7 +225,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         nodesFD.setLocalNode(clusterService.localNode());
         joinThreadControl.start();
         pingService.start();
@@ -249,7 +247,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         joinThreadControl.stop();
         pingService.stop();
         masterFD.stop("zen disco stop");
@@ -283,7 +281,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
         masterFD.close();
         nodesFD.close();
         publishClusterState.close();

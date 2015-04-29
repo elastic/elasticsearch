@@ -25,8 +25,6 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalArgumentException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -124,11 +122,11 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         ImmutableSet<String> indices = ImmutableSet.copyOf(this.indices.keySet());
         final CountDownLatch latch = new CountDownLatch(indices.size());
 
@@ -160,7 +158,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
         IOUtils.closeWhileHandlingException(injector.getInstance(RecoverySettings.class),
             indicesAnalysisService);
     }
@@ -280,7 +278,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         return indexService;
     }
 
-    public synchronized IndexService createIndex(String sIndexName, @IndexSettings Settings settings, String localNodeId) throws ElasticsearchException {
+    public synchronized IndexService createIndex(String sIndexName, @IndexSettings Settings settings, String localNodeId) {
         if (!lifecycle.started()) {
             throw new IllegalStateException("Can't create an index [" + sIndexName + "], node is closed");
         }
@@ -342,11 +340,11 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param index the index to remove
      * @param reason  the high level reason causing this removal
      */
-    public void removeIndex(String index, String reason) throws ElasticsearchException {
+    public void removeIndex(String index, String reason) {
         removeIndex(index, reason, false);
     }
 
-    private void removeIndex(String index, String reason, boolean delete) throws ElasticsearchException {
+    private void removeIndex(String index, String reason, boolean delete) {
         try {
             final IndexService indexService;
             final Injector indexInjector;

@@ -21,7 +21,6 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamOutput;

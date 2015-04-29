@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.breaker;
 
-import java.lang.IllegalStateException;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;

@@ -20,8 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalArgumentException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
@@ -167,7 +165,7 @@ public class AllocateAllocationCommand implements AllocationCommand {
     }
 
     @Override
-    public RerouteExplanation execute(RoutingAllocation allocation, boolean explain) throws ElasticsearchException {
+    public RerouteExplanation execute(RoutingAllocation allocation, boolean explain) {
         DiscoveryNode discoNode = allocation.nodes().resolveNode(node);
 
         MutableShardRouting shardRouting = null;

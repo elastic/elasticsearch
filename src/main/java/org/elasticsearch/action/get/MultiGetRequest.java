@@ -20,7 +20,6 @@
 package org.elasticsearch.action.get;
 
 import com.google.common.collect.Iterators;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.IndicesOptions;

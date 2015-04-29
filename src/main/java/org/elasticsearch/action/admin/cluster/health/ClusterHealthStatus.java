@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import java.lang.IllegalArgumentException;
 
 /**
  *

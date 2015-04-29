@@ -20,7 +20,6 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionWriteResponse;

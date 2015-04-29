@@ -20,7 +20,6 @@
 package org.elasticsearch.script;
 
 import com.google.common.collect.Lists;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;

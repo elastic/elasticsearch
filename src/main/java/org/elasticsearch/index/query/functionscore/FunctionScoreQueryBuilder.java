@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BaseQueryBuilder;

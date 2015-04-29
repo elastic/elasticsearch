@@ -21,7 +21,6 @@ package org.elasticsearch.discovery.zen.ping.multicast;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -119,7 +118,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         try {
             // we know OSX has bugs in the JVM when creating multiple instances of multicast sockets
             // causing for "socket close" exceptions when receive and/or crashes
@@ -138,7 +137,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         if (multicastChannel != null) {
             multicastChannel.close();
             multicastChannel = null;
@@ -146,7 +145,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
     }
 
     public PingResponse[] pingAndWait(TimeValue timeout) {

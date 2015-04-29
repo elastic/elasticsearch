@@ -156,7 +156,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
     }
 
     @Override
-    protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) throws ElasticsearchException {
+    protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexQueryParserService queryParserService = indexService.queryParserService();
         IndexShard indexShard = indexService.shardSafe(request.shardId().id());

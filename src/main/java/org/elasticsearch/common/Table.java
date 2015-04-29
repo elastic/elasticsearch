@@ -21,7 +21,6 @@ package org.elasticsearch.common;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import java.lang.IllegalStateException;
 
 import java.util.ArrayList;
 import java.util.HashMap;

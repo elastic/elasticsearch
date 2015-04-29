@@ -71,7 +71,7 @@ public class LogByteSizeMergePolicyProvider extends AbstractMergePolicyProvider<
     }
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void close() {
         indexSettingsService.removeListener(applySettings);
     }
 

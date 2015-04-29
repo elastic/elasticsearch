@@ -61,7 +61,7 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadOperation
     }
 
     @Override
-    protected void masterOperation(final TypesExistsRequest request, final ClusterState state, final ActionListener<TypesExistsResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final TypesExistsRequest request, final ClusterState state, final ActionListener<TypesExistsResponse> listener) {
         String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
         if (concreteIndices.length == 0) {
             listener.onResponse(new TypesExistsResponse(false));

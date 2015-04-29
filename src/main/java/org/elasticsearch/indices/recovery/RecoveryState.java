@@ -20,8 +20,6 @@
 package org.elasticsearch.indices.recovery;
 
 import com.google.common.collect.ImmutableList;
-import java.lang.IllegalArgumentException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.common.Nullable;
@@ -82,7 +80,7 @@ public class RecoveryState implements ToXContent, Streamable {
             return id;
         }
 
-        public static Stage fromId(byte id) throws IllegalArgumentException {
+        public static Stage fromId(byte id) {
             if (id < 0 || id >= STAGES.length) {
                 throw new IllegalArgumentException("No mapping for id [" + id + "]");
             }
@@ -115,7 +113,7 @@ public class RecoveryState implements ToXContent, Streamable {
             return id;
         }
 
-        public static Type fromId(byte id) throws IllegalArgumentException {
+        public static Type fromId(byte id) {
             if (id < 0 || id >= TYPES.length) {
                 throw new IllegalArgumentException("No mapping for id [" + id + "]");
             }

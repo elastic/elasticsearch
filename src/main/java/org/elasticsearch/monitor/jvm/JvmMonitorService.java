@@ -109,7 +109,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         if (!enabled) {
             return;
         }
@@ -117,7 +117,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         if (!enabled) {
             return;
         }
@@ -125,7 +125,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
     }
 
     private class JvmMonitor implements Runnable {

@@ -107,7 +107,7 @@ public class TransportClient extends AbstractClient {
      * Constructs a new transport client with settings loaded either from the classpath or the file system (the
      * <tt>elasticsearch.(yml|json)</tt> files optionally prefixed with <tt>config/</tt>).
      */
-    public TransportClient() throws ElasticsearchException {
+    public TransportClient() {
         this(ImmutableSettings.Builder.EMPTY_SETTINGS, true);
     }
 
@@ -136,7 +136,7 @@ public class TransportClient extends AbstractClient {
      * @param loadConfigSettings <tt>true</tt> if settings should be loaded from the classpath/file system.
      * @throws org.elasticsearch.ElasticsearchException
      */
-    public TransportClient(Settings.Builder settings, boolean loadConfigSettings) throws ElasticsearchException {
+    public TransportClient(Settings.Builder settings, boolean loadConfigSettings) {
         this(settings.build(), loadConfigSettings);
     }
 
@@ -149,7 +149,7 @@ public class TransportClient extends AbstractClient {
      * @param loadConfigSettings <tt>true</tt> if settings should be loaded from the classpath/file system.
      * @throws org.elasticsearch.ElasticsearchException
      */
-    public TransportClient(Settings pSettings, boolean loadConfigSettings) throws ElasticsearchException {
+    public TransportClient(Settings pSettings, boolean loadConfigSettings) {
         Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(pSettings, loadConfigSettings);
         Settings settings = settingsBuilder()
                 .put(NettyTransport.PING_SCHEDULE, "5s") // enable by default the transport schedule ping interval

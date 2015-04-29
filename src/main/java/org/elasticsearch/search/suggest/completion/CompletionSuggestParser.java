@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.Fuzziness;

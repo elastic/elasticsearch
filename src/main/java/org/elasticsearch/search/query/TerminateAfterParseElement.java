@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.query;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;

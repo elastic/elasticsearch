@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.search.child;
 
-import java.lang.IllegalArgumentException;
 
 /**
  * Defines how scores from child documents are mapped into the parent document.

@@ -19,7 +19,6 @@
 package org.elasticsearch.action.percolate;
 
 import com.google.common.collect.Lists;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;

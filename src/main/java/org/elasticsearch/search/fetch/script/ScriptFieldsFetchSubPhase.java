@@ -21,7 +21,6 @@ package org.elasticsearch.search.fetch.script;
 import com.google.common.collect.ImmutableMap;
 
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.search.SearchHitField;
@@ -62,7 +61,7 @@ public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
     }
 
     @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticsearchException {
+    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
     }
 
     @Override
@@ -71,7 +70,7 @@ public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
     }
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticsearchException {
+    public void hitExecute(SearchContext context, HitContext hitContext) {
         for (ScriptFieldsContext.ScriptField scriptField : context.scriptFields().fields()) {
             LeafSearchScript leafScript;
             try {

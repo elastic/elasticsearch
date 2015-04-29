@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.block;
 
-import java.lang.IllegalArgumentException;
 
 import java.util.EnumSet;
 

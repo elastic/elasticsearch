@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action;
 
-import java.lang.IllegalArgumentException;
 
 /**
  * Write Consistency Level control how many replicas should be active for a write operation to occur (a write operation

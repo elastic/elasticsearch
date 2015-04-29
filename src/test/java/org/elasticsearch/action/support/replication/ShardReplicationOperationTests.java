@@ -536,7 +536,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         }
 
         @Override
-        protected ShardIterator shards(ClusterState clusterState, InternalRequest request) throws ElasticsearchException {
+        protected ShardIterator shards(ClusterState clusterState, InternalRequest request) {
             return clusterState.getRoutingTable().index(request.concreteIndex()).shard(request.request().shardId).shardsIt();
         }
 

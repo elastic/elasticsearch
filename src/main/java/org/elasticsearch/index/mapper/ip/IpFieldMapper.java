@@ -31,7 +31,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -83,7 +82,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     private static final Pattern pattern = Pattern.compile("\\.");
 
-    public static long ipToLong(String ip) throws IllegalArgumentException {
+    public static long ipToLong(String ip) {
         try {
             if (!InetAddresses.isInetAddress(ip)) {
                 throw new IllegalArgumentException("failed to parse ip [" + ip + "], not a valid ip address");
@@ -94,7 +93,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
             }
             return (Long.parseLong(octets[0]) << 24) + (Integer.parseInt(octets[1]) << 16) +
                     (Integer.parseInt(octets[2]) << 8) + Integer.parseInt(octets[3]);
-        } catch (Exception e) {
+        } catch (Exception e)
             if (e instanceof IllegalArgumentException) {
                 throw (IllegalArgumentException) e;
             }

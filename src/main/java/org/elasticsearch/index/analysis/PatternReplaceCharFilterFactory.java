@@ -19,7 +19,6 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.pattern.PatternReplaceCharFilter;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;

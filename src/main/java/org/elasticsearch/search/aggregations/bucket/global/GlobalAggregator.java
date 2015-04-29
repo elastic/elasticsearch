@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.global;
 
 import org.apache.lucene.index.LeafReaderContext;
-import java.lang.IllegalStateException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;

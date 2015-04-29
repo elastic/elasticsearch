@@ -29,8 +29,6 @@ import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import java.lang.IllegalArgumentException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;

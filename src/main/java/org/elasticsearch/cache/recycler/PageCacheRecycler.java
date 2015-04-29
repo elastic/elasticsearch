@@ -20,7 +20,6 @@
 package org.elasticsearch.cache.recycler;
 
 import com.google.common.base.Strings;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.recycler.AbstractRecyclerC;

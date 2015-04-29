@@ -22,7 +22,6 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.CharsRefBuilder;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;

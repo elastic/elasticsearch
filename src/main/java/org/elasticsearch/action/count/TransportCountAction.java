@@ -143,7 +143,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     }
 
     @Override
-    protected ShardCountResponse shardOperation(ShardCountRequest request) throws ElasticsearchException {
+    protected ShardCountResponse shardOperation(ShardCountRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.shardSafe(request.shardId().id());
 

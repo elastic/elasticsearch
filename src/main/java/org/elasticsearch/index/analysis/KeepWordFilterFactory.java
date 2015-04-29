@@ -24,7 +24,6 @@ import org.apache.lucene.analysis.miscellaneous.KeepWordFilter;
 import org.apache.lucene.analysis.miscellaneous.Lucene43KeepWordFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.util.Version;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;

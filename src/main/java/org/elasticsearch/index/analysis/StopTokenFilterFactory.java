@@ -26,7 +26,6 @@ import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.search.suggest.analyzing.SuggestStopFilter;
 import org.apache.lucene.util.Version;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;

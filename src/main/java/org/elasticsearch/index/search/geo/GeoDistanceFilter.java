@@ -26,7 +26,6 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocValuesDocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;

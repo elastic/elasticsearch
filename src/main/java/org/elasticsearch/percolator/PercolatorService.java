@@ -36,7 +36,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
@@ -247,7 +246,7 @@ public class PercolatorService extends AbstractComponent {
         }
     }
 
-    private ParsedDocument parseRequest(IndexService documentIndexService, PercolateShardRequest request, PercolateContext context) throws ElasticsearchException {
+    private ParsedDocument parseRequest(IndexService documentIndexService, PercolateShardRequest request, PercolateContext context) {
         BytesReference source = request.source();
         if (source == null || source.length() == 0) {
             return null;

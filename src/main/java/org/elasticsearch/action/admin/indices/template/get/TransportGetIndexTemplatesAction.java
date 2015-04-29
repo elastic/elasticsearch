@@ -63,7 +63,7 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadOpe
     }
 
     @Override
-    protected void masterOperation(GetIndexTemplatesRequest request, ClusterState state, ActionListener<GetIndexTemplatesResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(GetIndexTemplatesRequest request, ClusterState state, ActionListener<GetIndexTemplatesResponse> listener) {
         List<IndexTemplateMetaData> results;
 
         // If we did not ask for a specific name, then we return all templates

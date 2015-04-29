@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.unit;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -52,7 +51,7 @@ public class ByteSizeValue implements Serializable, Streamable {
         this.sizeUnit = sizeUnit;
     }
 
-    public int bytesAsInt() throws IllegalArgumentException {
+    public int bytesAsInt() {
         long bytes = bytes();
         if (bytes > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("size [" + toString() + "] is bigger than max int");

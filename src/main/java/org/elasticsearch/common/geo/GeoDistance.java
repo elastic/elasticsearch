@@ -21,7 +21,6 @@ package org.elasticsearch.common.geo;
 
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SloppyMath;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.GeoPointValues;

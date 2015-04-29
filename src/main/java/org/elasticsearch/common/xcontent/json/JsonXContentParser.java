@@ -23,7 +23,6 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
-import java.lang.IllegalStateException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 

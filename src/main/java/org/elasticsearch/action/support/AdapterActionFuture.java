@@ -20,7 +20,6 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -40,7 +39,7 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
     private Throwable rootFailure;
 
     @Override
-    public T actionGet() throws ElasticsearchException {
+    public T actionGet() {
         try {
             return get();
         } catch (InterruptedException e) {
@@ -51,22 +50,22 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
     }
 
     @Override
-    public T actionGet(String timeout) throws ElasticsearchException {
+    public T actionGet(String timeout) {
         return actionGet(TimeValue.parseTimeValue(timeout, null));
     }
 
     @Override
-    public T actionGet(long timeoutMillis) throws ElasticsearchException {
+    public T actionGet(long timeoutMillis) {
         return actionGet(timeoutMillis, TimeUnit.MILLISECONDS);
     }
 
     @Override
-    public T actionGet(TimeValue timeout) throws ElasticsearchException {
+    public T actionGet(TimeValue timeout) {
         return actionGet(timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
     @Override
-    public T actionGet(long timeout, TimeUnit unit) throws ElasticsearchException {
+    public T actionGet(long timeout, TimeUnit unit) {
         try {
             return get(timeout, unit);
         } catch (TimeoutException e) {

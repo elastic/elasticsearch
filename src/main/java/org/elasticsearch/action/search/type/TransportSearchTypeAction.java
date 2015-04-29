@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.IntArrayList;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import java.lang.IllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.search.ReduceSearchPhaseException;

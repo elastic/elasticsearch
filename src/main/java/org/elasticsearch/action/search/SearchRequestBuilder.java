@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -86,7 +85,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * one of "dfs_query_then_fetch"/"dfsQueryThenFetch", "dfs_query_and_fetch"/"dfsQueryAndFetch",
      * "query_then_fetch"/"queryThenFetch", and "query_and_fetch"/"queryAndFetch".
      */
-    public SearchRequestBuilder setSearchType(String searchType) throws IllegalArgumentException {
+    public SearchRequestBuilder setSearchType(String searchType) {
         request.searchType(searchType);
         return this;
     }

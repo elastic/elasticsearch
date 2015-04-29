@@ -20,7 +20,6 @@
 package org.elasticsearch.action.count;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;

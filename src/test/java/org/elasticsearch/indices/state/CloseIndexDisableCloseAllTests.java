@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.indices.state;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;

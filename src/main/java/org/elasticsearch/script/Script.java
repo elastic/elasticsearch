@@ -21,7 +21,6 @@ package org.elasticsearch.script;
 
 import java.util.Map;
 
-import java.lang.IllegalArgumentException;
 
 import static org.elasticsearch.script.ScriptService.ScriptType;
 

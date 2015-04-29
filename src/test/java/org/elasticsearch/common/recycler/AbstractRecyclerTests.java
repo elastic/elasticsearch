@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.recycler;
 
-import java.lang.IllegalStateException;
 import org.elasticsearch.common.recycler.Recycler.V;
 import org.elasticsearch.test.ElasticsearchTestCase;
 

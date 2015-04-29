@@ -214,7 +214,7 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    protected void closeNoLock(String reason) throws ElasticsearchException {
+    protected void closeNoLock(String reason) {
         if (isClosed.compareAndSet(false, true)) {
             try {
                 logger.debug("shadow replica close searcher manager refCount: {}", store.refCount());

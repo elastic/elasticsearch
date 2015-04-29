@@ -23,8 +23,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Terms;
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalArgumentException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -126,7 +124,7 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastOperat
     }
 
     @Override
-    protected FieldStatsShardResponse shardOperation(FieldStatsShardRequest request) throws ElasticsearchException {
+    protected FieldStatsShardResponse shardOperation(FieldStatsShardRequest request) {
         ShardId shardId = request.shardId();
         Map<String, FieldStats> fieldStats = new HashMap<>();
         IndexService indexServices = indicesService.indexServiceSafe(shardId.getIndex());

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import java.lang.IllegalArgumentException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.settings.Validator;

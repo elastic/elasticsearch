@@ -20,7 +20,6 @@ package org.elasticsearch.common.unit;
 
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.xcontent.ToXContent;

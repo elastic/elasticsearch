@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.support;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;

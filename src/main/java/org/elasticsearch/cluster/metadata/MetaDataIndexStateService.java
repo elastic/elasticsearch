@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;

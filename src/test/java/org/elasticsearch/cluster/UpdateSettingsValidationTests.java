@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;

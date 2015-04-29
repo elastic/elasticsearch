@@ -24,7 +24,6 @@ import com.google.common.collect.Sets;
 
 import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -99,7 +98,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
     }
 
     public GetResult get(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext, boolean ignoreErrorsOnGeneratedFields)
-            throws ElasticsearchException {
+            {
         currentMetric.inc();
         try {
             long now = System.nanoTime();
@@ -167,7 +166,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
         return FetchSourceContext.DO_NOT_FETCH_SOURCE;
     }
 
-    public GetResult innerGet(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext, boolean ignoreErrorsOnGeneratedFields) throws ElasticsearchException {
+    public GetResult innerGet(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext, boolean ignoreErrorsOnGeneratedFields) {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
 
         boolean loadSource = (gFields != null && gFields.length > 0) || fetchSourceContext.fetchSource();

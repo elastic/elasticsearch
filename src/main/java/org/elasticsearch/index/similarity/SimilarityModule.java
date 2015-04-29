@@ -20,7 +20,6 @@
 package org.elasticsearch.index.similarity;
 
 import com.google.common.collect.Maps;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.inject.assistedinject.FactoryProvider;

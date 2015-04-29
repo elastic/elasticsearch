@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.unit;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common;
 
-import java.lang.IllegalArgumentException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.ElasticsearchNullPointerException;
 
 import java.util.NoSuchElementException;

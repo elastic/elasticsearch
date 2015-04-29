@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.suggest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.action.support.IndicesOptions;

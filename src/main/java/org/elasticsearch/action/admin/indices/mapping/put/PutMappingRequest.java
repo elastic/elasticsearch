@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 
 import com.carrotsearch.hppc.ObjectOpenHashSet;
 import org.elasticsearch.ElasticsearchGenerationException;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;

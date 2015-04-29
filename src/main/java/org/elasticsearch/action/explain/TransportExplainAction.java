@@ -100,7 +100,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
     }
 
     @Override
-    protected ExplainResponse shardOperation(ExplainRequest request, ShardId shardId) throws ElasticsearchException {
+    protected ExplainResponse shardOperation(ExplainRequest request, ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.shardSafe(shardId.id());
         Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
@@ -149,7 +149,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
     }
 
     @Override
-    protected ShardIterator shards(ClusterState state, InternalRequest request) throws ElasticsearchException {
+    protected ShardIterator shards(ClusterState state, InternalRequest request) {
         return clusterService.operationRouting().getShards(
                 clusterService.state(), request.concreteIndex(), request.request().type(), request.request().id(), request.request().routing(), request.request().preference()
         );

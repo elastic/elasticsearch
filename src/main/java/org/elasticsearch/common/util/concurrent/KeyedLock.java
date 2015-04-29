@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import java.lang.IllegalStateException;
 
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;

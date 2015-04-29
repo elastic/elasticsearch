@@ -25,7 +25,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -116,7 +115,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         return customFactories.get(type);
     }
 
-    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) throws IllegalArgumentException {
+    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) {
         Custom.Factory<T> factory = customFactories.get(type);
         if (factory == null) {
             throw new IllegalArgumentException("No custom index metadata factory registered for type [" + type + "]");

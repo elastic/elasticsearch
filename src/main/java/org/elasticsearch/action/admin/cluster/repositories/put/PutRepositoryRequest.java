@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.repositories.put;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import java.lang.IllegalArgumentException;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;

@@ -818,7 +818,7 @@ public class CountQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test // see #2994
-    public void testSimpleSpan() throws ElasticsearchException, IOException {
+    public void testSimpleSpan() throws IOException {
         createIndex("test");
         ensureGreen();
 

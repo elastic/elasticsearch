@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.shards;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;

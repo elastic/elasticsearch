@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import java.lang.IllegalArgumentException;
 
 /**
  */

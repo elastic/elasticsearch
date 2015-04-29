@@ -75,7 +75,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
     }
 
     @Override
-    protected void masterOperation(final DeleteIndexRequest request, final ClusterState state, final ActionListener<DeleteIndexResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final DeleteIndexRequest request, final ClusterState state, final ActionListener<DeleteIndexResponse> listener) {
         String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
         if (concreteIndices.length == 0) {
             listener.onResponse(new DeleteIndexResponse(true));

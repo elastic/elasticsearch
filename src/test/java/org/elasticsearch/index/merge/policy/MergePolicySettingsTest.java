@@ -22,7 +22,6 @@ import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;

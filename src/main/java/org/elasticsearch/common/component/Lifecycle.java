@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.component;
 
-import java.lang.IllegalStateException;
 
 /**
  * Lifecycle state. Allows the following transitions:

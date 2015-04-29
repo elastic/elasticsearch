@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.discovery.zen;
 
-import java.lang.IllegalStateException;
 
 
 /**

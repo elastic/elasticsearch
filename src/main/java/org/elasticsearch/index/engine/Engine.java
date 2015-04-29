@@ -28,7 +28,6 @@ import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
@@ -540,11 +539,11 @@ public abstract class Engine implements Closeable {
      */
     public static interface RecoveryHandler {
 
-        void phase1(SnapshotIndexCommit snapshot) throws ElasticsearchException;
+        void phase1(SnapshotIndexCommit snapshot);
 
-        void phase2(Translog.Snapshot snapshot) throws ElasticsearchException;
+        void phase2(Translog.Snapshot snapshot);
 
-        void phase3(Translog.Snapshot snapshot) throws ElasticsearchException;
+        void phase3(Translog.Snapshot snapshot);
     }
 
     public static class Searcher implements Releasable {
@@ -573,7 +572,7 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             // Nothing to close here
         }
     }
@@ -1045,7 +1044,7 @@ public abstract class Engine implements Closeable {
 
     protected abstract SearcherManager getSearcherManager();
 
-    protected abstract void closeNoLock(String reason) throws ElasticsearchException;
+    protected abstract void closeNoLock(String reason);
 
     public void flushAndClose() throws IOException {
         if (isClosed.get() == false) {

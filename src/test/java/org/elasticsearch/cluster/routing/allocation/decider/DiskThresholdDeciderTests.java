@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;

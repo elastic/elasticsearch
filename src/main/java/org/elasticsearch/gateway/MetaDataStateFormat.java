@@ -26,7 +26,6 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
-import java.lang.IllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.logging.ESLogger;

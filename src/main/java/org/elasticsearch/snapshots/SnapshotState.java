@@ -19,7 +19,6 @@
 
 package org.elasticsearch.snapshots;
 
-import java.lang.IllegalArgumentException;
 
 /**
  * Represents the state that a snapshot can be in

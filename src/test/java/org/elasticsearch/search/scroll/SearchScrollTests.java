@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.scroll;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;

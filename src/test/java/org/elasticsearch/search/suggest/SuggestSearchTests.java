@@ -23,7 +23,6 @@ import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.io.Resources;
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.*;
@@ -410,7 +409,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
     }
     
     @Test // see #2817
-    public void testStopwordsOnlyPhraseSuggest() throws ElasticsearchException, IOException {
+    public void testStopwordsOnlyPhraseSuggest() throws IOException {
         assertAcked(prepareCreate("test").addMapping("typ1", "body", "type=string,analyzer=stopwd").setSettings(
                 settingsBuilder()
                         .put("index.analysis.analyzer.stopwd.tokenizer", "whitespace")
@@ -428,7 +427,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
     }
     
     @Test
-    public void testPrefixLength() throws ElasticsearchException, IOException {  // Stopped here
+    public void testPrefixLength() throws IOException {  // Stopped here
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put("index.analysis.analyzer.reverse.tokenizer", "standard")
@@ -473,7 +472,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
     @Test
     @Slow
     @Nightly
-    public void testMarvelHerosPhraseSuggest() throws ElasticsearchException, IOException {
+    public void testMarvelHerosPhraseSuggest() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.reverse.tokenizer", "standard")
@@ -669,7 +668,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Nightly
-    public void testPhraseBoundaryCases() throws ElasticsearchException, IOException {
+    public void testPhraseBoundaryCases() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1) // to get reliable statistics we should put this all into one shard
                 .put("index.analysis.analyzer.body.tokenizer", "standard")
@@ -876,7 +875,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
      * score during the reduce phase.  Failures don't occur every time - maybe two out of five tries but we don't repeat it to save time.
      */
     @Test
-    public void testSearchForRarePhrase() throws ElasticsearchException, IOException {
+    public void testSearchForRarePhrase() throws IOException {
         // If there isn't enough chaf per shard then shards can become unbalanced, making the cutoff recheck this is testing do more harm then good.
         int chafPerShard = 100;
 

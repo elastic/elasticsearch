@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;

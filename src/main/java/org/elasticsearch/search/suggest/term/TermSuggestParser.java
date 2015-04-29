@@ -20,7 +20,6 @@ package org.elasticsearch.search.suggest.term;
 
 import java.io.IOException;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;

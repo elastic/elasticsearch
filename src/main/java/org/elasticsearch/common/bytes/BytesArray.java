@@ -21,7 +21,6 @@ package org.elasticsearch.common.bytes;
 
 import com.google.common.base.Charsets;
 import org.apache.lucene.util.BytesRef;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;

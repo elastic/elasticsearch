@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.settings;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.count.CountResponse;

@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.explain;
 
 import org.apache.lucene.search.Explanation;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.support.QuerySourceBuilder;

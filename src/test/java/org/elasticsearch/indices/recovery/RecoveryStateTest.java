@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.indices.recovery;
 
-import java.lang.IllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;

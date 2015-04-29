@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import java.lang.IllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.common.Nullable;

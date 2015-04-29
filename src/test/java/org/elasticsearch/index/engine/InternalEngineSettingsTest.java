@@ -19,7 +19,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.LiveIndexWriterConfig;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;

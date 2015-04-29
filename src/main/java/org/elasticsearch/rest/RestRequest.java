@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.ContextHolder;
 import org.elasticsearch.common.Nullable;

@@ -78,7 +78,7 @@ public class TopChildrenQueryParser implements QueryParser {
                     iq = new XContentStructure.InnerQuery(parseContext, childType == null ? null : new String[] {childType});
                     queryFound = true;
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[top_children] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[top_children] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName)) {
@@ -96,15 +96,15 @@ public class TopChildrenQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[top_children] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[top_children] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (!queryFound) {
-            throw new QueryParsingException(parseContext.index(), "[top_children] requires 'query' field");
+            throw new QueryParsingException(parseContext, "[top_children] requires 'query' field");
         }
         if (childType == null) {
-            throw new QueryParsingException(parseContext.index(), "[top_children] requires 'type' field");
+            throw new QueryParsingException(parseContext, "[top_children] requires 'type' field");
         }
 
         Query innerQuery = iq.asQuery(childType);
@@ -115,11 +115,11 @@ public class TopChildrenQueryParser implements QueryParser {
 
         DocumentMapper childDocMapper = parseContext.mapperService().documentMapper(childType);
         if (childDocMapper == null) {
-            throw new QueryParsingException(parseContext.index(), "No mapping for for type [" + childType + "]");
+            throw new QueryParsingException(parseContext, "No mapping for for type [" + childType + "]");
         }
         ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
         if (!parentFieldMapper.active()) {
-            throw new QueryParsingException(parseContext.index(), "Type [" + childType + "] does not have parent mapping");
+            throw new QueryParsingException(parseContext, "Type [" + childType + "] does not have parent mapping");
         }
         String parentType = childDocMapper.parentFieldMapper().type();
 

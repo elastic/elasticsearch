@@ -78,7 +78,7 @@ public class PrefixFilterParser implements FilterParser {
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext.index(), "No value specified for prefix filter");
+            throw new QueryParsingException(parseContext, "No value specified for prefix filter");
         }
 
         Filter filter = null;

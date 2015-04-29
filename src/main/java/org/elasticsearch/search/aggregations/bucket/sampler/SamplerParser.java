@@ -73,17 +73,18 @@ public class SamplerParser implements Aggregator.Parser {
                     maxDocsPerValue = parser.intValue();
                 } else {
                     throw new SearchParseException(context, "Unsupported property \"" + currentFieldName + "\" for aggregation \""
-                            + aggregationName);
+                            + aggregationName, parser.getTokenLocation());
                 }
             } else if (!vsParser.token(currentFieldName, token, parser)) {
                 if (EXECUTION_HINT_FIELD.match(currentFieldName)) {
                     executionHint = parser.text();
                 } else {
-                    throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
+                    throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
+                            parser.getTokenLocation());
                 }
             } else {
                 throw new SearchParseException(context, "Unsupported property \"" + currentFieldName + "\" for aggregation \""
-                        + aggregationName);
+                        + aggregationName, parser.getTokenLocation());
             }
         }
 
@@ -93,7 +94,8 @@ public class SamplerParser implements Aggregator.Parser {
         } else {
             if (diversityChoiceMade) {
                 throw new SearchParseException(context, "Sampler aggregation has " + MAX_DOCS_PER_VALUE_FIELD.getPreferredName()
-                        + " setting but no \"field\" or \"script\" setting to provide values for aggregation \"" + aggregationName + "\"");
+                        + " setting but no \"field\" or \"script\" setting to provide values for aggregation \"" + aggregationName + "\"",
+                        parser.getTokenLocation());
 
             }
             return new SamplerAggregator.Factory(aggregationName, shardSize);

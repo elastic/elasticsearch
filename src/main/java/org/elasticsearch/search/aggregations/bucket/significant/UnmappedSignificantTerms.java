@@ -23,7 +23,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -33,7 +35,7 @@ import java.util.Map;
 /**
  *
  */
-public class UnmappedSignificantTerms extends InternalSignificantTerms {
+public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedSignificantTerms, InternalSignificantTerms.Bucket> {
 
     public static final Type TYPE = new Type("significant_terms", "umsigterms");
 
@@ -55,10 +57,10 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms {
 
     UnmappedSignificantTerms() {} // for serialization
 
-    public UnmappedSignificantTerms(String name, int requiredSize, long minDocCount, Map<String, Object> metaData) {
+    public UnmappedSignificantTerms(String name, int requiredSize, long minDocCount, List<Reducer> reducers, Map<String, Object> metaData) {
         //We pass zero for index/subset sizes because for the purpose of significant term analysis 
         // we assume an unmapped index's size is irrelevant to the proceedings. 
-        super(0, 0, name, requiredSize, minDocCount, JLHScore.INSTANCE, BUCKETS, metaData);
+        super(0, 0, name, requiredSize, minDocCount, JLHScore.INSTANCE, BUCKETS, reducers, metaData);
     }
 
     @Override
@@ -67,18 +69,28 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms {
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public UnmappedSignificantTerms create(List<InternalSignificantTerms.Bucket> buckets) {
+        return new UnmappedSignificantTerms(this.name, this.requiredSize, this.minDocCount, this.reducers(), this.metaData);
+    }
+
+    @Override
+    public InternalSignificantTerms.Bucket createBucket(InternalAggregations aggregations, InternalSignificantTerms.Bucket prototype) {
+        throw new UnsupportedOperationException("not supported for UnmappedSignificantTerms");
+    }
+
+    @Override
+    protected UnmappedSignificantTerms create(long subsetSize, long supersetSize, List<Bucket> buckets, InternalSignificantTerms prototype) {
+        throw new UnsupportedOperationException("not supported for UnmappedSignificantTerms");
+    }
+
+    @Override
+    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         for (InternalAggregation aggregation : aggregations) {
             if (!(aggregation instanceof UnmappedSignificantTerms)) {
                 return aggregation.reduce(aggregations, reduceContext);
             }
         }
         return this;
-    }
-
-    @Override
-    InternalSignificantTerms newAggregation(long subsetSize, long supersetSize, List<Bucket> buckets) {
-        throw new UnsupportedOperationException("How did you get there?");
     }
 
     @Override

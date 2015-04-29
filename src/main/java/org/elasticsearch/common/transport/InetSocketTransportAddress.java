@@ -38,6 +38,10 @@ public class InetSocketTransportAddress implements TransportAddress {
         InetSocketTransportAddress.resolveAddress = resolveAddress;
     }
 
+    public static boolean getResolveAddress() {
+        return resolveAddress;
+    }
+
     private InetSocketAddress address;
 
     InetSocketTransportAddress() {

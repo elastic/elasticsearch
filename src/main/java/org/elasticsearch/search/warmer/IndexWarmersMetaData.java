@@ -22,7 +22,9 @@ package org.elasticsearch.search.warmer;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -33,16 +35,33 @@ import org.elasticsearch.common.xcontent.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
 /**
  */
-public class IndexWarmersMetaData implements IndexMetaData.Custom {
+public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom> implements IndexMetaData.Custom {
 
     public static final String TYPE = "warmers";
 
-    public static final Factory FACTORY = new Factory();
+    public static final IndexWarmersMetaData PROTO = new IndexWarmersMetaData();
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        IndexWarmersMetaData that = (IndexWarmersMetaData) o;
+
+        return entries.equals(that.entries);
+
+    }
+
+    @Override
+    public int hashCode() {
+        return entries.hashCode();
+    }
 
     public static class Entry {
         private final String name;
@@ -74,6 +93,29 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
         public Boolean queryCache() {
             return this.queryCache;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            Entry entry = (Entry) o;
+
+            if (!name.equals(entry.name)) return false;
+            if (!Arrays.equals(types, entry.types)) return false;
+            if (!source.equals(entry.source)) return false;
+            return !(queryCache != null ? !queryCache.equals(entry.queryCache) : entry.queryCache != null);
+
+        }
+
+        @Override
+        public int hashCode() {
+            int result = name.hashCode();
+            result = 31 * result + Arrays.hashCode(types);
+            result = 31 * result + source.hashCode();
+            result = 31 * result + (queryCache != null ? queryCache.hashCode() : 0);
+            return result;
+        }
     }
 
     private final ImmutableList<Entry> entries;
@@ -92,149 +134,143 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
         return TYPE;
     }
 
-    public static class Factory implements IndexMetaData.Custom.Factory<IndexWarmersMetaData> {
-
-        @Override
-        public String type() {
-            return TYPE;
+    @Override
+    public IndexWarmersMetaData readFrom(StreamInput in) throws IOException {
+        Entry[] entries = new Entry[in.readVInt()];
+        for (int i = 0; i < entries.length; i++) {
+            String name = in.readString();
+            String[] types = in.readStringArray();
+            BytesReference source = null;
+            if (in.readBoolean()) {
+                source = in.readBytesReference();
+            }
+            Boolean queryCache;
+            queryCache = in.readOptionalBoolean();
+            entries[i] = new Entry(name, types, queryCache, source);
         }
+        return new IndexWarmersMetaData(entries);
+    }
 
-        @Override
-        public IndexWarmersMetaData readFrom(StreamInput in) throws IOException {
-            Entry[] entries = new Entry[in.readVInt()];
-            for (int i = 0; i < entries.length; i++) {
-                String name = in.readString();
-                String[] types = in.readStringArray();
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(entries().size());
+        for (Entry entry : entries()) {
+            out.writeString(entry.name());
+            out.writeStringArray(entry.types());
+            if (entry.source() == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeBytesReference(entry.source());
+            }
+            out.writeOptionalBoolean(entry.queryCache());
+        }
+    }
+
+    @Override
+    public IndexWarmersMetaData fromMap(Map<String, Object> map) throws IOException {
+        // if it starts with the type, remove it
+        if (map.size() == 1 && map.containsKey(TYPE)) {
+            map = (Map<String, Object>) map.values().iterator().next();
+        }
+        XContentBuilder builder = XContentFactory.smileBuilder().map(map);
+        try (XContentParser parser = XContentFactory.xContent(XContentType.SMILE).createParser(builder.bytes())) {
+            // move to START_OBJECT
+            parser.nextToken();
+            return fromXContent(parser);
+        }
+    }
+
+    @Override
+    public IndexWarmersMetaData fromXContent(XContentParser parser) throws IOException {
+        // we get here after we are at warmers token
+        String currentFieldName = null;
+        XContentParser.Token token;
+        List<Entry> entries = new ArrayList<>();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                String name = currentFieldName;
+                List<String> types = new ArrayList<>(2);
                 BytesReference source = null;
-                if (in.readBoolean()) {
-                    source = in.readBytesReference();
-                }
                 Boolean queryCache = null;
-                queryCache = in.readOptionalBoolean();
-                entries[i] = new Entry(name, types, queryCache, source);
-            }
-            return new IndexWarmersMetaData(entries);
-        }
-
-        @Override
-        public void writeTo(IndexWarmersMetaData warmers, StreamOutput out) throws IOException {
-            out.writeVInt(warmers.entries().size());
-            for (Entry entry : warmers.entries()) {
-                out.writeString(entry.name());
-                out.writeStringArray(entry.types());
-                if (entry.source() == null) {
-                    out.writeBoolean(false);
-                } else {
-                    out.writeBoolean(true);
-                    out.writeBytesReference(entry.source());
-                }
-                out.writeOptionalBoolean(entry.queryCache());
-            }
-        }
-
-        @Override
-        public IndexWarmersMetaData fromMap(Map<String, Object> map) throws IOException {
-            // if it starts with the type, remove it
-            if (map.size() == 1 && map.containsKey(TYPE)) {
-                map = (Map<String, Object>) map.values().iterator().next();
-            }
-            XContentBuilder builder = XContentFactory.smileBuilder().map(map);
-            try (XContentParser parser = XContentFactory.xContent(XContentType.SMILE).createParser(builder.bytes())) {
-                // move to START_OBJECT
-                parser.nextToken();
-                return fromXContent(parser);
-            }
-        }
-
-        @Override
-        public IndexWarmersMetaData fromXContent(XContentParser parser) throws IOException {
-            // we get here after we are at warmers token
-            String currentFieldName = null;
-            XContentParser.Token token;
-            List<Entry> entries = new ArrayList<>();
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    String name = currentFieldName;
-                    List<String> types = new ArrayList<>(2);
-                    BytesReference source = null;
-                    Boolean queryCache = null;
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token == XContentParser.Token.START_ARRAY) {
-                            if ("types".equals(currentFieldName)) {
-                                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                    types.add(parser.text());
-                                }
-                            }
-                        } else if (token == XContentParser.Token.START_OBJECT) {
-                            if ("source".equals(currentFieldName)) {
-                                XContentBuilder builder = XContentFactory.jsonBuilder().map(parser.mapOrdered());
-                                source = builder.bytes();
-                            }
-                        } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-                            if ("source".equals(currentFieldName)) {
-                                source = new BytesArray(parser.binaryValue());
-                            }
-                        } else if (token.isValue()) {
-                            if ("queryCache".equals(currentFieldName) || "query_cache".equals(currentFieldName)) {
-                                queryCache = parser.booleanValue();
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else if (token == XContentParser.Token.START_ARRAY) {
+                        if ("types".equals(currentFieldName)) {
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                types.add(parser.text());
                             }
                         }
-                    }
-                    entries.add(new Entry(name, types.size() == 0 ? Strings.EMPTY_ARRAY : types.toArray(new String[types.size()]), queryCache, source));
-                }
-            }
-            return new IndexWarmersMetaData(entries.toArray(new Entry[entries.size()]));
-        }
-
-        @Override
-        public void toXContent(IndexWarmersMetaData warmers, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            //No need, IndexMetaData already writes it
-            //builder.startObject(TYPE, XContentBuilder.FieldCaseConversion.NONE);
-            for (Entry entry : warmers.entries()) {
-                toXContent(entry, builder, params);
-            }
-            //No need, IndexMetaData already writes it
-            //builder.endObject();
-        }
-
-        public void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            boolean binary = params.paramAsBoolean("binary", false);
-            builder.startObject(entry.name(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field("types", entry.types());
-            if (entry.queryCache() != null) {
-                builder.field("queryCache", entry.queryCache());
-            }
-            builder.field("source");
-            if (binary) {
-                builder.value(entry.source());
-            } else {
-                Map<String, Object> mapping = XContentFactory.xContent(entry.source()).createParser(entry.source()).mapOrderedAndClose();
-                builder.map(mapping);
-            }
-            builder.endObject();
-        }
-
-        @Override
-        public IndexWarmersMetaData merge(IndexWarmersMetaData first, IndexWarmersMetaData second) {
-            List<Entry> entries = Lists.newArrayList();
-            entries.addAll(first.entries());
-            for (Entry secondEntry : second.entries()) {
-                boolean found = false;
-                for (Entry firstEntry : first.entries()) {
-                    if (firstEntry.name().equals(secondEntry.name())) {
-                        found = true;
-                        break;
+                    } else if (token == XContentParser.Token.START_OBJECT) {
+                        if ("source".equals(currentFieldName)) {
+                            XContentBuilder builder = XContentFactory.jsonBuilder().map(parser.mapOrdered());
+                            source = builder.bytes();
+                        }
+                    } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                        if ("source".equals(currentFieldName)) {
+                            source = new BytesArray(parser.binaryValue());
+                        }
+                    } else if (token.isValue()) {
+                        if ("queryCache".equals(currentFieldName) || "query_cache".equals(currentFieldName)) {
+                            queryCache = parser.booleanValue();
+                        }
                     }
                 }
-                if (!found) {
-                    entries.add(secondEntry);
+                entries.add(new Entry(name, types.size() == 0 ? Strings.EMPTY_ARRAY : types.toArray(new String[types.size()]), queryCache, source));
+            }
+        }
+        return new IndexWarmersMetaData(entries.toArray(new Entry[entries.size()]));
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        //No need, IndexMetaData already writes it
+        //builder.startObject(TYPE, XContentBuilder.FieldCaseConversion.NONE);
+        for (Entry entry : entries()) {
+            toXContent(entry, builder, params);
+        }
+        //No need, IndexMetaData already writes it
+        //builder.endObject();
+        return builder;
+    }
+
+    public static void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
+        boolean binary = params.paramAsBoolean("binary", false);
+        builder.startObject(entry.name(), XContentBuilder.FieldCaseConversion.NONE);
+        builder.field("types", entry.types());
+        if (entry.queryCache() != null) {
+            builder.field("queryCache", entry.queryCache());
+        }
+        builder.field("source");
+        if (binary) {
+            builder.value(entry.source());
+        } else {
+            Map<String, Object> mapping = XContentFactory.xContent(entry.source()).createParser(entry.source()).mapOrderedAndClose();
+            builder.map(mapping);
+        }
+        builder.endObject();
+    }
+
+    @Override
+    public IndexMetaData.Custom mergeWith(IndexMetaData.Custom other) {
+        IndexWarmersMetaData second = (IndexWarmersMetaData) other;
+        List<Entry> entries = Lists.newArrayList();
+        entries.addAll(entries());
+        for (Entry secondEntry : second.entries()) {
+            boolean found = false;
+            for (Entry firstEntry : entries()) {
+                if (firstEntry.name().equals(secondEntry.name())) {
+                    found = true;
+                    break;
                 }
             }
-            return new IndexWarmersMetaData(entries.toArray(new Entry[entries.size()]));
+            if (!found) {
+                entries.add(secondEntry);
+            }
         }
+        return new IndexWarmersMetaData(entries.toArray(new Entry[entries.size()]));
     }
 }

@@ -142,19 +142,19 @@ public class DiskThresholdDecider extends AllocationDecider {
         private void warnAboutDiskIfNeeded(DiskUsage usage) {
             // Check absolute disk values
             if (usage.getFreeBytes() < DiskThresholdDecider.this.freeBytesThresholdHigh.bytes()) {
-                logger.warn("high disk watermark [{}] exceeded on {}, shards will be relocated away from this node",
+                logger.warn("high disk watermark [{} free] exceeded on {}, shards will be relocated away from this node",
                         DiskThresholdDecider.this.freeBytesThresholdHigh, usage);
             } else if (usage.getFreeBytes() < DiskThresholdDecider.this.freeBytesThresholdLow.bytes()) {
-                logger.info("low disk watermark [{}] exceeded on {}, replicas will not be assigned to this node",
+                logger.info("low disk watermark [{} free] exceeded on {}, replicas will not be assigned to this node",
                         DiskThresholdDecider.this.freeBytesThresholdLow, usage);
             }
 
             // Check percentage disk values
             if (usage.getFreeDiskAsPercentage() < DiskThresholdDecider.this.freeDiskThresholdHigh) {
-                logger.warn("high disk watermark [{}] exceeded on {}, shards will be relocated away from this node",
+                logger.warn("high disk watermark [{} free] exceeded on {}, shards will be relocated away from this node",
                         Strings.format1Decimals(DiskThresholdDecider.this.freeDiskThresholdHigh, "%"), usage);
             } else if (usage.getFreeDiskAsPercentage() < DiskThresholdDecider.this.freeDiskThresholdLow) {
-                logger.info("low disk watermark [{}] exceeded on {}, replicas will not be assigned to this node",
+                logger.info("low disk watermark [{} free] exceeded on {}, replicas will not be assigned to this node",
                         Strings.format1Decimals(DiskThresholdDecider.this.freeDiskThresholdLow, "%"), usage);
             }
         }

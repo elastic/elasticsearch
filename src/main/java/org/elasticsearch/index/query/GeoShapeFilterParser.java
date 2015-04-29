@@ -113,7 +113,7 @@ public class GeoShapeFilterParser implements FilterParser {
                         } else if ("relation".equals(currentFieldName)) {
                             shapeRelation = ShapeRelation.getRelationByName(parser.text());
                             if (shapeRelation == null) {
-                                throw new QueryParsingException(parseContext.index(), "Unknown shape operation [" + parser.text() + "]");
+                                throw new QueryParsingException(parseContext, "Unknown shape operation [" + parser.text() + "]");
                             }
                         } else if ("strategy".equals(currentFieldName)) {
                             strategyName = parser.text();
@@ -134,13 +134,13 @@ public class GeoShapeFilterParser implements FilterParser {
                                 }
                             }
                             if (id == null) {
-                                throw new QueryParsingException(parseContext.index(), "ID for indexed shape not provided");
+                                throw new QueryParsingException(parseContext, "ID for indexed shape not provided");
                             } else if (type == null) {
-                                throw new QueryParsingException(parseContext.index(), "Type for indexed shape not provided");
+                                throw new QueryParsingException(parseContext, "Type for indexed shape not provided");
                             }
                             shape = fetchService.fetch(id, type, index, shapePath);
                         }  else {
-                            throw new QueryParsingException(parseContext.index(), "[geo_shape] filter does not support [" + currentFieldName + "]");
+                            throw new QueryParsingException(parseContext, "[geo_shape] filter does not support [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -152,26 +152,26 @@ public class GeoShapeFilterParser implements FilterParser {
                 } else if ("_cache_key".equals(currentFieldName)) {
                     cacheKey = new HashedBytesRef(parser.text());
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[geo_shape] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[geo_shape] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (shape == null) {
-            throw new QueryParsingException(parseContext.index(), "No Shape defined");
+            throw new QueryParsingException(parseContext, "No Shape defined");
         } else if (shapeRelation == null) {
-            throw new QueryParsingException(parseContext.index(), "No Shape Relation defined");
+            throw new QueryParsingException(parseContext, "No Shape Relation defined");
         }
 
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers == null || !smartNameFieldMappers.hasMapper()) {
-            throw new QueryParsingException(parseContext.index(), "Failed to find geo_shape field [" + fieldName + "]");
+            throw new QueryParsingException(parseContext, "Failed to find geo_shape field [" + fieldName + "]");
         }
 
         FieldMapper fieldMapper = smartNameFieldMappers.mapper();
         // TODO: This isn't the nicest way to check this
         if (!(fieldMapper instanceof GeoShapeFieldMapper)) {
-            throw new QueryParsingException(parseContext.index(), "Field [" + fieldName + "] is not a geo_shape");
+            throw new QueryParsingException(parseContext, "Field [" + fieldName + "] is not a geo_shape");
         }
 
         GeoShapeFieldMapper shapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;

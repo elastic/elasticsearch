@@ -119,6 +119,38 @@ There are different bucket aggregators, each with a different "bucketing" strate
 define fixed number of multiple buckets, and others dynamically create the buckets during the aggregation process.
 
 [float]
+=== Reducer Aggregations
+
+coming[2.0.0]
+
+experimental[]
+
+Reducer aggregations work on the outputs produced from other aggregations rather than from document sets, adding 
+information to the output tree. There are many different types of reducer, each computing different information from  
+other aggregations, but these types can broken down into two families:
+
+_Parent_::
+				A family of reducer aggregations that is provided with the output of its parent aggregation and is able
+				to compute new buckets or new aggregations to add to existing buckets.
+
+_Sibling_::
+				Reducer aggregations that are provided with the output of a sibling aggregation and are able to compute a 
+				new aggregation which will be at the same level as the sibling aggregation.
+
+Reducer aggregations can reference the aggregations they need to perform their computation by using the `buckets_paths` 
+parameter to indicate the paths to the required metrics. The syntax for defining these paths can be found in the
+<<search-aggregations-bucket-terms-aggregation-order, terms aggregation order>> section.
+
+??????  SHOULD THE SECTION ABOUT DEFINING AGGREGATION PATHS 
+BE IN THIS PAGE AND REFERENCED FROM THE TERMS AGGREGATION DOCUMENTATION  ???????
+
+Reducer aggregations cannot have sub-aggregations but depending on the type it can reference another reducer in the `buckets_path` 
+allowing reducers to be chained.
+
+NOTE: Because reducer aggregations only add to the output, when chaining reducer aggregations the output of each reducer will be 
+included in the final output.
+
+[float]
 === Caching heavy aggregations
 
 Frequently used aggregations (e.g. for display on the home page of a website)
@@ -197,3 +229,6 @@ Then that piece of metadata will be returned in place for our `titles` terms agg
 include::aggregations/metrics.asciidoc[]
 
 include::aggregations/bucket.asciidoc[]
+
+include::aggregations/reducer.asciidoc[]
+

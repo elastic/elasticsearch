@@ -65,7 +65,7 @@ public class CommonTermsQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext.index(), "[common] query malformed, no field");
+            throw new QueryParsingException(parseContext, "[common] query malformed, no field");
         }
         String fieldName = parser.currentName();
         Object value = null;
@@ -96,12 +96,13 @@ public class CommonTermsQueryParser implements QueryParser {
                                 } else if ("high_freq".equals(innerFieldName) || "highFreq".equals(innerFieldName)) {
                                     highFreqMinimumShouldMatch = parser.text();
                                 } else {
-                                    throw new QueryParsingException(parseContext.index(), "[common] query does not support [" + innerFieldName + "] for [" + currentFieldName + "]");
+                                    throw new QueryParsingException(parseContext, "[common] query does not support [" + innerFieldName
+                                            + "] for [" + currentFieldName + "]");
                                 }
                             }
                         }
                     } else {
-                        throw new QueryParsingException(parseContext.index(), "[common] query does not support [" + currentFieldName + "]");
+                        throw new QueryParsingException(parseContext, "[common] query does not support [" + currentFieldName + "]");
                     }
                 } else if (token.isValue()) {
                     if ("query".equals(currentFieldName)) {
@@ -109,7 +110,7 @@ public class CommonTermsQueryParser implements QueryParser {
                     } else if ("analyzer".equals(currentFieldName)) {
                         String analyzer = parser.text();
                         if (parseContext.analysisService().analyzer(analyzer) == null) {
-                            throw new QueryParsingException(parseContext.index(), "[common] analyzer [" + parser.text() + "] not found");
+                            throw new QueryParsingException(parseContext, "[common] analyzer [" + parser.text() + "] not found");
                         }
                         queryAnalyzer = analyzer;
                     } else if ("disable_coord".equals(currentFieldName) || "disableCoord".equals(currentFieldName)) {
@@ -123,7 +124,7 @@ public class CommonTermsQueryParser implements QueryParser {
                         } else if ("and".equalsIgnoreCase(op)) {
                             highFreqOccur = BooleanClause.Occur.MUST;
                         } else {
-                            throw new QueryParsingException(parseContext.index(),
+                            throw new QueryParsingException(parseContext,
                                     "[common] query requires operator to be either 'and' or 'or', not [" + op + "]");
                         }
                     } else if ("low_freq_operator".equals(currentFieldName) || "lowFreqOperator".equals(currentFieldName)) {
@@ -133,7 +134,7 @@ public class CommonTermsQueryParser implements QueryParser {
                         } else if ("and".equalsIgnoreCase(op)) {
                             lowFreqOccur = BooleanClause.Occur.MUST;
                         } else {
-                            throw new QueryParsingException(parseContext.index(),
+                            throw new QueryParsingException(parseContext,
                                     "[common] query requires operator to be either 'and' or 'or', not [" + op + "]");
                         }
                     } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
@@ -143,7 +144,7 @@ public class CommonTermsQueryParser implements QueryParser {
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     } else {
-                        throw new QueryParsingException(parseContext.index(), "[common] query does not support [" + currentFieldName + "]");
+                        throw new QueryParsingException(parseContext, "[common] query does not support [" + currentFieldName + "]");
                     }
                 }
             }
@@ -154,13 +155,13 @@ public class CommonTermsQueryParser implements QueryParser {
             token = parser.nextToken();
             if (token != XContentParser.Token.END_OBJECT) {
                 throw new QueryParsingException(
-                        parseContext.index(),
+                        parseContext,
                         "[common] query parsed in simplified form, with direct field name, but included more options than just the field name, possibly use its 'options' form, with 'query' element?");
             }
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext.index(), "No text specified for text query");
+            throw new QueryParsingException(parseContext, "No text specified for text query");
         }
         FieldMapper<?> mapper = null;
         String field;

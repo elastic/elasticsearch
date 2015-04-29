@@ -62,6 +62,6 @@ public class ClusterStateResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         clusterName.writeTo(out);
-        ClusterState.Builder.writeTo(clusterState, out);
+        clusterState.writeTo(out);
     }
 }

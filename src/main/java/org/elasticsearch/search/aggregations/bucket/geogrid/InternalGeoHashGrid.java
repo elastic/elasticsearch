@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,7 +46,8 @@ import java.util.Map;
  * All geohashes in a grid are of the same precision and held internally as a single long
  * for efficiency's sake.
  */
-public class InternalGeoHashGrid extends InternalMultiBucketAggregation implements GeoHashGrid {
+public class InternalGeoHashGrid extends InternalMultiBucketAggregation<InternalGeoHashGrid, InternalGeoHashGrid.Bucket> implements
+        GeoHashGrid {
 
     public static final Type TYPE = new Type("geohash_grid", "ghcells");
 
@@ -162,7 +164,6 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation implemen
             return builder;
         }
     }
-
     private int requiredSize;
     private Collection<Bucket> buckets;
     protected Map<String, Bucket> bucketMap;
@@ -170,8 +171,9 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation implemen
     InternalGeoHashGrid() {
     } // for serialization
 
-    public InternalGeoHashGrid(String name, int requiredSize, Collection<Bucket> buckets, Map<String, Object> metaData) {
-        super(name, metaData);
+    public InternalGeoHashGrid(String name, int requiredSize, Collection<Bucket> buckets, List<Reducer> reducers,
+            Map<String, Object> metaData) {
+        super(name, reducers, metaData);
         this.requiredSize = requiredSize;
         this.buckets = buckets;
     }
@@ -182,13 +184,23 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation implemen
     }
 
     @Override
+    public InternalGeoHashGrid create(List<Bucket> buckets) {
+        return new InternalGeoHashGrid(this.name, this.requiredSize, buckets, this.reducers(), this.metaData);
+    }
+
+    @Override
+    public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
+        return new Bucket(prototype.geohashAsLong, prototype.docCount, aggregations);
+    }
+
+    @Override
     public List<GeoHashGrid.Bucket> getBuckets() {
         Object o = buckets;
         return (List<GeoHashGrid.Bucket>) o;
     }
 
     @Override
-    public InternalGeoHashGrid reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalGeoHashGrid doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
 
         LongObjectPagedHashMap<List<Bucket>> buckets = null;
         for (InternalAggregation aggregation : aggregations) {
@@ -217,7 +229,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation implemen
         for (int i = ordered.size() - 1; i >= 0; i--) {
             list[i] = ordered.pop();
         }
-        return new InternalGeoHashGrid(getName(), requiredSize, Arrays.asList(list), getMetaData());
+        return new InternalGeoHashGrid(getName(), requiredSize, Arrays.asList(list), reducers(), getMetaData());
     }
 
     @Override

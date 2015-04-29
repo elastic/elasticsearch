@@ -154,7 +154,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         // the doc later
         MapperService.SmartNameFieldMappers smartMappers = parseContext.smartFieldMappers(fieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new QueryParsingException(parseContext.index(), "Unknown field [" + fieldName + "]");
+            throw new QueryParsingException(parseContext, "Unknown field [" + fieldName + "]");
         }
 
         FieldMapper<?> mapper = smartMappers.fieldMappers().mapper();
@@ -167,7 +167,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         } else if (mapper instanceof NumberFieldMapper<?>) {
             return parseNumberVariable(fieldName, parser, parseContext, (NumberFieldMapper<?>) mapper, mode);
         } else {
-            throw new QueryParsingException(parseContext.index(), "Field " + fieldName + " is of type " + mapper.fieldType()
+            throw new QueryParsingException(parseContext, "Field " + fieldName + " is of type " + mapper.fieldType()
                     + ", but only numeric types are supported.");
         }
     }

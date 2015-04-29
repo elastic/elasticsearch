@@ -212,12 +212,12 @@ public class SortParseElement implements SearchParseElement {
                 if (unmappedType != null) {
                     fieldMapper = context.mapperService().unmappedFieldMapper(unmappedType);
                 } else {
-                    throw new SearchParseException(context, "No mapping found for [" + fieldName + "] in order to sort on");
+                    throw new SearchParseException(context, "No mapping found for [" + fieldName + "] in order to sort on", null);
                 }
             }
 
             if (!fieldMapper.isSortable()) {
-                throw new SearchParseException(context, "Sorting not supported for field[" + fieldName + "]");
+                throw new SearchParseException(context, "Sorting not supported for field[" + fieldName + "]", null);
             }
 
             // Enable when we also know how to detect fields that do tokenize, but only emit one token

@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -36,6 +37,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -53,8 +55,9 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
     LongArray counts;
 
     public ValueCountAggregator(String name, ValuesSource valuesSource, @Nullable ValueFormatter formatter,
-            AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
-        super(name, aggregationContext, parent, metaData);
+            AggregationContext aggregationContext, Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData)
+            throws IOException {
+        super(name, aggregationContext, parent, reducers, metaData);
         this.valuesSource = valuesSource;
         this.formatter = formatter;
         if (valuesSource != null) {
@@ -92,12 +95,12 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalValueCount(name, counts.get(bucket), formatter, metaData());
+        return new InternalValueCount(name, counts.get(bucket), formatter, reducers(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalValueCount(name, 0l, formatter, metaData());
+        return new InternalValueCount(name, 0l, formatter, reducers(), metaData());
     }
 
     @Override
@@ -112,13 +115,15 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
-            return new ValueCountAggregator(name, null, config.formatter(), aggregationContext, parent, metaData);
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<Reducer> reducers,
+                Map<String, Object> metaData) throws IOException {
+            return new ValueCountAggregator(name, null, config.formatter(), aggregationContext, parent, reducers, metaData);
         }
 
         @Override
-        protected Aggregator doCreateInternal(VS valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
-            return new ValueCountAggregator(name, valuesSource, config.formatter(), aggregationContext, parent,
+        protected Aggregator doCreateInternal(VS valuesSource, AggregationContext aggregationContext, Aggregator parent,
+                boolean collectsFromSingleBucket, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+            return new ValueCountAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, reducers,
                     metaData);
         }
 

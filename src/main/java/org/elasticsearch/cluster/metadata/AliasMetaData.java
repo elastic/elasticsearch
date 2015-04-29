@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,7 +39,9 @@ import java.util.Set;
 /**
  *
  */
-public class AliasMetaData {
+public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
+
+    public static final AliasMetaData PROTO = new AliasMetaData("", null, null, null);
 
     private final String alias;
 
@@ -144,6 +147,48 @@ public class AliasMetaData {
         result = 31 * result + (indexRouting != null ? indexRouting.hashCode() : 0);
         result = 31 * result + (searchRouting != null ? searchRouting.hashCode() : 0);
         return result;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(alias());
+        if (filter() != null) {
+            out.writeBoolean(true);
+            filter.writeTo(out);
+        } else {
+            out.writeBoolean(false);
+        }
+        if (indexRouting() != null) {
+            out.writeBoolean(true);
+            out.writeString(indexRouting());
+        } else {
+            out.writeBoolean(false);
+        }
+        if (searchRouting() != null) {
+            out.writeBoolean(true);
+            out.writeString(searchRouting());
+        } else {
+            out.writeBoolean(false);
+        }
+
+    }
+
+    @Override
+    public AliasMetaData readFrom(StreamInput in) throws IOException {
+        String alias = in.readString();
+        CompressedString filter = null;
+        if (in.readBoolean()) {
+            filter = CompressedString.readCompressedString(in);
+        }
+        String indexRouting = null;
+        if (in.readBoolean()) {
+            indexRouting = in.readString();
+        }
+        String searchRouting = null;
+        if (in.readBoolean()) {
+            searchRouting = in.readString();
+        }
+        return new AliasMetaData(alias, filter, indexRouting, searchRouting);
     }
 
     public static class Builder {
@@ -294,44 +339,12 @@ public class AliasMetaData {
             return builder.build();
         }
 
-        public static void writeTo(AliasMetaData aliasMetaData, StreamOutput out) throws IOException {
-            out.writeString(aliasMetaData.alias());
-            if (aliasMetaData.filter() != null) {
-                out.writeBoolean(true);
-                aliasMetaData.filter.writeTo(out);
-            } else {
-                out.writeBoolean(false);
-            }
-            if (aliasMetaData.indexRouting() != null) {
-                out.writeBoolean(true);
-                out.writeString(aliasMetaData.indexRouting());
-            } else {
-                out.writeBoolean(false);
-            }
-            if (aliasMetaData.searchRouting() != null) {
-                out.writeBoolean(true);
-                out.writeString(aliasMetaData.searchRouting());
-            } else {
-                out.writeBoolean(false);
-            }
-
+        public void writeTo(AliasMetaData aliasMetaData, StreamOutput out) throws IOException {
+            aliasMetaData.writeTo(out);
         }
 
         public static AliasMetaData readFrom(StreamInput in) throws IOException {
-            String alias = in.readString();
-            CompressedString filter = null;
-            if (in.readBoolean()) {
-                filter = CompressedString.readCompressedString(in);
-            }
-            String indexRouting = null;
-            if (in.readBoolean()) {
-                indexRouting = in.readString();
-            }
-            String searchRouting = null;
-            if (in.readBoolean()) {
-                searchRouting = in.readString();
-            }
-            return new AliasMetaData(alias, filter, indexRouting, searchRouting);
+            return PROTO.readFrom(in);
         }
     }
 

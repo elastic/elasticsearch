@@ -29,6 +29,7 @@ import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.reducers.ReducerBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -50,7 +51,7 @@ public class PercolateSourceBuilder implements ToXContent {
     private List<SortBuilder> sorts;
     private Boolean trackScores;
     private HighlightBuilder highlightBuilder;
-    private List<AggregationBuilder> aggregations;
+    private List<AbstractAggregationBuilder> aggregations;
 
     /**
      * Sets the document to run the percolate queries against.
@@ -130,7 +131,7 @@ public class PercolateSourceBuilder implements ToXContent {
     /**
      * Add an aggregation definition.
      */
-    public PercolateSourceBuilder addAggregation(AggregationBuilder aggregationBuilder) {
+    public PercolateSourceBuilder addAggregation(AbstractAggregationBuilder aggregationBuilder) {
         if (aggregations == null) {
             aggregations = Lists.newArrayList();
         }

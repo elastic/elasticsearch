@@ -29,6 +29,8 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.reducers.SiblingReducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
@@ -74,7 +76,8 @@ public class AggregationPhase implements SearchPhase {
             List<Aggregator> collectors = new ArrayList<>();
             Aggregator[] aggregators;
             try {
-                aggregators = context.aggregations().factories().createTopLevelAggregators(aggregationContext);
+                AggregatorFactories factories = context.aggregations().factories();
+                aggregators = factories.createTopLevelAggregators(aggregationContext);
                 for (int i = 0; i < aggregators.length; i++) {
                     if (aggregators[i] instanceof GlobalAggregator == false) {
                         collectors.add(aggregators[i]);
@@ -138,6 +141,21 @@ public class AggregationPhase implements SearchPhase {
             }
         }
         context.queryResult().aggregations(new InternalAggregations(aggregations));
+        try {
+            List<Reducer> reducers = context.aggregations().factories().createReducers();
+            List<SiblingReducer> siblingReducers = new ArrayList<>(reducers.size());
+            for (Reducer reducer : reducers) {
+                if (reducer instanceof SiblingReducer) {
+                    siblingReducers.add((SiblingReducer) reducer);
+                } else {
+                    throw new AggregationExecutionException("Invalid reducer named [" + reducer.name() + "] of type ["
+                            + reducer.type().name() + "]. Only sibling reducers are allowed at the top level");
+                }
+            }
+            context.queryResult().reducers(siblingReducers);
+        } catch (IOException e) {
+            throw new AggregationExecutionException("Failed to build top level reducers", e);
+        }
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);

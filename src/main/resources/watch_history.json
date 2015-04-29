@@ -6,11 +6,16 @@
     "index.number_of_replicas": 1,
     "index.watcher.template_version": 1,
     "index.mapper.dynamic" : false,
-    "index.refresh_interval" : "5m"
+    "index.refresh_interval" : "5m",
+    "index.translog.flush_threshold_size" : "1GB",
+    "index.store.throttle.type" : "none"
   },
   "mappings": {
     "watch_record": {
       "dynamic" : "strict",
+      "_all" : {
+        "enabled" : false
+      },
       "properties": {
         "watch_id": {
           "type": "string",

@@ -23,7 +23,6 @@ import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -67,17 +66,17 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
             } catch (FailedToResolveConfigException e) {
                 failureToResolve = e;
             } catch (IOException e) {
-                throw new ElasticsearchIllegalArgumentException("Failed to load collation rules", e);
+                throw new IllegalArgumentException("Failed to load collation rules", e);
             } catch (URISyntaxException e) {
-                throw new ElasticsearchIllegalArgumentException("Failed to load collation rules", e);
+                throw new IllegalArgumentException("Failed to load collation rules", e);
             }
             try {
                 collator = new RuleBasedCollator(rules);
             } catch (Exception e) {
                 if (failureToResolve != null) {
-                    throw new ElasticsearchIllegalArgumentException("Failed to resolve collation rules location", failureToResolve);
+                    throw new IllegalArgumentException("Failed to resolve collation rules location", failureToResolve);
                 } else {
-                    throw new ElasticsearchIllegalArgumentException("Failed to parse collation rules", e);
+                    throw new IllegalArgumentException("Failed to parse collation rules", e);
                 }
             }
         } else {
@@ -115,7 +114,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
             } else if (strength.equalsIgnoreCase("identical")) {
                 collator.setStrength(Collator.IDENTICAL);
             } else {
-                throw new ElasticsearchIllegalArgumentException("Invalid strength: " + strength);
+                throw new IllegalArgumentException("Invalid strength: " + strength);
             }
         }
 
@@ -127,7 +126,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
             } else if (decomposition.equalsIgnoreCase("canonical")) {
                 collator.setDecomposition(Collator.CANONICAL_DECOMPOSITION);
             } else {
-                throw new ElasticsearchIllegalArgumentException("Invalid decomposition: " + decomposition);
+                throw new IllegalArgumentException("Invalid decomposition: " + decomposition);
             }
         }
 
@@ -140,7 +139,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
             } else if (alternate.equalsIgnoreCase("non-ignorable")) {
                 rbc.setAlternateHandlingShifted(false);
             } else {
-                throw new ElasticsearchIllegalArgumentException("Invalid alternate: " + alternate);
+                throw new IllegalArgumentException("Invalid alternate: " + alternate);
             }
         }
 
@@ -156,7 +155,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
             } else if (caseFirst.equalsIgnoreCase("upper")) {
                 rbc.setUpperCaseFirst(true);
             } else {
-                throw new ElasticsearchIllegalArgumentException("Invalid caseFirst: " + caseFirst);
+                throw new IllegalArgumentException("Invalid caseFirst: " + caseFirst);
             }
         }
 

@@ -24,7 +24,6 @@ public class WatcherVersion implements Serializable {
     // AA values below 50 are beta builds, and below 99 are RC builds, with 99 indicating a release
     // the (internal) format of the id is there so we can easily do after/before checks on the id
 
-    // The first internal beta has already been released, without this class being here, so we start version version 2.
     public static final int V_1_0_0_Beta1_ID = /*00*/1000001;
     public static final WatcherVersion V_1_0_0_Beta1 = new WatcherVersion(V_1_0_0_Beta1_ID, true, Version.V_1_4_0, LicenseVersion.V_1_0_0);
 

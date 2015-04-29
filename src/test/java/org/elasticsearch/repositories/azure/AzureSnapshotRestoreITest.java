@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories.azure;
 
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -68,7 +69,7 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
     }
 
     private static String getContainerName() {
-        String testName = "snapshot-itest-".concat(getContext().getRunnerSeedAsString().toLowerCase());
+        String testName = "snapshot-itest-".concat(RandomizedTest.getContext().getRunnerSeedAsString().toLowerCase());
         return testName.contains(" ") ? Strings.split(testName, " ")[0] : testName;
     }
 

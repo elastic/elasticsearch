@@ -271,14 +271,14 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
         assertThat(client.prepareGetSnapshots("test-repo").get().getSnapshots().size(), equalTo(0));
 
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*").get();
+        CreateSnapshotResponse createSnapshotResponse = client.prepareCreateSnapshot("test-repo", "test-snap-26").setWaitForCompletion(true).setIndices("test-idx-*").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
 
         // Get all snapshots - should have one
         assertThat(client.prepareGetSnapshots("test-repo").get().getSnapshots().size(), equalTo(1));
 
         // Clean the snapshot
-        client.prepareDeleteSnapshot("test-repo", "test-snap").get();
+        client.prepareDeleteSnapshot("test-repo", "test-snap-26").get();
         client.prepareDeleteRepository("test-repo").get();
 
         logger.info("-->  creating azure repository path [{}]", getRepositoryPath());
@@ -293,7 +293,7 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
         assertThat(client.prepareGetSnapshots("test-repo").get().getSnapshots().size(), equalTo(0));
 
         logger.info("--> snapshot");
-        createSnapshotResponse = client.prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*").get();
+        createSnapshotResponse = client.prepareCreateSnapshot("test-repo", "test-snap-26").setWaitForCompletion(true).setIndices("test-idx-*").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
 
         // Get all snapshots - should have one

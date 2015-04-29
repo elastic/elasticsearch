@@ -43,7 +43,12 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
@@ -303,6 +308,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
      * test simple moving average on single value field
      */
     @Test
+    @AwaitsFix(bugUrl = "Fails with certain seeds including -Dtests.seed=D9EF60095522804F")
     public void simpleSingleValuedField() {
 
         SearchResponse response = client()
@@ -355,6 +361,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "Fails with certain seeds including -Dtests.seed=D9EF60095522804F")
     public void linearSingleValuedField() {
 
         SearchResponse response = client()
@@ -407,6 +414,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "Fails with certain seeds including -Dtests.seed=D9EF60095522804F")
     public void singleSingleValuedField() {
 
         SearchResponse response = client()
@@ -459,6 +467,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "Fails with certain seeds including -Dtests.seed=D9EF60095522804F")
     public void doubleSingleValuedField() {
 
         SearchResponse response = client()

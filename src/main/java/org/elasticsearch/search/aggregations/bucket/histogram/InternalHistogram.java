@@ -191,7 +191,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
         public ValueFormatter getFormatter() {
             return formatter;
-    }
+        }
 
         public boolean getKeyed() {
             return keyed;

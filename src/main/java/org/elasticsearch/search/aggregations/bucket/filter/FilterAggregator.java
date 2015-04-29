@@ -48,7 +48,7 @@ public class FilterAggregator extends SingleBucketAggregator {
                             org.apache.lucene.search.Filter filter,
                             AggregatorFactories factories,
                             AggregationContext aggregationContext,
- Aggregator parent, List<Reducer> reducers,
+                            Aggregator parent, List<Reducer> reducers,
                             Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, reducers, metaData);
         this.filter = filter;
@@ -61,12 +61,12 @@ public class FilterAggregator extends SingleBucketAggregator {
         // no need to provide deleted docs to the filter
         final Bits bits = DocIdSets.asSequentialAccessBits(ctx.reader().maxDoc(), filter.getDocIdSet(ctx, null));
         return new LeafBucketCollectorBase(sub, null) {
-    @Override
+            @Override
             public void collect(int doc, long bucket) throws IOException {
-        if (bits.get(doc)) {
+                if (bits.get(doc)) {
                     collectBucket(sub, doc, bucket);
                 }
-        }
+            }
         };
     }
 

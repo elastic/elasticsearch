@@ -50,7 +50,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
 
     public GlobalOrdinalsSignificantTermsAggregator(String name, AggregatorFactories factories,
             ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, BucketCountThresholds bucketCountThresholds,
-                                                    IncludeExclude.OrdinalsFilter includeExclude, AggregationContext aggregationContext, Aggregator parent,
+            IncludeExclude.OrdinalsFilter includeExclude, AggregationContext aggregationContext, Aggregator parent,
             SignificantTermsAggregatorFactory termsAggFactory, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, valuesSource, null, bucketCountThresholds, includeExclude, aggregationContext, parent,

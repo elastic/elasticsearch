@@ -243,8 +243,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                 }
                 return new DoubleTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(),
                         order, bucketCountThresholds, aggregationContext, parent, collectMode,
- showTermDocCountError, longFilter, reducers,
-                        metaData);
+                        showTermDocCountError, longFilter, reducers, metaData);
             }
             if (includeExclude != null) {
                 longFilter = includeExclude.convertToLongFilter();

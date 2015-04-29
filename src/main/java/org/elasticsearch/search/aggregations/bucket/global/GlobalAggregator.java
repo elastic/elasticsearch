@@ -53,7 +53,7 @@ public class GlobalAggregator extends SingleBucketAggregator {
             public void collect(int doc, long bucket) throws IOException {
                 assert bucket == 0 : "global aggregator can only be a top level aggregator";
                 collectBucket(sub, doc, bucket);
-    }
+            }
         };
     }
 

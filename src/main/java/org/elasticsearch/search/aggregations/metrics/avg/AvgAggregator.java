@@ -53,8 +53,7 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     ValueFormatter formatter;
 
     public AvgAggregator(String name, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
- AggregationContext context,
-            Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+            AggregationContext context, Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, reducers, metaData);
         this.valuesSource = valuesSource;
         this.formatter = formatter;
@@ -75,22 +74,22 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
             final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
-    }
+        }
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
-    @Override
+            @Override
             public void collect(int doc, long bucket) throws IOException {
                 counts = bigArrays.grow(counts, bucket + 1);
                 sums = bigArrays.grow(sums, bucket + 1);
 
-        values.setDocument(doc);
-        final int valueCount = values.count();
+                values.setDocument(doc);
+                final int valueCount = values.count();
                 counts.increment(bucket, valueCount);
-        double sum = 0;
-        for (int i = 0; i < valueCount; i++) {
-            sum += values.valueAt(i);
-        }
+                double sum = 0;
+                for (int i = 0; i < valueCount; i++) {
+                    sum += values.valueAt(i);
+                }
                 sums.increment(bucket, sum);
             }
         };

@@ -72,29 +72,29 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
             // must belong to parent docs that is alive. For this reason acceptedDocs can be null here.
         BitDocIdSet docIdSet = parentFilter.getDocIdSet(ctx);
         final BitSet parentDocs;
-            if (DocIdSets.isEmpty(docIdSet)) {
+        if (DocIdSets.isEmpty(docIdSet)) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
-            } else {
-                parentDocs = docIdSet.bits();
-            }
+        } else {
+            parentDocs = docIdSet.bits();
+        }
         final LongIntOpenHashMap bucketOrdToLastCollectedParentDoc = new LongIntOpenHashMap(32);
         return new LeafBucketCollectorBase(sub, null) {
-    @Override
+            @Override
             public void collect(int childDoc, long bucket) throws IOException {
-        // fast forward to retrieve the parentDoc this childDoc belongs to
-        final int parentDoc = parentDocs.nextSetBit(childDoc);
-        assert childDoc <= parentDoc && parentDoc != DocIdSetIterator.NO_MORE_DOCS;
+                // fast forward to retrieve the parentDoc this childDoc belongs to
+                final int parentDoc = parentDocs.nextSetBit(childDoc);
+                assert childDoc <= parentDoc && parentDoc != DocIdSetIterator.NO_MORE_DOCS;
                 if (bucketOrdToLastCollectedParentDoc.containsKey(bucket)) {
-            int lastCollectedParentDoc = bucketOrdToLastCollectedParentDoc.lget();
-            if (parentDoc > lastCollectedParentDoc) {
+                    int lastCollectedParentDoc = bucketOrdToLastCollectedParentDoc.lget();
+                    if (parentDoc > lastCollectedParentDoc) {
                         collectBucket(sub, parentDoc, bucket);
-                bucketOrdToLastCollectedParentDoc.lset(parentDoc);
-            }
-        } else {
+                        bucketOrdToLastCollectedParentDoc.lset(parentDoc);
+                    }
+                } else {
                     collectBucket(sub, parentDoc, bucket);
                     bucketOrdToLastCollectedParentDoc.put(bucket, parentDoc);
-        }
-    }
+                }
+            }
         };
     }
 

@@ -33,7 +33,7 @@ import java.util.Map;
 public abstract class SingleBucketAggregator extends BucketsAggregator {
 
     protected SingleBucketAggregator(String name, AggregatorFactories factories,
- AggregationContext aggregationContext, Aggregator parent,
+            AggregationContext aggregationContext, Aggregator parent,
             List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, reducers, metaData);
     }

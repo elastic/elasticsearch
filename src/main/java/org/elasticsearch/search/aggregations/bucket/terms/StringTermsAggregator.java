@@ -51,7 +51,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
 
     public StringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
             Terms.Order order, BucketCountThresholds bucketCountThresholds,
- IncludeExclude.StringFilter includeExclude, AggregationContext aggregationContext,
+            IncludeExclude.StringFilter includeExclude, AggregationContext aggregationContext,
             Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError, List<Reducer> reducers,
             Map<String, Object> metaData) throws IOException {
 

@@ -176,10 +176,9 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
     @Test
     public void testMetaWrittenWhenIndexIsClosed() throws Exception {
         String masterNode = startMasterNode();
-        String blueNode = startDataNode("blue");
         String redNodeDataPath = createTempDir().toString();
         String redNode = startDataNode("red", redNodeDataPath);
-
+        String blueNode = startDataNode("blue");
         // create red_index on red_node and same for red
         client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("3")).get();
         assertAcked(prepareCreate("red_index").setSettings(ImmutableSettings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")));
@@ -242,22 +241,26 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         String masterNode = startMasterNode();
         String redNodeDataPath = createTempDir().toString();
         String redNode = startDataNode("red", redNodeDataPath);
-
         // create red_index on red_node and same for red
-        client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("3")).get();
+        client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("2")).get();
         assertAcked(prepareCreate("red_index").setSettings(ImmutableSettings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")));
         index("red_index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
 
+        logger.info("--> wait for green red_index");
         ensureGreen();
+        logger.info("--> wait for meta state written for red_index");
         assertIndexInMetaState(redNode, "red_index");
         assertIndexInMetaState(masterNode, "red_index");
 
         waitForConcreteMappingsOnAll("red_index", "doc", "text");
+
+        logger.info("--> close red_index");
         client().admin().indices().prepareClose("red_index").get();
         // close the index
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
         assertThat(clusterStateResponse.getState().getMetaData().index("red_index").getState().name(), equalTo(IndexMetaData.State.CLOSE.name()));
 
+        logger.info("--> restart red node");
         stopNode(redNode);
         redNode = startDataNode("red", redNodeDataPath);
         client().admin().indices().preparePutMapping("red_index").setType("doc").setSource(jsonBuilder().startObject()
@@ -269,7 +272,6 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
                 .endObject()).get();
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("red_index").addTypes("doc").get();
-        Map<String, Object> sourceAsMap = getMappingsResponse.getMappings().get("red_index").get("doc").getSourceAsMap();
         assertNotNull(((LinkedHashMap)(getMappingsResponse.getMappings().get("red_index").get("doc").getSourceAsMap().get("properties"))).get("integer_field"));
         // restart master with empty data folder and maybe red node
         ((InternalTestCluster) cluster()).stopCurrentMasterNode();

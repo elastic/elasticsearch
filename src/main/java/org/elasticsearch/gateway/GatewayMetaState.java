@@ -20,6 +20,7 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -59,7 +60,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
     @Nullable
     private volatile MetaData previousMetaData;
 
-    private final Set<String> previouslyWrittenIndices = Collections.synchronizedSet(new HashSet<String>());
+    private volatile ImmutableSet<String> previouslyWrittenIndices = ImmutableSet.of();
 
     @Inject
     public GatewayMetaState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
@@ -103,7 +104,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         if (state.blocks().disableStatePersistence()) {
             // reset the current metadata, we need to start fresh...
             this.previousMetaData = null;
-            previouslyWrittenIndices.clear();
+            previouslyWrittenIndices= ImmutableSet.of();
             return;
         }
 
@@ -124,6 +125,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                     // persistence was disabled or the node was restarted), see getRelevantIndicesOnDataOnlyNode().
                     // we therefore have to check here if we have shards on disk and add their indices to the previouslyWrittenIndices list
                     if (isDataOnlyNode(state)) {
+                        ImmutableSet.Builder<String> previouslyWrittenIndicesBuilder = ImmutableSet.builder();
                         for (IndexMetaData indexMetaData : newMetaData) {
                             IndexMetaData indexMetaDataOnDisk = null;
                             if (indexMetaData.state().equals(IndexMetaData.State.CLOSE)) {
@@ -134,9 +136,10 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                                 }
                             }
                             if (indexMetaDataOnDisk != null) {
-                                previouslyWrittenIndices.add(indexMetaDataOnDisk.index());
+                                previouslyWrittenIndicesBuilder.add(indexMetaDataOnDisk.index());
                             }
                         }
+                        previouslyWrittenIndices = previouslyWrittenIndicesBuilder.addAll(previouslyWrittenIndices).build();
                     }
                 } catch (Throwable e) {
                     success = false;
@@ -160,12 +163,12 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
         if (success) {
             previousMetaData = newMetaData;
-            previouslyWrittenIndices.clear();
-            previouslyWrittenIndices.addAll(relevantIndices);
+            ImmutableSet.Builder<String> builder= ImmutableSet.builder();
+            previouslyWrittenIndices = builder.addAll(relevantIndices).build();
         }
     }
 
-    public static Set<String> getRelevantIndices(ClusterState state, Set<String> previouslyWrittenIndices) {
+    public static Set<String> getRelevantIndices(ClusterState state, ImmutableSet<String> previouslyWrittenIndices) {
         Set<String> relevantIndices;
         if (isDataOnlyNode(state)) {
             relevantIndices = getRelevantIndicesOnDataOnlyNode(state, previouslyWrittenIndices);
@@ -287,7 +290,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
      * @param newMetaData                 The new metadata
      * @return iterable over all indices states that should be written to disk
      */
-    public static Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStates(Set<String> previouslyWrittenIndices, Set<String> potentiallyUnwrittenIndices, MetaData previousMetaData, MetaData newMetaData) {
+    public static Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStates(ImmutableSet<String> previouslyWrittenIndices, Set<String> potentiallyUnwrittenIndices, MetaData previousMetaData, MetaData newMetaData) {
         List<GatewayMetaState.IndexMetaWriteInfo> indicesToWrite = new ArrayList<>();
         for (String index : potentiallyUnwrittenIndices) {
             IndexMetaData newIndexMetaData = newMetaData.index(index);
@@ -305,7 +308,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         return indicesToWrite;
     }
 
-    public static Set<String> getRelevantIndicesOnDataOnlyNode(ClusterState state, Set<String> previouslyWrittenIndices) {
+    public static Set<String> getRelevantIndicesOnDataOnlyNode(ClusterState state, ImmutableSet<String> previouslyWrittenIndices) {
         RoutingNode newRoutingNode = state.getRoutingNodes().node(state.nodes().localNodeId());
         if (newRoutingNode == null) {
             throw new IllegalStateException("cluster state does not contain this node - cannot write index meta state");

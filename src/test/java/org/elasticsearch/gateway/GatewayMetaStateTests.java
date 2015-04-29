@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway;
 
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -169,10 +170,11 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
                             boolean stateInMemory,
                             boolean expectMetaData) throws Exception {
         MetaData inMemoryMetaData = null;
-        Set<String> oldIndicesList = Collections.emptySet();
+        ImmutableSet<String> oldIndicesList = ImmutableSet.of();
         if (stateInMemory) {
             inMemoryMetaData = event.previousState().metaData();
-            oldIndicesList = GatewayMetaState.getRelevantIndices(event.previousState(), oldIndicesList);
+            ImmutableSet.Builder<String> relevantIndices = ImmutableSet.builder();
+            oldIndicesList = relevantIndices.addAll(GatewayMetaState.getRelevantIndices(event.previousState(), oldIndicesList)).build();
         }
         Set<String> newIndicesList = GatewayMetaState.getRelevantIndices(event.state(), oldIndicesList);
         // third, get the actual write info

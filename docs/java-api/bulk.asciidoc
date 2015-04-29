@@ -99,3 +99,22 @@ By default, `BulkProcessor`:
 * does not set flushInterval
 * sets concurrentRequests to 1
 
+When all documents are loaded to the `BulkProcessor` it can be closed by using `awaitClose` or `close` methods:
+
+[source,java]
+--------------------------------------------------
+bulkProcessor.awaitClose(10, TimeUnit.MINUTES);
+--------------------------------------------------
+
+or
+
+[source,java]
+--------------------------------------------------
+bulkProcessor.close();
+--------------------------------------------------
+
+Both methods flush any remaining documents and disable all other scheduled flushes if they were scheduled by setting
+`flushInterval`. If concurrent requests were enabled the `awaitClose` method waits for up to the specified timeout for
+all bulk requests to complete then returns `true`, if the specified waiting time elapses before all bulk requests complete,
+`false` is returned. The `close` method doesn't wait for any remaining bulk requests to complete and exists immediately.
+

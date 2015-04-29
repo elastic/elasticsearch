@@ -15,6 +15,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.WatcherException;
+import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.history.HistoryStore;
@@ -24,7 +25,10 @@ import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerException;
 import org.elasticsearch.watcher.trigger.schedule.Schedules;
+import org.elasticsearch.watcher.trigger.schedule.support.MonthTimes;
+import org.elasticsearch.watcher.trigger.schedule.support.WeekTimes;
 import org.elasticsearch.watcher.watch.WatchStore;
 import org.junit.Test;
 
@@ -39,11 +43,13 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
+import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
+import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.newInputSearchRequest;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.*;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -319,6 +325,74 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         assertThat(payload.size(), equalTo(1));
         assertThat(((Map) payload.get("hits")).size(), equalTo(1));
         assertThat((Integer) ((Map) payload.get("hits")).get("total"), equalTo(1));
+    }
+
+    @Test
+    public void testPutWatchWithNegativeSchedule() throws Exception {
+        try {
+            watcherClient().preparePutWatch("_name")
+                    .setSource(watchBuilder()
+                            .trigger(schedule(interval(-5, IntervalSchedule.Interval.Unit.SECONDS)))
+                            .input(simpleInput("key", "value"))
+                            .condition(alwaysCondition())
+                            .addAction("_logger", loggingAction("executed!")))
+                    .get();
+            fail("put watch should have failed");
+        } catch (ScheduleTriggerException e) {
+            assertThat(e.getMessage(), equalTo("interval can't be lower than 1000 ms, but [-5000] was specified"));
+        }
+
+        try {
+            watcherClient().preparePutWatch("_name")
+                    .setSource(watchBuilder()
+                            .trigger(schedule(hourly().minutes(-10).build()))
+                            .input(simpleInput("key", "value"))
+                            .condition(alwaysCondition())
+                            .addAction("_logger", loggingAction("executed!")))
+                    .get();
+            fail("put watch should have failed");
+        } catch (WatcherSettingsException e) {
+            assertThat(e.getMessage(), equalTo("invalid hourly minute [-10]. minute must be between 0 and 59 incl."));
+        }
+
+        try {
+            watcherClient().preparePutWatch("_name")
+                    .setSource(watchBuilder()
+                            .trigger(schedule(daily().atRoundHour(-10).build()))
+                            .input(simpleInput("key", "value"))
+                            .condition(alwaysCondition())
+                            .addAction("_logger", loggingAction("executed!")))
+                    .get();
+            fail("put watch should have failed");
+        } catch (WatcherSettingsException e) {
+            assertThat(e.getMessage(), equalTo("invalid time [0-10:00]. invalid time hour value [-10]. time hours must be between 0 and 23 incl."));
+        }
+
+        try {
+            watcherClient().preparePutWatch("_name")
+                    .setSource(watchBuilder()
+                            .trigger(schedule(weekly().time(WeekTimes.builder().atRoundHour(-10).build()).build()))
+                                    .input(simpleInput("key", "value"))
+                                    .condition(alwaysCondition())
+                                    .addAction("_logger", loggingAction("executed!")))
+                            .get();
+            fail("put watch should have failed");
+        } catch (WatcherSettingsException e) {
+            assertThat(e.getMessage(), equalTo("invalid time [0-10:00]. invalid time hour value [-10]. time hours must be between 0 and 23 incl."));
+        }
+
+        try {
+            watcherClient().preparePutWatch("_name")
+                    .setSource(watchBuilder()
+                            .trigger(schedule(monthly().time(MonthTimes.builder().atRoundHour(-10).build()).build()))
+                            .input(simpleInput("key", "value"))
+                            .condition(alwaysCondition())
+                            .addAction("_logger", loggingAction("executed!")))
+                    .get();
+            fail("put watch should have failed");
+        } catch (WatcherSettingsException e) {
+            assertThat(e.getMessage(), equalTo("invalid time [0-10:00]. invalid time hour value [-10]. time hours must be between 0 and 23 incl."));
+        }
     }
 
     private void testConditionSearch(SearchRequest request) throws Exception {

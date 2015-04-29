@@ -12,11 +12,11 @@ import org.elasticsearch.watcher.WatcherException;
  */
 public class TriggerException extends WatcherException {
 
-    public TriggerException(String msg) {
-        super(msg);
+    public TriggerException(String msg, Object... args) {
+        super(msg, args);
     }
 
-    public TriggerException(String msg, Throwable cause) {
-        super(msg, cause);
+    public TriggerException(String msg, Throwable cause, Object... args) {
+        super(msg, cause, args);
     }
 }

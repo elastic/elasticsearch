@@ -21,15 +21,10 @@ package org.elasticsearch.test.engine;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -57,15 +52,6 @@ class AssertingSearcher extends Engine.Searcher {
         initialRefCount = wrappedSearcher.reader().getRefCount();
         this.indexSearcher = indexSearcher;
         assert initialRefCount > 0 : "IndexReader#getRefCount() was [" + initialRefCount + "] expected a value > [0] - reader is already closed";
-        final RuntimeException ex = new RuntimeException("Unreleased Searcher, source [" + wrappedSearcher.source() + "]");
-        LuceneTestCase.closeAfterSuite(new Closeable() {
-            @Override
-            public void close() throws IOException {
-                if (closed.get() == false) {
-                    throw ex;
-                }
-            }
-        });
     }
 
     @Override
@@ -74,7 +60,7 @@ class AssertingSearcher extends Engine.Searcher {
     }
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void close() {
         synchronized (lock) {
             if (closed.compareAndSet(false, true)) {
                 firstReleaseStack = new RuntimeException();
@@ -108,5 +94,9 @@ class AssertingSearcher extends Engine.Searcher {
 
     public ShardId shardId() {
         return shardId;
+    }
+
+    public boolean isOpen() {
+        return closed.get() == false;
     }
 }

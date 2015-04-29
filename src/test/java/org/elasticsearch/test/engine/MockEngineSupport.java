@@ -25,6 +25,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherManager;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -32,17 +33,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
-import java.util.Map;
+import java.util.IdentityHashMap;
 import java.util.Random;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -54,15 +52,18 @@ public final class MockEngineSupport {
     public static final String WRAP_READER_RATIO = "index.engine.mock.random.wrap_reader_ratio";
     public static final String READER_WRAPPER_TYPE = "index.engine.mock.random.wrapper";
     public static final String FLUSH_ON_CLOSE_RATIO = "index.engine.mock.flush_on_close.ratio";
+    
     private final AtomicBoolean closing = new AtomicBoolean(false);
     private final ESLogger logger = Loggers.getLogger(Engine.class);
     private final ShardId shardId;
+    private final SearcherCloseable searcherCloseable;
+    private final MockContext mockContext;
 
     public static class MockContext {
-        public final Random random;
-        public final boolean wrapReader;
-        public final Class<? extends FilterDirectoryReader> wrapper;
-        public final Settings indexSettings;
+        private final Random random;
+        private final boolean wrapReader;
+        private final Class<? extends FilterDirectoryReader> wrapper;
+        private final Settings indexSettings;
         private final double flushOnClose;
 
         public MockContext(Random random, boolean wrapReader, Class<? extends FilterDirectoryReader> wrapper, Settings indexSettings) {
@@ -73,9 +74,6 @@ public final class MockEngineSupport {
             flushOnClose = indexSettings.getAsDouble(FLUSH_ON_CLOSE_RATIO, 0.5d);
         }
     }
-
-
-    private final MockContext mockContext;
 
     public MockEngineSupport(EngineConfig config) {
         Settings indexSettings = config.getIndexSettings();
@@ -89,6 +87,8 @@ public final class MockEngineSupport {
             logger.trace("Using [{}] for shard [{}] seed: [{}] wrapReader: [{}]", this.getClass().getName(), config.getShardId(), seed, wrapReader);
         }
         mockContext = new MockContext(random, wrapReader, wrapper, indexSettings);
+        this.searcherCloseable = new SearcherCloseable();
+        LuceneTestCase.closeAfterSuite(searcherCloseable); // only one suite closeable per Engine
     }
 
     enum CloseAction {
@@ -176,8 +176,44 @@ public final class MockEngineSupport {
         // pass the original searcher to the super.newSearcher() method to make sure this is the searcher that will
         // be released later on. If we wrap an index reader here must not pass the wrapped version to the manager
         // on release otherwise the reader will be closed too early. - good news, stuff will fail all over the place if we don't get this right here
-        return new AssertingSearcher(assertingIndexSearcher, engineSearcher, shardId, logger);
+        AssertingSearcher assertingSearcher = new AssertingSearcher(assertingIndexSearcher, engineSearcher, shardId, logger) {
+            @Override
+            public void close() {
+                try {
+                    searcherCloseable.remove(this);
+                } finally {
+                    super.close();
+                }
+            }
+        };
+        searcherCloseable.add(assertingSearcher, engineSearcher.source());
+        return assertingSearcher;
     }
 
+    private static final class SearcherCloseable implements Closeable {
 
+        private final IdentityHashMap<AssertingSearcher, RuntimeException> openSearchers = new IdentityHashMap<>();
+
+        @Override
+        public synchronized void close() throws IOException {
+            if (openSearchers.isEmpty() == false) {
+                AssertionError error = new AssertionError("Unreleased searchers found");
+                for (RuntimeException ex : openSearchers.values()) {
+                    error.addSuppressed(ex);
+                }
+                throw error;
+            }
+        }
+
+        void add(AssertingSearcher searcher, String source) {
+            final RuntimeException ex = new RuntimeException("Unreleased Searcher, source [" + source+ "]");
+            synchronized (this) {
+                openSearchers.put(searcher, ex);
+            }
+        }
+
+        synchronized void remove(AssertingSearcher searcher) {
+            openSearchers.remove(searcher);
+        }
+    }
 }

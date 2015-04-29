@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,6 +31,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.reducers.ReducerStreams;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
@@ -110,6 +115,8 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
 
     protected Map<String, Object> metaData;
 
+    private List<Reducer> reducers;
+
     /** Constructs an un initialized addAggregation (used for serialization) **/
     protected InternalAggregation() {}
 
@@ -118,8 +125,9 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
      *
      * @param name The name of the get.
      */
-    protected InternalAggregation(String name, Map<String, Object> metaData) {
+    protected InternalAggregation(String name, List<Reducer> reducers, Map<String, Object> metaData) {
         this.name = name;
+        this.reducers = reducers;
         this.metaData = metaData;
     }
 
@@ -139,7 +147,15 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
      * try reusing an existing get instance (typically the first in the given list) to save on redundant object
      * construction.
      */
-    public abstract InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
+    public final InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        InternalAggregation aggResult = doReduce(aggregations, reduceContext);
+        for (Reducer reducer : reducers) {
+            aggResult = reducer.reduce(aggResult, reduceContext);
+        }
+        return aggResult;
+    }
+
+    public abstract InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
 
     @Override
     public Object getProperty(String path) {
@@ -172,6 +188,10 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         return metaData;
     }
 
+    public List<Reducer> reducers() {
+        return reducers;
+    }
+
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
@@ -190,6 +210,11 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeGenericValue(metaData);
+        out.writeVInt(reducers.size());
+        for (Reducer reducer : reducers) {
+            out.writeBytesReference(reducer.type().stream());
+            reducer.writeTo(out);
+        }
         doWriteTo(out);
     }
 
@@ -199,6 +224,17 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
     public final void readFrom(StreamInput in) throws IOException {
         name = in.readString();
         metaData = in.readMap();
+        int size = in.readVInt();
+        if (size == 0) {
+            reducers = ImmutableList.of();
+        } else {
+            reducers = Lists.newArrayListWithCapacity(size);
+            for (int i = 0; i < size; i++) {
+                BytesReference type = in.readBytesReference();
+                Reducer reducer = ReducerStreams.stream(type).readResult(in);
+                reducers.add(reducer);
+            }
+        }
         doReadFrom(in);
     }
 

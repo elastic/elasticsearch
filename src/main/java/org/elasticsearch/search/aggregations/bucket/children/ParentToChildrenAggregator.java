@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.index.search.child.ConstantScorer;
 import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -63,8 +64,9 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
 
     public ParentToChildrenAggregator(String name, AggregatorFactories factories, AggregationContext aggregationContext,
                                       Aggregator parent, String parentType, Filter childFilter, Filter parentFilter,
-                                      ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource, long maxOrd, Map<String, Object> metaData) throws IOException {
-        super(name, factories, aggregationContext, parent, metaData);
+                                      ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource,
+            long maxOrd, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+        super(name, factories, aggregationContext, parent, reducers, metaData);
         this.parentType = parentType;
         // these two filters are cached in the parser
         this.childFilter = childFilter;
@@ -77,12 +79,13 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalChildren(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metaData());
+        return new InternalChildren(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), reducers(),
+                metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalChildren(name, 0, buildEmptySubAggregations(), metaData());
+        return new InternalChildren(name, 0, buildEmptySubAggregations(), reducers(), metaData());
     }
 
     @Override
@@ -192,21 +195,25 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
-            return new NonCollectingAggregator(name, aggregationContext, parent, metaData) {
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<Reducer> reducers,
+                Map<String, Object> metaData) throws IOException {
+            return new NonCollectingAggregator(name, aggregationContext, parent, reducers, metaData) {
 
                 @Override
                 public InternalAggregation buildEmptyAggregation() {
-                    return new InternalChildren(name, 0, buildEmptySubAggregations(), metaData());
+                    return new InternalChildren(name, 0, buildEmptySubAggregations(), reducers(), metaData());
                 }
 
             };
         }
 
         @Override
-        protected Aggregator doCreateInternal(ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
+        protected Aggregator doCreateInternal(ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource,
+                AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, List<Reducer> reducers,
+                Map<String, Object> metaData) throws IOException {
             long maxOrd = valuesSource.globalMaxOrd(aggregationContext.searchContext().searcher(), parentType);
-            return new ParentToChildrenAggregator(name, factories, aggregationContext, parent, parentType, childFilter, parentFilter, valuesSource, maxOrd, metaData);
+            return new ParentToChildrenAggregator(name, factories, aggregationContext, parent, parentType, childFilter, parentFilter,
+                    valuesSource, maxOrd, reducers, metaData);
         }
 
     }

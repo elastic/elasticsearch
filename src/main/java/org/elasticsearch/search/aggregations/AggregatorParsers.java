@@ -24,6 +24,8 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -38,21 +40,30 @@ import java.util.regex.Pattern;
 public class AggregatorParsers {
 
     public static final Pattern VALID_AGG_NAME = Pattern.compile("[^\\[\\]>]+");
-    private final ImmutableMap<String, Aggregator.Parser> parsers;
+    private final ImmutableMap<String, Aggregator.Parser> aggParsers;
+    private final ImmutableMap<String, Reducer.Parser> reducerParsers;
 
 
     /**
      * Constructs the AggregatorParsers out of all the given parsers
      *
-     * @param parsers The available aggregator parsers (dynamically injected by the {@link org.elasticsearch.search.aggregations.AggregationModule}).
+     * @param aggParsers
+     *            The available aggregator parsers (dynamically injected by the
+     *            {@link org.elasticsearch.search.aggregations.AggregationModule}
+     *            ).
      */
     @Inject
-    public AggregatorParsers(Set<Aggregator.Parser> parsers) {
-        MapBuilder<String, Aggregator.Parser> builder = MapBuilder.newMapBuilder();
-        for (Aggregator.Parser parser : parsers) {
-            builder.put(parser.type(), parser);
+    public AggregatorParsers(Set<Aggregator.Parser> aggParsers, Set<Reducer.Parser> reducerParsers) {
+        MapBuilder<String, Aggregator.Parser> aggParsersBuilder = MapBuilder.newMapBuilder();
+        for (Aggregator.Parser parser : aggParsers) {
+            aggParsersBuilder.put(parser.type(), parser);
         }
-        this.parsers = builder.immutableMap();
+        this.aggParsers = aggParsersBuilder.immutableMap();
+        MapBuilder<String, Reducer.Parser> reducerParsersBuilder = MapBuilder.newMapBuilder();
+        for (Reducer.Parser parser : reducerParsers) {
+            reducerParsersBuilder.put(parser.type(), parser);
+        }
+        this.reducerParsers = reducerParsersBuilder.immutableMap();
     }
 
     /**
@@ -62,7 +73,18 @@ public class AggregatorParsers {
      * @return      The parser associated with the given aggregation type.
      */
     public Aggregator.Parser parser(String type) {
-        return parsers.get(type);
+        return aggParsers.get(type);
+    }
+
+    /**
+     * Returns the parser that is registered under the given reducer type.
+     * 
+     * @param type
+     *            The reducer type
+     * @return The parser associated with the given reducer type.
+     */
+    public Reducer.Parser reducer(String type) {
+        return reducerParsers.get(type);
     }
 
     /**
@@ -102,7 +124,8 @@ public class AggregatorParsers {
                         + "], expected a [" + XContentParser.Token.START_OBJECT + "].", parser.getTokenLocation());
             }
 
-            AggregatorFactory factory = null;
+            AggregatorFactory aggFactory = null;
+            ReducerFactory reducerFactory = null;
             AggregatorFactories subFactories = null;
 
             Map<String, Object> metaData = null;
@@ -134,37 +157,57 @@ public class AggregatorParsers {
                         subFactories = parseAggregators(parser, context, level+1);
                         break;
                     default:
-                        if (factory != null) {
-                        throw new SearchParseException(context, "Found two aggregation type definitions in [" + aggregationName + "]: ["
-                                + factory.type + "] and [" + fieldName + "]", parser.getTokenLocation());
+                        if (aggFactory != null) {
+                            throw new SearchParseException(context, "Found two aggregation type definitions in [" + aggregationName + "]: ["
+                                + aggFactory.type + "] and [" + fieldName + "]", parser.getTokenLocation());
                         }
+                        if (reducerFactory != null) {
+                            // TODO we would need a .type property on reducers too for this error message?
+                        throw new SearchParseException(context, "Found two aggregation type definitions in [" + aggregationName + "]: ["
+                                + reducerFactory + "] and [" + fieldName + "]", parser.getTokenLocation());
+                        }
+
                         Aggregator.Parser aggregatorParser = parser(fieldName);
                         if (aggregatorParser == null) {
-                        throw new SearchParseException(context, "Could not find aggregator type [" + fieldName + "] in [" + aggregationName
-                                + "]", parser.getTokenLocation());
+                            Reducer.Parser reducerParser = reducer(fieldName);
+                            if (reducerParser == null) {
+                                throw new SearchParseException(context, "Could not find aggregator type [" + fieldName + "] in ["
+                                    + aggregationName + "]", parser.getTokenLocation());
+                            } else {
+                                reducerFactory = reducerParser.parse(aggregationName, parser, context);
+                            }
+                        } else {
+                            aggFactory = aggregatorParser.parse(aggregationName, parser, context);
                         }
-                        factory = aggregatorParser.parse(aggregationName, parser, context);
                 }
             }
 
-            if (factory == null) {
+            if (aggFactory == null && reducerFactory == null) {
                 throw new SearchParseException(context, "Missing definition for aggregation [" + aggregationName + "]",
                         parser.getTokenLocation());
-            }
-
+            } else if (aggFactory != null) {
+                assert reducerFactory == null;
             if (metaData != null) {
-                factory.setMetaData(metaData);
+                    aggFactory.setMetaData(metaData);
             }
 
             if (subFactories != null) {
-                factory.subFactories(subFactories);
+                    aggFactory.subFactories(subFactories);
             }
 
             if (level == 0) {
-                factory.validate();
+                    aggFactory.validate();
             }
 
-            factories.add(factory);
+                factories.addAggregator(aggFactory);
+            } else {
+                assert reducerFactory != null;
+                if (subFactories != null) {
+                    throw new SearchParseException(context, "Aggregation [" + aggregationName + "] cannot define sub-aggregations",
+                            parser.getTokenLocation());
+                }
+                factories.addReducer(reducerFactory);
+            }
         }
 
         return factories.build();

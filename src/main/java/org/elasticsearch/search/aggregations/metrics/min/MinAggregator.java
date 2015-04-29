@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -38,6 +39,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -51,8 +53,9 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     DoubleArray mins;
 
     public MinAggregator(String name, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
-            AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, metaData);
+            AggregationContext context, Aggregator parent, List<Reducer> reducers,
+            Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, reducers, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             mins = context.bigArrays().newDoubleArray(1, false);
@@ -103,12 +106,12 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= mins.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalMin(name, mins.get(bucket), formatter, metaData());
+        return new InternalMin(name, mins.get(bucket), formatter, reducers(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMin(name, Double.POSITIVE_INFINITY, formatter, metaData());
+        return new InternalMin(name, Double.POSITIVE_INFINITY, formatter, reducers(), metaData());
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
@@ -118,13 +121,15 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
-            return new MinAggregator(name, null, config.formatter(), aggregationContext, parent, metaData);
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<Reducer> reducers,
+                Map<String, Object> metaData) throws IOException {
+            return new MinAggregator(name, null, config.formatter(), aggregationContext, parent, reducers, metaData);
         }
 
         @Override
-        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
-            return new MinAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, metaData);
+        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
+                boolean collectsFromSingleBucket, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+            return new MinAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, reducers, metaData);
         }
     }
 

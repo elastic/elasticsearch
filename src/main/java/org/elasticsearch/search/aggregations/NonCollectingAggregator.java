@@ -20,9 +20,11 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -31,12 +33,14 @@ import java.util.Map;
  */
 public abstract class NonCollectingAggregator extends AggregatorBase {
 
-    protected NonCollectingAggregator(String name, AggregationContext context, Aggregator parent, AggregatorFactories subFactories, Map<String, Object> metaData) throws IOException {
-        super(name, subFactories, context, parent, metaData);
+    protected NonCollectingAggregator(String name, AggregationContext context, Aggregator parent, AggregatorFactories subFactories,
+            List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+        super(name, subFactories, context, parent, reducers, metaData);
     }
 
-    protected NonCollectingAggregator(String name, AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
-        this(name, context, parent, AggregatorFactories.EMPTY, metaData);
+    protected NonCollectingAggregator(String name, AggregationContext context, Aggregator parent, List<Reducer> reducers,
+            Map<String, Object> metaData) throws IOException {
+        this(name, context, parent, AggregatorFactories.EMPTY, reducers, metaData);
     }
 
     @Override

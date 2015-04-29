@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -59,8 +60,9 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
 
     protected ScriptedMetricAggregator(String name, String scriptLang, ScriptType initScriptType, String initScript,
             ScriptType mapScriptType, String mapScript, ScriptType combineScriptType, String combineScript, ScriptType reduceScriptType,
-            String reduceScript, Map<String, Object> params, Map<String, Object> reduceParams, AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, metaData);
+            String reduceScript, Map<String, Object> params, Map<String, Object> reduceParams, AggregationContext context,
+            Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, reducers, metaData);
         this.scriptLang = scriptLang;
         this.reduceScriptType = reduceScriptType;
         if (params == null) {
@@ -114,12 +116,13 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         } else {
             aggregation = params.get("_agg");
         }
-        return new InternalScriptedMetric(name, aggregation, scriptLang, reduceScriptType, reduceScript, reduceParams, metaData());
+        return new InternalScriptedMetric(name, aggregation, scriptLang, reduceScriptType, reduceScript, reduceParams, reducers(),
+                metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalScriptedMetric(name, null, scriptLang, reduceScriptType, reduceScript, reduceParams, metaData());
+        return new InternalScriptedMetric(name, null, scriptLang, reduceScriptType, reduceScript, reduceParams, reducers(), metaData());
     }
 
     public static class Factory extends AggregatorFactory {
@@ -153,7 +156,8 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
+                List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
             if (collectsFromSingleBucket == false) {
                 return asMultiBucketAggregator(this, context, parent);
             }
@@ -166,7 +170,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
                 reduceParams = deepCopyParams(this.reduceParams, context.searchContext());
             }
             return new ScriptedMetricAggregator(name, scriptLang, initScriptType, initScript, mapScriptType, mapScript, combineScriptType,
-                    combineScript, reduceScriptType, reduceScript, params, reduceParams, context, parent, metaData);
+                    combineScript, reduceScriptType, reduceScript, params, reduceParams, context, parent, reducers, metaData);
         }
         
         @SuppressWarnings({ "unchecked" })

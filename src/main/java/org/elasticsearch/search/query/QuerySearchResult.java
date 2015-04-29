@@ -20,15 +20,20 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.reducers.ReducerStreams;
+import org.elasticsearch.search.aggregations.reducers.SiblingReducer;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
@@ -44,6 +49,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     private int size;
     private TopDocs topDocs;
     private InternalAggregations aggregations;
+    private List<SiblingReducer> reducers;
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
@@ -114,6 +120,14 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         this.aggregations = aggregations;
     }
 
+    public List<SiblingReducer> reducers() {
+        return reducers;
+    }
+
+    public void reducers(List<SiblingReducer> reducers) {
+        this.reducers = reducers;
+    }
+
     public Suggest suggest() {
         return suggest;
     }
@@ -163,6 +177,16 @@ public class QuerySearchResult extends QuerySearchResultProvider {
             aggregations = InternalAggregations.readAggregations(in);
         }
         if (in.readBoolean()) {
+            int size = in.readVInt();
+            List<SiblingReducer> reducers = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                BytesReference type = in.readBytesReference();
+                Reducer reducer = ReducerStreams.stream(type).readResult(in);
+                reducers.add((SiblingReducer) reducer);
+            }
+            this.reducers = reducers;
+        }
+        if (in.readBoolean()) {
             suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
         }
         searchTimedOut = in.readBoolean();
@@ -186,6 +210,16 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         } else {
             out.writeBoolean(true);
             aggregations.writeTo(out);
+        }
+        if (reducers == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeVInt(reducers.size());
+            for (Reducer reducer : reducers) {
+                out.writeBytesReference(reducer.type().stream());
+                reducer.writeTo(out);
+            }
         }
         if (suggest == null) {
             out.writeBoolean(false);

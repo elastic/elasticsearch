@@ -20,7 +20,6 @@
 package org.elasticsearch.cloud.aws;
 
 import com.amazonaws.ClientConfiguration;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -47,7 +46,7 @@ public class AWSSignersTest extends ElasticsearchTestCase {
         try {
             AwsSigner.configureSigner(signer, new ClientConfiguration());
             return true;
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             return false;
         }
     }

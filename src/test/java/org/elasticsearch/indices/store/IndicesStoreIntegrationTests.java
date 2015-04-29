@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -59,6 +60,16 @@ import static org.hamcrest.Matchers.equalTo;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
     private static final Settings SETTINGS = settingsBuilder().put("gateway.type", "local").build();
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+                // by default this value is 1 sec in tests (30 sec in practice) but we adding disruption here
+                // which is between 1 and 2 sec can cause each of the shard deletion requests to timeout.
+                // to prevent this we are setting the timeout here to something highish ie. the default in practice
+                .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT, new TimeValue(30, TimeUnit.SECONDS))
+                .build();
+    }
 
     @Test
     public void indexCleanup() throws Exception {
@@ -96,9 +107,8 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(Files.exists(indexDirectory(node_3, "test")), equalTo(false));
 
         logger.info("--> move shard from node_1 to node_3, and wait for relocation to finish");
-        SlowClusterStateProcessing disruption = null;
-        if (randomBoolean()) {
-            disruption = new SlowClusterStateProcessing(node_3, getRandom(), 0, 0, 1000, 2000);
+        if (randomBoolean()) { // sometimes add cluster-state delay to trigger observers in IndicesStore.ShardActiveRequestHandler
+            final SlowClusterStateProcessing disruption = new SlowClusterStateProcessing(node_3, getRandom(), 0, 0, 1000, 2000);
             internalCluster().setDisruptionScheme(disruption);
             disruption.startDisrupting();
         }
@@ -115,6 +125,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(Files.exists(indexDirectory(node_2, "test")), equalTo(true));
         assertThat(shardDirectory(node_3, "test", 0).exists(), equalTo(true));
         assertThat(Files.exists(indexDirectory(node_3, "test")), equalTo(true));
+
     }
 
     @Test

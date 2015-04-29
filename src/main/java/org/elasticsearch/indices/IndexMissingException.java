@@ -29,7 +29,7 @@ import org.elasticsearch.rest.RestStatus;
 public class IndexMissingException extends IndexException {
 
     public IndexMissingException(Index index) {
-        super(index, "missing");
+        super(index, "no such index");
     }
 
     @Override

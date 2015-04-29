@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -39,6 +38,7 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.*;
 
 public class RecoveryStateTest extends ElasticsearchTestCase {
@@ -52,7 +52,7 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
         final Version streamVersion;
 
         Streamer(AtomicBoolean shouldStop, T source) {
-            this(shouldStop, source, randomVersion());
+            this(shouldStop, source, randomVersion(random()));
         }
 
         Streamer(AtomicBoolean shouldStop, T source, Version streamVersion) {
@@ -121,11 +121,11 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
                 }
             };
         } else if (randomBoolean()) {
-            timer = new Start();
+            timer = new VerifyIndex();
             streamer = new Streamer<Timer>(stop, timer) {
                 @Override
                 Timer createObj() {
-                    return new Start();
+                    return new VerifyIndex();
                 }
             };
         } else {
@@ -343,7 +343,7 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
                 state.setStage(stage);
             }
             fail("succeeded in performing the illegal sequence [" + Strings.arrayToCommaDelimitedString(stages) + "]");
-        } catch (ElasticsearchIllegalStateException e) {
+        } catch (IllegalStateException e) {
             // cool
         }
 
@@ -434,20 +434,20 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
     }
 
     public void testStart() throws IOException {
-        final Start start = new Start();
+        final VerifyIndex verifyIndex = new VerifyIndex();
         AtomicBoolean stop = new AtomicBoolean();
-        Streamer<Start> streamer = new Streamer<Start>(stop, start) {
+        Streamer<VerifyIndex> streamer = new Streamer<VerifyIndex>(stop, verifyIndex) {
             @Override
-            Start createObj() {
-                return new Start();
+            VerifyIndex createObj() {
+                return new VerifyIndex();
             }
         };
 
         // we don't need to test the time aspect, it's done in the timer test
-        start.start();
-        assertThat(start.checkIndexTime(), equalTo(0l));
+        verifyIndex.start();
+        assertThat(verifyIndex.checkIndexTime(), equalTo(0l));
         // force one
-        Start lastRead = streamer.serializeDeserialize();
+        VerifyIndex lastRead = streamer.serializeDeserialize();
         assertThat(lastRead.checkIndexTime(), equalTo(0l));
 
         long took = randomLong();
@@ -456,30 +456,30 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
             took = Math.max(0l, took);
 
         }
-        start.checkIndexTime(took);
-        assertThat(start.checkIndexTime(), equalTo(took));
+        verifyIndex.checkIndexTime(took);
+        assertThat(verifyIndex.checkIndexTime(), equalTo(took));
 
         boolean stopped = false;
         if (randomBoolean()) {
-            start.stop();
+            verifyIndex.stop();
             stopped = true;
         }
 
         if (randomBoolean()) {
-            start.reset();
+            verifyIndex.reset();
             took = 0;
-            assertThat(start.checkIndexTime(), equalTo(took));
+            assertThat(verifyIndex.checkIndexTime(), equalTo(took));
         }
 
         lastRead = streamer.serializeDeserialize();
         assertThat(lastRead.checkIndexTime(), equalTo(took));
-        assertThat(lastRead.startTime(), equalTo(start.startTime()));
-        assertThat(lastRead.stopTime(), equalTo(start.stopTime()));
+        assertThat(lastRead.startTime(), equalTo(verifyIndex.startTime()));
+        assertThat(lastRead.stopTime(), equalTo(verifyIndex.stopTime()));
 
         if (stopped) {
-            assertThat(lastRead.time(), equalTo(start.time()));
+            assertThat(lastRead.time(), equalTo(verifyIndex.time()));
         } else {
-            assertThat(lastRead.time(), lessThanOrEqualTo(start.time()));
+            assertThat(lastRead.time(), lessThanOrEqualTo(verifyIndex.time()));
         }
     }
 

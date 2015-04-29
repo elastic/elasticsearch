@@ -24,6 +24,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BitsFilteredDocIdSet;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -39,7 +40,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.NoopCollector;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
 import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.search.internal.SearchContext;
@@ -86,13 +86,6 @@ public class ChildrenConstantScoreQuery extends Query {
     }
 
     @Override
-    public void extractTerms(Set<Term> terms) {
-        if (rewrittenChildQuery != null) {
-            rewrittenChildQuery.extractTerms(terms);
-        }
-    }
-
-    @Override
     public Query clone() {
         ChildrenConstantScoreQuery q = (ChildrenConstantScoreQuery) super.clone();
         q.originalChildQuery = originalChildQuery.clone();
@@ -112,7 +105,7 @@ public class ChildrenConstantScoreQuery extends Query {
         final long valueCount;
         List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
         if (globalIfd == null || leaves.isEmpty()) {
-            return Queries.newMatchNoDocsQuery().createWeight(searcher, needsScores);
+            return new BooleanQuery().createWeight(searcher, needsScores);
         } else {
             AtomicParentChildFieldData afd = globalIfd.load(leaves.get(0));
             SortedDocValues globalValues = afd.getOrdinalsValues(parentType);
@@ -120,7 +113,7 @@ public class ChildrenConstantScoreQuery extends Query {
         }
 
         if (valueCount == 0) {
-            return Queries.newMatchNoDocsQuery().createWeight(searcher, needsScores);
+            return new BooleanQuery().createWeight(searcher, needsScores);
         }
 
         Query childQuery = rewrittenChildQuery;
@@ -131,7 +124,7 @@ public class ChildrenConstantScoreQuery extends Query {
 
         final long remaining = collector.foundParents();
         if (remaining == 0) {
-            return Queries.newMatchNoDocsQuery().createWeight(searcher, needsScores);
+            return new BooleanQuery().createWeight(searcher, needsScores);
         }
 
         Filter shortCircuitFilter = null;
@@ -203,8 +196,12 @@ public class ChildrenConstantScoreQuery extends Query {
         }
 
         @Override
+        public void extractTerms(Set<Term> terms) {
+        }
+
+        @Override
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-            return new Explanation(getBoost(), "not implemented yet...");
+            return Explanation.match(getBoost(), "not implemented yet...");
         }
 
         @Override

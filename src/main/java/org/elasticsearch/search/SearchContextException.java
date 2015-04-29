@@ -35,19 +35,6 @@ public class SearchContextException extends SearchException {
     }
 
     private static String buildMessage(SearchContext context, String msg) {
-        StringBuilder sb = new StringBuilder();
-        sb.append('[').append(context.shardTarget().index()).append("][").append(context.shardTarget().shardId()).append("]: ");
-        if (context.parsedQuery() != null) {
-            try {
-                sb.append("query[").append(context.parsedQuery().query()).append("],");
-            } catch (Exception e) {
-                sb.append("query[_failed_to_string_],");
-            }
-        }
-        sb.append("from[").append(context.from()).append("],size[").append(context.size()).append("]");
-        if (context.sort() != null) {
-            sb.append(",sort[").append(context.sort()).append("]");
-        }
-        return sb.append(": ").append(msg).toString();
+       return msg;
     }
 }

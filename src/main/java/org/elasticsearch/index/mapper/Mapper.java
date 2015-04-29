@@ -125,9 +125,7 @@ public interface Mapper extends ToXContent {
 
     String name();
 
-    void parse(ParseContext context) throws IOException;
-
-    void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException;
+    void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException;
 
     void traverse(FieldMapperListener fieldMapperListener);
 

@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.nio.file.Path;
@@ -48,13 +49,14 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
+@ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 2)
 public class RepositoriesTests extends AbstractSnapshotTests {
 
     @Test
     public void testRepositoryCreation() throws Exception {
         Client client = client();
 
-        Path location = newTempDirPath(LifecycleScope.SUITE);
+        Path location = createTempDir();
 
         logger.info("-->  creating repository");
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo-1")
@@ -82,7 +84,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
         logger.info("-->  creating another repository");
         putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo-2")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                                .put("location", newTempDir(LifecycleScope.SUITE))
+                                .put("location", createTempDir())
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
@@ -142,7 +144,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
         logger.info("-->  creating repository test-repo-1 with 0s timeout - shouldn't ack");
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo-1")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                                .put("location", newTempDir(LifecycleScope.SUITE))
+                                .put("location", createTempDir())
                                 .put("compress", randomBoolean())
                                 .put("chunk_size", randomIntBetween(5, 100))
                 )
@@ -152,7 +154,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
         logger.info("-->  creating repository test-repo-2 with standard timeout - should ack");
         putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo-2")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                                .put("location", newTempDir(LifecycleScope.SUITE))
+                                .put("location", createTempDir())
                                 .put("compress", randomBoolean())
                                 .put("chunk_size", randomIntBetween(5, 100))
                 ).get();
@@ -173,7 +175,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
         Client client = client();
 
         Settings settings = ImmutableSettings.settingsBuilder()
-                .put("location", newTempDir(LifecycleScope.SUITE))
+                .put("location", createTempDir())
                 .put("random_control_io_exception_rate", 1.0).build();
         logger.info("-->  creating repository that cannot write any files - should fail");
         assertThrows(client.admin().cluster().preparePutRepository("test-repo-1")
@@ -187,7 +189,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
         logger.info("-->  verifying repository");
         assertThrows(client.admin().cluster().prepareVerifyRepository("test-repo-1"), RepositoryVerificationException.class);
 
-        Path location = newTempDirPath(LifecycleScope.SUITE);
+        Path location = createTempDir();
 
         logger.info("-->  creating repository");
         try {
@@ -208,7 +210,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
         Client client = client();
 
         Settings settings = ImmutableSettings.settingsBuilder()
-                .put("location", newTempDir(LifecycleScope.SUITE))
+                .put("location", createTempDir())
                 .put("random_control_io_exception_rate", 1.0).build();
         logger.info("-->  creating repository that cannot write any files - should fail");
         assertThrows(client.admin().cluster().preparePutRepository("test-repo-1")
@@ -222,7 +224,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
         logger.info("-->  verifying repository");
         assertThrows(client.admin().cluster().prepareVerifyRepository("test-repo-1"), RepositoryVerificationException.class);
 
-        Path location = newTempDirPath(LifecycleScope.SUITE);
+        Path location = createTempDir();
 
         logger.info("-->  creating repository");
         try {

@@ -46,7 +46,13 @@ via the mapping API even if you use the precision parameter.
 
 |`distance_error_pct` |Used as a hint to the PrefixTree about how
 precise it should be. Defaults to 0.025 (2.5%) with 0.5 as the maximum
-supported value.
+supported value. PERFORMANCE NOTE: This value will be default to 0 if a `precision` or
+`tree_level` definition is explicitly defined. This guarantees spatial precision
+at the level defined in the mapping. This can lead to significant memory usage
+for high resolution shapes with low error (e.g., large shapes at 1m with < 0.001 error).
+To improve indexing performance (at the cost of query accuracy) explicitly define
+`tree_level` or `precision` along with a reasonable `distance_error_pct`, noting
+that large shapes will have greater false positives.
 
 |`orientation` |Optionally define how to interpret vertex order for
 polygons / multipolygons.  This parameter defines one of two coordinate

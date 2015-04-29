@@ -26,25 +26,37 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.QueryUtils;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class BlendedTermQueryTest extends ElasticsearchLuceneTestCase {
+public class BlendedTermQueryTest extends ElasticsearchTestCase {
 
     @Test
     public void testBooleanQuery() throws IOException {
@@ -210,7 +222,7 @@ public class BlendedTermQueryTest extends ElasticsearchLuceneTestCase {
     }
 
     @Test
-    public void testExtractTerms() {
+    public void testExtractTerms() throws IOException {
         Set<Term> terms = new HashSet<>();
         int num = scaledRandomIntBetween(1, 10);
         for (int i = 0; i < num; i++) {
@@ -220,7 +232,8 @@ public class BlendedTermQueryTest extends ElasticsearchLuceneTestCase {
         BlendedTermQuery blendedTermQuery = random().nextBoolean() ? BlendedTermQuery.dismaxBlendedQuery(terms.toArray(new Term[0]), random().nextFloat()) :
                 BlendedTermQuery.booleanBlendedQuery(terms.toArray(new Term[0]), random().nextBoolean());
         Set<Term> extracted = new HashSet<>();
-        blendedTermQuery.extractTerms(extracted);
+        IndexSearcher searcher = new IndexSearcher(new MultiReader());
+        searcher.createNormalizedWeight(blendedTermQuery, false).extractTerms(extracted);
         assertThat(extracted.size(), equalTo(terms.size()));
         assertThat(extracted, containsInAnyOrder(terms.toArray(new Term[0])));
     }

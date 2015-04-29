@@ -56,7 +56,7 @@ public class FetchSourceSubPhase implements FetchSubPhase {
     }
 
     @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticsearchException {
+    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
     }
 
     @Override
@@ -65,7 +65,7 @@ public class FetchSourceSubPhase implements FetchSubPhase {
     }
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticsearchException {
+    public void hitExecute(SearchContext context, HitContext hitContext) {
         FetchSourceContext fetchSourceContext = context.fetchSourceContext();
         assert fetchSourceContext.fetchSource();
         if (fetchSourceContext.includes().length == 0 && fetchSourceContext.excludes().length == 0) {

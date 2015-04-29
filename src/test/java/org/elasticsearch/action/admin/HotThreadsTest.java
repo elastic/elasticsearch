@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
@@ -44,6 +45,7 @@ import static org.hamcrest.Matchers.lessThan;
 
 /**
  */
+@Slow
 public class HotThreadsTest extends ElasticsearchIntegrationTest {
 
     @Test

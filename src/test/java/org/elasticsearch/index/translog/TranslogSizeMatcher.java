@@ -19,9 +19,12 @@
 
 package org.elasticsearch.index.translog;
 
+import org.elasticsearch.ElasticsearchException;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
+
+import java.io.IOException;
 
 /**
  *
@@ -43,6 +46,8 @@ public class TranslogSizeMatcher extends TypeSafeMatcher<Translog.Snapshot> {
                 count++;
             }
             return size == count;
+        } catch (IOException ex) {
+            throw new ElasticsearchException("failed to advance iterator", ex);
         } finally {
             // Since counting the translog size consumes the stream, reset it
             // back to the origin position after reading

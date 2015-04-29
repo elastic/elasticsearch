@@ -29,7 +29,7 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterCachingPolicy;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
@@ -78,7 +78,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     }
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void close() {
         clear("close");
     }
 
@@ -128,7 +128,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     }
 
     @Override
-    public Filter cache(Filter filterToCache, @Nullable HashedBytesRef cacheKey, FilterCachingPolicy cachePolicy) {
+    public Filter cache(Filter filterToCache, @Nullable HashedBytesRef cacheKey, QueryCachingPolicy cachePolicy) {
         if (filterToCache == null) {
             return null;
         }
@@ -148,10 +148,10 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
 
         private final Filter filter;
         private final Object filterCacheKey;
-        private final FilterCachingPolicy cachePolicy;
+        private final QueryCachingPolicy cachePolicy;
         private final WeightedFilterCache cache;
 
-        FilterCacheFilterWrapper(Filter filter, Object cacheKey, FilterCachingPolicy cachePolicy, WeightedFilterCache cache) {
+        FilterCacheFilterWrapper(Filter filter, Object cacheKey, QueryCachingPolicy cachePolicy, WeightedFilterCache cache) {
             this.filter = filter;
             this.filterCacheKey = cacheKey != null ? cacheKey : filter;
             this.cachePolicy = cachePolicy;
@@ -172,7 +172,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
                 ret = cacheValue;
             } else {
                 final DocIdSet uncached = filter.getDocIdSet(context, null);
-                if (cachePolicy.shouldCache(filter, context, uncached)) {
+                if (cachePolicy.shouldCache(filter, context)) {
                     if (!cache.seenReaders.containsKey(context.reader().getCoreCacheKey())) {
                         Boolean previous = cache.seenReaders.putIfAbsent(context.reader().getCoreCacheKey(), Boolean.TRUE);
                         if (previous == null) {
@@ -212,13 +212,13 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
 
         @Override
         public boolean equals(Object o) {
-            if (!(o instanceof FilterCacheFilterWrapper)) return false;
+            if (super.equals(o) == false) return false;
             return this.filter.equals(((FilterCacheFilterWrapper) o).filter);
         }
 
         @Override
         public int hashCode() {
-            return filter.hashCode() ^ 0x1117BF25;
+            return 31 * super.hashCode() + filter.hashCode();
         }
     }
 

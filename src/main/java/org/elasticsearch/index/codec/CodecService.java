@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -50,6 +49,8 @@ public class CodecService extends AbstractIndexComponent {
 
     public final static String DEFAULT_CODEC = "default";
     public final static String BEST_COMPRESSION_CODEC = "best_compression";
+    /** the raw unfiltered lucene default. useful for testing */
+    public final static String LUCENE_DEFAULT_CODEC = "lucene_default";
 
     public CodecService(Index index) {
         this(index, ImmutableSettings.Builder.EMPTY_SETTINGS);
@@ -73,6 +74,7 @@ public class CodecService extends AbstractIndexComponent {
             codecs.put(BEST_COMPRESSION_CODEC, 
                     new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
         }
+        codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
         for (String codec : Codec.availableCodecs()) {
             codecs.put(codec, Codec.forName(codec));
         }
@@ -83,10 +85,10 @@ public class CodecService extends AbstractIndexComponent {
         return mapperService;
     }
 
-    public Codec codec(String name) throws ElasticsearchIllegalArgumentException {
+    public Codec codec(String name) {
         Codec codec = codecs.get(name);
         if (codec == null) {
-            throw new ElasticsearchIllegalArgumentException("failed to find codec [" + name + "]");
+            throw new IllegalArgumentException("failed to find codec [" + name + "]");
         }
         return codec;
     }

@@ -42,17 +42,17 @@ public class ClusterStateObserver {
             return changedEvent.previousState().version() != changedEvent.state().version();
         }
     };
-    private ClusterService clusterService;
+
+    private final  ClusterService clusterService;
     volatile TimeValue timeOutValue;
 
 
     final AtomicReference<ObservedState> lastObservedState;
+    final TimeoutClusterStateListener clusterStateListener = new ObserverClusterStateListener();
     // observingContext is not null when waiting on cluster state changes
     final AtomicReference<ObservingContext> observingContext = new AtomicReference<ObservingContext>(null);
-    volatile long startTime;
+    volatile Long startTime;
     volatile boolean timedOut;
-
-    volatile TimeoutClusterStateListener clusterStateListener = new ObserverClusterStateListener();
 
 
     public ClusterStateObserver(ClusterService clusterService, ESLogger logger) {
@@ -65,10 +65,12 @@ public class ClusterStateObserver {
      *                       will fail any existing or new #waitForNextChange calls.
      */
     public ClusterStateObserver(ClusterService clusterService, TimeValue timeout, ESLogger logger) {
-        this.timeOutValue = timeout;
         this.clusterService = clusterService;
         this.lastObservedState = new AtomicReference<>(new ObservedState(clusterService.state()));
-        this.startTime = System.currentTimeMillis();
+        this.timeOutValue = timeout;
+        if (timeOutValue != null) {
+            this.startTime = System.currentTimeMillis();
+        }
         this.logger = logger;
     }
 
@@ -108,19 +110,24 @@ public class ClusterStateObserver {
         if (observingContext.get() != null) {
             throw new ElasticsearchException("already waiting for a cluster state change");
         }
-        long timeoutTimeLeft;
+
+        Long timeoutTimeLeft;
         if (timeOutValue == null) {
             timeOutValue = this.timeOutValue;
-            long timeSinceStart = System.currentTimeMillis() - startTime;
-            timeoutTimeLeft = timeOutValue.millis() - timeSinceStart;
-            if (timeoutTimeLeft <= 0l) {
-                // things have timeout while we were busy -> notify
-                logger.debug("observer timed out. notifying listener. timeout setting [{}], time since start [{}]", timeOutValue, new TimeValue(timeSinceStart));
-                // update to latest, in case people want to retry
-                timedOut = true;
-                lastObservedState.set(new ObservedState(clusterService.state()));
-                listener.onTimeout(timeOutValue);
-                return;
+            if (timeOutValue != null) {
+                long timeSinceStart = System.currentTimeMillis() - startTime;
+                timeoutTimeLeft = timeOutValue.millis() - timeSinceStart;
+                if (timeoutTimeLeft <= 0l) {
+                    // things have timeout while we were busy -> notify
+                    logger.debug("observer timed out. notifying listener. timeout setting [{}], time since start [{}]", timeOutValue, new TimeValue(timeSinceStart));
+                    // update to latest, in case people want to retry
+                    timedOut = true;
+                    lastObservedState.set(new ObservedState(clusterService.state()));
+                    listener.onTimeout(timeOutValue);
+                    return;
+                }
+            } else {
+                timeoutTimeLeft = null;
             }
         } else {
             this.startTime = System.currentTimeMillis();
@@ -143,7 +150,7 @@ public class ClusterStateObserver {
             if (!observingContext.compareAndSet(null, context)) {
                 throw new ElasticsearchException("already waiting for a cluster state change");
             }
-            clusterService.add(new TimeValue(timeoutTimeLeft), clusterStateListener);
+            clusterService.add(timeoutTimeLeft == null ? null : new TimeValue(timeoutTimeLeft), clusterStateListener);
         }
     }
 

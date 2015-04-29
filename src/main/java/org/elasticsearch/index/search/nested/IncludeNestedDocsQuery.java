@@ -92,6 +92,11 @@ public class IncludeNestedDocsQuery extends Query {
         }
 
         @Override
+        public void extractTerms(Set<Term> terms) {
+            parentWeight.extractTerms(terms);
+        }
+
+        @Override
         public void normalize(float norm, float topLevelBoost) {
             parentWeight.normalize(norm, topLevelBoost);
         }
@@ -244,11 +249,6 @@ public class IncludeNestedDocsQuery extends Query {
         public long cost() {
             return parentScorer.cost();
         }
-    }
-
-    @Override
-    public void extractTerms(Set<Term> terms) {
-        parentQuery.extractTerms(terms);
     }
 
     @Override

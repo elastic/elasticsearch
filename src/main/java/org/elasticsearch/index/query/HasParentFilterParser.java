@@ -32,7 +32,6 @@ import org.elasticsearch.search.internal.SubSearchContext;
 import java.io.IOException;
 
 import static org.elasticsearch.index.query.HasParentQueryParser.createParentQuery;
-import static org.elasticsearch.index.query.QueryParserUtils.ensureNotDeleteByQuery;
 
 /**
  *
@@ -55,7 +54,6 @@ public class HasParentFilterParser implements FilterParser {
 
     @Override
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
-        ensureNotDeleteByQuery(NAME, parseContext);
         XContentParser parser = parseContext.parser();
 
         boolean queryFound = false;
@@ -85,7 +83,7 @@ public class HasParentFilterParser implements FilterParser {
                 } else if ("inner_hits".equals(currentFieldName)) {
                     innerHits = innerHitsQueryParserHelper.parse(parseContext);
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[has_parent] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[has_parent] filter does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "parent_type".equals(currentFieldName) || "parentType".equals(currentFieldName)) {
@@ -97,15 +95,15 @@ public class HasParentFilterParser implements FilterParser {
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     // noop to be backwards compatible
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[has_parent] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[has_parent] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (!queryFound && !filterFound) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] filter requires 'query' or 'filter' field");
+            throw new QueryParsingException(parseContext, "[has_parent] filter requires 'query' or 'filter' field");
         }
         if (parentType == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] filter requires 'parent_type' field");
+            throw new QueryParsingException(parseContext, "[has_parent] filter requires 'parent_type' field");
         }
 
         Query innerQuery;

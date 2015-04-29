@@ -91,7 +91,7 @@ public class TieredMergePolicyProvider extends AbstractMergePolicyProvider<Tiere
     }
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void close() {
         indexSettingsService.removeListener(applySettings);
     }
 

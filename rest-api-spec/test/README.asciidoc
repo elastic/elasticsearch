@@ -65,7 +65,7 @@ skipped, and the reason why the tests are skipped.  For instance:
 ....
     "Parent":
      - skip:
-          version:     "0 - 0.90.2"
+          version:     "0.20.1 - 0.90.2"
           reason:      Delete ignores the parent param
 
      - do:
@@ -75,14 +75,17 @@ skipped, and the reason why the tests are skipped.  For instance:
 All tests in the file following the skip statement should be skipped if:
 `min <= current <= max`.
 
-The `version` range should always have an upper bound. Versions should
-either have each version part compared numerically, or should be converted
-to a string with sufficient digits to allow string comparison, eg
+The `version` range can leave either bound empty, which means "open ended".
+For instance:
+....
+    "Parent":
+     - skip:
+          version:     "1.0.0.Beta1 - "
+          reason:      Delete ignores the parent param
 
-    0.90.2 -> 000-090-002
-
-Snapshot versions and versions of the form `1.0.0.Beta1` can be treated
-as the rounded down version, eg `1.0.0`.
+     - do:
+       ... test definitions ...
+....
 
 The skip section can also be used to list new features that need to be
 supported in order to run a test. This way the up-to-date runners will

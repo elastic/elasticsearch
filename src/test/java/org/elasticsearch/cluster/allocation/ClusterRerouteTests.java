@@ -24,6 +24,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
@@ -31,7 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateAllocationCo
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.Allocation;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
@@ -47,9 +49,14 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  */
@@ -70,7 +77,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
     @Test
     public void rerouteWithCommands_enableAllocationSettings() throws Exception {
         Settings commonSettings = settingsBuilder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE.name())
+                .put(CLUSTER_ROUTING_ALLOCATION_ENABLE, Allocation.NONE.name())
                 .build();
         rerouteWithCommands(commonSettings);
     }
@@ -148,7 +155,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
     @Test
     public void rerouteWithAllocateLocalGateway_enableAllocationSettings() throws Exception {
         Settings commonSettings = settingsBuilder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE.name())
+                .put(CLUSTER_ROUTING_ALLOCATION_ENABLE, Allocation.NONE.name())
                 .build();
         rerouteWithAllocateLocalGateway(commonSettings);
     }
@@ -188,7 +195,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).execute().actionGet();
 
         logger.info("--> closing all nodes");
-        Path[] shardLocation = internalCluster().getInstance(NodeEnvironment.class, node_1).shardPaths(new ShardId("test", 0));
+        Path[] shardLocation = internalCluster().getInstance(NodeEnvironment.class, node_1).availableShardPaths(new ShardId("test", 0));
         assertThat(FileSystemUtils.exists(shardLocation), equalTo(true)); // make sure the data is there!
         internalCluster().closeNonSharedNodes(false); // don't wipe data directories the index needs to be there!
 
@@ -241,7 +248,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> disable allocation");
         Settings newSettings = settingsBuilder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE.name())
+                .put(CLUSTER_ROUTING_ALLOCATION_ENABLE, Allocation.NONE.name())
                 .build();
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(newSettings).execute().actionGet();
 
@@ -264,4 +271,51 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         assertThat(explanation.decisions().type(), equalTo(Decision.Type.YES));
     }
 
+    @Test
+    public void testClusterRerouteWithBlocks() throws Exception {
+        List<String> nodesIds = internalCluster().startNodesAsync(2).get();
+
+        logger.info("--> create an index with 1 shard and 0 replicas");
+        assertAcked(prepareCreate("test-blocks").setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)));
+        ensureGreen("test-blocks");
+
+        logger.info("--> check that the index has 1 shard");
+        ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        List<ShardRouting> shards = state.routingTable().allShards("test-blocks");
+        assertThat(shards, hasSize(1));
+
+        logger.info("--> check that the shard is allocated");
+        ShardRouting shard = shards.get(0);
+        assertThat(shard.assignedToNode(), equalTo(true));
+
+        logger.info("--> retrieve the node where the shard is allocated");
+        DiscoveryNode node = state.nodes().resolveNode(shard.currentNodeId());
+        assertNotNull(node);
+
+        // toggle is used to mve the shard from one node to another
+        int toggle = nodesIds.indexOf(node.getName());
+
+        // Rerouting shards is not blocked
+        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
+            try {
+                enableIndexBlock("test-blocks", blockSetting);
+                assertAcked(client().admin().cluster().prepareReroute()
+                        .add(new MoveAllocationCommand(new ShardId("test-blocks", 0), nodesIds.get(toggle % 2), nodesIds.get(++toggle % 2))));
+
+                ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForYellowStatus().setWaitForRelocatingShards(0).execute().actionGet();
+                assertThat(healthResponse.isTimedOut(), equalTo(false));
+            } finally {
+                disableIndexBlock("test-blocks", blockSetting);
+            }
+        }
+
+        // Rerouting shards is blocked when the cluster is read only
+        try {
+            setClusterReadOnly(true);
+            assertBlocked(client().admin().cluster().prepareReroute()
+                    .add(new MoveAllocationCommand(new ShardId("test-blocks", 1), nodesIds.get(toggle % 2), nodesIds.get(++toggle % 2))));
+        } finally {
+            setClusterReadOnly(false);
+        }
+    }
 }

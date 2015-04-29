@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.rest.test;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParseContext;
 import org.elasticsearch.test.rest.parser.SetupSectionParser;
@@ -84,7 +85,8 @@ public class SetupSectionParserTests extends AbstractParserTests {
         assertThat(setupSection, notNullValue());
         assertThat(setupSection.getSkipSection().isEmpty(), equalTo(false));
         assertThat(setupSection.getSkipSection(), notNullValue());
-        assertThat(setupSection.getSkipSection().getVersion(), equalTo("0.90.0 - 0.90.7"));
+        assertThat(setupSection.getSkipSection().getLowerVersion(), equalTo(Version.V_0_90_0));
+        assertThat(setupSection.getSkipSection().getUpperVersion(), equalTo(Version.V_0_90_7));
         assertThat(setupSection.getSkipSection().getReason(), equalTo("Update doesn't return metadata fields, waiting for #3259"));
         assertThat(setupSection.getDoSections().size(), equalTo(2));
         assertThat(setupSection.getDoSections().get(0).getApiCallSection().getApi(), equalTo("index1"));

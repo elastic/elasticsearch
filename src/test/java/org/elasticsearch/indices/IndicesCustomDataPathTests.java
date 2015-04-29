@@ -20,9 +20,11 @@
 package org.elasticsearch.indices;
 
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -48,19 +50,19 @@ public class IndicesCustomDataPathTests extends ElasticsearchIntegrationTest {
 
     @Before
     public void setup() {
-        path = newTempDirPath().toAbsolutePath().toString();
+        path = createTempDir().toAbsolutePath().toString();
     }
 
     @After
     public void teardown() throws Exception {
-        IOUtils.deleteFilesIgnoringExceptions(Paths.get(path));
+        IOUtils.deleteFilesIgnoringExceptions(PathUtils.get(path));
     }
 
     @Test
     @TestLogging("_root:DEBUG,index:TRACE")
     public void testDataPathCanBeChanged() throws Exception {
         final String INDEX = "idx";
-        Path root = newTempDirPath();
+        Path root = createTempDir();
         Path startDir = root.resolve("start");
         Path endDir = root.resolve("end");
         logger.info("--> start dir: [{}]", startDir.toAbsolutePath().toString());

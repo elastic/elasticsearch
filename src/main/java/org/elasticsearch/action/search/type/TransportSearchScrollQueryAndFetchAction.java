@@ -30,10 +30,10 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
+import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 
@@ -148,10 +148,10 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
 
         void executePhase(final int shardIndex, DiscoveryNode node, final long searchId) {
             InternalScrollSearchRequest internalRequest = internalScrollSearchRequest(searchId, request);
-            searchService.sendExecuteFetch(node, internalRequest, new SearchServiceListener<QueryFetchSearchResult>() {
+            searchService.sendExecuteFetch(node, internalRequest, new ActionListener<ScrollQueryFetchSearchResult>() {
                 @Override
-                public void onResult(QueryFetchSearchResult result) {
-                    queryFetchResults.set(shardIndex, result);
+                public void onResponse(ScrollQueryFetchSearchResult result) {
+                    queryFetchResults.set(shardIndex, result.result());
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
                     }

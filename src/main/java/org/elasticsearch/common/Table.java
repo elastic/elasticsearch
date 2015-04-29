@@ -21,7 +21,6 @@ package org.elasticsearch.common;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -47,7 +46,7 @@ public class Table {
 
     public Table endHeaders() {
         if (currentCells == null || currentCells.isEmpty()) {
-            throw new ElasticsearchIllegalStateException("no headers added...");
+            throw new IllegalStateException("no headers added...");
         }
         inHeaders = false;
         headers = currentCells;
@@ -73,7 +72,7 @@ public class Table {
 
     public Table startRow() {
         if (headers.isEmpty()) {
-            throw new ElasticsearchIllegalStateException("no headers added...");
+            throw new IllegalStateException("no headers added...");
         }
         currentCells = new ArrayList<>(headers.size());
         return this;
@@ -81,7 +80,7 @@ public class Table {
 
     public Table endRow(boolean check) {
         if (currentCells == null) {
-            throw new ElasticsearchIllegalStateException("no row started...");
+            throw new IllegalStateException("no row started...");
         }
         if (check && (currentCells.size() != headers.size())) {
             StringBuilder s = new StringBuilder();
@@ -89,7 +88,7 @@ public class Table {
             s.append(currentCells.size());
             s.append(" in a row compared to header ");
             s.append(headers.size());
-            throw new ElasticsearchIllegalStateException(s.toString());
+            throw new IllegalStateException(s.toString());
         }
         rows.add(currentCells);
         currentCells = null;
@@ -107,11 +106,11 @@ public class Table {
 
     public Table addCell(Object value, String attributes) {
         if (currentCells == null) {
-            throw new ElasticsearchIllegalStateException("no block started...");
+            throw new IllegalStateException("no block started...");
         }
         if (!inHeaders) {
             if (currentCells.size() == headers.size()) {
-                throw new ElasticsearchIllegalStateException("can't add more cells to a row than the header");
+                throw new IllegalStateException("can't add more cells to a row than the header");
             }
         }
         Map<String, String> mAttr;

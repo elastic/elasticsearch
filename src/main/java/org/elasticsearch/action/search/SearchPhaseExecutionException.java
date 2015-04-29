@@ -20,25 +20,30 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexException;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
+import java.util.*;
 
 /**
  *
  */
 public class SearchPhaseExecutionException extends ElasticsearchException {
-
     private final String phaseName;
 
     private ShardSearchFailure[] shardFailures;
 
     public SearchPhaseExecutionException(String phaseName, String msg, ShardSearchFailure[] shardFailures) {
-        super(buildMessage(phaseName, msg, shardFailures));
+        super(msg);
         this.phaseName = phaseName;
         this.shardFailures = shardFailures;
     }
 
     public SearchPhaseExecutionException(String phaseName, String msg, Throwable cause, ShardSearchFailure[] shardFailures) {
-        super(buildMessage(phaseName, msg, shardFailures), cause);
+        super(msg, cause);
         this.phaseName = phaseName;
         this.shardFailures = shardFailures;
     }
@@ -60,10 +65,6 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         return status;
     }
 
-    public String phaseName() {
-        return phaseName;
-    }
-
     public ShardSearchFailure[] shardFailures() {
         return shardFailures;
     }
@@ -82,5 +83,91 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
             }
         }
         return sb.toString();
+    }
+
+    @Override
+    protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("phase", phaseName);
+        final boolean group = params.paramAsBoolean("group_shard_failures", true); // we group by default
+        builder.field("grouped", group); // notify that it's grouped
+        builder.field("failed_shards");
+        builder.startArray();
+        ShardSearchFailure[] failures = params.paramAsBoolean("group_shard_failures", true) ? groupBy(shardFailures) : shardFailures;
+        for (ShardSearchFailure failure : failures) {
+            builder.startObject();
+            failure.toXContent(builder, params);
+            builder.endObject();
+        }
+        builder.endArray();
+        super.innerToXContent(builder, params);
+
+    }
+
+    private ShardSearchFailure[] groupBy(ShardSearchFailure[] failures) {
+        List<ShardSearchFailure> uniqueFailures = new ArrayList<>();
+        Set<GroupBy> reasons = new HashSet<>();
+        for (ShardSearchFailure failure : failures) {
+            GroupBy reason = new GroupBy(failure.getCause());
+            if (reasons.contains(reason) == false) {
+                reasons.add(reason);
+                uniqueFailures.add(failure);
+            }
+        }
+        return uniqueFailures.toArray(new ShardSearchFailure[0]);
+
+    }
+
+    @Override
+    public ElasticsearchException[] guessRootCauses() {
+        ShardSearchFailure[] failures = groupBy(shardFailures);
+        List<ElasticsearchException> rootCauses = new ArrayList<>(failures.length);
+        for (ShardSearchFailure failure : failures) {
+            ElasticsearchException[] guessRootCauses = ElasticsearchException.guessRootCauses(failure.getCause());
+            rootCauses.addAll(Arrays.asList(guessRootCauses));
+        }
+        return rootCauses.toArray(new ElasticsearchException[0]);
+    }
+
+    @Override
+    public String toString() {
+        return buildMessage(phaseName, getMessage(), shardFailures);
+    }
+
+    static class GroupBy {
+        final String reason;
+        final Index index;
+        final Class<? extends Throwable> causeType;
+
+        public GroupBy(Throwable t) {
+            if (t instanceof IndexException) {
+                index = ((IndexException) t).index();
+            } else {
+                index = null;
+            }
+            reason = t.getMessage();
+            causeType = t.getClass();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            GroupBy groupBy = (GroupBy) o;
+
+            if (!causeType.equals(groupBy.causeType)) return false;
+            if (index != null ? !index.equals(groupBy.index) : groupBy.index != null) return false;
+            if (reason != null ? !reason.equals(groupBy.reason) : groupBy.reason != null) return false;
+
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = reason != null ? reason.hashCode() : 0;
+            result = 31 * result + (index != null ? index.hashCode() : 0);
+            result = 31 * result + causeType.hashCode();
+            return result;
+        }
     }
 }

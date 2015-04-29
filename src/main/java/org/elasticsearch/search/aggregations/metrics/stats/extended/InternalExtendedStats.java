@@ -199,7 +199,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
                 .field(Fields.LOWER, count != 0 ? getStdDeviationBound(Bounds.LOWER) : null)
                 .endObject();
 
-        if (count != 0 && valueFormatter != null) {
+        if (count != 0 && valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
             builder.field(Fields.SUM_OF_SQRS_AS_STRING, valueFormatter.format(sumOfSqrs));
             builder.field(Fields.VARIANCE_AS_STRING, valueFormatter.format(getVariance()));
             builder.field(Fields.STD_DEVIATION_AS_STRING, getStdDeviationAsString());

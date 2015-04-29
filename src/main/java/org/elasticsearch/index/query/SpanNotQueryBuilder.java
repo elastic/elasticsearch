@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -87,14 +86,14 @@ public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBu
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         if (include == null) {
-            throw new ElasticsearchIllegalArgumentException("Must specify include when using spanNot query");
+            throw new IllegalArgumentException("Must specify include when using spanNot query");
         }
         if (exclude == null) {
-            throw new ElasticsearchIllegalArgumentException("Must specify exclude when using spanNot query");
+            throw new IllegalArgumentException("Must specify exclude when using spanNot query");
         }
 
         if (dist != null && (pre != null || post != null)) {
-             throw new ElasticsearchIllegalArgumentException("spanNot can either use [dist] or [pre] & [post] (or none)");
+             throw new IllegalArgumentException("spanNot can either use [dist] or [pre] & [post] (or none)");
         }
 
         builder.startObject(SpanNotQueryParser.NAME);

@@ -38,7 +38,7 @@ public class TransportAliasesExistAction extends TransportMasterNodeReadOperatio
 
     @Inject
     public TransportAliasesExistAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, AliasesExistAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, AliasesExistAction.NAME, transportService, clusterService, threadPool, actionFilters, GetAliasesRequest.class);
     }
 
     @Override
@@ -49,12 +49,7 @@ public class TransportAliasesExistAction extends TransportMasterNodeReadOperatio
 
     @Override
     protected ClusterBlockException checkBlock(GetAliasesRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
-    }
-
-    @Override
-    protected GetAliasesRequest newRequest() {
-        return new GetAliasesRequest();
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override
@@ -63,7 +58,7 @@ public class TransportAliasesExistAction extends TransportMasterNodeReadOperatio
     }
 
     @Override
-    protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<AliasesExistResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<AliasesExistResponse> listener) {
         String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
         boolean result = state.metaData().hasAliases(request.aliases(), concreteIndices);
         listener.onResponse(new AliasesExistResponse(result));

@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.aliases;
 
-import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.XBooleanFilter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -95,7 +95,7 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
             return indexAlias.parsedFilter();
         } else {
             // we need to bench here a bit, to see maybe it makes sense to use OrFilter
-            XBooleanFilter combined = new XBooleanFilter();
+            BooleanQuery combined = new BooleanQuery();
             for (String alias : aliases) {
                 IndexAlias indexAlias = alias(alias);
                 if (indexAlias == null) {
@@ -103,19 +103,13 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
                     throw new InvalidAliasNameException(index, aliases[0], "Unknown alias name was passed to alias Filter");
                 }
                 if (indexAlias.parsedFilter() != null) {
-                    combined.add(new FilterClause(indexAlias.parsedFilter(), BooleanClause.Occur.SHOULD));
+                    combined.add(indexAlias.parsedFilter(), BooleanClause.Occur.SHOULD);
                 } else {
                     // The filter might be null only if filter was removed after filteringAliases was called
                     return null;
                 }
             }
-            if (combined.clauses().size() == 0) {
-                return null;
-            }
-            if (combined.clauses().size() == 1) {
-                return combined.clauses().get(0).getFilter();
-            }
-            return combined;
+            return Queries.wrap(combined);
         }
     }
 

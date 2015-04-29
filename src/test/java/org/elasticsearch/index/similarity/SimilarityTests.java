@@ -57,9 +57,9 @@ public class SimilarityTests extends ElasticsearchSingleNodeTest {
                 .build();
         SimilarityService similarityService = createIndex("foo", indexSettings).similarityService();
         DocumentMapper documentMapper = similarityService.mapperService().documentMapperParser().parse(mapping);
-        assertThat(documentMapper.mappers().name("field1").mapper().similarity(), instanceOf(DefaultSimilarityProvider.class));
+        assertThat(documentMapper.mappers().getMapper("field1").similarity(), instanceOf(DefaultSimilarityProvider.class));
 
-        DefaultSimilarity similarity = (DefaultSimilarity) documentMapper.mappers().name("field1").mapper().similarity().get();
+        DefaultSimilarity similarity = (DefaultSimilarity) documentMapper.mappers().getMapper("field1").similarity().get();
         assertThat(similarity.getDiscountOverlaps(), equalTo(false));
     }
 
@@ -79,9 +79,9 @@ public class SimilarityTests extends ElasticsearchSingleNodeTest {
                 .build();
         SimilarityService similarityService = createIndex("foo", indexSettings).similarityService();
         DocumentMapper documentMapper = similarityService.mapperService().documentMapperParser().parse(mapping);
-        assertThat(documentMapper.mappers().name("field1").mapper().similarity(), instanceOf(BM25SimilarityProvider.class));
+        assertThat(documentMapper.mappers().getMapper("field1").similarity(), instanceOf(BM25SimilarityProvider.class));
 
-        BM25Similarity similarity = (BM25Similarity) documentMapper.mappers().name("field1").mapper().similarity().get();
+        BM25Similarity similarity = (BM25Similarity) documentMapper.mappers().getMapper("field1").similarity().get();
         assertThat(similarity.getK1(), equalTo(2.0f));
         assertThat(similarity.getB(), equalTo(1.5f));
         assertThat(similarity.getDiscountOverlaps(), equalTo(false));
@@ -104,9 +104,9 @@ public class SimilarityTests extends ElasticsearchSingleNodeTest {
                 .build();
         SimilarityService similarityService = createIndex("foo", indexSettings).similarityService();
         DocumentMapper documentMapper = similarityService.mapperService().documentMapperParser().parse(mapping);
-        assertThat(documentMapper.mappers().name("field1").mapper().similarity(), instanceOf(DFRSimilarityProvider.class));
+        assertThat(documentMapper.mappers().getMapper("field1").similarity(), instanceOf(DFRSimilarityProvider.class));
 
-        DFRSimilarity similarity = (DFRSimilarity) documentMapper.mappers().name("field1").mapper().similarity().get();
+        DFRSimilarity similarity = (DFRSimilarity) documentMapper.mappers().getMapper("field1").similarity().get();
         assertThat(similarity.getBasicModel(), instanceOf(BasicModelG.class));
         assertThat(similarity.getAfterEffect(), instanceOf(AfterEffectL.class));
         assertThat(similarity.getNormalization(), instanceOf(NormalizationH2.class));
@@ -130,9 +130,9 @@ public class SimilarityTests extends ElasticsearchSingleNodeTest {
                 .build();
         SimilarityService similarityService = createIndex("foo", indexSettings).similarityService();
         DocumentMapper documentMapper = similarityService.mapperService().documentMapperParser().parse(mapping);
-        assertThat(documentMapper.mappers().name("field1").mapper().similarity(), instanceOf(IBSimilarityProvider.class));
+        assertThat(documentMapper.mappers().getMapper("field1").similarity(), instanceOf(IBSimilarityProvider.class));
 
-        IBSimilarity similarity = (IBSimilarity) documentMapper.mappers().name("field1").mapper().similarity().get();
+        IBSimilarity similarity = (IBSimilarity) documentMapper.mappers().getMapper("field1").similarity().get();
         assertThat(similarity.getDistribution(), instanceOf(DistributionSPL.class));
         assertThat(similarity.getLambda(), instanceOf(LambdaTTF.class));
         assertThat(similarity.getNormalization(), instanceOf(NormalizationH2.class));
@@ -153,9 +153,9 @@ public class SimilarityTests extends ElasticsearchSingleNodeTest {
                 .build();
         SimilarityService similarityService = createIndex("foo", indexSettings).similarityService();
         DocumentMapper documentMapper = similarityService.mapperService().documentMapperParser().parse(mapping);
-        assertThat(documentMapper.mappers().name("field1").mapper().similarity(), instanceOf(LMDirichletSimilarityProvider.class));
+        assertThat(documentMapper.mappers().getMapper("field1").similarity(), instanceOf(LMDirichletSimilarityProvider.class));
 
-        LMDirichletSimilarity similarity = (LMDirichletSimilarity) documentMapper.mappers().name("field1").mapper().similarity().get();
+        LMDirichletSimilarity similarity = (LMDirichletSimilarity) documentMapper.mappers().getMapper("field1").similarity().get();
         assertThat(similarity.getMu(), equalTo(3000f));
     }
 
@@ -173,9 +173,9 @@ public class SimilarityTests extends ElasticsearchSingleNodeTest {
                 .build();
         SimilarityService similarityService = createIndex("foo", indexSettings).similarityService();
         DocumentMapper documentMapper = similarityService.mapperService().documentMapperParser().parse(mapping);
-        assertThat(documentMapper.mappers().name("field1").mapper().similarity(), instanceOf(LMJelinekMercerSimilarityProvider.class));
+        assertThat(documentMapper.mappers().getMapper("field1").similarity(), instanceOf(LMJelinekMercerSimilarityProvider.class));
 
-        LMJelinekMercerSimilarity similarity = (LMJelinekMercerSimilarity) documentMapper.mappers().name("field1").mapper().similarity().get();
+        LMJelinekMercerSimilarity similarity = (LMJelinekMercerSimilarity) documentMapper.mappers().getMapper("field1").similarity().get();
         assertThat(similarity.getLambda(), equalTo(0.7f));
     }
 }

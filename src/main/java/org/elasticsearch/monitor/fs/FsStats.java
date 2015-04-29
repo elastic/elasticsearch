@@ -46,6 +46,9 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
         String mount;
         @Nullable
         String dev;
+        /** File system type from {@code java.nio.file.FileStore type()}, if available. */
+        @Nullable
+        String type;
         long total = -1;
         long free = -1;
         long available = -1;
@@ -55,6 +58,9 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
         long diskWriteBytes = -1;
         double diskQueue = -1;
         double diskServiceTime = -1;
+        /** Uses Lucene's {@code IOUtils.spins} method to try to determine if the device backed by spinning media.
+         *  This is null if we could not determine it, true if it possibly spins, else false. */
+        Boolean spins = null;
 
         public Info() {
         }
@@ -86,6 +92,7 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             path = in.readOptionalString();
             mount = in.readOptionalString();
             dev = in.readOptionalString();
+            type = in.readOptionalString();
             total = in.readLong();
             free = in.readLong();
             available = in.readLong();
@@ -95,6 +102,7 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             diskWriteBytes = in.readLong();
             diskQueue = in.readDouble();
             diskServiceTime = in.readDouble();
+            spins = in.readOptionalBoolean();
         }
 
         @Override
@@ -102,6 +110,7 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             out.writeOptionalString(path); // total aggregates do not have a path
             out.writeOptionalString(mount);
             out.writeOptionalString(dev);
+            out.writeOptionalString(type);
             out.writeLong(total);
             out.writeLong(free);
             out.writeLong(available);
@@ -111,6 +120,7 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             out.writeLong(diskWriteBytes);
             out.writeDouble(diskQueue);
             out.writeDouble(diskServiceTime);
+            out.writeOptionalBoolean(spins);
         }
 
         public String getPath() {
@@ -123,6 +133,10 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
 
         public String getDev() {
             return dev;
+        }
+
+        public String getType() {
+            return type;
         }
 
         public ByteSizeValue getTotal() {
@@ -169,6 +183,10 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             return diskServiceTime;
         }
 
+        public Boolean getSpins() {
+            return spins;
+        }
+
         private long addLong(long current, long other) {
             if (other == -1) {
                 return current;
@@ -199,12 +217,17 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             diskWriteBytes = addLong(diskWriteBytes, info.diskWriteBytes);
             diskQueue = addDouble(diskQueue, info.diskQueue);
             diskServiceTime = addDouble(diskServiceTime, info.diskServiceTime);
+            if (info.spins != null && info.spins.booleanValue()) {
+                // Spinning is contagious!
+                spins = Boolean.TRUE;
+            }
         }
 
         static final class Fields {
             static final XContentBuilderString PATH = new XContentBuilderString("path");
             static final XContentBuilderString MOUNT = new XContentBuilderString("mount");
             static final XContentBuilderString DEV = new XContentBuilderString("dev");
+            static final XContentBuilderString TYPE = new XContentBuilderString("type");
             static final XContentBuilderString TOTAL = new XContentBuilderString("total");
             static final XContentBuilderString TOTAL_IN_BYTES = new XContentBuilderString("total_in_bytes");
             static final XContentBuilderString FREE = new XContentBuilderString("free");
@@ -222,6 +245,7 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             static final XContentBuilderString DISK_IO_IN_BYTES = new XContentBuilderString("disk_io_size_in_bytes");
             static final XContentBuilderString DISK_QUEUE = new XContentBuilderString("disk_queue");
             static final XContentBuilderString DISK_SERVICE_TIME = new XContentBuilderString("disk_service_time");
+            static final XContentBuilderString SPINS = new XContentBuilderString("spins");
         }
 
         @Override
@@ -235,6 +259,9 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             }
             if (dev != null) {
                 builder.field(Fields.DEV, dev, XContentBuilder.FieldCaseConversion.NONE);
+            }
+            if (type != null) {
+                builder.field(Fields.TYPE, type, XContentBuilder.FieldCaseConversion.NONE);
             }
 
             if (total != -1) {
@@ -290,6 +317,9 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             }
             if (diskServiceTime != -1) {
                 builder.field(Fields.DISK_SERVICE_TIME, Strings.format1Decimals(diskServiceTime, ""));
+            }
+            if (spins != null) {
+                builder.field(Fields.SPINS, spins.toString());
             }
 
             builder.endObject();

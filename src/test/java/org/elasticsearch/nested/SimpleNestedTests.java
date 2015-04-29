@@ -164,7 +164,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
 
-    @Test
+    @Test @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/10661")
     public void simpleNestedMatchQueries() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
                 .startObject("type1")
@@ -253,113 +253,6 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(String.valueOf(i)));
             assertThat(searchResponse.getHits().getAt(i).matchedQueries(), arrayWithSize(1));
             assertThat(searchResponse.getHits().getAt(i).matchedQueries(), arrayContaining("test3"));
-        }
-    }
-
-    @Test
-    public void simpleNestedDeletedByQuery1() throws Exception {
-        simpleNestedDeleteByQuery(3, 0);
-    }
-
-    @Test
-    public void simpleNestedDeletedByQuery2() throws Exception {
-        simpleNestedDeleteByQuery(3, 1);
-    }
-
-    @Test
-    public void simpleNestedDeletedByQuery3() throws Exception {
-        simpleNestedDeleteByQuery(3, 2);
-    }
-
-    private void simpleNestedDeleteByQuery(int total, int docToDelete) throws Exception {
-
-        assertAcked(prepareCreate("test")
-                .setSettings(settingsBuilder().put(indexSettings()).put("index.referesh_interval", -1).build())
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("nested1")
-                        .field("type", "nested")
-                        .endObject()
-                        .endObject().endObject().endObject()));
-
-        ensureGreen();
-
-        for (int i = 0; i < total; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
-                    .field("field1", "value1")
-                    .startArray("nested1")
-                    .startObject()
-                    .field("n_field1", "n_value1_1")
-                    .field("n_field2", "n_value2_1")
-                    .endObject()
-                    .startObject()
-                    .field("n_field1", "n_value1_2")
-                    .field("n_field2", "n_value2_2")
-                    .endObject()
-                    .endArray()
-                    .endObject()).execute().actionGet();
-        }
-
-
-        flush();
-        assertDocumentCount("test", total * 3);
-
-        client().prepareDeleteByQuery("test").setQuery(QueryBuilders.idsQuery("type1").ids(Integer.toString(docToDelete))).execute().actionGet();
-        flush();
-        refresh();
-        assertDocumentCount("test", (total * 3l) - 3);
-
-        for (int i = 0; i < total; i++) {
-            assertThat(client().prepareGet("test", "type1", Integer.toString(i)).execute().actionGet().isExists(), equalTo(i != docToDelete));
-        }
-    }
-
-    @Test
-    public void noChildrenNestedDeletedByQuery1() throws Exception {
-        noChildrenNestedDeleteByQuery(3, 0);
-    }
-
-    @Test
-    public void noChildrenNestedDeletedByQuery2() throws Exception {
-        noChildrenNestedDeleteByQuery(3, 1);
-    }
-
-    @Test
-    public void noChildrenNestedDeletedByQuery3() throws Exception {
-        noChildrenNestedDeleteByQuery(3, 2);
-    }
-
-    private void noChildrenNestedDeleteByQuery(long total, int docToDelete) throws Exception {
-
-        assertAcked(prepareCreate("test")
-                .setSettings(settingsBuilder().put(indexSettings()).put("index.referesh_interval", -1).build())
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("nested1")
-                        .field("type", "nested")
-                        .endObject()
-                        .endObject().endObject().endObject()));
-
-        ensureGreen();
-
-
-        for (int i = 0; i < total; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
-                    .field("field1", "value1")
-                    .endObject()).execute().actionGet();
-        }
-
-
-        flush();
-        refresh();
-
-        assertDocumentCount("test", total);
-
-        client().prepareDeleteByQuery("test").setQuery(QueryBuilders.idsQuery("type1").ids(Integer.toString(docToDelete))).execute().actionGet();
-        flush();
-        refresh();
-        assertDocumentCount("test", total - 1);
-
-        for (int i = 0; i < total; i++) {
-            assertThat(client().prepareGet("test", "type1", Integer.toString(i)).execute().actionGet().isExists(), equalTo(i != docToDelete));
         }
     }
 
@@ -487,15 +380,6 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         flush();
         refresh();
         assertDocumentCount("test", 6);
-
-        client().prepareDeleteByQuery("alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
-        flush();
-        refresh();
-
-        // This must be 3, otherwise child docs aren't deleted.
-        // If this is 5 then only the parent has been removed
-        assertDocumentCount("test", 3);
-        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
     }
 
     @Test
@@ -532,7 +416,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         Explanation explanation = searchResponse.getHits().hits()[0].explanation();
         assertThat(explanation.getValue(), equalTo(2f));
-        assertThat(explanation.getDescription(), equalTo("Score based on child doc range from 0 to 1"));
+        assertThat(explanation.toString(), startsWith("2.0 = sum of:\n  2.0 = Score based on child doc range from 0 to 1\n"));
         // TODO: Enable when changes from BlockJoinQuery#explain are added to Lucene (Most likely version 4.2)
 //        assertThat(explanation.getDetails().length, equalTo(2));
 //        assertThat(explanation.getDetails()[0].getValue(), equalTo(1f));
@@ -707,7 +591,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
                     .execute().actionGet();
             Assert.fail("SearchPhaseExecutionException should have been thrown");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("type [string] doesn't support mode [SUM]"));
+            assertThat(e.toString(), containsString("type [string] doesn't support mode [SUM]"));
         }
     }
 

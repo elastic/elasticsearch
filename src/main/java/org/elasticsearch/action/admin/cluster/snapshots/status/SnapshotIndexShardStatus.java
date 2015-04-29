@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -75,7 +74,7 @@ public class SnapshotIndexShardStatus extends BroadcastShardOperationResponse im
                 stage = SnapshotIndexShardStage.FAILURE;
                 break;
             default:
-                throw new ElasticsearchIllegalArgumentException("Unknown stage type " + indexShardStatus.stage());
+                throw new IllegalArgumentException("Unknown stage type " + indexShardStatus.stage());
         }
         stats = new SnapshotStats(indexShardStatus);
         failure = indexShardStatus.failure();

@@ -26,9 +26,10 @@ import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.TermQueryPrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
+import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.SpatialStrategy;
@@ -41,7 +42,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
@@ -112,6 +113,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         private int treeLevels = 0;
         private double precisionInMeters = -1;
         private double distanceErrorPct = Defaults.DISTANCE_ERROR_PCT;
+        private boolean distErrPctDefined;
         private Orientation orientation = Defaults.ORIENTATION;
 
         private SpatialPrefixTree prefixTree;
@@ -157,31 +159,41 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
             if (Names.TREE_GEOHASH.equals(tree)) {
                 prefixTree = new GeohashPrefixTree(ShapeBuilder.SPATIAL_CONTEXT, getLevels(treeLevels, precisionInMeters, Defaults.GEOHASH_LEVELS, true));
             } else if (Names.TREE_QUADTREE.equals(tree)) {
-                prefixTree = new QuadPrefixTree(ShapeBuilder.SPATIAL_CONTEXT, getLevels(treeLevels, precisionInMeters, Defaults.QUADTREE_LEVELS, false));
+                if (context.indexCreatedVersion().before(Version.V_1_6_0)) {
+                    prefixTree = new QuadPrefixTree(ShapeBuilder.SPATIAL_CONTEXT, getLevels(treeLevels, precisionInMeters, Defaults
+                            .QUADTREE_LEVELS, false));
+                } else {
+                    prefixTree = new PackedQuadPrefixTree(ShapeBuilder.SPATIAL_CONTEXT, getLevels(treeLevels, precisionInMeters, Defaults
+                            .QUADTREE_LEVELS, false));
+                }
             } else {
-                throw new ElasticsearchIllegalArgumentException("Unknown prefix tree type [" + tree + "]");
+                throw new IllegalArgumentException("Unknown prefix tree type [" + tree + "]");
             }
 
             return new GeoShapeFieldMapper(names, prefixTree, strategyName, distanceErrorPct, orientation, fieldType,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
-    }
 
-    private static final int getLevels(int treeLevels, double precisionInMeters, int defaultLevels, boolean geoHash) {
-        if (treeLevels > 0 || precisionInMeters >= 0) {
-            return Math.max(treeLevels, precisionInMeters >= 0 ? (geoHash ? GeoUtils.geoHashLevelsForPrecision(precisionInMeters)
-                    : GeoUtils.quadTreeLevelsForPrecision(precisionInMeters)) : 0);
+        private final int getLevels(int treeLevels, double precisionInMeters, int defaultLevels, boolean geoHash) {
+            if (treeLevels > 0 || precisionInMeters >= 0) {
+                // if the user specified a precision but not a distance error percent then zero out the distance err pct
+                // this is done to guarantee precision specified by the user without doing something unexpected under the covers
+                if (!distErrPctDefined) distanceErrorPct = 0;
+                return Math.max(treeLevels, precisionInMeters >= 0 ? (geoHash ? GeoUtils.geoHashLevelsForPrecision(precisionInMeters)
+                        : GeoUtils.quadTreeLevelsForPrecision(precisionInMeters)) : 0);
+            }
+            return defaultLevels;
         }
-        return defaultLevels;
     }
-
 
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = geoShapeField(name);
-
+            // if index was created before 1.6, this conditional should be true (this forces any index created on/or after 1.6 to use 0 for
+            // the default distanceErrorPct parameter).
+            builder.distErrPctDefined = parserContext.indexVersionCreated().before(Version.V_1_6_0);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
@@ -197,6 +209,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
                     iterator.remove();
                 } else if (Names.DISTANCE_ERROR_PCT.equals(fieldName)) {
                     builder.distanceErrorPct(Double.parseDouble(fieldNode.toString()));
+                    builder.distErrPctDefined = true;
                     iterator.remove();
                 } else if (Names.ORIENTATION.equals(fieldName)) {
                     builder.orientation(ShapeBuilder.orientationFromString(fieldNode.toString()));
@@ -220,6 +233,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         super(names, 1, fieldType, false, null, null, null, null, null, indexSettings, multiFields, copyTo);
         this.recursiveStrategy = new RecursivePrefixTreeStrategy(tree, names.indexName());
         this.recursiveStrategy.setDistErrPct(distanceErrorPct);
+        this.recursiveStrategy.setPruneLeafyBranches(false);
         this.termStrategy = new TermQueryPrefixTreeStrategy(tree, names.indexName());
         this.termStrategy.setDistErrPct(distanceErrorPct);
         this.defaultStrategy = resolveStrategy(defaultStrategyName);
@@ -237,19 +251,19 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public Mapper parse(ParseContext context) throws IOException {
         try {
             Shape shape = context.parseExternalValue(Shape.class);
             if (shape == null) {
                 ShapeBuilder shapeBuilder = ShapeBuilder.parse(context.parser(), this);
                 if (shapeBuilder == null) {
-                    return;
+                    return null;
                 }
                 shape = shapeBuilder.build();
             }
             Field[] fields = defaultStrategy.createIndexableFields(shape);
             if (fields == null || fields.length == 0) {
-                return;
+                return null;
             }
             for (Field field : fields) {
                 if (!customBoost()) {
@@ -262,50 +276,49 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         } catch (Exception e) {
             throw new MapperParsingException("failed to parse [" + names.fullName() + "]", e);
         }
+        return null;
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        super.merge(mergeWith, mergeContext);
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+        super.merge(mergeWith, mergeResult);
         if (!this.getClass().equals(mergeWith.getClass())) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different field type");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different field type");
             return;
         }
         final GeoShapeFieldMapper fieldMergeWith = (GeoShapeFieldMapper) mergeWith;
-        if (!mergeContext.mergeFlags().simulate()) {
-            final PrefixTreeStrategy mergeWithStrategy = fieldMergeWith.defaultStrategy;
+        final PrefixTreeStrategy mergeWithStrategy = fieldMergeWith.defaultStrategy;
 
-            // prevent user from changing strategies
-            if (!(this.defaultStrategy.getClass().equals(mergeWithStrategy.getClass()))) {
-                mergeContext.addConflict("mapper [" + names.fullName() + "] has different strategy");
-            }
-
-            final SpatialPrefixTree grid = this.defaultStrategy.getGrid();
-            final SpatialPrefixTree mergeGrid = mergeWithStrategy.getGrid();
-
-            // prevent user from changing trees (changes encoding)
-            if (!grid.getClass().equals(mergeGrid.getClass())) {
-                mergeContext.addConflict("mapper [" + names.fullName() + "] has different tree");
-            }
-
-            // TODO we should allow this, but at the moment levels is used to build bookkeeping variables
-            // in lucene's SpatialPrefixTree implementations, need a patch to correct that first
-            if (grid.getMaxLevels() != mergeGrid.getMaxLevels()) {
-                mergeContext.addConflict("mapper [" + names.fullName() + "] has different tree_levels or precision");
-            }
-
-            // bail if there were merge conflicts
-            if (mergeContext.hasConflicts()) {
-                return;
-            }
-
-            // change distance error percent
-            this.defaultStrategy.setDistErrPct(mergeWithStrategy.getDistErrPct());
-
-            // change orientation - this is allowed because existing dateline spanning shapes
-            // have already been unwound and segmented
-            this.shapeOrientation = fieldMergeWith.shapeOrientation;
+        // prevent user from changing strategies
+        if (!(this.defaultStrategy.getClass().equals(mergeWithStrategy.getClass()))) {
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different strategy");
         }
+
+        final SpatialPrefixTree grid = this.defaultStrategy.getGrid();
+        final SpatialPrefixTree mergeGrid = mergeWithStrategy.getGrid();
+
+        // prevent user from changing trees (changes encoding)
+        if (!grid.getClass().equals(mergeGrid.getClass())) {
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different tree");
+        }
+
+        // TODO we should allow this, but at the moment levels is used to build bookkeeping variables
+        // in lucene's SpatialPrefixTree implementations, need a patch to correct that first
+        if (grid.getMaxLevels() != mergeGrid.getMaxLevels()) {
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different tree_levels or precision");
+        }
+
+        // bail if there were merge conflicts
+        if (mergeResult.hasConflicts() || mergeResult.simulate()) {
+            return;
+        }
+
+        // change distance error percent
+        this.defaultStrategy.setDistErrPct(mergeWithStrategy.getDistErrPct());
+
+        // change orientation - this is allowed because existing dateline spanning shapes
+        // have already been unwound and segmented
+        this.shapeOrientation = fieldMergeWith.shapeOrientation;
     }
 
     @Override
@@ -370,7 +383,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         if (SpatialStrategy.TERM.getStrategyName().equals(strategyName)) {
             return termStrategy;
         }
-        throw new ElasticsearchIllegalArgumentException("Unknown prefix tree strategy [" + strategyName + "]");
+        throw new IllegalArgumentException("Unknown prefix tree strategy [" + strategyName + "]");
     }
 
 }

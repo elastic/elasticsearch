@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationStreams;
@@ -99,8 +99,8 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
                 params = new HashMap<>();
             }
             params.put("_aggs", aggregationObjects);
-            ExecutableScript script = reduceContext.scriptService().executable(firstAggregation.scriptLang, firstAggregation.reduceScript,
-                    firstAggregation.scriptType, ScriptContext.Standard.AGGS, params);
+            ExecutableScript script = reduceContext.scriptService().executable(new Script(firstAggregation.scriptLang, firstAggregation.reduceScript,
+                    firstAggregation.scriptType, params), ScriptContext.Standard.AGGS);
             aggregation = script.run();
         } else {
             aggregation = aggregationObjects;
@@ -122,7 +122,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
         } else if (path.size() == 1 && "value".equals(path.get(0))) {
             return aggregation;
         } else {
-            throw new ElasticsearchIllegalArgumentException("path not supported for [" + getName() + "]: " + path);
+            throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
     }
 

@@ -19,17 +19,18 @@
 
 package org.elasticsearch.common.lucene.all;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.ComplexExplanation;
-import org.apache.lucene.search.Explanation;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.payloads.AveragePayloadFunction;
+import org.apache.lucene.search.payloads.PayloadTermQuery;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
-import org.apache.lucene.search.spans.SpanScorer;
-import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.search.spans.SpanWeight;
 import org.apache.lucene.search.spans.TermSpans;
 import org.apache.lucene.util.Bits;
@@ -41,25 +42,28 @@ import static org.apache.lucene.analysis.payloads.PayloadHelper.decodeFloat;
 
 /**
  * A term query that takes all payload boost values into account.
- *
- *
+ * <p>
+ * It is like PayloadTermQuery with AveragePayloadFunction, except
+ * unlike PayloadTermQuery, it doesn't plug into the similarity to
+ * determine how the payload should be factored in, it just parses
+ * the float and multiplies the average with the regular score.
  */
-public class AllTermQuery extends SpanTermQuery {
+public final class AllTermQuery extends PayloadTermQuery {
 
     public AllTermQuery(Term term) {
-        super(term);
+        super(term, new AveragePayloadFunction());
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+    public SpanWeight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
         // TODO: needsScores
         // we should be able to just return a regular SpanTermWeight, at most here if needsScores == false?
         return new AllTermWeight(this, searcher);
     }
 
-    protected class AllTermWeight extends SpanWeight {
+    class AllTermWeight extends PayloadTermWeight {
 
-        public AllTermWeight(AllTermQuery query, IndexSearcher searcher) throws IOException {
+        AllTermWeight(AllTermQuery query, IndexSearcher searcher) throws IOException {
             super(query, searcher);
         }
 
@@ -68,116 +72,37 @@ public class AllTermQuery extends SpanTermQuery {
             if (this.stats == null) {
                 return null;
             }
+            // we have a custom weight class, we must check in case something is wrong with _all
+            Terms terms = context.reader().terms(query.getField());
+            if (terms != null && terms.hasPositions() == false) {
+                throw new IllegalStateException("field \"" + term.field() + "\" was indexed without position data; cannot run AllTermQuery (term=" + term.text() + ")");
+            }
+            TermSpans spans = (TermSpans) query.getSpans(context, acceptDocs, termContexts);
+            if (spans == null) {
+                return null;
+            }
             SimScorer sloppySimScorer = similarity.simScorer(stats, context);
-            return new AllTermSpanScorer((TermSpans) query.getSpans(context, acceptDocs, termContexts), this, sloppySimScorer);
+            return new AllTermSpanScorer(spans, this, sloppySimScorer);
         }
 
-        protected class AllTermSpanScorer extends SpanScorer {
-            protected PostingsEnum positions;
-            protected float payloadScore;
-            protected int payloadsSeen;
+        class AllTermSpanScorer extends PayloadTermSpanScorer {
+            final PostingsEnum postings;
 
-            public AllTermSpanScorer(TermSpans spans, Weight weight, Similarity.SimScorer docScorer) throws IOException {
+            AllTermSpanScorer(TermSpans spans, SpanWeight weight, Similarity.SimScorer docScorer) throws IOException {
                 super(spans, weight, docScorer);
-                positions = spans.getPostings();
+                postings = spans.getPostings();
             }
 
             @Override
-            protected boolean setFreqCurrentDoc() throws IOException {
-                if (!more) {
-                    return false;
-                }
-                doc = spans.doc();
-                freq = 0.0f;
-                numMatches = 0;
-                payloadScore = 0;
-                payloadsSeen = 0;
-                do {
-                    int matchLength = spans.end() - spans.start();
-
-                    freq += docScorer.computeSlopFactor(matchLength);
-                    numMatches++;
-                    processPayload();
-
-                    more = spans.next();// this moves positions to the next match
-                } while (more && (doc == spans.doc()));
-                return true;
-            }
-
-            protected void processPayload() throws IOException {
-                final BytesRef payload;
-                if ((payload = positions.getPayload()) != null) {
+            protected void processPayload(Similarity similarity) throws IOException {
+                // note: similarity is ignored here (we just use decodeFloat always).
+                // this is the only difference between this class and PayloadTermQuery.
+                if (spans.isPayloadAvailable()) {
+                    BytesRef payload = postings.getPayload();
                     payloadScore += decodeFloat(payload.bytes, payload.offset);
                     payloadsSeen++;
-
-                } else {
-                    // zero out the payload?
                 }
             }
-
-            /**
-             * @return {@link #getSpanScore()} * {@link #getPayloadScore()}
-             * @throws IOException
-             */
-            @Override
-            public float score() throws IOException {
-                return getSpanScore() * getPayloadScore();
-            }
-
-            /**
-             * Returns the SpanScorer score only.
-             * <p/>
-             * Should not be overridden without good cause!
-             *
-             * @return the score for just the Span part w/o the payload
-             * @throws IOException
-             * @see #score()
-             */
-            protected float getSpanScore() throws IOException {
-                return super.score();
-            }
-
-            /**
-             * The score for the payload
-             */
-            protected float getPayloadScore() {
-                return payloadsSeen > 0 ? (payloadScore / payloadsSeen) : 1;
-            }
-
-        }
-        
-        @Override
-        public Explanation explain(LeafReaderContext context, int doc) throws IOException{
-            AllTermSpanScorer scorer = scorer(context, context.reader().getLiveDocs());
-            if (scorer != null) {
-              int newDoc = scorer.advance(doc);
-              if (newDoc == doc) {
-                float freq = scorer.sloppyFreq();
-                SimScorer docScorer = similarity.simScorer(stats, context);
-                ComplexExplanation inner = new ComplexExplanation();
-                inner.setDescription("weight("+getQuery()+" in "+doc+") [" + similarity.getClass().getSimpleName() + "], result of:");
-                Explanation scoreExplanation = docScorer.explain(doc, new Explanation(freq, "phraseFreq=" + freq));
-                inner.addDetail(scoreExplanation);
-                inner.setValue(scoreExplanation.getValue());
-                inner.setMatch(true);
-                ComplexExplanation result = new ComplexExplanation();
-                result.addDetail(inner);
-                Explanation payloadBoost = new Explanation();
-                result.addDetail(payloadBoost);
-                final float payloadScore = scorer.getPayloadScore();
-                payloadBoost.setValue(payloadScore);
-                // GSI: I suppose we could toString the payload, but I don't think that
-                // would be a good idea
-                payloadBoost.setDescription("allPayload(...)");
-                result.setValue(inner.getValue() * payloadScore);
-                result.setDescription("btq, product of:");
-                return result;
-              }
-            }
-            
-            return new ComplexExplanation(false, 0.0f, "no matching term");
-            
-            
         }
     }
 
@@ -195,6 +120,24 @@ public class AllTermQuery extends SpanTermQuery {
         if (getClass() != obj.getClass())
             return false;
         return true;
+    }
+
+    @Override
+    public Query rewrite(IndexReader reader) throws IOException {
+        boolean hasPayloads = false;
+        for (LeafReaderContext context : reader.leaves()) {
+            final Terms terms = context.reader().terms(term.field());
+            if (terms.hasPayloads()) {
+                hasPayloads = true;
+                break;
+            }
+        }
+        if (hasPayloads == false) {
+            TermQuery rewritten = new TermQuery(term);
+            rewritten.setBoost(getBoost());
+            return rewritten;
+        }
+        return this;
     }
 
 }

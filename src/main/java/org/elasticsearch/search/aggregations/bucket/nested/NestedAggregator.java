@@ -22,14 +22,14 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterCachingPolicy;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -57,7 +57,7 @@ public class NestedAggregator extends SingleBucketAggregator {
     private DocIdSetIterator childDocs;
     private BitSet parentDocs;
 
-    public NestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper, AggregationContext aggregationContext, Aggregator parentAggregator, List<Reducer> reducers, Map<String, Object> metaData, FilterCachingPolicy filterCachingPolicy) throws IOException {
+    public NestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper, AggregationContext aggregationContext, Aggregator parentAggregator, List<Reducer> reducers, Map<String, Object> metaData, QueryCachingPolicy filterCachingPolicy) throws IOException {
         super(name, factories, aggregationContext, parentAggregator, reducers, metaData);
         childFilter = aggregationContext.searchContext().filterCache().cache(objectMapper.nestedTypeFilter(), null, filterCachingPolicy);
     }
@@ -94,7 +94,7 @@ public class NestedAggregator extends SingleBucketAggregator {
                     // aggs execution
                     Filter parentFilterNotCached = findClosestNestedPath(parent());
                     if (parentFilterNotCached == null) {
-                        parentFilterNotCached = NonNestedDocsFilter.INSTANCE;
+                        parentFilterNotCached = Queries.newNonNestedFilter();
                     }
                     parentFilter = context.searchContext().bitsetFilterCache().getBitDocIdSetFilter(parentFilterNotCached);
                     BitDocIdSet parentSet = parentFilter.getDocIdSet(ctx);
@@ -119,7 +119,7 @@ public class NestedAggregator extends SingleBucketAggregator {
             }
         };
     }
-
+        
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         return new InternalNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), reducers(),
@@ -145,12 +145,12 @@ public class NestedAggregator extends SingleBucketAggregator {
     public static class Factory extends AggregatorFactory {
 
         private final String path;
-        private final FilterCachingPolicy filterCachingPolicy;
+        private final QueryCachingPolicy queryCachingPolicy;
 
-        public Factory(String name, String path, FilterCachingPolicy filterCachingPolicy) {
+        public Factory(String name, String path, QueryCachingPolicy queryCachingPolicy) {
             super(name, InternalNested.TYPE.name());
             this.path = path;
-            this.filterCachingPolicy = filterCachingPolicy;
+            this.queryCachingPolicy = queryCachingPolicy;
         }
 
         @Override
@@ -170,7 +170,7 @@ public class NestedAggregator extends SingleBucketAggregator {
             if (!objectMapper.nested().isNested()) {
                 throw new AggregationExecutionException("[nested] nested path [" + path + "] is not nested");
             }
-            return new NestedAggregator(name, factories, objectMapper, context, parent, reducers, metaData, filterCachingPolicy);
+            return new NestedAggregator(name, factories, objectMapper, context, parent, reducers, metaData, queryCachingPolicy);
         }
 
         private final static class Unmapped extends NonCollectingAggregator {

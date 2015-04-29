@@ -55,7 +55,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
 
     @Inject
     public TransportNodesListGatewayStartedShards(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters, NodeEnvironment env) {
-        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
+        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+                Request.class, NodeRequest.class, ThreadPool.Names.GENERIC);
         this.nodeEnv = env;
     }
 
@@ -64,23 +65,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
     protected boolean transportCompress() {
         return true; // this can become big...
-    }
-
-    @Override
-    protected Request newRequest() {
-        return new Request();
-    }
-
-    @Override
-    protected NodeRequest newNodeRequest() {
-        return new NodeRequest();
     }
 
     @Override
@@ -112,12 +98,12 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     }
 
     @Override
-    protected NodeGatewayStartedShards nodeOperation(NodeRequest request) throws ElasticsearchException {
+    protected NodeGatewayStartedShards nodeOperation(NodeRequest request) {
         try {
             final ShardId shardId = request.getShardId();
             final String indexUUID = request.getIndexUUID();
             logger.trace("{} loading local shard state info", shardId);
-            final ShardStateMetaData shardStateMetaData = ShardStateMetaData.FORMAT.loadLatestState(logger, nodeEnv.shardPaths(request.shardId));
+            ShardStateMetaData shardStateMetaData = ShardStateMetaData.FORMAT.loadLatestState(logger, nodeEnv.availableShardPaths(request.shardId));
             if (shardStateMetaData != null) {
                 // old shard metadata doesn't have the actual index UUID so we need to check if the actual uuid in the metadata
                 // is equal to IndexMetaData.INDEX_UUID_NA_VALUE otherwise this shard doesn't belong to the requested index.
@@ -154,6 +140,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
             this.shardId = shardId;
             this.indexUUID = indexUUID;
         }
+
 
         public ShardId shardId() {
             return this.shardId;

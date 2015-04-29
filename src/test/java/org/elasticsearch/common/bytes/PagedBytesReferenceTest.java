@@ -54,7 +54,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        bigarrays = new BigArrays(ImmutableSettings.EMPTY, null, new NoneCircuitBreakerService());
+        bigarrays = new BigArrays(null, new NoneCircuitBreakerService());
     }
 
     @Override
@@ -263,7 +263,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
     public void testWriteToChannel() throws IOException {
         int length = randomIntBetween(10, PAGE_SIZE * 4);
         BytesReference pbr = getRandomizedPagedBytesReference(length);
-        Path tFile = newTempFilePath();
+        Path tFile = createTempFile();
         try (FileChannel channel = FileChannel.open(tFile, StandardOpenOption.WRITE)) {
             pbr.writeTo(channel);
             assertEquals(pbr.length(), channel.position());
@@ -290,7 +290,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         int sliceOffset = randomIntBetween(1, length / 2);
         int sliceLength = length - sliceOffset;
         BytesReference slice = pbr.slice(sliceOffset, sliceLength);
-        Path tFile = newTempFilePath();
+        Path tFile = createTempFile();
         try (FileChannel channel = FileChannel.open(tFile, StandardOpenOption.WRITE)) {
             slice.writeTo(channel);
             assertEquals(slice.length(), channel.position());

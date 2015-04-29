@@ -45,17 +45,12 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadOpera
     @Inject
     public TransportGetRepositoriesAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                           ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, GetRepositoriesAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, GetRepositoriesAction.NAME, transportService, clusterService, threadPool, actionFilters, GetRepositoriesRequest.class);
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected GetRepositoriesRequest newRequest() {
-        return new GetRepositoriesRequest();
     }
 
     @Override
@@ -65,11 +60,11 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadOpera
 
     @Override
     protected ClusterBlockException checkBlock(GetRepositoriesRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_READ, "");
     }
 
     @Override
-    protected void masterOperation(final GetRepositoriesRequest request, ClusterState state, final ActionListener<GetRepositoriesResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final GetRepositoriesRequest request, ClusterState state, final ActionListener<GetRepositoriesResponse> listener) {
         MetaData metaData = state.metaData();
         RepositoriesMetaData repositories = metaData.custom(RepositoriesMetaData.TYPE);
         if (request.repositories().length == 0 || (request.repositories().length == 1 && "_all".equals(request.repositories()[0]))) {

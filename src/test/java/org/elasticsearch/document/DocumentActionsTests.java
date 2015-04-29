@@ -28,7 +28,6 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -176,23 +175,6 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
             assertThat(countResponse.getCount(), equalTo(2l));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
-        }
-
-        logger.info("Delete by query");
-        DeleteByQueryResponse queryResponse = client().prepareDeleteByQuery().setIndices("test").setQuery(termQuery("name", "test2")).execute().actionGet();
-        assertThat(queryResponse.getIndex(getConcreteIndexName()).getShardInfo().getTotal(), greaterThanOrEqualTo(numShards.totalNumShards));
-        assertThat(queryResponse.getIndex(getConcreteIndexName()).getShardInfo().getSuccessful(), greaterThanOrEqualTo(numShards.totalNumShards));
-        assertThat(queryResponse.getIndex(getConcreteIndexName()).getShardInfo().getFailures().length, equalTo(0));
-        client().admin().indices().refresh(refreshRequest("test")).actionGet();
-
-        logger.info("Get [type1/1] and [type1/2], should be empty");
-        for (int i = 0; i < 5; i++) {
-            getResult = client().get(getRequest("test").type("type1").id("1")).actionGet();
-            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
-            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("1", "test").string()));
-            getResult = client().get(getRequest("test").type("type1").id("2")).actionGet();
-            assertThat("cycle #" + i, getResult.isExists(), equalTo(false));
-            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }
     }
 

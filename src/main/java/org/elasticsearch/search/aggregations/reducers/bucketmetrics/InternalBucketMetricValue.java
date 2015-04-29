@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.reducers.bucketmetrics;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -96,7 +95,7 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
         } else if (path.size() == 1 && "keys".equals(path.get(0))) {
             return keys();
         } else {
-            throw new ElasticsearchIllegalArgumentException("path not supported for [" + getName() + "]: " + path);
+            throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
     }
 

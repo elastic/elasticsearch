@@ -73,7 +73,7 @@ public class BooleanFieldMapperTests extends ElasticsearchSingleNodeTest {
             try (DirectoryReader reader = DirectoryReader.open(w, true)) {
                 final LeafReader leaf = reader.leaves().get(0).reader();
                 // boolean fields are indexed and have doc values by default
-                assertEquals(new BytesRef("T"), leaf.terms("field").iterator(null).next());
+                assertEquals(new BytesRef("T"), leaf.terms("field").iterator().next());
                 SortedNumericDocValues values = leaf.getSortedNumericDocValues("field");
                 assertNotNull(values);
                 values.setDocument(0);

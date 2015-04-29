@@ -60,18 +60,9 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
     @Inject
     public TransportIndicesStatsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                        IndicesService indicesService, ActionFilters actionFilters) {
-        super(settings, IndicesStatsAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, IndicesStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                IndicesStatsRequest.class, IndexShardStatsRequest.class, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected IndicesStatsRequest newRequest() {
-        return new IndicesStatsRequest();
     }
 
     /**
@@ -84,12 +75,12 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, IndicesStatsRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, IndicesStatsRequest request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, concreteIndices);
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 
 
@@ -118,11 +109,6 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
     }
 
     @Override
-    protected IndexShardStatsRequest newShardRequest() {
-        return new IndexShardStatsRequest();
-    }
-
-    @Override
     protected IndexShardStatsRequest newShardRequest(int numShards, ShardRouting shard, IndicesStatsRequest request) {
         return new IndexShardStatsRequest(shard.shardId(), request);
     }
@@ -133,7 +119,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
     }
 
     @Override
-    protected ShardStats shardOperation(IndexShardStatsRequest request) throws ElasticsearchException {
+    protected ShardStats shardOperation(IndexShardStatsRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.shardSafe(request.shardId().id());
         // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet

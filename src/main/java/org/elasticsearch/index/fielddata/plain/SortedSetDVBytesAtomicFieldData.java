@@ -23,7 +23,6 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 
@@ -49,7 +48,7 @@ public final class SortedSetDVBytesAtomicFieldData extends AbstractAtomicOrdinal
         try {
             return FieldData.maybeSlowRandomAccessOrds(DocValues.getSortedSet(reader, field));
         } catch (IOException e) {
-            throw new ElasticsearchIllegalStateException("cannot load docvalues", e);
+            throw new IllegalStateException("cannot load docvalues", e);
         }
     }
 

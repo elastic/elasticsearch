@@ -21,11 +21,12 @@ package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-
 import static org.hamcrest.Matchers.*;
 
 public class IndicesStatsTests extends ElasticsearchSingleNodeTest {
@@ -81,4 +82,20 @@ public class IndicesStatsTests extends ElasticsearchSingleNodeTest {
         assertThat(stats2.getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
         assertThat(stats2.getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
     }
+
+    public void testCommitStats() throws Exception {
+        createIndex("test");
+        ensureGreen("test");
+
+        IndicesStatsResponse rsp = client().admin().indices().prepareStats("test").get();
+        for (ShardStats shardStats : rsp.getIndex("test").getShards()) {
+            final CommitStats commitStats = shardStats.getCommitStats();
+            assertNotNull(commitStats);
+            assertThat(commitStats.getGeneration(), greaterThan(0l));
+            assertThat(commitStats.getId(), notNullValue());
+            assertThat(commitStats.getUserData(), hasKey(Translog.TRANSLOG_ID_KEY));
+
+        }
+    }
+
 }

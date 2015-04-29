@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -86,7 +87,7 @@ public class PreBuiltAnalyzerTests extends ElasticsearchSingleNodeTest {
                 assertThat(list, contains("dude"));
             }
             ts.close();
-            version = randomVersion();
+            version = randomVersion(random());
         }
     }
 
@@ -121,7 +122,7 @@ public class PreBuiltAnalyzerTests extends ElasticsearchSingleNodeTest {
                 assertThat(list, contains("dude"));
             }
             ts.close();
-            version = randomVersion();
+            version = randomVersion(random());
         }
     }
 
@@ -152,7 +153,7 @@ public class PreBuiltAnalyzerTests extends ElasticsearchSingleNodeTest {
         PreBuiltAnalyzers randomPreBuiltAnalyzer = PreBuiltAnalyzers.values()[randomInt];
         String analyzerName = randomPreBuiltAnalyzer.name().toLowerCase(Locale.ROOT);
 
-        Version randomVersion = randomVersion();
+        Version randomVersion = randomVersion(random());
         Settings indexSettings = ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion).build();
 
         NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(analyzerName, AnalyzerScope.INDEX, randomPreBuiltAnalyzer.getAnalyzer(randomVersion)).get();
@@ -162,7 +163,7 @@ public class PreBuiltAnalyzerTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(mapping);
 
-        FieldMapper fieldMapper = docMapper.mappers().name("field").mapper();
+        FieldMapper fieldMapper = docMapper.mappers().getMapper("field");
         assertThat(fieldMapper.searchAnalyzer(), instanceOf(NamedAnalyzer.class));
         NamedAnalyzer fieldMapperNamedAnalyzer = (NamedAnalyzer) fieldMapper.searchAnalyzer();
 

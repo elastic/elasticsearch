@@ -20,47 +20,44 @@
 package org.elasticsearch.common.io;
 
 import com.google.common.base.Charsets;
+
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.io.InputStream;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Properties;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 
 /**
  * Unit tests for {@link org.elasticsearch.common.io.FileSystemUtils}.
  */
+@SuppressFileSystems("WindowsFS") // tries to move away open file handles
 public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
     private Path src;
     private Path dst;
 
     @Before
-    public void copySourceFilesToTarget() throws IOException {
-        src = newTempDirPath();
-        dst = newTempDirPath();
+    public void copySourceFilesToTarget() throws IOException, URISyntaxException {
+        src = createTempDir();
+        dst = createTempDir();
         Files.createDirectories(src);
         Files.createDirectories(dst);
 
         // We first copy sources test files from src/test/resources
         // Because after when the test runs, src files are moved to their destination
-        Properties props = new Properties();
-        try (InputStream is = FileSystemUtilsTests.class.getResource("rootdir.properties").openStream()) {
-            props.load(is);
-        }
-
-        FileSystemUtils.copyDirectoryRecursively(Paths.get(props.getProperty("copyappend.root.dir")), src);
+        final Path path = getDataPath("/org/elasticsearch/common/io/copyappend");
+        FileSystemUtils.copyDirectoryRecursively(path, src);
     }
 
     @Test
@@ -92,7 +89,7 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
     @Test
     public void testMoveOverExistingFileAndIgnore() throws IOException {
-        Path dest = newTempDirPath();
+        Path dest = createTempDir();
 
         FileSystemUtils.moveFilesWithoutOverwriting(src.resolve("v1"), dest, null);
         assertFileContent(dest, "file1.txt", "version1");
@@ -120,7 +117,7 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
     @Test
     public void testMoveFilesDoesNotCreateSameFileWithSuffix() throws Exception {
-        Path[] dirs = new Path[] { newTempDirPath(), newTempDirPath(), newTempDirPath()};
+        Path[] dirs = new Path[] { createTempDir(), createTempDir(), createTempDir()};
         for (Path dir : dirs) {
             Files.write(dir.resolve("file1.txt"), "file1".getBytes(Charsets.UTF_8));
             Files.createDirectory(dir.resolve("dir"));
@@ -159,7 +156,7 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
             Assert.assertThat("file [" + file + "] should not exist.", Files.exists(file), is(false));
         } else {
             assertFileExists(file);
-            String fileContent = new String(Files.readAllBytes(file), UTF8);
+            String fileContent = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
             // trim the string content to prevent different handling on windows vs. unix and CR chars...
             Assert.assertThat(fileContent.trim(), equalTo(expected.trim()));
         }
@@ -167,13 +164,13 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
     @Test
     public void testAppend() {
-        assertEquals(FileSystemUtils.append(Paths.get("/foo/bar"), Paths.get("/hello/world/this_is/awesome"), 0),
-                Paths.get("/foo/bar/hello/world/this_is/awesome"));
+        assertEquals(FileSystemUtils.append(PathUtils.get("/foo/bar"), PathUtils.get("/hello/world/this_is/awesome"), 0),
+            PathUtils.get("/foo/bar/hello/world/this_is/awesome"));
 
-        assertEquals(FileSystemUtils.append(Paths.get("/foo/bar"), Paths.get("/hello/world/this_is/awesome"), 2),
-                Paths.get("/foo/bar/this_is/awesome"));
+        assertEquals(FileSystemUtils.append(PathUtils.get("/foo/bar"), PathUtils.get("/hello/world/this_is/awesome"), 2),
+                PathUtils.get("/foo/bar/this_is/awesome"));
 
-        assertEquals(FileSystemUtils.append(Paths.get("/foo/bar"), Paths.get("/hello/world/this_is/awesome"), 1),
-                Paths.get("/foo/bar/world/this_is/awesome"));
+        assertEquals(FileSystemUtils.append(PathUtils.get("/foo/bar"), PathUtils.get("/hello/world/this_is/awesome"), 1),
+                PathUtils.get("/foo/bar/world/this_is/awesome"));
     }
 }

@@ -36,7 +36,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
  *
  */
 @ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numDataNodes=0, transportClientRatio = 0)
-public class PluginLuceneCheckerTests extends ElasticsearchIntegrationTest {
+public class PluginLuceneCheckerTests extends PluginTestCase {
 
     /**
      * We check that no Lucene version checking is done
@@ -44,7 +44,7 @@ public class PluginLuceneCheckerTests extends ElasticsearchIntegrationTest {
      */
     @Test
     public void testDisableLuceneVersionCheckingPlugin() throws URISyntaxException {
-        String serverNodeId = SimpleNodesInfoTests.startNodeWithPlugins(
+        String serverNodeId = startNodeWithPlugins(
                 settingsBuilder().put(PluginsService.PLUGINS_CHECK_LUCENE_KEY, false)
                         .put(PluginsService.ES_PLUGIN_PROPERTIES_FILE_KEY, "es-plugin-test.properties")
                         .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true).build(),
@@ -69,7 +69,7 @@ public class PluginLuceneCheckerTests extends ElasticsearchIntegrationTest {
      */
     @Test
     public void testEnableLuceneVersionCheckingPlugin() throws URISyntaxException {
-        String serverNodeId = SimpleNodesInfoTests.startNodeWithPlugins(
+        String serverNodeId = startNodeWithPlugins(
                 settingsBuilder().put(PluginsService.PLUGINS_CHECK_LUCENE_KEY, true)
                         .put(PluginsService.ES_PLUGIN_PROPERTIES_FILE_KEY, "es-plugin-test.properties")
                         .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true).build(),

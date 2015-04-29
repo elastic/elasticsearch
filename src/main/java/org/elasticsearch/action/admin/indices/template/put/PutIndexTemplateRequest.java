@@ -19,7 +19,6 @@
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -215,7 +214,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         try {
             mappings.put(type, source.string());
         } catch (IOException e) {
-            throw new ElasticsearchIllegalArgumentException("Failed to build json for mapping request", e);
+            throw new IllegalArgumentException("Failed to build json for mapping request", e);
         }
         return this;
     }
@@ -260,7 +259,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         try {
             return source(templateBuilder.bytes());
         } catch (Exception e) {
-            throw new ElasticsearchIllegalArgumentException("Failed to build json for template request", e);
+            throw new IllegalArgumentException("Failed to build json for template request", e);
         }
     }
 
@@ -278,14 +277,14 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
                 order(XContentMapValues.nodeIntegerValue(entry.getValue(), order()));
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
-                    throw new ElasticsearchIllegalArgumentException("Malformed settings section, should include an inner object");
+                    throw new IllegalArgumentException("Malformed settings section, should include an inner object");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("mappings")) {
                 Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
                 for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
                     if (!(entry1.getValue() instanceof Map)) {
-                        throw new ElasticsearchIllegalArgumentException("Malformed mappings section for type [" + entry1.getKey() + "], should include an inner object describing the mapping");
+                        throw new IllegalArgumentException("Malformed mappings section for type [" + entry1.getKey() + "], should include an inner object describing the mapping");
                     }
                     mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
                 }
@@ -313,7 +312,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         try {
             return source(XContentFactory.xContent(templateSource).createParser(templateSource).mapOrderedAndClose());
         } catch (Exception e) {
-            throw new ElasticsearchIllegalArgumentException("failed to parse template source [" + templateSource + "]", e);
+            throw new IllegalArgumentException("failed to parse template source [" + templateSource + "]", e);
         }
     }
 
@@ -331,7 +330,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         try {
             return source(XContentFactory.xContent(source, offset, length).createParser(source, offset, length).mapOrderedAndClose());
         } catch (IOException e) {
-            throw new ElasticsearchIllegalArgumentException("failed to parse template source", e);
+            throw new IllegalArgumentException("failed to parse template source", e);
         }
     }
 
@@ -342,7 +341,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         try {
             return source(XContentFactory.xContent(source).createParser(source).mapOrderedAndClose());
         } catch (IOException e) {
-            throw new ElasticsearchIllegalArgumentException("failed to parse template source", e);
+            throw new IllegalArgumentException("failed to parse template source", e);
         }
     }
 

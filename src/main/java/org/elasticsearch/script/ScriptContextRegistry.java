@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import java.util.Map;
 
@@ -46,7 +45,7 @@ public final class ScriptContextRegistry {
             validateScriptContext(customScriptContext);
             ScriptContext previousContext = scriptContexts.put(customScriptContext.getKey(), customScriptContext);
             if (previousContext != null) {
-                throw new ElasticsearchIllegalArgumentException("script context [" + customScriptContext.getKey() + "] cannot be registered twice");
+                throw new IllegalArgumentException("script context [" + customScriptContext.getKey() + "] cannot be registered twice");
             }
         }
         this.scriptContexts = ImmutableMap.copyOf(scriptContexts);
@@ -69,10 +68,10 @@ public final class ScriptContextRegistry {
     //script contexts can be used in fine-grained settings, we need to be careful with what we allow here
     private void validateScriptContext(ScriptContext.Plugin scriptContext) {
         if (RESERVED_SCRIPT_CONTEXTS.contains(scriptContext.getPluginName())) {
-            throw new ElasticsearchIllegalArgumentException("[" + scriptContext.getPluginName() + "] is a reserved name, it cannot be registered as a custom script context");
+            throw new IllegalArgumentException("[" + scriptContext.getPluginName() + "] is a reserved name, it cannot be registered as a custom script context");
         }
         if (RESERVED_SCRIPT_CONTEXTS.contains(scriptContext.getOperation())) {
-            throw new ElasticsearchIllegalArgumentException("[" + scriptContext.getOperation() + "] is a reserved name, it cannot be registered as a custom script context");
+            throw new IllegalArgumentException("[" + scriptContext.getOperation() + "] is a reserved name, it cannot be registered as a custom script context");
         }
     }
 

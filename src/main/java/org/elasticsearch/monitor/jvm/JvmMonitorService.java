@@ -29,9 +29,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
@@ -107,11 +105,11 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
 
         this.gcThresholds = gcThresholds.immutableMap();
 
-        logger.debug("enabled [{}], last_gc_enabled [{}], interval [{}], gc_threshold [{}]", enabled, JvmStats.isLastGcEnabled(), interval, this.gcThresholds);
+        logger.debug("enabled [{}], interval [{}], gc_threshold [{}]", enabled, interval, this.gcThresholds);
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         if (!enabled) {
             return;
         }
@@ -119,7 +117,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         if (!enabled) {
             return;
         }
@@ -127,16 +125,13 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
     }
 
     private class JvmMonitor implements Runnable {
 
         private JvmStats lastJvmStats = jvmStats();
-
         private long seq = 0;
-
-        private final Set<DeadlockAnalyzer.Deadlock> lastSeenDeadlocks = new HashSet<>();
 
         public JvmMonitor() {
         }
@@ -144,7 +139,6 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
         @Override
         public void run() {
             try {
-//            monitorDeadlock();
                 monitorLongGc();
             } catch (Throwable t) {
                 logger.debug("failed to monitor", t);
@@ -155,8 +149,8 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
             seq++;
             JvmStats currentJvmStats = jvmStats();
 
-            for (int i = 0; i < currentJvmStats.gc().collectors().length; i++) {
-                GarbageCollector gc = currentJvmStats.gc().collectors()[i];
+            for (int i = 0; i < currentJvmStats.getGc().getCollectors().length; i++) {
+                GarbageCollector gc = currentJvmStats.getGc().getCollectors()[i];
                 GarbageCollector prevGc = lastJvmStats.gc.collectors[i];
 
                 // no collection has happened
@@ -169,44 +163,22 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
                     continue;
                 }
 
-                GcThreshold gcThreshold = gcThresholds.get(gc.name());
+                GcThreshold gcThreshold = gcThresholds.get(gc.getName());
                 if (gcThreshold == null) {
                     gcThreshold = gcThresholds.get("default");
-                }
-
-                if (gc.lastGc() != null && prevGc.lastGc() != null) {
-                    GarbageCollector.LastGc lastGc = gc.lastGc();
-                    if (lastGc.startTime == prevGc.lastGc().startTime()) {
-                        // we already handled this one...
-                        continue;
-                    }
-                    // Ignore any duration > 1hr; getLastGcInfo occasionally returns total crap
-                    if (lastGc.duration().hoursFrac() > 1) {
-                        continue;
-                    }
-                    if (lastGc.duration().millis() > gcThreshold.warnThreshold) {
-                        logger.warn("[last_gc][{}][{}][{}] duration [{}], collections [{}], total [{}]/[{}], reclaimed [{}], leaving [{}][{}]/[{}]",
-                                gc.name(), seq, gc.getCollectionCount(), lastGc.duration(), collections, TimeValue.timeValueMillis(collectionTime), gc.collectionTime(), lastGc.reclaimed(), lastGc.afterUsed(), lastGc.max());
-                    } else if (lastGc.duration().millis() > gcThreshold.infoThreshold) {
-                        logger.info("[last_gc][{}][{}][{}] duration [{}], collections [{}], total [{}]/[{}], reclaimed [{}], leaving [{}]/[{}]",
-                                gc.name(), seq, gc.getCollectionCount(), lastGc.duration(), collections, TimeValue.timeValueMillis(collectionTime), gc.collectionTime(), lastGc.reclaimed(), lastGc.afterUsed(), lastGc.max());
-                    } else if (lastGc.duration().millis() > gcThreshold.debugThreshold && logger.isDebugEnabled()) {
-                        logger.debug("[last_gc][{}][{}][{}] duration [{}], collections [{}], total [{}]/[{}], reclaimed [{}], leaving [{}]/[{}]",
-                                gc.name(), seq, gc.getCollectionCount(), lastGc.duration(), collections, TimeValue.timeValueMillis(collectionTime), gc.collectionTime(), lastGc.reclaimed(), lastGc.afterUsed(), lastGc.max());
-                    }
                 }
 
                 long avgCollectionTime = collectionTime / collections;
 
                 if (avgCollectionTime > gcThreshold.warnThreshold) {
                     logger.warn("[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}], all_pools {}",
-                            gc.name(), seq, gc.collectionCount(), TimeValue.timeValueMillis(collectionTime), collections, TimeValue.timeValueMillis(currentJvmStats.timestamp() - lastJvmStats.timestamp()), TimeValue.timeValueMillis(collectionTime), gc.collectionTime(), lastJvmStats.mem().heapUsed(), currentJvmStats.mem().heapUsed(), JvmInfo.jvmInfo().mem().heapMax(), buildPools(lastJvmStats, currentJvmStats));
+                            gc.getName(), seq, gc.getCollectionCount(), TimeValue.timeValueMillis(collectionTime), collections, TimeValue.timeValueMillis(currentJvmStats.getTimestamp() - lastJvmStats.getTimestamp()), TimeValue.timeValueMillis(collectionTime), gc.getCollectionTime(), lastJvmStats.getMem().getHeapUsed(), currentJvmStats.getMem().getHeapUsed(), JvmInfo.jvmInfo().getMem().getHeapMax(), buildPools(lastJvmStats, currentJvmStats));
                 } else if (avgCollectionTime > gcThreshold.infoThreshold) {
                     logger.info("[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}], all_pools {}",
-                            gc.name(), seq, gc.collectionCount(), TimeValue.timeValueMillis(collectionTime), collections, TimeValue.timeValueMillis(currentJvmStats.timestamp() - lastJvmStats.timestamp()), TimeValue.timeValueMillis(collectionTime), gc.collectionTime(), lastJvmStats.mem().heapUsed(), currentJvmStats.mem().heapUsed(), JvmInfo.jvmInfo().mem().heapMax(), buildPools(lastJvmStats, currentJvmStats));
+                            gc.getName(), seq, gc.getCollectionCount(), TimeValue.timeValueMillis(collectionTime), collections, TimeValue.timeValueMillis(currentJvmStats.getTimestamp() - lastJvmStats.getTimestamp()), TimeValue.timeValueMillis(collectionTime), gc.getCollectionTime(), lastJvmStats.getMem().getHeapUsed(), currentJvmStats.getMem().getHeapUsed(), JvmInfo.jvmInfo().getMem().getHeapMax(), buildPools(lastJvmStats, currentJvmStats));
                 } else if (avgCollectionTime > gcThreshold.debugThreshold && logger.isDebugEnabled()) {
                     logger.debug("[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}], all_pools {}",
-                            gc.name(), seq, gc.collectionCount(), TimeValue.timeValueMillis(collectionTime), collections, TimeValue.timeValueMillis(currentJvmStats.timestamp() - lastJvmStats.timestamp()), TimeValue.timeValueMillis(collectionTime), gc.collectionTime(), lastJvmStats.mem().heapUsed(), currentJvmStats.mem().heapUsed(), JvmInfo.jvmInfo().mem().heapMax(), buildPools(lastJvmStats, currentJvmStats));
+                            gc.getName(), seq, gc.getCollectionCount(), TimeValue.timeValueMillis(collectionTime), collections, TimeValue.timeValueMillis(currentJvmStats.getTimestamp() - lastJvmStats.getTimestamp()), TimeValue.timeValueMillis(collectionTime), gc.getCollectionTime(), lastJvmStats.getMem().getHeapUsed(), currentJvmStats.getMem().getHeapUsed(), JvmInfo.jvmInfo().getMem().getHeapMax(), buildPools(lastJvmStats, currentJvmStats));
                 }
             }
             lastJvmStats = currentJvmStats;
@@ -214,16 +186,16 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
 
         private String buildPools(JvmStats prev, JvmStats current) {
             StringBuilder sb = new StringBuilder();
-            for (JvmStats.MemoryPool currentPool : current.mem()) {
+            for (JvmStats.MemoryPool currentPool : current.getMem()) {
                 JvmStats.MemoryPool prevPool = null;
-                for (JvmStats.MemoryPool pool : prev.mem()) {
+                for (JvmStats.MemoryPool pool : prev.getMem()) {
                     if (pool.getName().equals(currentPool.getName())) {
                         prevPool = pool;
                         break;
                     }
                 }
-                sb.append("{[").append(currentPool.name())
-                        .append("] [").append(prevPool == null ? "?" : prevPool.used()).append("]->[").append(currentPool.used()).append("]/[").append(currentPool.getMax()).append("]}");
+                sb.append("{[").append(currentPool.getName())
+                        .append("] [").append(prevPool == null ? "?" : prevPool.getUsed()).append("]->[").append(currentPool.getUsed()).append("]/[").append(currentPool.getMax()).append("]}");
             }
             return sb.toString();
         }

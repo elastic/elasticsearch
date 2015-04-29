@@ -38,7 +38,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.engine.MockInternalEngine;
+import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
 import org.junit.Test;
 
@@ -109,10 +109,10 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
 
         ImmutableSettings.Builder settings = settingsBuilder()
                 .put(indexSettings())
-                .put(MockInternalEngine.READER_WRAPPER_TYPE, RandomExceptionDirectoryReaderWrapper.class.getName())
+                .put(MockEngineSupport.READER_WRAPPER_TYPE, RandomExceptionDirectoryReaderWrapper.class.getName())
                 .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)
                 .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
-                .put(MockInternalEngine.WRAP_READER_RATIO, 1.0d);
+                .put(MockEngineSupport.WRAP_READER_RATIO, 1.0d);
         logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
         client().admin().indices().prepareCreate("test")
                 .setSettings(settings)
@@ -202,7 +202,7 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
     public static final String EXCEPTION_LOW_LEVEL_RATIO_KEY = "index.engine.exception.ratio.low";
 
     // TODO: Generalize this class and add it as a utility
-    public static class RandomExceptionDirectoryReaderWrapper extends MockInternalEngine.DirectoryReaderWrapper {
+    public static class RandomExceptionDirectoryReaderWrapper extends MockEngineSupport.DirectoryReaderWrapper {
         private final Settings settings;
 
         static class ThrowingSubReaderWrapper extends SubReaderWrapper implements ThrowingLeafReaderWrapper.Thrower {

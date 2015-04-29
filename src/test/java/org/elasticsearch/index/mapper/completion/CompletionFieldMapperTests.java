@@ -45,7 +45,7 @@ public class CompletionFieldMapperTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        FieldMapper fieldMapper = defaultMapper.mappers().name("completion").mapper();
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
 
         CompletionFieldMapper completionFieldMapper = (CompletionFieldMapper) fieldMapper;
@@ -69,7 +69,7 @@ public class CompletionFieldMapperTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        FieldMapper fieldMapper = defaultMapper.mappers().name("completion").mapper();
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
 
         CompletionFieldMapper completionFieldMapper = (CompletionFieldMapper) fieldMapper;
@@ -98,7 +98,7 @@ public class CompletionFieldMapperTests extends ElasticsearchSingleNodeTest {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
-        FieldMapper fieldMapper = defaultMapper.mappers().name("completion").mapper();
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("completion");
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
 
         CompletionFieldMapper completionFieldMapper = (CompletionFieldMapper) fieldMapper;

@@ -34,7 +34,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -85,7 +84,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
         }
 
         @Override
-        protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request, SearchServiceListener<DfsSearchResult> listener) {
+        protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request, ActionListener<DfsSearchResult> listener) {
             searchService.sendExecuteDfs(node, request, listener);
         }
 
@@ -102,9 +101,9 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
         }
 
         void executeQuery(final int shardIndex, final DfsSearchResult dfsResult, final AtomicInteger counter, final QuerySearchRequest querySearchRequest, DiscoveryNode node) {
-            searchService.sendExecuteQuery(node, querySearchRequest, new SearchServiceListener<QuerySearchResult>() {
+            searchService.sendExecuteQuery(node, querySearchRequest, new ActionListener<QuerySearchResult>() {
                 @Override
-                public void onResult(QuerySearchResult result) {
+                public void onResponse(QuerySearchResult result) {
                     result.shardTarget(dfsResult.shardTarget());
                     queryResults.set(shardIndex, result);
                     if (counter.decrementAndGet() == 0) {
@@ -165,9 +164,9 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
         }
 
         void executeFetch(final int shardIndex, final SearchShardTarget shardTarget, final AtomicInteger counter, final ShardFetchSearchRequest fetchSearchRequest, DiscoveryNode node) {
-            searchService.sendExecuteFetch(node, fetchSearchRequest, new SearchServiceListener<FetchSearchResult>() {
+            searchService.sendExecuteFetch(node, fetchSearchRequest, new ActionListener<FetchSearchResult>() {
                 @Override
-                public void onResult(FetchSearchResult result) {
+                public void onResponse(FetchSearchResult result) {
                     result.shardTarget(shardTarget);
                     fetchResults.set(shardIndex, result);
                     if (counter.decrementAndGet() == 0) {

@@ -101,7 +101,8 @@ public class ValuesSourceParser<VS extends ValuesSource> {
                     if (targetValueType != null && input.valueType.isNotA(targetValueType)) {
                         throw new SearchParseException(context, aggType.name() + " aggregation [" + aggName +
                                 "] was configured with an incompatible value type [" + input.valueType + "]. [" + aggType +
-                                "] aggregation can only work on value of type [" + targetValueType + "]");
+                                "] aggregation can only work on value of type [" + targetValueType + "]", 
+                                parser.getTokenLocation());
                     }
                 } else if (!scriptParameterParser.token(currentFieldName, token, parser)) {
                     return false;
@@ -186,7 +187,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
     }
 
     private SearchScript createScript() {
-        return input.script == null ? null : context.scriptService().search(context.lookup(), input.lang, input.script, input.scriptType, ScriptContext.Standard.AGGS, input.params);
+        return input.script == null ? null : context.scriptService().search(context.lookup(), new Script(input.lang, input.script, input.scriptType, input.params), ScriptContext.Standard.AGGS);
     }
 
     private static ValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {

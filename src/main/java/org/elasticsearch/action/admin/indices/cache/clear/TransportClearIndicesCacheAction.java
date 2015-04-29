@@ -58,19 +58,10 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
     public TransportClearIndicesCacheAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                             TransportService transportService, IndicesService indicesService,
                                             IndicesQueryCache indicesQueryCache, ActionFilters actionFilters) {
-        super(settings, ClearIndicesCacheAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, ClearIndicesCacheAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                ClearIndicesCacheRequest.class, ShardClearIndicesCacheRequest.class, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
         this.indicesQueryCache = indicesQueryCache;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected ClearIndicesCacheRequest newRequest() {
-        return new ClearIndicesCacheRequest();
     }
 
     @Override
@@ -96,11 +87,6 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
     }
 
     @Override
-    protected ShardClearIndicesCacheRequest newShardRequest() {
-        return new ShardClearIndicesCacheRequest();
-    }
-
-    @Override
     protected ShardClearIndicesCacheRequest newShardRequest(int numShards, ShardRouting shard, ClearIndicesCacheRequest request) {
         return new ShardClearIndicesCacheRequest(shard.shardId(), request);
     }
@@ -111,12 +97,10 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
     }
 
     @Override
-    protected ShardClearIndicesCacheResponse shardOperation(ShardClearIndicesCacheRequest request) throws ElasticsearchException {
+    protected ShardClearIndicesCacheResponse shardOperation(ShardClearIndicesCacheRequest request) {
         IndexService service = indicesService.indexService(request.shardId().getIndex());
         if (service != null) {
             IndexShard shard = service.shard(request.shardId().id());
-            // we always clear the query cache
-            service.cache().queryParserCache().clear();
             boolean clearedAtLeastOne = false;
             if (request.filterCache()) {
                 clearedAtLeastOne = true;
@@ -175,12 +159,12 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, ClearIndicesCacheRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, ClearIndicesCacheRequest request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, concreteIndices);
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
     }
 
 }

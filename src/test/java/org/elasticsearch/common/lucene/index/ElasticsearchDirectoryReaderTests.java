@@ -31,10 +31,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 
 /** Simple tests for this filterreader */
-public class ElasticsearchDirectoryReaderTests extends ElasticsearchLuceneTestCase {
+public class ElasticsearchDirectoryReaderTests extends ElasticsearchTestCase {
     
     /** Test that core cache key (needed for NRT) is working */
     public void testCoreCacheKey() throws Exception {

@@ -26,7 +26,6 @@ import org.apache.lucene.search.spell.SuggestWord;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.search.suggest.SuggestUtils;
 
 import java.io.IOException;
@@ -58,7 +57,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
 
     public DirectCandidateGenerator(DirectSpellChecker spellchecker, String field, SuggestMode suggestMode, IndexReader reader, double nonErrorLikelihood,  int numCandidates, Analyzer preFilter, Analyzer postFilter, Terms terms) throws IOException {
         if (terms == null) {
-            throw new ElasticsearchIllegalArgumentException("generator field [" + field + "] doesn't exist");
+            throw new IllegalArgumentException("generator field [" + field + "] doesn't exist");
         }
         this.spellchecker = spellchecker;
         this.field = field;
@@ -73,7 +72,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         this.nonErrorLikelihood = nonErrorLikelihood;
         float thresholdFrequency = spellchecker.getThresholdFrequency();
         this.frequencyPlateau = thresholdFrequency >= 1.0f ? (int) thresholdFrequency: (int)(dictSize * thresholdFrequency);
-        termsEnum = terms.iterator(null);
+        termsEnum = terms.iterator();
     }
 
     /* (non-Javadoc)

@@ -19,7 +19,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.LiveIndexWriterConfig;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -108,7 +107,7 @@ public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
         try {
             client().admin().indices().prepareUpdateSettings("foo").setSettings(settings).get();
             fail("settings update didn't fail, but should have");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             // good
         }
 
@@ -118,7 +117,7 @@ public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
         try {
             client().admin().indices().prepareUpdateSettings("foo").setSettings(settings).get();
             fail("settings update didn't fail, but should have");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             // good
         }
 
@@ -128,7 +127,7 @@ public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
         try {
             client().admin().indices().prepareUpdateSettings("foo").setSettings(settings).get();
             fail("settings update didn't fail, but should have");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             // good
         }
     }

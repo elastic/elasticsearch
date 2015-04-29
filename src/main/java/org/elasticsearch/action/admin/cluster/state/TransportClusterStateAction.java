@@ -54,7 +54,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
     @Inject
     public TransportClusterStateAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                        ClusterName clusterName, ActionFilters actionFilters) {
-        super(settings, ClusterStateAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, ClusterStateAction.NAME, transportService, clusterService, threadPool, actionFilters, ClusterStateRequest.class);
         this.clusterName = clusterName;
     }
 
@@ -74,17 +74,12 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
     }
 
     @Override
-    protected ClusterStateRequest newRequest() {
-        return new ClusterStateRequest();
-    }
-
-    @Override
     protected ClusterStateResponse newResponse() {
         return new ClusterStateResponse();
     }
 
     @Override
-    protected void masterOperation(final ClusterStateRequest request, final ClusterState state, ActionListener<ClusterStateResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final ClusterStateRequest request, final ClusterState state, ActionListener<ClusterStateResponse> listener) {
         ClusterState currentState = clusterService.state();
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());

@@ -19,7 +19,7 @@
 package org.elasticsearch.search.suggest;
 
 import com.google.common.collect.Sets;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
@@ -38,6 +38,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestionFuzzyBuil
 import org.elasticsearch.search.suggest.context.ContextBuilder;
 import org.elasticsearch.search.suggest.context.ContextMapping;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -49,6 +50,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertDistance;
 import static org.hamcrest.Matchers.containsString;
 
+@SuppressCodecs("*") // requires custom completion format
 public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     private static final String INDEX = "test";
@@ -153,7 +155,43 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
             assertEquals("Hotel Amsterdam in Berlin", suggestResponse.getSuggest().getSuggestion(suggestionName).iterator().next()
                     .getOptions().iterator().next().getText().string()); 
         }
-    }    
+    }
+
+    @Test
+    public void testMappingIdempotency() throws Exception {
+        List<Integer> precisions = new ArrayList<>();
+        for (int i = 0; i < randomIntBetween(4, 12); i++) {
+            precisions.add(i+1);
+        }
+        Collections.shuffle(precisions, getRandom());
+        XContentBuilder mapping = jsonBuilder().startObject().startObject(TYPE)
+                .startObject("properties").startObject("completion")
+                .field("type", "completion")
+                .startObject("context")
+                .startObject("location")
+                .field("type", "geo")
+                .array("precision", precisions.toArray(new Integer[precisions.size()]))
+                .endObject()
+                .endObject().endObject()
+                .endObject().endObject();
+
+        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping.string()));
+        ensureYellow();
+
+        Collections.shuffle(precisions, getRandom());
+        mapping = jsonBuilder().startObject().startObject(TYPE)
+                .startObject("properties").startObject("completion")
+                .field("type", "completion")
+                .startObject("context")
+                .startObject("location")
+                .field("type", "geo")
+                .array("precision", precisions.toArray(new Integer[precisions.size()]))
+                .endObject()
+                .endObject().endObject()
+                .endObject().endObject();
+        assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(mapping.string()).get());
+    }
+
 
     @Test
     public void testGeoField() throws Exception {
@@ -561,7 +599,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         try {
             index(INDEX, "service", "2", jsonBuilder().startObject().startObject("suggest").field("input", "backback").endObject().endObject());
             fail("index operation was not supposed to be successful");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("one or more prefixes needed"));
         }
     }

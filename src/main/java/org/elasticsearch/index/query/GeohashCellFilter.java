@@ -20,8 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterCachingPolicy;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -78,7 +77,7 @@ public class GeohashCellFilter {
      */
     public static Filter create(QueryParseContext context, GeoPointFieldMapper fieldMapper, String geohash, @Nullable List<CharSequence> geohashes) {
         if (fieldMapper.geoHashStringMapper() == null) {
-            throw new ElasticsearchIllegalArgumentException("geohash filter needs geohash_prefix to be enabled");
+            throw new IllegalArgumentException("geohash filter needs geohash_prefix to be enabled");
         }
 
         StringFieldMapper geoHashMapper = fieldMapper.geoHashStringMapper();
@@ -215,7 +214,7 @@ public class GeohashCellFilter {
             String geohash = null;
             int levels = -1;
             boolean neighbors = false;
-            FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
+            QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
             HashedBytesRef cacheKey = null;
 
 
@@ -266,22 +265,23 @@ public class GeohashCellFilter {
             }
 
             if (geohash == null) {
-                throw new QueryParsingException(parseContext.index(), "no geohash value provided to geohash_cell filter");
+                throw new QueryParsingException(parseContext, "no geohash value provided to geohash_cell filter");
             }
 
             MapperService.SmartNameFieldMappers smartMappers = parseContext.smartFieldMappers(fieldName);
             if (smartMappers == null || !smartMappers.hasMapper()) {
-                throw new QueryParsingException(parseContext.index(), "failed to find geo_point field [" + fieldName + "]");
+                throw new QueryParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
             }
 
             FieldMapper<?> mapper = smartMappers.mapper();
             if (!(mapper instanceof GeoPointFieldMapper)) {
-                throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
+                throw new QueryParsingException(parseContext, "field [" + fieldName + "] is not a geo_point field");
             }
 
             GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper) mapper);
             if (!geoMapper.isEnableGeohashPrefix()) {
-                throw new QueryParsingException(parseContext.index(), "can't execute geohash_cell on field [" + fieldName + "], geohash_prefix is not enabled");
+                throw new QueryParsingException(parseContext, "can't execute geohash_cell on field [" + fieldName
+                        + "], geohash_prefix is not enabled");
             }
 
             if(levels > 0) {

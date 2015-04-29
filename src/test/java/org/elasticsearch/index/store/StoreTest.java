@@ -38,11 +38,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.distributor.Distributor;
-import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
-import org.elasticsearch.index.store.distributor.RandomWeightedDistributor;
 import org.elasticsearch.test.DummyShardLock;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -54,16 +51,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.Adler32;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
 import static org.hamcrest.Matchers.*;
 
-public class StoreTest extends ElasticsearchLuceneTestCase {
+public class StoreTest extends ElasticsearchTestCase {
 
     @Test
     public void testRefCount() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, randomDistributor(directoryService), new DummyShardLock(shardId));
+        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, new DummyShardLock(shardId));
         int incs = randomIntBetween(1, 100);
         for (int i = 0; i < incs; i++) {
             if (randomBoolean()) {
@@ -234,10 +230,10 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
     public void testWriteLegacyChecksums() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, randomDistributor(directoryService), new DummyShardLock(shardId));
+        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, new DummyShardLock(shardId));
         // set default codec - all segments need checksums
         final boolean usesOldCodec = randomBoolean();
-        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(usesOldCodec ? new OldSIMockingCodec() : actualDefaultCodec()));
+        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(usesOldCodec ? new OldSIMockingCodec() : TestUtil.getDefaultCodec()));
         int docs = 1 + random().nextInt(100);
 
         for (int i = 0; i < docs; i++) {
@@ -274,7 +270,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         Store.LegacyChecksums checksums = new Store.LegacyChecksums();
         Map<String, StoreFileMetaData> legacyMeta = new HashMap<>();
         for (String file : store.directory().listAll()) {
-            if (file.equals("write.lock") || file.equals(IndexFileNames.OLD_SEGMENTS_GEN)) {
+            if (file.equals("write.lock") || file.equals(IndexFileNames.OLD_SEGMENTS_GEN) || file.startsWith("extra")) {
                 continue;
             }
             BytesRef hash = new BytesRef();
@@ -319,9 +315,9 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
     public void testNewChecksums() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, randomDistributor(directoryService), new DummyShardLock(shardId));
+        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, new DummyShardLock(shardId));
         // set default codec - all segments need checksums
-        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(actualDefaultCodec()));
+        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec()));
         int docs = 1 + random().nextInt(100);
 
         for (int i = 0; i < docs; i++) {
@@ -379,9 +375,9 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
     public void testMixedChecksums() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, randomDistributor(directoryService), new DummyShardLock(shardId));
+        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, new DummyShardLock(shardId));
         // this time random codec....
-        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(actualDefaultCodec()));
+        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec()));
         int docs = 1 + random().nextInt(100);
 
         for (int i = 0; i < docs; i++) {
@@ -471,7 +467,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
     public void testRenameFile() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random(), false);
-        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, randomDistributor(directoryService), new DummyShardLock(shardId));
+        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, new DummyShardLock(shardId));
         {
             IndexOutput output = store.directory().createOutput("foo.bar", IOContext.DEFAULT);
             int iters = scaledRandomIntBetween(10, 100);
@@ -483,7 +479,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             output.close();
         }
         store.renameFile("foo.bar", "bar.foo");
-        assertThat(store.directory().listAll().length, is(1));
+        assertThat(numNonExtraFiles(store), is(1));
         final long lastChecksum;
         try (IndexInput input = store.directory().openInput("bar.foo", IOContext.DEFAULT)) {
             lastChecksum = CodecUtil.checksumEntireFile(input);
@@ -505,27 +501,10 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             CodecUtil.writeFooter(output);
             output.close();
         }
-        DistributorDirectory distributorDirectory = DirectoryUtils.getLeaf(store.directory(), DistributorDirectory.class);
-        if (distributorDirectory != null && distributorDirectory.getDirectory("foo.bar") != distributorDirectory.getDirectory("bar.foo")) {
-            try {
-                store.renameFile("foo.bar", "bar.foo");
-                fail("target file already exists in a different directory");
-            } catch (IOException ex) {
-                // expected
-            }
-
-            try (IndexInput input = store.directory().openInput("bar.foo", IOContext.DEFAULT)) {
-                assertThat(lastChecksum, equalTo(CodecUtil.checksumEntireFile(input)));
-            }
-            assertThat(store.directory().listAll().length, is(2));
-            assertDeleteContent(store, directoryService);
-            IOUtils.close(store);
-        } else {
-            store.renameFile("foo.bar", "bar.foo");
-            assertThat(store.directory().listAll().length, is(1));
-            assertDeleteContent(store, directoryService);
-            IOUtils.close(store);
-        }
+        store.renameFile("foo.bar", "bar.foo");
+        assertThat(numNonExtraFiles(store), is(1));
+        assertDeleteContent(store, directoryService);
+        IOUtils.close(store);
     }
 
     public void testCheckIntegrity() throws IOException {
@@ -684,13 +663,11 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         deleteContent(store.directory());
         assertThat(Arrays.toString(store.directory().listAll()), store.directory().listAll().length, equalTo(0));
         assertThat(store.stats().sizeInBytes(), equalTo(0l));
-        for (Directory dir : service.build()) {
-            assertThat(dir.listAll().length, equalTo(0));
-        }
+        assertThat(service.newDirectory().listAll().length, equalTo(0));
     }
 
     private static final class LuceneManagedDirectoryService extends DirectoryService {
-        private final Directory[] dirs;
+        private final Directory dir;
         private final Random random;
 
         public LuceneManagedDirectoryService(Random random) {
@@ -698,20 +675,17 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         }
         public LuceneManagedDirectoryService(Random random, boolean preventDoubleWrite) {
             super(new ShardId("fake", 1), ImmutableSettings.EMPTY);
-            this.dirs = new Directory[1 + random.nextInt(5)];
-            for (int i = 0; i < dirs.length; i++) {
-                dirs[i]  = newDirectory(random);
-                if (dirs[i] instanceof MockDirectoryWrapper) {
-                    ((MockDirectoryWrapper)dirs[i]).setPreventDoubleWrite(preventDoubleWrite);
+                dir = StoreTest.newDirectory(random);
+                if (dir instanceof MockDirectoryWrapper) {
+                    ((MockDirectoryWrapper)dir).setPreventDoubleWrite(preventDoubleWrite);
                     // TODO: fix this test to handle virus checker
-                    ((MockDirectoryWrapper)dirs[i]).setEnableVirusScanner(false);
+                    ((MockDirectoryWrapper)dir).setEnableVirusScanner(false);
                 }
-            }
             this.random = random;
         }
         @Override
-        public Directory[] build() throws IOException {
-            return dirs;
+        public Directory newDirectory() throws IOException {
+            return dir;
         }
 
         @Override
@@ -722,19 +696,12 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
     public static void assertConsistent(Store store, Store.MetadataSnapshot metadata) throws IOException {
         for (String file : store.directory().listAll()) {
-            if (!IndexWriter.WRITE_LOCK_NAME.equals(file) && !IndexFileNames.OLD_SEGMENTS_GEN.equals(file) && !Store.isChecksum(file)) {
+            if (!IndexWriter.WRITE_LOCK_NAME.equals(file) && !IndexFileNames.OLD_SEGMENTS_GEN.equals(file) && !Store.isChecksum(file) && file.startsWith("extra") == false) {
                 assertTrue(file + " is not in the map: " + metadata.asMap().size() + " vs. " + store.directory().listAll().length, metadata.asMap().containsKey(file));
             } else {
                 assertFalse(file + " is not in the map: " + metadata.asMap().size() + " vs. " + store.directory().listAll().length, metadata.asMap().containsKey(file));
             }
         }
-    }
-    private Distributor randomDistributor(DirectoryService service) throws IOException {
-        return randomDistributor(random(), service);
-    }
-
-    private Distributor randomDistributor(Random random, DirectoryService service) throws IOException {
-        return random.nextBoolean() ? new LeastUsedDistributor(service) : new RandomWeightedDistributor(service);
     }
 
     /**
@@ -769,13 +736,13 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         Store.MetadataSnapshot first;
         {
             Random random = new Random(seed);
-            IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(actualDefaultCodec());
+            IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(TestUtil.getDefaultCodec());
             iwc.setMergePolicy(NoMergePolicy.INSTANCE);
             iwc.setUseCompoundFile(random.nextBoolean());
             iwc.setMaxThreadStates(1);
             final ShardId shardId = new ShardId(new Index("index"), 1);
             DirectoryService directoryService = new LuceneManagedDirectoryService(random);
-            Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, randomDistributor(random, directoryService), new DummyShardLock(shardId));
+            Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, new DummyShardLock(shardId));
             IndexWriter writer = new IndexWriter(store.directory(), iwc);
             final boolean lotsOfSegments = rarely(random);
             for (Document d : docs) {
@@ -800,13 +767,13 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         Store store;
         {
             Random random = new Random(seed);
-            IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(actualDefaultCodec());
+            IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(TestUtil.getDefaultCodec());
             iwc.setMergePolicy(NoMergePolicy.INSTANCE);
             iwc.setUseCompoundFile(random.nextBoolean());
             iwc.setMaxThreadStates(1);
             final ShardId shardId = new ShardId(new Index("index"), 1);
             DirectoryService directoryService = new LuceneManagedDirectoryService(random);
-            store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, randomDistributor(random, directoryService), new DummyShardLock(shardId));
+            store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, new DummyShardLock(shardId));
             IndexWriter writer = new IndexWriter(store.directory(), iwc);
             final boolean lotsOfSegments = rarely(random);
             for (Document d : docs) {
@@ -841,7 +808,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
         // lets add some deletes
         Random random = new Random(seed);
-        IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(actualDefaultCodec());
+        IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(TestUtil.getDefaultCodec());
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         iwc.setUseCompoundFile(random.nextBoolean());
         iwc.setMaxThreadStates(1);
@@ -877,7 +844,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         assertThat(selfDiff.missing, empty());
 
         // add a new commit
-        iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(actualDefaultCodec());
+        iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(TestUtil.getDefaultCodec());
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         iwc.setUseCompoundFile(true); // force CFS - easier to test here since we know it will add 3 files
         iwc.setMaxThreadStates(1);
@@ -907,9 +874,9 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
     public void testCleanupFromSnapshot() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, randomDistributor(directoryService), new DummyShardLock(shardId));
+        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, new DummyShardLock(shardId));
         // this time random codec....
-        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(actualDefaultCodec());
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec());
         // we keep all commits and that allows us clean based on multiple snapshots
         indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
         IndexWriter writer = new IndexWriter(store.directory(), indexWriterConfig);
@@ -956,7 +923,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         Store.LegacyChecksums checksums = new Store.LegacyChecksums();
         Map<String, StoreFileMetaData> legacyMeta = new HashMap<>();
         for (String file : store.directory().listAll()) {
-            if (file.equals("write.lock") || file.equals(IndexFileNames.OLD_SEGMENTS_GEN)) {
+            if (file.equals("write.lock") || file.equals(IndexFileNames.OLD_SEGMENTS_GEN) || file.startsWith("extra")) {
                 continue;
             }
             BytesRef hash = new BytesRef();
@@ -975,6 +942,9 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             int numChecksums = 0;
             int numNotFound = 0;
             for (String file : strings) {
+                if (file.startsWith("extra")) {
+                    continue;
+                }
                 assertTrue(firstMeta.contains(file) || Store.isChecksum(file) || file.equals("write.lock"));
                 if (Store.isChecksum(file)) {
                     numChecksums++;
@@ -991,6 +961,9 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             int numChecksums = 0;
             int numNotFound = 0;
             for (String file : strings) {
+                if (file.startsWith("extra")) {
+                    continue;
+                }
                 assertTrue(file, secondMeta.contains(file) || Store.isChecksum(file) || file.equals("write.lock"));
                 if (Store.isChecksum(file)) {
                     numChecksums++;
@@ -1016,7 +989,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, randomDistributor(directoryService), new DummyShardLock(shardId));
+        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, new DummyShardLock(shardId));
         for (String file : metaDataMap.keySet()) {
             try (IndexOutput output = store.directory().createOutput(file, IOContext.DEFAULT)) {
                 BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
@@ -1036,7 +1009,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         final AtomicInteger count = new AtomicInteger(0);
         final ShardLock lock = new DummyShardLock(shardId);
 
-        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, randomDistributor(directoryService), lock , new Store.OnClose() {
+        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, lock , new Store.OnClose() {
             @Override
             public void handle(ShardLock theLock) {
                 assertEquals(shardId, theLock.getShardId());
@@ -1059,7 +1032,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
         Settings settings = ImmutableSettings.builder().put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, TimeValue.timeValueMinutes(0)).build();
-        Store store = new Store(shardId, settings, directoryService, randomDistributor(directoryService), new DummyShardLock(shardId));
+        Store store = new Store(shardId, settings, directoryService, new DummyShardLock(shardId));
 
         StoreStats stats = store.stats();
         assertEquals(stats.getSize().bytes(), 0);
@@ -1075,7 +1048,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             length = output.getFilePointer();
         }
 
-        assertTrue(store.directory().listAll().length > 0);
+        assertTrue(numNonExtraFiles(store) > 0);
         stats = store.stats();
         assertEquals(stats.getSizeInBytes(), length);
 
@@ -1097,5 +1070,15 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             }
         }
         ExceptionsHelper.rethrowAndSuppress(exceptions);
+    }
+
+    public int numNonExtraFiles(Store store) throws IOException {
+        int numNonExtra = 0;
+        for (String file : store.directory().listAll()) {
+            if (file.startsWith("extra") == false) {
+                numNonExtra++;
+            }
+        }
+        return numNonExtra;
     }
 }

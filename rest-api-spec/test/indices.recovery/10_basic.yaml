@@ -35,8 +35,8 @@
   - gte:   { test_1.shards.0.translog.total:                       -1                      }
   - gte:   { test_1.shards.0.translog.total_on_start:              0                       }
   - gte:   { test_1.shards.0.translog.total_time_in_millis:        0                       }
-  - gte:   { test_1.shards.0.start.check_index_time_in_millis:     0                       }
-  - gte:   { test_1.shards.0.start.total_time_in_millis:           0                       }
+  - gte:   { test_1.shards.0.verify_index.check_index_time_in_millis:     0                       }
+  - gte:   { test_1.shards.0.verify_index.total_time_in_millis:           0                       }
 ---
 "Indices recovery test index name not matching":
 

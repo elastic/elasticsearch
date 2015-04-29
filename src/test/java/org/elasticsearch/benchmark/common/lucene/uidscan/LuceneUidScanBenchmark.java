@@ -25,6 +25,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.FSDirectory;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.SizeValue;
@@ -40,7 +41,7 @@ public class LuceneUidScanBenchmark {
 
     public static void main(String[] args) throws Exception {
 
-        FSDirectory dir = FSDirectory.open(Paths.get("work/test"));
+        FSDirectory dir = FSDirectory.open(PathUtils.get("work/test"));
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         final int NUMBER_OF_THREADS = 2;

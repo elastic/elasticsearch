@@ -202,7 +202,7 @@ public class MoreLikeThisQuery extends Query {
             for (Fields fields : ignoreFields) {
                 for (String fieldName : fields) {
                     Terms terms = fields.terms(fieldName);
-                    final TermsEnum termsEnum = terms.iterator(null);
+                    final TermsEnum termsEnum = terms.iterator();
                     BytesRef text;
                     while ((text = termsEnum.next()) != null) {
                         skipTerms.add(new Term(fieldName, text.utf8ToString()));

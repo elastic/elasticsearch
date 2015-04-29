@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 /**
  *
@@ -51,9 +50,9 @@ public enum IndexShardState {
         return this.id;
     }
 
-    public static IndexShardState fromId(byte id) throws ElasticsearchIllegalArgumentException {
+    public static IndexShardState fromId(byte id) {
         if (id < 0 || id >= IDS.length) {
-            throw new ElasticsearchIllegalArgumentException("No mapping for id [" + id + "]");
+            throw new IllegalArgumentException("No mapping for id [" + id + "]");
         }
         return IDS[id];
     }

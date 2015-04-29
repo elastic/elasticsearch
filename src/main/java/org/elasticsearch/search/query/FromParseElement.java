@@ -35,7 +35,8 @@ public class FromParseElement implements SearchParseElement {
         if (token.isValue()) {
             int from = parser.intValue();
             if (from < 0) {
-                throw new SearchParseException(context, "from is set to [" + from + "] and is expected to be higher or equal to 0");
+                throw new SearchParseException(context, "from is set to [" + from + "] and is expected to be higher or equal to 0",
+                        parser.getTokenLocation());
             }
             context.from(from);
         }

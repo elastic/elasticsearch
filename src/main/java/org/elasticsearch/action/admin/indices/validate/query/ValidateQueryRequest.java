@@ -49,6 +49,7 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
     private BytesReference source;
 
     private boolean explain;
+    private boolean rewrite;
 
     private String[] types = Strings.EMPTY_ARRAY;
 
@@ -163,6 +164,20 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
         return explain;
     }
 
+    /**
+     * Indicates whether the query should be rewritten into primitive queries
+     */
+    public void rewrite(boolean rewrite) {
+        this.rewrite = rewrite;
+    }
+
+    /**
+     * Indicates whether the query should be rewritten into primitive queries
+     */
+    public boolean rewrite() {
+        return rewrite;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -178,7 +193,7 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
         }
 
         explain = in.readBoolean();
-
+        rewrite = in.readBoolean();
     }
 
     @Override
@@ -193,6 +208,7 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
         }
 
         out.writeBoolean(explain);
+        out.writeBoolean(rewrite);
     }
 
     @Override
@@ -203,6 +219,7 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
         } catch (Exception e) {
             // ignore
         }
-        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", source[" + sSource + "], explain:" + explain;
+        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", source[" + sSource + "], explain:" + explain + 
+                ", rewrite:" + rewrite;
     }
 }

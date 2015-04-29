@@ -20,20 +20,24 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
+import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
-import com.google.common.collect.*;
+import com.google.common.collect.Collections2;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 
-import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -72,12 +76,13 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.cache.filter.AutoFilterCachingPolicy;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
+import org.elasticsearch.index.cache.filter.FilterCacheModule.FilterCacheSettings;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.shard.IndexShardModule;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -107,20 +112,34 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.Random;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static junit.framework.Assert.fail;
-import static org.apache.lucene.util.LuceneTestCase.*;
+import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
+import static org.apache.lucene.util.LuceneTestCase.rarely;
+import static org.apache.lucene.util.LuceneTestCase.usually;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 
@@ -155,10 +174,13 @@ public final class InternalTestCluster extends TestCluster {
      */
     public static final String SETTING_CLUSTER_NODE_SEED = "test.cluster.node.seed";
 
+    private static final int JVM_ORDINAL = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_ID, "0"));
+    public static final int BASE_PORT = 9300 + 100 * (JVM_ORDINAL + 1);
+
     private static final boolean ENABLE_MOCK_MODULES = RandomizedTest.systemPropertyAsBoolean(TESTS_ENABLE_MOCK_MODULES, true);
 
-    static final int DEFAULT_MIN_NUM_DATA_NODES = 2;
-    static final int DEFAULT_MAX_NUM_DATA_NODES = 6;
+    static final int DEFAULT_MIN_NUM_DATA_NODES = 1;
+    static final int DEFAULT_MAX_NUM_DATA_NODES = TEST_NIGHTLY ? 6 : 3;
 
     static final int DEFAULT_NUM_CLIENT_NODES = -1;
     static final int DEFAULT_MIN_NUM_CLIENT_NODES = 0;
@@ -198,20 +220,21 @@ public final class InternalTestCluster extends TestCluster {
      * All nodes started by the cluster will have their name set to nodePrefix followed by a positive number
      */
     private final String nodePrefix;
+    private final Path baseDir;
 
     private ServiceDisruptionScheme activeDisruptionScheme;
 
-    public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes,
-                               boolean enableHttpPipelining, int jvmOrdinal, String nodePrefix) {
-        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, DEFAULT_SETTINGS_SOURCE, numClientNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
+    public InternalTestCluster(long clusterSeed, Path baseDir, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes,
+                               boolean enableHttpPipelining, String nodePrefix) {
+        this(clusterSeed, baseDir, minNumDataNodes, maxNumDataNodes, clusterName, DEFAULT_SETTINGS_SOURCE, numClientNodes, enableHttpPipelining, nodePrefix);
     }
 
-    public InternalTestCluster(long clusterSeed,
+    public InternalTestCluster(long clusterSeed, Path baseDir,
                                int minNumDataNodes, int maxNumDataNodes, String clusterName, SettingsSource settingsSource, int numClientNodes,
-                                boolean enableHttpPipelining, int jvmOrdinal, String nodePrefix) {
+                                boolean enableHttpPipelining, String nodePrefix) {
         super(clusterSeed);
+        this.baseDir = baseDir;
         this.clusterName = clusterName;
-
         if (minNumDataNodes < 0 || maxNumDataNodes < 0) {
             throw new IllegalArgumentException("minimum and maximum number of data nodes must be >= 0");
         }
@@ -262,14 +285,14 @@ public final class InternalTestCluster extends TestCluster {
             if (numOfDataPaths > 0) {
                 StringBuilder dataPath = new StringBuilder();
                 for (int i = 0; i < numOfDataPaths; i++) {
-                    dataPath.append(Paths.get("data/d" + i).toAbsolutePath()).append(',');
+                    dataPath.append(baseDir.resolve("d" + i).toAbsolutePath()).append(',');
                 }
                 builder.put("path.data", dataPath.toString());
             }
         }
-        final int basePort = 9300 + (100 * (jvmOrdinal+1));
-        builder.put("transport.tcp.port", basePort + "-" + (basePort+100));
-        builder.put("http.port", basePort+101 + "-" + (basePort+200));
+        builder.put("path.home", baseDir);
+        builder.put("transport.tcp.port", BASE_PORT + "-" + (BASE_PORT+100));
+        builder.put("http.port", BASE_PORT+101 + "-" + (BASE_PORT+200));
         builder.put("config.ignore_system_properties", true);
         builder.put("node.mode", NODE_MODE);
         builder.put("http.pipelining", enableHttpPipelining);
@@ -340,7 +363,7 @@ public final class InternalTestCluster extends TestCluster {
         Settings settings = settingsSource.node(nodeOrdinal);
         if (settings != null) {
             if (settings.get(ClusterName.SETTING) != null) {
-                throw new ElasticsearchIllegalStateException("Tests must not set a '" + ClusterName.SETTING + "' as a node setting set '" + ClusterName.SETTING + "': [" + settings.get(ClusterName.SETTING) + "]");
+                throw new IllegalStateException("Tests must not set a '" + ClusterName.SETTING + "' as a node setting set '" + ClusterName.SETTING + "': [" + settings.get(ClusterName.SETTING) + "]");
             }
             builder.put(settings);
         }
@@ -358,7 +381,7 @@ public final class InternalTestCluster extends TestCluster {
                 .put("cluster.routing.schedule", (30 + random.nextInt(50)) + "ms")
                 .put(SETTING_CLUSTER_NODE_SEED, seed);
         if (ENABLE_MOCK_MODULES && usually(random)) {
-            builder.put("index.store.type", MockFSIndexStoreModule.class.getName()); // no RAM dir for now!
+            builder.put(IndexStoreModule.STORE_TYPE, MockFSIndexStoreModule.class.getName()); // no RAM dir for now!
             builder.put(IndexShardModule.ENGINE_FACTORY, MockEngineFactory.class);
             builder.put(PageCacheRecyclerModule.CACHE_IMPL, MockPageCacheRecyclerModule.class.getName());
             builder.put(BigArraysModule.IMPL, MockBigArraysModule.class.getName());
@@ -393,10 +416,10 @@ public final class InternalTestCluster extends TestCluster {
                 }
             }
         }
+
         if (random.nextInt(10) == 0) {
-            builder.put(EsExecutors.PROCESSORS, 1 + random.nextInt(AbstractRandomizedTest.TESTS_PROCESSORS));
-        } else {
-            builder.put(EsExecutors.PROCESSORS, AbstractRandomizedTest.TESTS_PROCESSORS);
+            // node gets an extra cpu this time
+            builder.put(EsExecutors.PROCESSORS, 1 + EsExecutors.boundedNumberOfProcessors(ImmutableSettings.EMPTY));
         }
 
         if (random.nextBoolean()) {
@@ -417,7 +440,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         if (random.nextBoolean()) {
-            builder.put(MappingUpdatedAction.INDICES_MAPPING_ADDITIONAL_MAPPING_CHANGE_TIME, RandomInts.randomIntBetween(random, 0, 500) /*milliseconds*/);
+            builder.put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT, new TimeValue(RandomInts.randomIntBetween(random, 10, 30), TimeUnit.SECONDS));
         }
 
         if (random.nextInt(10) == 0) {
@@ -430,27 +453,17 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         if (random.nextBoolean()) {
-            final int freqCacheable = 1 + random.nextInt(5);
-            final int freqCostly = 1 + random.nextInt(5);
-            final int freqOther = Math.max(freqCacheable, freqCostly) + random.nextInt(2);
-            int historySize = 3 + random.nextInt(100);
-            historySize = Math.max(historySize, freqCacheable);
-            historySize = Math.max(historySize, freqCostly);
-            historySize = Math.max(historySize, freqOther);
-            builder.put(AutoFilterCachingPolicy.HISTORY_SIZE, historySize);
-            builder.put(AutoFilterCachingPolicy.MIN_FREQUENCY_CACHEABLE, freqCacheable);
-            builder.put(AutoFilterCachingPolicy.MIN_FREQUENCY_COSTLY, freqCostly);
-            builder.put(AutoFilterCachingPolicy.MIN_FREQUENCY_OTHER, freqOther);
-            builder.put(AutoFilterCachingPolicy.MIN_SEGMENT_SIZE_RATIO, random.nextFloat());
+            builder.put(FilterCacheSettings.FILTER_CACHE_EVERYTHING, random.nextBoolean());
         }
 
         return builder.build();
     }
 
-    public static String clusterName(String prefix, String childVMId, long clusterSeed) {
+    public static String clusterName(String prefix, long clusterSeed) {
         StringBuilder builder = new StringBuilder(prefix);
+        final int childVM = RandomizedTest.systemPropertyAsInt(SysGlobals.CHILDVM_SYSPROP_JVM_ID, 0);
         builder.append('-').append(NetworkUtils.getLocalHostName("__default_host__"));
-        builder.append("-CHILD_VM=[").append(childVMId).append(']');
+        builder.append("-CHILD_VM=[").append(childVM).append(']');
         builder.append("-CLUSTER_SEED=[").append(clusterSeed).append(']');
         // if multiple maven task run on a single host we better have an identifier that doesn't rely on input params
         builder.append("-HASH=[").append(SeedUtils.formatSeed(System.nanoTime())).append(']');
@@ -569,6 +582,7 @@ public final class InternalTestCluster extends TestCluster {
         String name = buildNodeName(nodeId);
         assert !nodes.containsKey(name);
         Settings finalSettings = settingsBuilder()
+                .put("path.home", baseDir) // allow overriding path.home
                 .put(settings)
                 .put("name", name)
                 .put("discovery.id.seed", seed)

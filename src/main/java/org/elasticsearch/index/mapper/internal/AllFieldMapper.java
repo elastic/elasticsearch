@@ -25,7 +25,6 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -33,16 +32,14 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
@@ -97,9 +94,6 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
 
         private EnabledAttributeMapper enabled = Defaults.ENABLED;
 
-        // an internal flag, automatically set if we encounter boosting
-        boolean autoBoost = false;
-
         public Builder() {
             super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
             builder = this;
@@ -120,7 +114,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
             }
             fieldType.setTokenized(true);
 
-            return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, autoBoost, similarity, normsLoading, fieldDataSettings, context.indexSettings());
+            return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, similarity, normsLoading, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -154,8 +148,8 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
                 if (fieldName.equals("enabled")) {
                     builder.enabled(nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
                     iterator.remove();
-                } else if (fieldName.equals("auto_boost")) {
-                    builder.autoBoost = nodeBooleanValue(fieldNode);
+                } else if (fieldName.equals("auto_boost") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                    // Old 1.x setting which is now ignored
                     iterator.remove();
                 }
             }
@@ -165,24 +159,17 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
 
 
     private EnabledAttributeMapper enabledState;
-    // The autoBoost flag is automatically set based on indexed docs on the mappings
-    // if a doc is indexed with a specific boost value and part of _all, it is automatically
-    // set to true. This allows to optimize (automatically, which we like) for the common case
-    // where fields don't usually have boost associated with them, and we don't need to use the
-    // special SpanTermQuery to look at payloads
-    private volatile boolean autoBoost;
 
     public AllFieldMapper(Settings indexSettings) {
-        this(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED, false, null, null, null, indexSettings);
+        this(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED, null, null, null, indexSettings);
     }
 
     protected AllFieldMapper(String name, FieldType fieldType, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
-                             EnabledAttributeMapper enabled, boolean autoBoost, SimilarityProvider similarity, Loading normsLoading,
+                             EnabledAttributeMapper enabled, SimilarityProvider similarity, Loading normsLoading,
                              @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, name, name, name), 1.0f, fieldType, false, indexAnalyzer, searchAnalyzer,
                 similarity, normsLoading, fieldDataSettings, indexSettings);
         this.enabledState = enabled;
-        this.autoBoost = autoBoost;
 
     }
 
@@ -202,13 +189,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
 
     @Override
     public Query queryStringTermQuery(Term term) {
-        if (!autoBoost) {
-            return new TermQuery(term);
-        }
-        if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0) {
-            return new AllTermQuery(term);
-        }
-        return new TermQuery(term);
+        return new AllTermQuery(term);
     }
 
     @Override
@@ -226,8 +207,9 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public Mapper parse(ParseContext context) throws IOException {
         // we parse in post parse
+        return null;
     }
 
     @Override
@@ -242,14 +224,6 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
         }
         // reset the entries
         context.allEntries().reset();
-
-        // if the autoBoost flag is not set, and we indexed a doc with custom boost, make
-        // sure to update the flag, and notify mappings on change
-        if (!autoBoost && context.allEntries().customBoost()) {
-            autoBoost = true;
-            context.setMappingsModified();
-        }
-
         Analyzer analyzer = findAnalyzer(context);
         fields.add(new AllField(names.indexName(), context.allEntries(), analyzer, fieldType));
     }
@@ -305,9 +279,6 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
         if (includeDefaults || enabledState != Defaults.ENABLED) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (includeDefaults || autoBoost != false) {
-            builder.field("auto_boost", autoBoost);
-        }
         if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());
         }
@@ -343,11 +314,11 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         if (((AllFieldMapper)mergeWith).enabled() != this.enabled() && ((AllFieldMapper)mergeWith).enabledState != Defaults.ENABLED) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] enabled is " + this.enabled() + " now encountering "+ ((AllFieldMapper)mergeWith).enabled());
+            mergeResult.addConflict("mapper [" + names.fullName() + "] enabled is " + this.enabled() + " now encountering "+ ((AllFieldMapper)mergeWith).enabled());
         }
-        super.merge(mergeWith, mergeContext);
+        super.merge(mergeWith, mergeResult);
     }
 
     @Override

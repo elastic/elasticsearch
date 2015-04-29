@@ -21,7 +21,7 @@ package org.elasticsearch.test.junit.listeners;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
 import com.carrotsearch.randomizedtesting.TraceFormatting;
-import org.apache.lucene.util.AbstractRandomizedTest;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -35,9 +35,14 @@ import org.junit.runner.notification.RunListener;
 import java.util.Locale;
 import java.util.TimeZone;
 
-import static com.carrotsearch.randomizedtesting.SysGlobals.*;
+import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_ITERATIONS;
+import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_PREFIX;
+import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.TESTS_CLUSTER;
-import static org.elasticsearch.test.rest.ElasticsearchRestTests.*;
+import static org.elasticsearch.test.rest.ElasticsearchRestTestCase.REST_TESTS_BLACKLIST;
+import static org.elasticsearch.test.rest.ElasticsearchRestTestCase.REST_TESTS_SPEC;
+import static org.elasticsearch.test.rest.ElasticsearchRestTestCase.REST_TESTS_SUITE;
+import static org.elasticsearch.test.rest.ElasticsearchRestTestCase.Rest;
 
 /**
  * A {@link RunListener} that emits to {@link System#err} a string with command
@@ -49,12 +54,12 @@ public class ReproduceInfoPrinter extends RunListener {
 
     @Override
     public void testStarted(Description description) throws Exception {
-        logger.info("Test {} started", description.getDisplayName());
+        logger.trace("Test {} started", description.getDisplayName());
     }
 
     @Override
     public void testFinished(Description description) throws Exception {
-        logger.info("Test {} finished", description.getDisplayName());
+        logger.trace("Test {} finished", description.getDisplayName());
     }
 
     @Override
@@ -64,10 +69,8 @@ public class ReproduceInfoPrinter extends RunListener {
             return;
         }
 
-        final Description d = failure.getDescription();
         final StringBuilder b = new StringBuilder();
-        b.append("FAILURE  : ").append(d.getDisplayName()).append("\n");
-        b.append("REPRODUCE WITH  : mvn clean test");
+        b.append("REPRODUCE WITH: mvn test -Pdev");
         MavenMessageBuilder mavenMessageBuilder = new MavenMessageBuilder(b);
         mavenMessageBuilder.appendAllOpts(failure.getDescription());
 
@@ -76,13 +79,7 @@ public class ReproduceInfoPrinter extends RunListener {
             mavenMessageBuilder.appendRestTestsProperties();
         }
 
-        b.append("\n");
-        b.append("Throwable:\n");
-        if (failure.getException() != null) {
-            traces().formatThrowable(b, failure.getException());
-        }
-
-        logger.error(b.toString());
+        System.err.println(b.toString());
     }
 
     protected TraceFormatting traces() {
@@ -151,7 +148,6 @@ public class ReproduceInfoPrinter extends RunListener {
             }
             appendOpt("tests.locale", Locale.getDefault().toString());
             appendOpt("tests.timezone", TimeZone.getDefault().getID());
-            appendOpt(AbstractRandomizedTest.SYSPROP_PROCESSORS, Integer.toString(AbstractRandomizedTest.TESTS_PROCESSORS));
             return this;
         }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.query;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -35,7 +36,6 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import java.util.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-
 
 public class ExistsMissingTests extends ElasticsearchIntegrationTest {
 

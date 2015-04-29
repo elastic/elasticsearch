@@ -24,18 +24,19 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -45,7 +46,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -196,20 +197,6 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     }
 
     @Override
-    public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        int iValue = parseValue(value);
-        return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
-                iValue, iValue, true, true);
-    }
-
-    @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        int iValue = parseValue(value);
-        return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
-                iValue, iValue, true, true);
-    }
-
-    @Override
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseValue(lowerTerm),
@@ -219,10 +206,10 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
 
     @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
+        return Queries.wrap(NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseValue(lowerTerm),
                 upperTerm == null ? null : parseValue(upperTerm),
-                includeLower, includeUpper);
+                includeLower, includeUpper));
     }
 
     @Override
@@ -238,10 +225,10 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         if (nullValue == null) {
             return null;
         }
-        return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
+        return Queries.wrap(NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 nullValue,
                 nullValue,
-                true, true);
+                true, true));
     }
 
     @Override
@@ -302,7 +289,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
                         } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
                         } else {
-                            throw new ElasticsearchIllegalArgumentException("unknown property [" + currentFieldName + "]");
+                            throw new IllegalArgumentException("unknown property [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -342,12 +329,12 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        super.merge(mergeWith, mergeContext);
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+        super.merge(mergeWith, mergeResult);
         if (!this.getClass().equals(mergeWith.getClass())) {
             return;
         }
-        if (!mergeContext.mergeFlags().simulate()) {
+        if (!mergeResult.simulate()) {
             this.nullValue = ((IntegerFieldMapper) mergeWith).nullValue;
             this.nullValueAsString = ((IntegerFieldMapper) mergeWith).nullValueAsString;
         }
@@ -369,6 +356,15 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
             builder.field("include_in_all", false);
         }
 
+    }
+
+    @Override
+    public FieldStats stats(Terms terms, int maxDoc) throws IOException {
+        long minValue = NumericUtils.getMinInt(terms);
+        long maxValue = NumericUtils.getMaxInt(terms);
+        return new FieldStats.Long(
+                maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue
+        );
     }
 
     public static class CustomIntegerNumericField extends CustomNumericField {

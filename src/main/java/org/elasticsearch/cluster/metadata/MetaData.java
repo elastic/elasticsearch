@@ -25,7 +25,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -116,10 +115,10 @@ public class MetaData implements Iterable<IndexMetaData> {
         return customFactories.get(type);
     }
 
-    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) throws ElasticsearchIllegalArgumentException {
+    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) {
         Custom.Factory<T> factory = customFactories.get(type);
         if (factory == null) {
-            throw new ElasticsearchIllegalArgumentException("No custom index metadata factory registered for type [" + type + "]");
+            throw new IllegalArgumentException("No custom index metadata factory registered for type [" + type + "]");
         }
         return factory;
     }
@@ -127,7 +126,7 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     public static final String SETTING_READ_ONLY = "cluster.blocks.read_only";
 
-    public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA));
+    public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
 
     public static final MetaData EMPTY_META_DATA = builder().build();
 
@@ -474,20 +473,20 @@ public class MetaData implements Iterable<IndexMetaData> {
             return routing;
         }
         if (indexAliases.size() > 1) {
-            throw new ElasticsearchIllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" + Arrays.toString(indexAliases.keys().toArray(String.class)) + "], can't execute a single index op");
+            throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" + Arrays.toString(indexAliases.keys().toArray(String.class)) + "], can't execute a single index op");
         }
         AliasMetaData aliasMd = indexAliases.values().iterator().next().value;
         if (aliasMd.indexRouting() != null) {
             if (routing != null) {
                 if (!routing.equals(aliasMd.indexRouting())) {
-                    throw new ElasticsearchIllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it [" + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
+                    throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it [" + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
                 }
             }
             routing = aliasMd.indexRouting();
         }
         if (routing != null) {
             if (routing.indexOf(',') != -1) {
-                throw new ElasticsearchIllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value [" + routing + "] that resolved to several routing values, rejecting operation");
+                throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value [" + routing + "] that resolved to several routing values, rejecting operation");
             }
         }
         return routing;
@@ -651,10 +650,10 @@ public class MetaData implements Iterable<IndexMetaData> {
      * @throws IndexMissingException if one of the aliases or indices is missing and the provided indices options
      * don't allow such a case, or if the final result of the indices resolution is no indices and the indices options
      * don't allow such a case.
-     * @throws ElasticsearchIllegalArgumentException if one of the aliases resolve to multiple indices and the provided
+     * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
      * indices options don't allow such a case.
      */
-    public String[] concreteIndices(IndicesOptions indicesOptions, String... aliasesOrIndices) throws IndexMissingException, ElasticsearchIllegalArgumentException {
+    public String[] concreteIndices(IndicesOptions indicesOptions, String... aliasesOrIndices) throws IndexMissingException, IllegalArgumentException {
         if (indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed()) {
             if (isAllIndices(aliasesOrIndices)) {
                 String[] concreteIndices;
@@ -677,7 +676,7 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         if (aliasesOrIndices == null || aliasesOrIndices.length == 0) {
             if (!indicesOptions.allowNoIndices()) {
-                throw new ElasticsearchIllegalArgumentException("no indices were specified and wildcard expansion is disabled.");
+                throw new IllegalArgumentException("no indices were specified and wildcard expansion is disabled.");
             } else {
                 return Strings.EMPTY_ARRAY;
             }
@@ -734,23 +733,23 @@ public class MetaData implements Iterable<IndexMetaData> {
      * Utility method that allows to resolve an index or alias to its corresponding single concrete index.
      * Callers should make sure they provide proper {@link org.elasticsearch.action.support.IndicesOptions}
      * that require a single index as a result. The indices resolution must in fact return a single index when
-     * using this method, an {@link org.elasticsearch.ElasticsearchIllegalArgumentException} gets thrown otherwise.
+     * using this method, an {@link IllegalArgumentException} gets thrown otherwise.
      *
      * @param indexOrAlias   the index or alias to be resolved to concrete index
      * @param indicesOptions the indices options to be used for the index resolution
      * @return the concrete index obtained as a result of the index resolution
      * @throws IndexMissingException                 if the index or alias provided doesn't exist
-     * @throws ElasticsearchIllegalArgumentException if the index resolution lead to more than one index
+     * @throws IllegalArgumentException if the index resolution lead to more than one index
      */
-    public String concreteSingleIndex(String indexOrAlias, IndicesOptions indicesOptions) throws IndexMissingException, ElasticsearchIllegalArgumentException {
+    public String concreteSingleIndex(String indexOrAlias, IndicesOptions indicesOptions) throws IndexMissingException, IllegalArgumentException {
         String[] indices = concreteIndices(indicesOptions, indexOrAlias);
         if (indices.length != 1) {
-            throw new ElasticsearchIllegalArgumentException("unable to return a single index as the index and options provided got resolved to multiple indices");
+            throw new IllegalArgumentException("unable to return a single index as the index and options provided got resolved to multiple indices");
         }
         return indices[0];
     }
 
-    private String[] concreteIndices(String aliasOrIndex, IndicesOptions options, boolean failNoIndices) throws IndexMissingException, ElasticsearchIllegalArgumentException {
+    private String[] concreteIndices(String aliasOrIndex, IndicesOptions options, boolean failNoIndices) throws IndexMissingException, IllegalArgumentException {
         boolean failClosed = options.forbidClosedIndices() && !options.ignoreUnavailable();
 
         // a quick check, if this is an actual index, if so, return it
@@ -772,7 +771,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             throw new IndexMissingException(new Index(aliasOrIndex));
         }
         if (indices.length > 1 && !options.allowAliasesToMultipleIndices()) {
-            throw new ElasticsearchIllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one indices associated with it [" + Arrays.toString(indices) + "], can't execute a single index op");
+            throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one indices associated with it [" + Arrays.toString(indices) + "], can't execute a single index op");
         }
 
         // No need to check whether indices referred by aliases are closed, because there are no closed indices.

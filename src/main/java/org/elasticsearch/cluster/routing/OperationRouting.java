@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -28,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.math.MathUtils;
@@ -75,25 +75,6 @@ public class OperationRouting extends AbstractComponent {
 
     public GroupShardsIterator broadcastDeleteShards(ClusterState clusterState, String index) throws IndexMissingException {
         return indexRoutingTable(clusterState, index).groupByShardsIt();
-    }
-
-    public GroupShardsIterator deleteByQueryShards(ClusterState clusterState, String index, @Nullable Set<String> routing) throws IndexMissingException {
-        if (routing == null || routing.isEmpty()) {
-            return indexRoutingTable(clusterState, index).groupByShardsIt();
-        }
-
-        // we use set here and not identity set since we might get duplicates
-        HashSet<ShardIterator> set = new HashSet<>();
-        IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
-        for (String r : routing) {
-            int shardId = shardId(clusterState, index, null, null, r);
-            IndexShardRoutingTable indexShard = indexRouting.shard(shardId);
-            if (indexShard == null) {
-                throw new IndexShardMissingException(new ShardId(index, shardId));
-            }
-            set.add(indexShard.shardsRandomIt());
-        }
-        return new GroupShardsIterator(Lists.newArrayList(set));
     }
 
     public int searchShardsCount(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
@@ -203,7 +184,7 @@ public class OperationRouting extends AbstractComponent {
                     ensureNodeIdExists(nodes, nodeId);
                     return indexShard.onlyNodeActiveInitializingShardsIt(nodeId);
                 default:
-                    throw new ElasticsearchIllegalArgumentException("unknown preference [" + preferenceType + "]");
+                    throw new IllegalArgumentException("unknown preference [" + preferenceType + "]");
             }
         }
         // if not, then use it as the index
@@ -247,6 +228,7 @@ public class OperationRouting extends AbstractComponent {
         return indexShard;
     }
 
+    @SuppressForbidden(reason = "Math#abs is trappy")
     private int shardId(ClusterState clusterState, String index, String type, String id, @Nullable String routing) {
         final IndexMetaData indexMetaData = indexMetaData(clusterState, index);
         final Version createdVersion = indexMetaData.getCreationVersion();
@@ -277,14 +259,14 @@ public class OperationRouting extends AbstractComponent {
     @Deprecated
     protected int hash(HashFunction hashFunction, String type, String id) {
         if (type == null || "_all".equals(type)) {
-            throw new ElasticsearchIllegalArgumentException("Can't route an operation with no type and having type part of the routing (for backward comp)");
+            throw new IllegalArgumentException("Can't route an operation with no type and having type part of the routing (for backward comp)");
         }
         return hashFunction.hash(type, id);
     }
 
     private void ensureNodeIdExists(DiscoveryNodes nodes, String nodeId) {
         if (!nodes.dataNodes().keys().contains(nodeId)) {
-            throw new ElasticsearchIllegalArgumentException("No data node with id[" + nodeId + "] found");
+            throw new IllegalArgumentException("No data node with id[" + nodeId + "] found");
         }
     }
 

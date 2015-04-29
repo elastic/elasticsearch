@@ -99,13 +99,15 @@ public class GeoDistanceParser implements Aggregator.Parser {
                 } else if ("distance_type".equals(currentFieldName) || "distanceType".equals(currentFieldName)) {
                     distanceType = GeoDistance.fromString(parser.text());
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                            + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("keyed".equals(currentFieldName)) {
                     keyed = parser.booleanValue();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                            + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("ranges".equals(currentFieldName)) {
@@ -139,20 +141,24 @@ public class GeoDistanceParser implements Aggregator.Parser {
                         ranges.add(new RangeAggregator.Range(key(key, from, to), from, fromAsStr, to, toAsStr));
                     }
                 } else  {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                            + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
+                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
+                        parser.getTokenLocation());
             }
         }
 
         if (ranges == null) {
-            throw new SearchParseException(context, "Missing [ranges] in geo_distance aggregator [" + aggregationName + "]");
+            throw new SearchParseException(context, "Missing [ranges] in geo_distance aggregator [" + aggregationName + "]",
+                    parser.getTokenLocation());
         }
 
         GeoPoint origin = geoPointParser.geoPoint();
         if (origin == null) {
-            throw new SearchParseException(context, "Missing [origin] in geo_distance aggregator [" + aggregationName + "]");
+            throw new SearchParseException(context, "Missing [origin] in geo_distance aggregator [" + aggregationName + "]",
+                    parser.getTokenLocation());
         }
 
         return new GeoDistanceFactory(aggregationName, vsParser.config(), InternalGeoDistance.FACTORY, origin, unit, distanceType, ranges, keyed);

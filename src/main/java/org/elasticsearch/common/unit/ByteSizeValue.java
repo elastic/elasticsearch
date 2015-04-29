@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -52,10 +51,10 @@ public class ByteSizeValue implements Serializable, Streamable {
         this.sizeUnit = sizeUnit;
     }
 
-    public int bytesAsInt() throws ElasticsearchIllegalArgumentException {
+    public int bytesAsInt() {
         long bytes = bytes();
         if (bytes > Integer.MAX_VALUE) {
-            throw new ElasticsearchIllegalArgumentException("size [" + toString() + "] is bigger than max int");
+            throw new IllegalArgumentException("size [" + toString() + "] is bigger than max int");
         }
         return (int) bytes;
     }

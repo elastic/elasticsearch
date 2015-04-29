@@ -20,9 +20,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -156,7 +154,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         // the doc later
         MapperService.SmartNameFieldMappers smartMappers = parseContext.smartFieldMappers(fieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new QueryParsingException(parseContext.index(), "Unknown field [" + fieldName + "]");
+            throw new QueryParsingException(parseContext, "Unknown field [" + fieldName + "]");
         }
 
         FieldMapper<?> mapper = smartMappers.fieldMappers().mapper();
@@ -169,7 +167,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         } else if (mapper instanceof NumberFieldMapper<?>) {
             return parseNumberVariable(fieldName, parser, parseContext, (NumberFieldMapper<?>) mapper, mode);
         } else {
-            throw new QueryParsingException(parseContext.index(), "Field " + fieldName + " is of type " + mapper.fieldType()
+            throw new QueryParsingException(parseContext, "Field " + fieldName + " is of type " + mapper.fieldType()
                     + ", but only numeric types are supported.");
         }
     }
@@ -429,16 +427,16 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             super(CombineFunction.MULT);
             this.mode = mode;
             if (userSuppiedScale <= 0.0) {
-                throw new ElasticsearchIllegalArgumentException(FunctionScoreQueryParser.NAME + " : scale must be > 0.0.");
+                throw new IllegalArgumentException(FunctionScoreQueryParser.NAME + " : scale must be > 0.0.");
             }
             if (decay <= 0.0 || decay >= 1.0) {
-                throw new ElasticsearchIllegalArgumentException(FunctionScoreQueryParser.NAME
+                throw new IllegalArgumentException(FunctionScoreQueryParser.NAME
                         + " : decay must be in the range [0..1].");
             }
             this.scale = func.processScale(userSuppiedScale, decay);
             this.func = func;
             if (offset < 0.0d) {
-                throw new ElasticsearchIllegalArgumentException(FunctionScoreQueryParser.NAME + " : offset must be > 0.0");
+                throw new IllegalArgumentException(FunctionScoreQueryParser.NAME + " : offset must be > 0.0");
             }
             this.offset = offset;
         }
@@ -463,12 +461,10 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
                 @Override
                 public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
-                    ComplexExplanation ce = new ComplexExplanation();
-                    ce.setValue(CombineFunction.toFloat(score(docId, subQueryScore.getValue())));
-                    ce.setMatch(true);
-                    ce.setDescription("Function for field " + getFieldName() + ":");
-                    ce.addDetail(func.explainFunction(getDistanceString(ctx, docId), distance.get(docId), scale));
-                    return ce;
+                    return Explanation.match(
+                            CombineFunction.toFloat(score(docId, subQueryScore.getValue())),
+                            "Function for field " + getFieldName() + ":",
+                            func.explainFunction(getDistanceString(ctx, docId), distance.get(docId), scale));
                 }
             };
         }

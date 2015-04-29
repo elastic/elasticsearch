@@ -57,7 +57,7 @@ public class AggregationsIntegrationTests extends ElasticsearchIntegrationTest {
             client().prepareSearch("index").setSearchType(SearchType.SCAN).setScroll(new TimeValue(500)).addAggregation(terms("f").field("f")).get();
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("aggregations are not supported with search_type=scan"));
+            assertTrue(e.toString(), e.toString().contains("aggregations are not supported with search_type=scan"));
         }
     }
 

@@ -253,7 +253,7 @@ public class GeolocationContextMapping extends ContextMapping {
     public ContextConfig parseContext(ParseContext parseContext, XContentParser parser) throws IOException, ElasticsearchParseException {
 
         if(fieldName != null) {
-            FieldMapper<?> mapper = parseContext.docMapper().mappers().fullName(fieldName).mapper();
+            FieldMapper<?> mapper = parseContext.docMapper().mappers().getMapper(fieldName);
             if(!(mapper instanceof GeoPointFieldMapper)) {
                 throw new ElasticsearchParseException("referenced field must be mapped to geo_point");
             }
@@ -601,7 +601,9 @@ public class GeolocationContextMapping extends ContextMapping {
             if(precisions.isEmpty()) {
                 precisions.add(GeoHashUtils.PRECISION);
             }
-            return new GeolocationContextMapping(name, precisions.toArray(), neighbors, defaultLocations, fieldName);
+            int[] precisionArray = precisions.toArray();
+            Arrays.sort(precisionArray);
+            return new GeolocationContextMapping(name, precisionArray, neighbors, defaultLocations, fieldName);
         }
 
     }

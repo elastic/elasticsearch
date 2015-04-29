@@ -20,8 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
@@ -167,7 +165,7 @@ public class AllocateAllocationCommand implements AllocationCommand {
     }
 
     @Override
-    public RerouteExplanation execute(RoutingAllocation allocation, boolean explain) throws ElasticsearchException {
+    public RerouteExplanation execute(RoutingAllocation allocation, boolean explain) {
         DiscoveryNode discoNode = allocation.nodes().resolveNode(node);
 
         MutableShardRouting shardRouting = null;
@@ -185,7 +183,7 @@ public class AllocateAllocationCommand implements AllocationCommand {
                 return new RerouteExplanation(this, allocation.decision(Decision.NO, "allocate_allocation_command",
                         "failed to find " + shardId + " on the list of unassigned shards"));
             }
-            throw new ElasticsearchIllegalArgumentException("[allocate] failed to find " + shardId + " on the list of unassigned shards");
+            throw new IllegalArgumentException("[allocate] failed to find " + shardId + " on the list of unassigned shards");
         }
 
         if (shardRouting.primary() && !allowPrimary) {
@@ -193,7 +191,7 @@ public class AllocateAllocationCommand implements AllocationCommand {
                 return new RerouteExplanation(this, allocation.decision(Decision.NO, "allocate_allocation_command",
                         "trying to allocate a primary shard " + shardId + ", which is disabled"));
             }
-            throw new ElasticsearchIllegalArgumentException("[allocate] trying to allocate a primary shard " + shardId + ", which is disabled");
+            throw new IllegalArgumentException("[allocate] trying to allocate a primary shard " + shardId + ", which is disabled");
         }
 
         RoutingNode routingNode = allocation.routingNodes().node(discoNode.id());
@@ -203,13 +201,13 @@ public class AllocateAllocationCommand implements AllocationCommand {
                     return new RerouteExplanation(this, allocation.decision(Decision.NO, "allocate_allocation_command",
                             "Allocation can only be done on data nodes, not [" + node + "]"));
                 }
-                throw new ElasticsearchIllegalArgumentException("Allocation can only be done on data nodes, not [" + node + "]");
+                throw new IllegalArgumentException("Allocation can only be done on data nodes, not [" + node + "]");
             } else {
                 if (explain) {
                     return new RerouteExplanation(this, allocation.decision(Decision.NO, "allocate_allocation_command",
                             "Could not find [" + node + "] among the routing nodes"));
                 }
-                throw new ElasticsearchIllegalStateException("Could not find [" + node + "] among the routing nodes");
+                throw new IllegalStateException("Could not find [" + node + "] among the routing nodes");
             }
         }
 
@@ -218,7 +216,7 @@ public class AllocateAllocationCommand implements AllocationCommand {
             if (explain) {
                 return new RerouteExplanation(this, decision);
             }
-            throw new ElasticsearchIllegalArgumentException("[allocate] allocation of " + shardId + " on node " + discoNode + " is not allowed, reason: " + decision);
+            throw new IllegalArgumentException("[allocate] allocation of " + shardId + " on node " + discoNode + " is not allowed, reason: " + decision);
         }
         // go over and remove it from the unassigned
         for (Iterator<MutableShardRouting> it = allocation.routingNodes().unassigned().iterator(); it.hasNext(); ) {

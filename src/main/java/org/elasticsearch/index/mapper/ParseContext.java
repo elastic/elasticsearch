@@ -22,13 +22,11 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.hppc.ObjectObjectMap;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.google.common.collect.Lists;
-import org.apache.lucene.analysis.Analyzer;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.all.AllEntries;
@@ -38,7 +36,11 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.DocumentMapper.ParseListener;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -106,7 +108,7 @@ public abstract class ParseContext {
             if (keyedFields == null) {
                 keyedFields = new ObjectObjectOpenHashMap<>();
             } else if (keyedFields.containsKey(key)) {
-                throw new ElasticsearchIllegalStateException("Only one field can be stored per key");
+                throw new IllegalStateException("Only one field can be stored per key");
             }
             keyedFields.put(key, field);
             add(field);
@@ -192,31 +194,6 @@ public abstract class ParseContext {
         @Override
         public DocumentMapperParser docMapperParser() {
             return in.docMapperParser();
-        }
-
-        @Override
-        public boolean mappingsModified() {
-            return in.mappingsModified();
-        }
-
-        @Override
-        public void setMappingsModified() {
-            in.setMappingsModified();
-        }
-
-        @Override
-        public void setWithinNewMapper() {
-            in.setWithinNewMapper();
-        }
-
-        @Override
-        public void clearWithinNewMapper() {
-            in.clearWithinNewMapper();
-        }
-
-        @Override
-        public boolean isWithinNewMapper() {
-            return in.isWithinNewMapper();
         }
 
         @Override
@@ -379,6 +356,15 @@ public abstract class ParseContext {
             return in.stringBuilder();
         }
 
+        @Override
+        public void addDynamicMappingsUpdate(Mapper update) {
+            in.addDynamicMappingsUpdate(update);
+        }
+
+        @Override
+        public Mapper dynamicMappingsUpdate() {
+            return in.dynamicMappingsUpdate();
+        }
     }
 
     public static class InternalParseContext extends ParseContext {
@@ -413,12 +399,11 @@ public abstract class ParseContext {
 
         private Map<String, String> ignoredValues = new HashMap<>();
 
-        private boolean mappingsModified = false;
-        private boolean withinNewMapper = false;
-
         private AllEntries allEntries = new AllEntries();
 
         private float docBoost = 1.0f;
+
+        private Mapper dynamicMappingsUpdate = null;
 
         public InternalParseContext(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
             this.index = index;
@@ -443,12 +428,11 @@ public abstract class ParseContext {
             this.sourceToParse = source;
             this.source = source == null ? null : sourceToParse.source();
             this.path.reset();
-            this.mappingsModified = false;
-            this.withinNewMapper = false;
             this.listener = listener == null ? DocumentMapper.ParseListener.EMPTY : listener;
             this.allEntries = new AllEntries();
             this.ignoredValues.clear();
             this.docBoost = 1.0f;
+            this.dynamicMappingsUpdate = null;
         }
 
         @Override
@@ -459,31 +443,6 @@ public abstract class ParseContext {
         @Override
         public DocumentMapperParser docMapperParser() {
             return this.docMapperParser;
-        }
-
-        @Override
-        public boolean mappingsModified() {
-            return this.mappingsModified;
-        }
-
-        @Override
-        public void setMappingsModified() {
-            this.mappingsModified = true;
-        }
-
-        @Override
-        public void setWithinNewMapper() {
-            this.withinNewMapper = true;
-        }
-
-        @Override
-        public void clearWithinNewMapper() {
-            this.withinNewMapper = false;
-        }
-
-        @Override
-        public boolean isWithinNewMapper() {
-            return withinNewMapper;
         }
 
         @Override
@@ -638,21 +597,26 @@ public abstract class ParseContext {
             stringBuilder.setLength(0);
             return this.stringBuilder;
         }
+
+        @Override
+        public void addDynamicMappingsUpdate(Mapper mapper) {
+            assert mapper instanceof RootObjectMapper : mapper;
+            if (dynamicMappingsUpdate == null) {
+                dynamicMappingsUpdate = mapper;
+            } else {
+                MapperUtils.merge(dynamicMappingsUpdate, mapper);
+            }
+        }
+
+        @Override
+        public Mapper dynamicMappingsUpdate() {
+            return dynamicMappingsUpdate;
+        }
     }
 
     public abstract boolean flyweight();
 
     public abstract DocumentMapperParser docMapperParser();
-
-    public abstract boolean mappingsModified();
-
-    public abstract void setMappingsModified();
-
-    public abstract void setWithinNewMapper();
-
-    public abstract void clearWithinNewMapper();
-
-    public abstract boolean isWithinNewMapper();
 
     /**
      * Return a new context that will be within a copy-to operation.
@@ -824,7 +788,7 @@ public abstract class ParseContext {
     }
 
     public Object externalValue() {
-        throw new ElasticsearchIllegalStateException("External value is not set");
+        throw new IllegalStateException("External value is not set");
     }
 
     /**
@@ -838,7 +802,7 @@ public abstract class ParseContext {
         }
 
         if (!clazz.isInstance(externalValue())) {
-            throw new ElasticsearchIllegalArgumentException("illegal external value class ["
+            throw new IllegalArgumentException("illegal external value class ["
                     + externalValue().getClass().getName() + "]. Should be " + clazz.getName());
         }
         return clazz.cast(externalValue());
@@ -854,4 +818,13 @@ public abstract class ParseContext {
      */
     public abstract StringBuilder stringBuilder();
 
+    /**
+     * Add a dynamic update to the root object mapper.
+     */
+    public abstract void addDynamicMappingsUpdate(Mapper update);
+
+    /**
+     * Get dynamic updates to the root object mapper.
+     */
+    public abstract Mapper dynamicMappingsUpdate();
 }

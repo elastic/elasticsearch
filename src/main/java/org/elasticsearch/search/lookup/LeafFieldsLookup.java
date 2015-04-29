@@ -22,7 +22,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
 import org.apache.lucene.index.LeafReader;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
@@ -139,7 +138,7 @@ public class LeafFieldsLookup implements Map {
         if (data == null) {
             FieldMapper mapper = mapperService.smartNameFieldMapper(name, types);
             if (mapper == null) {
-                throw new ElasticsearchIllegalArgumentException("No field found for [" + name + "] in mapping with types " + Arrays.toString(types) + "");
+                throw new IllegalArgumentException("No field found for [" + name + "] in mapping with types " + Arrays.toString(types) + "");
             }
             data = new FieldLookup(mapper);
             cachedFieldData.put(name, data);

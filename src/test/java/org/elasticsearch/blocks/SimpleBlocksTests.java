@@ -49,14 +49,14 @@ public class SimpleBlocksTests extends ElasticsearchIntegrationTest {
         canIndexExists("test1");
 
         // cluster.read_only = true: block write and metadata
-        setClusterReadOnly("true");
+        setClusterReadOnly(true);
         canNotCreateIndex("test2");
         // even if index has index.read_only = false
         canNotIndexDocument("test1");
-        canNotIndexExists("test1");
+        canIndexExists("test1");
 
         // cluster.read_only = false: removes the block
-        setClusterReadOnly("false");
+        setClusterReadOnly(false);
         canCreateIndex("test2");
         canIndexDocument("test2");
         canIndexDocument("test1");
@@ -71,7 +71,7 @@ public class SimpleBlocksTests extends ElasticsearchIntegrationTest {
         // adds index write and metadata block
         setIndexReadOnly( "ro", "true");
         canNotIndexDocument("ro");
-        canNotIndexExists("ro");
+        canIndexExists("ro");
 
         // other indices not blocked
         canCreateIndex("rw");
@@ -154,11 +154,6 @@ public class SimpleBlocksTests extends ElasticsearchIntegrationTest {
         } catch (ClusterBlockException e) {
             // all is well
         }
-    }
-
-    private void setClusterReadOnly(String value) {
-        Settings settings = settingsBuilder().put(MetaData.SETTING_READ_ONLY, value).build();
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).execute().actionGet();
     }
 
     private void setIndexReadOnly(String index, Object value) {

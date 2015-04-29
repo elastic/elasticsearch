@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.engine;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+import com.google.common.collect.ImmutableMap;
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
@@ -36,18 +39,21 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ExceptionsHelper;
+import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
@@ -55,10 +61,12 @@ import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
+import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
@@ -67,14 +75,16 @@ import org.elasticsearch.index.settings.IndexDynamicSettingsModule;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
+import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
+import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.store.DirectoryService;
+import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogSizeMatcher;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.test.DummyShardLock;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
@@ -82,26 +92,20 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
-import static org.apache.lucene.util.AbstractRandomizedTest.CHILD_JVM_ID;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
-import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
-import static org.elasticsearch.test.ElasticsearchTestCase.terminate;
 import static org.hamcrest.Matchers.*;
 
-public class InternalEngineTests extends ElasticsearchLuceneTestCase {
+// TODO: this guy isn't ready for mock filesystems yet
+@SuppressFileSystems("*")
+public class InternalEngineTests extends ElasticsearchTestCase {
 
-    public static final String TRANSLOG_PRIMARY_LOCATION = "work/fs-translog/JVM_" + CHILD_JVM_ID + "/primary";
-    public static final String TRANSLOG_REPLICA_LOCATION = "work/fs-translog/JVM_" + CHILD_JVM_ID + "/replica";
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
     protected ThreadPool threadPool;
@@ -123,19 +127,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        // clean up shared directory
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    IOUtils.rm(Paths.get(TRANSLOG_PRIMARY_LOCATION));
-                    IOUtils.rm(Paths.get(TRANSLOG_REPLICA_LOCATION));
-                } catch (IOException e) {
-                    fail("failed to delete translogs before tests."
-                            + ExceptionsHelper.detailedMessage(e) + "\n" + ExceptionsHelper.stackTrace(e));
-                }
-            }
-        }, 30, TimeUnit.SECONDS);
+
         CodecService codecService = new CodecService(shardId.index());
         indexConcurrency = randomIntBetween(1, 20);
         String name = Codec.getDefault().getName();
@@ -199,12 +191,12 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     }
 
 
-    private ParsedDocument testParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, Document document, BytesReference source, boolean mappingsModified) {
+    private ParsedDocument testParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, Document document, BytesReference source, Mapping mappingUpdate) {
         Field uidField = new Field("_uid", uid, UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
         document.add(uidField);
         document.add(versionField);
-        return new ParsedDocument(uidField, versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingsModified);
+        return new ParsedDocument(uidField, versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingUpdate);
     }
 
     protected Store createStore() throws IOException {
@@ -214,8 +206,8 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     protected Store createStore(final Directory directory) throws IOException {
         final DirectoryService directoryService = new DirectoryService(shardId, EMPTY_SETTINGS) {
             @Override
-            public Directory[] build() throws IOException {
-                return new Directory[]{directory};
+            public Directory newDirectory() throws IOException {
+                return directory;
             }
 
             @Override
@@ -223,15 +215,15 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                 return 0;
             }
         };
-        return new Store(shardId, EMPTY_SETTINGS, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
+        return new Store(shardId, EMPTY_SETTINGS, directoryService, new DummyShardLock(shardId));
     }
 
     protected Translog createTranslog() throws IOException {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, Paths.get(TRANSLOG_PRIMARY_LOCATION));
+        return new FsTranslog(shardId, EMPTY_SETTINGS, createTempDir("translog-primary"));
     }
 
     protected Translog createTranslogReplica() throws IOException {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, Paths.get(TRANSLOG_REPLICA_LOCATION));
+        return new FsTranslog(shardId, EMPTY_SETTINGS, createTempDir("translog-replica"));
     }
 
     protected IndexDeletionPolicy createIndexDeletionPolicy() {
@@ -256,19 +248,19 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     }
 
     protected InternalEngine createEngine(IndexSettingsService indexSettingsService, Store store, Translog translog, MergeSchedulerProvider mergeSchedulerProvider) {
-        return new InternalEngine(config(indexSettingsService, store, translog, mergeSchedulerProvider));
+        return new InternalEngine(config(indexSettingsService, store, translog, mergeSchedulerProvider), false);
     }
 
     public EngineConfig config(IndexSettingsService indexSettingsService, Store store, Translog translog, MergeSchedulerProvider mergeSchedulerProvider) {
         IndexWriterConfig iwc = newIndexWriterConfig();
-        EngineConfig config = new EngineConfig(shardId, false/*per default optimization for auto generated ids is disabled*/, threadPool, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), indexSettingsService
+        EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), indexSettingsService
                 , null, store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), mergeSchedulerProvider,
                 iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(shardId.index()), new Engine.FailedEngineListener() {
             @Override
             public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
             }
-        });
+        }, new TranslogHandler(shardId.index().getName()));
 
 
         return config;
@@ -287,10 +279,10 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         final boolean defaultCompound = defaultSettings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true);
 
         // create a doc and refresh
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
         engine.create(new Engine.Create(null, newUid("1"), doc));
 
-        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, false);
+        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
         engine.create(new Engine.Create(null, newUid("2"), doc2));
         engine.refresh("test");
 
@@ -323,7 +315,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
         ((InternalEngine) engine).config().setCompoundOnFlush(false);
 
-        ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, false);
+        ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
         engine.create(new Engine.Create(null, newUid("3"), doc3));
         engine.refresh("test");
 
@@ -370,7 +362,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         assertThat(segments.get(1).isCompound(), equalTo(false));
 
         ((InternalEngine) engine).config().setCompoundOnFlush(true);
-        ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), B_3, false);
+        ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
         engine.create(new Engine.Create(null, newUid("4"), doc4));
         engine.refresh("test");
 
@@ -401,7 +393,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         List<Segment> segments = engine.segments(true);
         assertThat(segments.isEmpty(), equalTo(true));
 
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
         engine.create(new Engine.Create(null, newUid("1"), doc));
         engine.refresh("test");
 
@@ -409,10 +401,10 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         assertThat(segments.size(), equalTo(1));
         assertThat(segments.get(0).ramTree, notNullValue());
 
-        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, false);
+        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
         engine.create(new Engine.Create(null, newUid("2"), doc2));
         engine.refresh("test");
-        ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, false);
+        ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
         engine.create(new Engine.Create(null, newUid("3"), doc3));
         engine.refresh("test");
 
@@ -433,7 +425,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
              Translog translog = createTranslog();
              Engine engine = createEngine(indexSettingsService, store, translog, mergeSchedulerProvider)) {
 
-            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
             Engine.Index index = new Engine.Index(null, newUid("1"), doc);
             engine.index(index);
             engine.flush();
@@ -482,6 +474,26 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         }
     }
 
+    public void testCommitStats() {
+        Document document = testDocumentWithTextField();
+        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
+        engine.create(new Engine.Create(null, newUid("1"), doc));
+
+        CommitStats stats1 = engine.commitStats();
+        assertThat(stats1.getGeneration(), greaterThan(0l));
+        assertThat(stats1.getId(), notNullValue());
+        assertThat(stats1.getUserData(), hasKey(Translog.TRANSLOG_ID_KEY));
+
+        engine.flush(true, true);
+        CommitStats stats2 = engine.commitStats();
+        assertThat(stats2.getGeneration(), greaterThan(stats1.getGeneration()));
+        assertThat(stats2.getId(), notNullValue());
+        assertThat(stats2.getId(), not(equalTo(stats1.getId())));
+        assertThat(stats2.getUserData(), hasKey(Translog.TRANSLOG_ID_KEY));
+        assertThat(stats2.getUserData().get(Translog.TRANSLOG_ID_KEY), not(equalTo(stats1.getUserData().get(Translog.TRANSLOG_ID_KEY))));
+    }
+
     @Test
     public void testSimpleOperations() throws Exception {
         Engine.Searcher searchResult = engine.acquireSearcher("test");
@@ -491,7 +503,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         // create a document
         Document document = testDocumentWithTextField();
         document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
         engine.create(new Engine.Create(null, newUid("1"), doc));
 
         // its not there...
@@ -530,7 +542,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         document = testDocument();
         document.add(new TextField("value", "test1", Field.Store.YES));
         document.add(new Field(SourceFieldMapper.NAME, B_2.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
-        doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_2, false);
+        doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_2, null);
         engine.index(new Engine.Index(null, newUid("1"), doc));
 
         // its not updated yet...
@@ -583,7 +595,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         // add it back
         document = testDocumentWithTextField();
         document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
-        doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, false);
+        doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
         engine.create(new Engine.Create(null, newUid("1"), doc));
 
         // its not there...
@@ -617,7 +629,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         // now do an update
         document = testDocument();
         document.add(new TextField("value", "test1", Field.Store.YES));
-        doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, false);
+        doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
         engine.index(new Engine.Index(null, newUid("1"), doc));
 
         // its not updated yet...
@@ -646,7 +658,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         searchResult.close();
 
         // create a document
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
         engine.create(new Engine.Create(null, newUid("1"), doc));
 
         // its not there...
@@ -679,7 +691,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testFailEngineOnCorruption() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
         engine.create(new Engine.Create(null, newUid("1"), doc));
         engine.flush();
         final int failInPhase = randomIntBetween(1, 3);
@@ -716,7 +728,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
             searchResult.close();
 
-            ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, false);
+            ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
             engine.create(new Engine.Create(null, newUid("2"), doc2));
             engine.refresh("foo");
 
@@ -733,7 +745,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testSimpleRecover() throws Exception {
-        final ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
+        final ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
         engine.create(new Engine.Create(null, newUid("1"), doc));
         engine.flush();
 
@@ -790,10 +802,10 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testRecoverWithOperationsBetweenPhase1AndPhase2() throws Exception {
-        ParsedDocument doc1 = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
+        ParsedDocument doc1 = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
         engine.create(new Engine.Create(null, newUid("1"), doc1));
         engine.flush();
-        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, false);
+        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
         engine.create(new Engine.Create(null, newUid("2"), doc2));
 
         engine.recover(new Engine.RecoveryHandler() {
@@ -803,10 +815,14 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
             @Override
             public void phase2(Translog.Snapshot snapshot) throws EngineException {
-                Translog.Create create = (Translog.Create) snapshot.next();
-                assertThat("translog snapshot should not read null", create != null, equalTo(true));
-                assertThat(create.source().toBytesArray(), equalTo(B_2));
-                assertThat(snapshot.next(), equalTo(null));
+                try {
+                    Translog.Create create = (Translog.Create) snapshot.next();
+                    assertThat("translog snapshot should not read null", create != null, equalTo(true));
+                    assertThat(create.source().toBytesArray(), equalTo(B_2));
+                    assertThat(snapshot.next(), equalTo(null));
+                } catch (IOException ex) {
+                    throw new ElasticsearchException("failed", ex);
+                }
             }
 
             @Override
@@ -821,10 +837,10 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testRecoverWithOperationsBetweenPhase1AndPhase2AndPhase3() throws Exception {
-        ParsedDocument doc1 = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
+        ParsedDocument doc1 = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
         engine.create(new Engine.Create(null, newUid("1"), doc1));
         engine.flush();
-        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, false);
+        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
         engine.create(new Engine.Create(null, newUid("2"), doc2));
 
         engine.recover(new Engine.RecoveryHandler() {
@@ -834,22 +850,30 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
             @Override
             public void phase2(Translog.Snapshot snapshot) throws EngineException {
-                Translog.Create create = (Translog.Create) snapshot.next();
-                assertThat(create != null, equalTo(true));
-                assertThat(snapshot.next(), equalTo(null));
-                assertThat(create.source().toBytesArray(), equalTo(B_2));
+                try {
+                    Translog.Create create = (Translog.Create) snapshot.next();
+                    assertThat(create != null, equalTo(true));
+                    assertThat(snapshot.next(), equalTo(null));
+                    assertThat(create.source().toBytesArray(), equalTo(B_2));
 
-                // add for phase3
-                ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, false);
-                engine.create(new Engine.Create(null, newUid("3"), doc3));
+                    // add for phase3
+                    ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
+                    engine.create(new Engine.Create(null, newUid("3"), doc3));
+                } catch (IOException ex) {
+                    throw new ElasticsearchException("failed", ex);
+                }
             }
 
             @Override
             public void phase3(Translog.Snapshot snapshot) throws EngineException {
-                Translog.Create create = (Translog.Create) snapshot.next();
-                assertThat(create != null, equalTo(true));
-                assertThat(snapshot.next(), equalTo(null));
-                assertThat(create.source().toBytesArray(), equalTo(B_3));
+                try {
+                    Translog.Create create = (Translog.Create) snapshot.next();
+                    assertThat(create != null, equalTo(true));
+                    assertThat(snapshot.next(), equalTo(null));
+                    assertThat(create.source().toBytesArray(), equalTo(B_3));
+                } catch (IOException ex) {
+                    throw new ElasticsearchException("failed", ex);
+                }
             }
         });
 
@@ -859,7 +883,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testVersioningNewCreate() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
         Engine.Create create = new Engine.Create(null, newUid("1"), doc);
         engine.create(create);
         assertThat(create.version(), equalTo(1l));
@@ -871,7 +895,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testExternalVersioningNewCreate() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
         Engine.Create create = new Engine.Create(null, newUid("1"), doc, 12, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, 0);
         engine.create(create);
         assertThat(create.version(), equalTo(12l));
@@ -883,7 +907,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testVersioningNewIndex() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
         Engine.Index index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(1l));
@@ -895,7 +919,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testExternalVersioningNewIndex() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
         Engine.Index index = new Engine.Index(null, newUid("1"), doc, 12, VersionType.EXTERNAL, PRIMARY, 0);
         engine.index(index);
         assertThat(index.version(), equalTo(12l));
@@ -907,7 +931,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testVersioningIndexConflict() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
         Engine.Index index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(1l));
@@ -936,7 +960,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testExternalVersioningIndexConflict() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
         Engine.Index index = new Engine.Index(null, newUid("1"), doc, 12, VersionType.EXTERNAL, PRIMARY, 0);
         engine.index(index);
         assertThat(index.version(), equalTo(12l));
@@ -956,7 +980,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testVersioningIndexConflictWithFlush() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
         Engine.Index index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(1l));
@@ -987,7 +1011,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testExternalVersioningIndexConflictWithFlush() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
         Engine.Index index = new Engine.Index(null, newUid("1"), doc, 12, VersionType.EXTERNAL, PRIMARY, 0);
         engine.index(index);
         assertThat(index.version(), equalTo(12l));
@@ -1009,8 +1033,8 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     public void testForceMerge() {
         int numDocs = randomIntBetween(10, 100);
-        for (int i=0; i < numDocs; i++) {
-            ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), B_1, false);
+        for (int i = 0; i < numDocs; i++) {
+            ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), B_1, null);
             Engine.Index index = new Engine.Index(null, newUid(Integer.toString(i)), doc);
             engine.index(index);
             engine.refresh("test");
@@ -1018,29 +1042,29 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         try (Engine.Searcher test = engine.acquireSearcher("test")) {
             assertEquals(numDocs, test.reader().numDocs());
         }
-        engine.forceMerge(true, 1, false, false);
+        engine.forceMerge(true, 1, false, false, false);
         assertEquals(engine.segments(true).size(), 1);
 
-        ParsedDocument doc = testParsedDocument(Integer.toString(0), Integer.toString(0), "test", null, -1, -1, testDocument(), B_1, false);
+        ParsedDocument doc = testParsedDocument(Integer.toString(0), Integer.toString(0), "test", null, -1, -1, testDocument(), B_1, null);
         Engine.Index index = new Engine.Index(null, newUid(Integer.toString(0)), doc);
         engine.delete(new Engine.Delete(index.type(), index.id(), index.uid()));
-        engine.forceMerge(true, 10, true, false); //expunge deletes
+        engine.forceMerge(true, 10, true, false, false); //expunge deletes
 
         assertEquals(engine.segments(true).size(), 1);
         try (Engine.Searcher test = engine.acquireSearcher("test")) {
-            assertEquals(numDocs-1, test.reader().numDocs());
-            assertEquals(numDocs-1, test.reader().maxDoc());
+            assertEquals(numDocs - 1, test.reader().numDocs());
+            assertEquals(numDocs - 1, test.reader().maxDoc());
         }
 
-        doc = testParsedDocument(Integer.toString(1), Integer.toString(1), "test", null, -1, -1, testDocument(), B_1, false);
+        doc = testParsedDocument(Integer.toString(1), Integer.toString(1), "test", null, -1, -1, testDocument(), B_1, null);
         index = new Engine.Index(null, newUid(Integer.toString(1)), doc);
         engine.delete(new Engine.Delete(index.type(), index.id(), index.uid()));
-        engine.forceMerge(true, 10, false, false); //expunge deletes
+        engine.forceMerge(true, 10, false, false, false); //expunge deletes
 
         assertEquals(engine.segments(true).size(), 1);
         try (Engine.Searcher test = engine.acquireSearcher("test")) {
-            assertEquals(numDocs-2, test.reader().numDocs());
-            assertEquals(numDocs-1, test.reader().maxDoc());
+            assertEquals(numDocs - 2, test.reader().numDocs());
+            assertEquals(numDocs - 1, test.reader().maxDoc());
         }
     }
 
@@ -1063,17 +1087,17 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                             }
                             int i = 0;
                             while (true) {
-                                int numDocs  = randomIntBetween(1, 20);
+                                int numDocs = randomIntBetween(1, 20);
                                 for (int j = 0; j < numDocs; j++) {
                                     i++;
-                                    ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), B_1, false);
+                                    ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), B_1, null);
                                     Engine.Index index = new Engine.Index(null, newUid(Integer.toString(i)), doc);
                                     engine.index(index);
                                 }
                                 engine.refresh("test");
                                 indexed.countDown();
                                 try {
-                                    engine.forceMerge(randomBoolean(), 1, false, randomBoolean());
+                                    engine.forceMerge(randomBoolean(), 1, false, randomBoolean(), randomBoolean());
                                 } catch (ForceMergeFailedEngineException ex) {
                                     // ok
                                     return;
@@ -1089,7 +1113,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                 startGun.countDown();
                 int someIters = randomIntBetween(1, 10);
                 for (int i = 0; i < someIters; i++) {
-                    engine.forceMerge(randomBoolean(), 1, false, randomBoolean());
+                    engine.forceMerge(randomBoolean(), 1, false, randomBoolean(), randomBoolean());
                 }
                 indexed.await();
                 IOUtils.close(engine, translog);
@@ -1100,7 +1124,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testVersioningDeleteConflict() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
         Engine.Index index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(1l));
@@ -1151,7 +1175,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testVersioningDeleteConflictWithFlush() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
         Engine.Index index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(1l));
@@ -1208,7 +1232,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testVersioningCreateExistsException() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
         Engine.Create create = new Engine.Create(null, newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0);
         engine.create(create);
         assertThat(create.version(), equalTo(1l));
@@ -1224,7 +1248,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testVersioningCreateExistsExceptionWithFlush() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
         Engine.Create create = new Engine.Create(null, newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0);
         engine.create(create);
         assertThat(create.version(), equalTo(1l));
@@ -1242,7 +1266,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testVersioningReplicaConflict1() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
         Engine.Index index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(1l));
@@ -1278,7 +1302,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testVersioningReplicaConflict2() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
         Engine.Index index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
         assertThat(index.version(), equalTo(1l));
@@ -1328,36 +1352,31 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testBasicCreatedFlag() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
         Engine.Index index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertTrue(index.created());
+        assertTrue(engine.index(index));
 
         index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertFalse(index.created());
+        assertFalse(engine.index(index));
 
         engine.delete(new Engine.Delete(null, "1", newUid("1")));
 
         index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertTrue(index.created());
+        assertTrue(engine.index(index));
     }
 
     @Test
     public void testCreatedFlagAfterFlush() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
         Engine.Index index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertTrue(index.created());
+        assertTrue(engine.index(index));
 
         engine.delete(new Engine.Delete(null, "1", newUid("1")));
 
         engine.flush();
 
         index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertTrue(index.created());
+        assertTrue(engine.index(index));
     }
 
     private static class MockAppender extends AppenderSkeleton {
@@ -1393,6 +1412,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testIndexWriterInfoStream() {
+        assumeFalse("who tests the tester?", VERBOSE);
         MockAppender mockAppender = new MockAppender();
 
         Logger rootLogger = Logger.getRootLogger();
@@ -1402,7 +1422,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
         try {
             // First, with DEBUG, which should NOT log IndexWriter output:
-            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
             engine.create(new Engine.Create(null, newUid("1"), doc));
             engine.flush();
             assertFalse(mockAppender.sawIndexWriterMessage);
@@ -1421,6 +1441,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     // #8603: make sure we can separately log IFD's messages
     public void testIndexWriterIFDInfoStream() {
+        assumeFalse("who tests the tester?", VERBOSE);
         MockAppender mockAppender = new MockAppender();
 
         // Works when running this test inside Intellij:
@@ -1437,7 +1458,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
         try {
             // First, with DEBUG, which should NOT log IndexWriter output:
-            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
             engine.create(new Engine.Create(null, newUid("1"), doc));
             engine.flush();
             assertFalse(mockAppender.sawIndexWriterMessage);
@@ -1462,14 +1483,14 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         try (Store store = createStore();
              Translog translog = createTranslog();
-             Engine engine = new InternalEngine(config(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService)))) {
+             Engine engine = new InternalEngine(config(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService)), false)) {
             engine.config().setEnableGcDeletes(false);
 
             // Add document
             Document document = testDocument();
             document.add(new TextField("value", "test1", Field.Store.YES));
 
-            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_2, false);
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_2, null);
             engine.index(new Engine.Index(null, newUid("1"), doc, 1, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
 
             // Delete document we just added:
@@ -1598,7 +1619,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testRetryWithAutogeneratedIdWorksAndNoDuplicateDocs() throws IOException {
 
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
         boolean canHaveDuplicates = false;
         boolean autoGeneratedId = true;
 
@@ -1637,7 +1658,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testRetryWithAutogeneratedIdsAndWrongOrderWorksAndNoDuplicateDocs() throws IOException {
 
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
         boolean canHaveDuplicates = true;
         boolean autoGeneratedId = true;
 
@@ -1683,24 +1704,24 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     public void testDeletesAloneCanTriggerRefresh() throws Exception {
         // Tiny indexing buffer:
         Settings indexSettings = ImmutableSettings.builder().put(defaultSettings)
-            .put(EngineConfig.INDEX_BUFFER_SIZE_SETTING, "1kb").build();
+                .put(EngineConfig.INDEX_BUFFER_SIZE_SETTING, "1kb").build();
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), indexSettings);
         try (Store store = createStore();
-            Translog translog = createTranslog();
-            final Engine engine = new InternalEngine(config(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService)))) {
-            for(int i=0;i<100;i++) {
+             Translog translog = createTranslog();
+             final Engine engine = new InternalEngine(config(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService)), false)) {
+            for (int i = 0; i < 100; i++) {
                 String id = Integer.toString(i);
-                ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocument(), B_1, false);
+                ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocument(), B_1, null);
                 engine.index(new Engine.Index(null, newUid(id), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
             }
 
             // Force merge so we know all merges are done before we start deleting:
-            engine.forceMerge(true, 1, false, false);
+            engine.forceMerge(true, 1, false, false, false);
 
             Searcher s = engine.acquireSearcher("test");
             final long version1 = ((DirectoryReader) s.reader()).getVersion();
             s.close();
-            for(int i=0;i<100;i++) {
+            for (int i = 0; i < 100; i++) {
                 String id = Integer.toString(i);
                 engine.delete(new Engine.Delete("test", id, newUid(id), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
             }
@@ -1717,6 +1738,240 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                     assertThat(version2, greaterThan(version1));
                 }
             });
+        }
+    }
+
+    public void testTranslogReplayWithFailure() throws IOException {
+        boolean canHaveDuplicates = true;
+        boolean autoGeneratedId = true;
+        final int numDocs = randomIntBetween(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
+            Engine.Create firstIndexRequest = new Engine.Create(null, newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
+            engine.create(firstIndexRequest);
+            assertThat(firstIndexRequest.version(), equalTo(1l));
+        }
+        engine.refresh("test");
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
+            assertThat(topDocs.totalHits, equalTo(numDocs));
+        }
+        engine.close();
+        boolean recoveredButFailed = false;
+        final MockDirectoryWrapper directory = DirectoryUtils.getLeaf(store.directory(), MockDirectoryWrapper.class);
+        if (directory != null) {
+            // since we rollback the IW we are writing the same segment files again after starting IW but MDW prevents
+            // this so we have to disable the check explicitly
+            directory.setPreventDoubleWrite(false);
+            boolean started = false;
+            final int numIters = randomIntBetween(10, 20);
+            for (int i = 0; i < numIters; i++) {
+                directory.setRandomIOExceptionRateOnOpen(randomDouble());
+                directory.setRandomIOExceptionRate(randomDouble());
+                directory.setFailOnOpenInput(randomBoolean());
+                directory.setAllowRandomFileNotFoundException(randomBoolean());
+                try {
+                    engine = createEngine(store, translog);
+                    started = true;
+                    break;
+                } catch (EngineCreationFailureException ex) {
+                    // sometimes we fail after we committed the recovered docs during the finaly refresh call
+                    // that means hte index is consistent and recovered so we can't assert on the num recovered ops below.
+                        try (IndexReader reader = DirectoryReader.open(directory.getDelegate())) {
+                            if (reader.numDocs() == numDocs) {
+                                recoveredButFailed = true;
+                                break;
+                            } else {
+                                // skip - we just failed
+                            }
+                        }
+                }
+            }
+
+            directory.setRandomIOExceptionRateOnOpen(0.0);
+            directory.setRandomIOExceptionRate(0.0);
+            directory.setFailOnOpenInput(false);
+            directory.setAllowRandomFileNotFoundException(false);
+            if (started == false) {
+                engine = createEngine(store, translog);
+            }
+        } else {
+            // no mock directory, no fun.
+            engine = createEngine(store, translog);
+        }
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
+            assertThat(topDocs.totalHits, equalTo(numDocs));
+        }
+        if (recoveredButFailed == false) {
+            TranslogHandler parser = (TranslogHandler) engine.config().getTranslogRecoveryPerformer();
+            assertEquals(numDocs, parser.recoveredOps.get());
+        }
+    }
+
+    @Test
+    public void testSkipTranslogReplay() throws IOException {
+        boolean canHaveDuplicates = true;
+        boolean autoGeneratedId = true;
+        final int numDocs = randomIntBetween(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
+            Engine.Create firstIndexRequest = new Engine.Create(null, newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
+            engine.create(firstIndexRequest);
+            assertThat(firstIndexRequest.version(), equalTo(1l));
+        }
+        engine.refresh("test");
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
+            assertThat(topDocs.totalHits, equalTo(numDocs));
+        }
+        final MockDirectoryWrapper directory = DirectoryUtils.getLeaf(store.directory(), MockDirectoryWrapper.class);
+        if (directory != null) {
+            // since we rollback the IW we are writing the same segment files again after starting IW but MDW prevents
+            // this so we have to disable the check explicitly
+            directory.setPreventDoubleWrite(false);
+        }
+        long currentTranslogId = translog.currentId();
+        engine.close();
+        engine = new InternalEngine(engine.config(), true);
+        assertTrue(currentTranslogId + "<" + translog.currentId(), currentTranslogId < translog.currentId());
+        assertEquals("translog ID must be incremented by 2 after initial recovery", currentTranslogId + 2, translog.currentId());
+
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
+            assertThat(topDocs.totalHits, equalTo(0));
+        }
+
+    }
+
+    private Mapping dynamicUpdate() {
+        BuilderContext context = new BuilderContext(ImmutableSettings.EMPTY, new ContentPath());
+        final RootObjectMapper root = MapperBuilders.rootObject("some_type").build(context);
+        return new Mapping(root, new RootMapper[0], new Mapping.SourceTransform[0], ImmutableMap.<String, Object>of());
+    }
+
+    public void testTranslogReplay() throws IOException {
+        boolean canHaveDuplicates = true;
+        boolean autoGeneratedId = true;
+        final int numDocs = randomIntBetween(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
+            Engine.Create firstIndexRequest = new Engine.Create(null, newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
+            engine.create(firstIndexRequest);
+            assertThat(firstIndexRequest.version(), equalTo(1l));
+        }
+        engine.refresh("test");
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
+            assertThat(topDocs.totalHits, equalTo(numDocs));
+        }
+        final MockDirectoryWrapper directory = DirectoryUtils.getLeaf(store.directory(), MockDirectoryWrapper.class);
+        if (directory != null) {
+            // since we rollback the IW we are writing the same segment files again after starting IW but MDW prevents
+            // this so we have to disable the check explicitly
+            directory.setPreventDoubleWrite(false);
+        }
+
+        TranslogHandler parser = (TranslogHandler) engine.config().getTranslogRecoveryPerformer();
+        parser.mappingUpdate = dynamicUpdate();
+
+        long currentTranslogId = translog.currentId();
+        engine.close();
+        engine = new InternalEngine(engine.config(), false); // we need to reuse the engine config otherwise the parser.mappingModified won't work
+        assertTrue(currentTranslogId + "<" + translog.currentId(), currentTranslogId < translog.currentId());
+        assertEquals("translog ID must be incremented by 2 after initial recovery", currentTranslogId + 2, translog.currentId());
+
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
+            assertThat(topDocs.totalHits, equalTo(numDocs));
+        }
+        parser = (TranslogHandler) engine.config().getTranslogRecoveryPerformer();
+        assertEquals(numDocs, parser.recoveredOps.get());
+        if (parser.mappingUpdate != null) {
+            assertEquals(1, parser.getRecoveredTypes().size());
+            assertTrue(parser.getRecoveredTypes().containsKey("test"));
+        } else {
+            assertEquals(0, parser.getRecoveredTypes().size());
+        }
+
+        engine.close();
+        engine = createEngine(store, translog);
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
+            assertThat(topDocs.totalHits, equalTo(numDocs));
+        }
+        parser = (TranslogHandler) engine.config().getTranslogRecoveryPerformer();
+        assertEquals(0, parser.recoveredOps.get());
+
+        final boolean flush = randomBoolean();
+        int randomId = randomIntBetween(numDocs + 1, numDocs + 10);
+        String uuidValue = "test#" + Integer.toString(randomId);
+        ParsedDocument doc = testParsedDocument(uuidValue, Integer.toString(randomId), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
+        Engine.Create firstIndexRequest = new Engine.Create(null, newUid(uuidValue), doc, 1, VersionType.EXTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
+        engine.create(firstIndexRequest);
+        assertThat(firstIndexRequest.version(), equalTo(1l));
+        if (flush) {
+            engine.flush();
+        }
+
+        doc = testParsedDocument(uuidValue, Integer.toString(randomId), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
+        Engine.Index idxRequest = new Engine.Index(null, newUid(uuidValue), doc, 2, VersionType.EXTERNAL, PRIMARY, System.nanoTime());
+        engine.index(idxRequest);
+        engine.refresh("test");
+        assertThat(idxRequest.version(), equalTo(2l));
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs + 1);
+            assertThat(topDocs.totalHits, equalTo(numDocs + 1));
+        }
+
+        engine.close();
+        engine = createEngine(store, translog);
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs + 1);
+            assertThat(topDocs.totalHits, equalTo(numDocs + 1));
+        }
+        parser = (TranslogHandler) engine.config().getTranslogRecoveryPerformer();
+        assertEquals(flush ? 1 : 2, parser.recoveredOps.get());
+        engine.delete(new Engine.Delete("test", Integer.toString(randomId), newUid(uuidValue)));
+        if (randomBoolean()) {
+            engine.refresh("test");
+        } else {
+            engine.close();
+            engine = createEngine(store, translog);
+        }
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs);
+            assertThat(topDocs.totalHits, equalTo(numDocs));
+        }
+    }
+
+    public static class TranslogHandler extends TranslogRecoveryPerformer {
+
+        private final DocumentMapper docMapper;
+        public Mapping mappingUpdate = null;
+
+        public final AtomicInteger recoveredOps = new AtomicInteger(0);
+
+        public TranslogHandler(String index) {
+            super(null, new MapperAnalyzer(null), null, null, null);
+            Settings settings = ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+            RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("test");
+            DocumentMapper.Builder b = new DocumentMapper.Builder(index, settings, rootBuilder);
+            DocumentMapperParser parser = new DocumentMapperParser(new Index(index), settings,
+                    new AnalysisService(new Index(index), settings),
+                    new SimilarityLookupService(new Index(index), settings), null);
+            this.docMapper = b.build(parser);
+
+        }
+
+        @Override
+        protected Tuple<DocumentMapper, Mapping> docMapper(String type) {
+            return new Tuple<>(docMapper, mappingUpdate);
+        }
+
+        @Override
+        protected void operationProcessed() {
+            recoveredOps.incrementAndGet();
         }
     }
 

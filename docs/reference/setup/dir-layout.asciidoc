@@ -18,30 +18,22 @@ on the node. Can hold multiple locations. | {path.home}/data| path.data
 | plugins | Plugin files location. Each plugin will be contained in a subdirectory. | {path.home}/plugins | path.plugins
 |=======================================================================
 
-The multiple data locations allows to stripe it. The striping is simple,
-placing whole files in one of the locations, and deciding where to place
-the file based on the value of the `index.store.distributor` setting:
+Multiple `data` paths may be specified, in order to spread data across
+multiple disks or locations, but all of the files from a single shard will be
+written to the same path. This can be configured as follows:
 
-* `least_used` (default) always selects the directory with the most
-available space +
- * `random` selects directories at random. The probability of selecting
-a particular directory is proportional to amount of available space in
-this directory.
+    ---------------------------------
+    path.data: /mnt/first,/mnt/second
+    ---------------------------------
 
-Note, there are no multiple copies of the same data, in that, its
-similar to RAID 0. Though simple, it should provide a good solution for
-people that don't want to mess with RAID. Here is how it is configured:
+ Or  in an array format:
 
----------------------------------
-path.data: /mnt/first,/mnt/second
----------------------------------
+    ----------------------------------------
+    path.data: ["/mnt/first", "/mnt/second"]
+    ----------------------------------------
 
-Or the in an array format:
-
-----------------------------------------
-path.data: ["/mnt/first", "/mnt/second"]
-----------------------------------------
-
+TIP:  To stripe shards across multiple disks, please use a RAID driver
+instead.
 
 [float]
 [[default-paths]]

@@ -59,7 +59,7 @@ public class MatchAllQueryParser implements QueryParser {
                 if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[match_all] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[match_all] query does not support [" + currentFieldName + "]");
                 }
             }
         }
@@ -68,8 +68,6 @@ public class MatchAllQueryParser implements QueryParser {
             return Queries.newMatchAllQuery();
         }
 
-        //LUCENE 4 UPGRADE norms field is not supported anymore need to find another way or drop the functionality
-        //MatchAllDocsQuery query = new MatchAllDocsQuery(normsField);
         MatchAllDocsQuery query = new MatchAllDocsQuery();
         query.setBoost(boost);
         return query;

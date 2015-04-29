@@ -42,7 +42,7 @@ public class EnvironmentTests extends ElasticsearchTestCase {
     public Environment newEnvironment(Settings settings) throws IOException {
         Settings build = ImmutableSettings.builder()
                 .put(settings)
-                .put("path.home", newTempDirPath().toAbsolutePath())
+                .put("path.home", createTempDir().toAbsolutePath())
                 .putArray("path.data", tmpPaths()).build();
         return new Environment(build);
     }

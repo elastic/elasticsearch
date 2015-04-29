@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -117,7 +118,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         this.indicesService = indicesService;
         this.transportService = transportService;
 
-        transportService.registerHandler(UPDATE_SNAPSHOT_ACTION_NAME, new UpdateSnapshotStateRequestHandler());
+        transportService.registerRequestHandler(UPDATE_SNAPSHOT_ACTION_NAME, UpdateIndexShardSnapshotStatusRequest.class, ThreadPool.Names.SAME, new UpdateSnapshotStateRequestHandler());
 
         // addLast to make sure that Repository will be created before snapshot
         clusterService.addLast(this);
@@ -131,7 +132,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @throws SnapshotMissingException if snapshot is not found
      */
     public Snapshot snapshot(SnapshotId snapshotId) {
-        ImmutableList<SnapshotMetaData.Entry> entries = currentSnapshots(snapshotId.getRepository(), new String[] {snapshotId.getSnapshot()});
+        ImmutableList<SnapshotMetaData.Entry> entries = currentSnapshots(snapshotId.getRepository(), new String[]{snapshotId.getSnapshot()});
         if (!entries.isEmpty()) {
             return inProgressSnapshot(entries.iterator().next());
         }
@@ -246,7 +247,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @param state   current cluster state
      * @throws org.elasticsearch.ElasticsearchException
      */
-    private void validate(SnapshotRequest request, ClusterState state) throws ElasticsearchException {
+    private void validate(SnapshotRequest request, ClusterState state) {
         RepositoriesMetaData repositoriesMetaData = state.getMetaData().custom(RepositoriesMetaData.TYPE);
         if (repositoriesMetaData == null || repositoriesMetaData.repository(request.repository()) == null) {
             throw new RepositoryMissingException(request.repository());
@@ -323,11 +324,25 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                             // Replace the snapshot that was just created
                             ImmutableMap<ShardId, SnapshotMetaData.ShardSnapshotStatus> shards = shards(currentState, entry.indices());
                             if (!partial) {
-                                Set<String> indicesWithMissingShards = indicesWithMissingShards(shards);
-                                if (indicesWithMissingShards != null) {
+                                Tuple<Set<String>, Set<String>> indicesWithMissingShards = indicesWithMissingShards(shards, currentState.metaData());
+                                Set<String> missing = indicesWithMissingShards.v1();
+                                Set<String> closed = indicesWithMissingShards.v2();
+                                if (missing.isEmpty() == false || closed.isEmpty() == false) {
+                                    StringBuilder failureMessage = new StringBuilder();
                                     updatedSnapshot = new SnapshotMetaData.Entry(entry, State.FAILED, shards);
                                     entries.add(updatedSnapshot);
-                                    failure = "Indices don't have primary shards +[" + indicesWithMissingShards + "]";
+                                    if (missing.isEmpty() == false ) {
+                                        failureMessage.append("Indices don't have primary shards ");
+                                        failureMessage.append(missing);
+                                    }
+                                    if (closed.isEmpty() == false ) {
+                                        if (failureMessage.length() > 0) {
+                                            failureMessage.append("; ");
+                                        }
+                                        failureMessage.append("Indices are closed ");
+                                        failureMessage.append(closed);
+                                    }
+                                    failure = failureMessage.toString();
                                     continue;
                                 }
                             }
@@ -894,22 +909,24 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     }
 
     /**
-     * Returns list of indices with missing shards
+     * Returns list of indices with missing shards, and list of indices that are closed
      *
      * @param shards list of shard statuses
-     * @return list of failed indices
+     * @return list of failed and closed indices
      */
-    private Set<String> indicesWithMissingShards(ImmutableMap<ShardId, SnapshotMetaData.ShardSnapshotStatus> shards) {
-        Set<String> indices = null;
+    private Tuple<Set<String>, Set<String>> indicesWithMissingShards(ImmutableMap<ShardId, SnapshotMetaData.ShardSnapshotStatus> shards, MetaData metaData) {
+        Set<String> missing = newHashSet();
+        Set<String> closed = newHashSet();
         for (ImmutableMap.Entry<ShardId, SnapshotMetaData.ShardSnapshotStatus> entry : shards.entrySet()) {
             if (entry.getValue().state() == State.MISSING) {
-                if (indices == null) {
-                    indices = newHashSet();
+                if (metaData.hasIndex(entry.getKey().getIndex()) && metaData.index(entry.getKey().getIndex()).getState() == IndexMetaData.State.CLOSE) {
+                    closed.add(entry.getKey().getIndex());
+                } else {
+                    missing.add(entry.getKey().getIndex());
                 }
-                indices.add(entry.getKey().getIndex());
             }
         }
-        return indices;
+        return new Tuple<>(missing, closed);
     }
 
     /**
@@ -1238,6 +1255,11 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
             if (indexMetaData == null) {
                 // The index was deleted before we managed to start the snapshot - mark it as missing.
                 builder.put(new ShardId(index, 0), new SnapshotMetaData.ShardSnapshotStatus(null, State.MISSING, "missing index"));
+            } else if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                for (int i = 0; i < indexMetaData.numberOfShards(); i++) {
+                    ShardId shardId = new ShardId(index, i);
+                    builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(null, State.MISSING, "index is closed"));
+                }
             } else {
                 IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().index(index);
                 for (int i = 0; i < indexMetaData.numberOfShards(); i++) {
@@ -1283,12 +1305,12 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
 
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         shutdownLock.lock();
         try {
             while(!shardSnapshots.isEmpty() && shutdownCondition.await(5, TimeUnit.SECONDS)) {
@@ -1302,7 +1324,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
 
     }
 
@@ -1582,25 +1604,12 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     /**
      * Transport request handler that is used to send changes in snapshot status to master
      */
-    private class UpdateSnapshotStateRequestHandler extends BaseTransportRequestHandler<UpdateIndexShardSnapshotStatusRequest> {
-
-        @Override
-        public UpdateIndexShardSnapshotStatusRequest newInstance() {
-            return new UpdateIndexShardSnapshotStatusRequest();
-        }
-
+    class UpdateSnapshotStateRequestHandler implements TransportRequestHandler<UpdateIndexShardSnapshotStatusRequest> {
         @Override
         public void messageReceived(UpdateIndexShardSnapshotStatusRequest request, final TransportChannel channel) throws Exception {
             innerUpdateSnapshotState(request);
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
     }
-
-
 }
 

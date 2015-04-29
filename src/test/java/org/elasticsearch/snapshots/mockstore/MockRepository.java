@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots.mockstore;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryName;
@@ -111,7 +113,7 @@ public class MockRepository extends FsRepository {
     }
 
     private static Settings localizeLocation(Settings settings, ClusterService clusterService) {
-        Path location = Paths.get(settings.get("location"));
+        Path location = PathUtils.get(settings.get("location"));
         location = location.resolve(clusterService.localNode().getId());
         return settingsBuilder().put(settings).put("location", location.toAbsolutePath()).build();
     }
@@ -121,7 +123,7 @@ public class MockRepository extends FsRepository {
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         unblock();
         super.doStop();
     }

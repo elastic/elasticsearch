@@ -28,7 +28,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
@@ -67,11 +69,11 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
                 if ("params".equals(currentFieldName)) {
                     vars = parser.map();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), NAMES[0] + " query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if (!scriptParameterParser.token(currentFieldName, token, parser)) {
-                    throw new QueryParsingException(parseContext.index(), NAMES[0] + " query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
             }
         }
@@ -82,15 +84,15 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
             scriptType = scriptValue.scriptType();
         }
         if (script == null) {
-            throw new QueryParsingException(parseContext.index(), NAMES[0] + " requires 'script' field");
+            throw new QueryParsingException(parseContext, NAMES[0] + " requires 'script' field");
         }
 
         SearchScript searchScript;
         try {
-            searchScript = parseContext.scriptService().search(parseContext.lookup(), scriptParameterParser.lang(), script, scriptType, ScriptContext.Standard.SEARCH, vars);
+            searchScript = parseContext.scriptService().search(parseContext.lookup(), new Script(scriptParameterParser.lang(), script, scriptType, vars), ScriptContext.Standard.SEARCH);
             return new ScriptScoreFunction(script, vars, searchScript);
         } catch (Exception e) {
-            throw new QueryParsingException(parseContext.index(), NAMES[0] + " the script could not be loaded", e);
+            throw new QueryParsingException(parseContext, NAMES[0] + " the script could not be loaded", e);
         }
     }
 }

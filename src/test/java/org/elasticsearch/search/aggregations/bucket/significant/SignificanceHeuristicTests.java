@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -43,7 +42,6 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.junit.Test;
@@ -57,6 +55,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -88,7 +87,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         SignificanceHeuristicStreams.registerStream(GND.STREAM, GND.STREAM.getName());
         SignificanceHeuristicStreams.registerStream(ChiSquare.STREAM, ChiSquare.STREAM.getName());
         SignificanceHeuristicStreams.registerStream(ScriptHeuristic.STREAM, ScriptHeuristic.STREAM.getName());
-        Version version = ElasticsearchIntegrationTest.randomVersion();
+        Version version = randomVersion(random());
         InternalSignificantTerms[] sigTerms = getRandomSignificantTerms(getRandomSignificanceheuristic());
 
         // write
@@ -224,35 +223,35 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         try {
             heuristicIsSuperset.getScore(2, 3, 1, 4);
             fail();
-        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+        } catch (IllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("subsetFreq > supersetFreq"));
         }
         try {
             heuristicIsSuperset.getScore(1, 4, 2, 3);
             fail();
-        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+        } catch (IllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("subsetSize > supersetSize"));
         }
         try {
             heuristicIsSuperset.getScore(2, 1, 3, 4);
             fail();
-        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+        } catch (IllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("subsetFreq > subsetSize"));
         }
         try {
             heuristicIsSuperset.getScore(1, 2, 4, 3);
             fail();
-        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+        } catch (IllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("supersetFreq > supersetSize"));
         }
         try {
             heuristicIsSuperset.getScore(1, 3, 4, 4);
             fail();
-        } catch (ElasticsearchIllegalArgumentException assertionError) {
+        } catch (IllegalArgumentException assertionError) {
             assertNotNull(assertionError.getMessage());
             assertTrue(assertionError.getMessage().contains("supersetFreq - subsetFreq > supersetSize - subsetSize"));
         }
@@ -262,21 +261,21 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
             values[idx] *= -1;
             heuristicIsSuperset.getScore(values[0], values[1], values[2], values[3]);
             fail();
-        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+        } catch (IllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("Frequencies of subset and superset must be positive"));
         }
         try {
             heuristicNotSuperset.getScore(2, 1, 3, 4);
             fail();
-        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+        } catch (IllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("subsetFreq > subsetSize"));
         }
         try {
             heuristicNotSuperset.getScore(1, 2, 4, 3);
             fail();
-        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+        } catch (IllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("supersetFreq > supersetSize"));
         }
@@ -286,7 +285,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
             values[idx] *= -1;
             heuristicNotSuperset.getScore(values[0], values[1], values[2], values[3]);
             fail();
-        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+        } catch (IllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("Frequencies of subset and superset must be positive"));
         }
@@ -299,21 +298,21 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
             values[idx] *= -1;
             heuristic.getScore(values[0], values[1], values[2], values[3]);
             fail();
-        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+        } catch (IllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("Frequencies of subset and superset must be positive"));
         }
         try {
             heuristic.getScore(1, 2, 4, 3);
             fail();
-        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+        } catch (IllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("supersetFreq > supersetSize"));
         }
         try {
             heuristic.getScore(2, 1, 3, 4);
             fail();
-        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+        } catch (IllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("subsetFreq > subsetSize"));
         }
@@ -353,7 +352,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
             long c = randomLong();
             long d = randomLong();
             score = heuristic.getScore(a, b, c, d);
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
         }
         assertThat(score, greaterThanOrEqualTo(0.0));
     }
@@ -376,7 +375,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
             long c = randomLong();
             long d = randomLong();
             score = heuristic.getScore(a, b, c, d);
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
         }
         assertThat(score, lessThanOrEqualTo(1.0));
         assertThat(score, greaterThanOrEqualTo(0.0));

@@ -197,7 +197,7 @@ public class MultiTermVectorsTests extends AbstractTermVectorsTests {
     }
 
     private void checkTermTexts(Terms terms, String[] expectedTexts) throws IOException {
-        final TermsEnum termsEnum = terms.iterator(null);
+        final TermsEnum termsEnum = terms.iterator();
         for (String expectedText : expectedTexts) {
             assertThat(termsEnum.next().utf8ToString(), equalTo(expectedText));
         }

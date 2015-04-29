@@ -19,9 +19,11 @@
 
 package org.elasticsearch.search.innerhits;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
@@ -161,7 +163,7 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
             assertThat(innerHits.getTotalHits(), equalTo(2l));
             assertThat(innerHits.getHits().length, equalTo(1));
             assertThat(innerHits.getAt(0).getHighlightFields().get("comments.message").getFragments()[0].string(), equalTo("<em>fox</em> eat quick"));
-            assertThat(innerHits.getAt(0).explanation().toString(), containsString("(MATCH) weight(comments.message:fox in"));
+            assertThat(innerHits.getAt(0).explanation().toString(), containsString("weight(comments.message:fox in"));
             assertThat(innerHits.getAt(0).getFields().get("comments.message").getValue().toString(), equalTo("eat"));
             assertThat(innerHits.getAt(0).getFields().get("script").getValue().toString(), equalTo("eat"));
         }
@@ -338,7 +340,7 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
             SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
             assertThat(innerHits.getHits().length, equalTo(1));
             assertThat(innerHits.getAt(0).getHighlightFields().get("message").getFragments()[0].string(), equalTo("<em>fox</em> eat quick"));
-            assertThat(innerHits.getAt(0).explanation().toString(), containsString("(MATCH) weight(message:fox"));
+            assertThat(innerHits.getAt(0).explanation().toString(), containsString("weight(message:fox"));
             assertThat(innerHits.getAt(0).getFields().get("message").getValue().toString(), equalTo("eat"));
             assertThat(innerHits.getAt(0).getFields().get("script").getValue().toString(), equalTo("eat"));
         }
@@ -772,7 +774,7 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testNestedInnerHitsWithExcludeSource() throws Exception {
-        assertAcked(prepareCreate("articles")
+        assertAcked(prepareCreate("articles").setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
                         .addMapping("article", jsonBuilder().startObject()
                                         .startObject("_source").field("excludes", new String[]{"comments"}).endObject()
                                         .startObject("properties")
@@ -810,7 +812,7 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testNestedInnerHitsHiglightWithExcludeSource() throws Exception {
-        assertAcked(prepareCreate("articles")
+        assertAcked(prepareCreate("articles").setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
                         .addMapping("article", jsonBuilder().startObject()
                                         .startObject("_source").field("excludes", new String[]{"comments"}).endObject()
                                         .startObject("properties")

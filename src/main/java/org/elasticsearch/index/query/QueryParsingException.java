@@ -19,25 +19,81 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexException;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
  *
  */
 public class QueryParsingException extends IndexException {
 
-    public QueryParsingException(Index index, String msg) {
-        super(index, msg);
+    static final int UNKNOWN_POSITION = -1;
+    private int lineNumber = UNKNOWN_POSITION;
+    private int columnNumber = UNKNOWN_POSITION;
+
+    public QueryParsingException(QueryParseContext parseContext, String msg) {
+        this(parseContext, msg, null);
     }
 
-    public QueryParsingException(Index index, String msg, Throwable cause) {
+    public QueryParsingException(QueryParseContext parseContext, String msg, Throwable cause) {
+        super(parseContext.index(), msg, cause);
+
+        XContentParser parser = parseContext.parser();
+        if (parser != null) {
+            XContentLocation location = parser.getTokenLocation();
+            if (location != null) {
+                lineNumber = location.lineNumber;
+                columnNumber = location.columnNumber;
+            }
+        }
+    }
+
+    /**
+     * This constructor is provided for use in unit tests where a
+     * {@link QueryParseContext} may not be available
+     */
+    QueryParsingException(Index index, int line, int col, String msg, Throwable cause) {
         super(index, msg, cause);
+        this.lineNumber = line;
+        this.columnNumber = col;
+    }
+
+    /**
+     * Line number of the location of the error
+     * 
+     * @return the line number or -1 if unknown
+     */
+    public int getLineNumber() {
+        return lineNumber;
+    }
+
+    /**
+     * Column number of the location of the error
+     * 
+     * @return the column number or -1 if unknown
+     */
+    public int getColumnNumber() {
+        return columnNumber;
     }
 
     @Override
     public RestStatus status() {
         return RestStatus.BAD_REQUEST;
     }
+
+    @Override
+    protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        if (lineNumber != UNKNOWN_POSITION) {
+            builder.field("line", lineNumber);
+            builder.field("col", columnNumber);
+        }
+        super.innerToXContent(builder, params);
+    }
+
 }

@@ -46,7 +46,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
     @Inject
     public TransportMultiTermVectorsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                            ClusterService clusterService, TransportShardMultiTermsVectorAction shardAction, ActionFilters actionFilters) {
-        super(settings, MultiTermVectorsAction.NAME, threadPool, transportService, actionFilters);
+        super(settings, MultiTermVectorsAction.NAME, threadPool, transportService, actionFilters, MultiTermVectorsRequest.class);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
     }
@@ -126,10 +126,5 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                 }
             });
         }
-    }
-
-    @Override
-    public MultiTermVectorsRequest newRequestInstance() {
-        return new MultiTermVectorsRequest();
     }
 }

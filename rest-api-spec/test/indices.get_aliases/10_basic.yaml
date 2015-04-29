@@ -202,7 +202,7 @@ setup:
 "Getting alias on an non-existent index should return 404":
 
   - skip:
-        version: 1 - 999
+        version: "1.0.0.Beta1 - "
         reason:  not implemented yet
   - do:
       catch: missing

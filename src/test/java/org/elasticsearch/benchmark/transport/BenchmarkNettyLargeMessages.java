@@ -73,17 +73,7 @@ public class BenchmarkNettyLargeMessages {
         transportServiceClient.connectToNode(bigNode);
         transportServiceClient.connectToNode(smallNode);
 
-        transportServiceServer.registerHandler("benchmark", new BaseTransportRequestHandler<BenchmarkMessageRequest>() {
-            @Override
-            public BenchmarkMessageRequest newInstance() {
-                return new BenchmarkMessageRequest();
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
-
+        transportServiceServer.registerRequestHandler("benchmark", BenchmarkMessageRequest.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<BenchmarkMessageRequest>() {
             @Override
             public void messageReceived(BenchmarkMessageRequest request, TransportChannel channel) throws Exception {
                 channel.sendResponse(new BenchmarkMessageResponse(request));

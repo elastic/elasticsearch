@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
@@ -58,7 +57,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
 
     @Inject
     public TransportSnapshotsStatusAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, SnapshotsService snapshotsService, TransportNodesSnapshotsStatus transportNodesSnapshotsStatus, ActionFilters actionFilters) {
-        super(settings, SnapshotsStatusAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, SnapshotsStatusAction.NAME, transportService, clusterService, threadPool, actionFilters, SnapshotsStatusRequest.class);
         this.snapshotsService = snapshotsService;
         this.transportNodesSnapshotsStatus = transportNodesSnapshotsStatus;
     }
@@ -70,12 +69,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
 
     @Override
     protected ClusterBlockException checkBlock(SnapshotsStatusRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
-    }
-
-    @Override
-    protected SnapshotsStatusRequest newRequest() {
-        return new SnapshotsStatusRequest();
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
@@ -185,7 +179,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
                             stage = SnapshotIndexShardStage.DONE;
                             break;
                         default:
-                            throw new ElasticsearchIllegalArgumentException("Unknown snapshot state " + shardEntry.getValue().state());
+                            throw new IllegalArgumentException("Unknown snapshot state " + shardEntry.getValue().state());
                     }
                     SnapshotIndexShardStatus shardStatus = new SnapshotIndexShardStatus(shardEntry.getKey(), stage);
                     shardStatusBuilder.add(shardStatus);
@@ -221,7 +215,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
                                 state = SnapshotMetaData.State.SUCCESS;
                                 break;
                             default:
-                                throw new ElasticsearchIllegalArgumentException("Unknown snapshot state " + snapshot.state());
+                                throw new IllegalArgumentException("Unknown snapshot state " + snapshot.state());
                         }
                         builder.add(new SnapshotStatus(snapshotId, state, shardStatusBuilder.build()));
                     }

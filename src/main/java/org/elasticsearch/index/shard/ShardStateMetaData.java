@@ -20,8 +20,6 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -30,8 +28,6 @@ import org.elasticsearch.gateway.MetaDataStateFormat;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.file.Path;
-import java.util.regex.Pattern;
 
 /**
  */
@@ -142,5 +138,4 @@ public final class ShardStateMetaData {
             return new ShardStateMetaData(version, primary, indexUUID);
         }
     };
-
 }

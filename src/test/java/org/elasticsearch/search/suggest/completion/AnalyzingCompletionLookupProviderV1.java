@@ -140,7 +140,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
                     if (terms == null) {
                         continue;
                     }
-                    TermsEnum termsEnum = terms.iterator(null);
+                    TermsEnum termsEnum = terms.iterator();
                     PostingsEnum docsEnum = null;
                     final SuggestPayload spare = new SuggestPayload();
                     int maxAnalyzedPathsForOneInput = 0;

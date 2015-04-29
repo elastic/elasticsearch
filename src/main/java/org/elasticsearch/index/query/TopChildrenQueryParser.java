@@ -23,6 +23,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -31,11 +32,8 @@ import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.index.search.child.TopChildrenQuery;
-import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 
 import java.io.IOException;
-
-import static org.elasticsearch.index.query.QueryParserUtils.ensureNotDeleteByQuery;
 
 /**
  *
@@ -55,7 +53,6 @@ public class TopChildrenQueryParser implements QueryParser {
 
     @Override
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
-        ensureNotDeleteByQuery(NAME, parseContext);
         XContentParser parser = parseContext.parser();
 
         boolean queryFound = false;
@@ -81,7 +78,7 @@ public class TopChildrenQueryParser implements QueryParser {
                     iq = new XContentStructure.InnerQuery(parseContext, childType == null ? null : new String[] {childType});
                     queryFound = true;
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[top_children] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[top_children] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName)) {
@@ -99,15 +96,15 @@ public class TopChildrenQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[top_children] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[top_children] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (!queryFound) {
-            throw new QueryParsingException(parseContext.index(), "[top_children] requires 'query' field");
+            throw new QueryParsingException(parseContext, "[top_children] requires 'query' field");
         }
         if (childType == null) {
-            throw new QueryParsingException(parseContext.index(), "[top_children] requires 'type' field");
+            throw new QueryParsingException(parseContext, "[top_children] requires 'type' field");
         }
 
         Query innerQuery = iq.asQuery(childType);
@@ -118,17 +115,17 @@ public class TopChildrenQueryParser implements QueryParser {
 
         DocumentMapper childDocMapper = parseContext.mapperService().documentMapper(childType);
         if (childDocMapper == null) {
-            throw new QueryParsingException(parseContext.index(), "No mapping for for type [" + childType + "]");
+            throw new QueryParsingException(parseContext, "No mapping for for type [" + childType + "]");
         }
         ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
         if (!parentFieldMapper.active()) {
-            throw new QueryParsingException(parseContext.index(), "Type [" + childType + "] does not have parent mapping");
+            throw new QueryParsingException(parseContext, "Type [" + childType + "] does not have parent mapping");
         }
         String parentType = childDocMapper.parentFieldMapper().type();
 
         BitDocIdSetFilter nonNestedDocsFilter = null;
         if (childDocMapper.hasNestedObjects()) {
-            nonNestedDocsFilter = parseContext.bitsetFilter(NonNestedDocsFilter.INSTANCE);
+            nonNestedDocsFilter = parseContext.bitsetFilter(Queries.newNonNestedFilter());
         }
 
         innerQuery.setBoost(boost);

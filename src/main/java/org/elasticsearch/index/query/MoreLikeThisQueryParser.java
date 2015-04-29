@@ -21,14 +21,13 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.queries.TermsFilter;
+import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
@@ -156,7 +155,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 } else if (Fields.INCLUDE.match(currentFieldName, parseContext.parseFlags())) {
                     include = parser.booleanValue();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[mlt] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (Fields.STOP_WORDS.match(currentFieldName, parseContext.parseFlags())) {
@@ -173,14 +172,14 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 } else if (Fields.DOCUMENT_IDS.match(currentFieldName, parseContext.parseFlags())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (!token.isValue()) {
-                            throw new ElasticsearchIllegalArgumentException("ids array element should only contain ids");
+                            throw new IllegalArgumentException("ids array element should only contain ids");
                         }
                         likeItems.add(newTermVectorsRequest().id(parser.text()));
                     }
                 } else if (Fields.DOCUMENTS.match(currentFieldName, parseContext.parseFlags())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token != XContentParser.Token.START_OBJECT) {
-                            throw new ElasticsearchIllegalArgumentException("docs array element should include an object");
+                            throw new IllegalArgumentException("docs array element should include an object");
                         }
                         likeItems.add(parseDocument(parser));
                     }
@@ -193,7 +192,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
                         parseLikeField(parser, ignoreTexts, ignoreItems);
                     }
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[mlt] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (Fields.LIKE.match(currentFieldName, parseContext.parseFlags())) {
@@ -202,16 +201,16 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 else if (Fields.IGNORE_LIKE.match(currentFieldName, parseContext.parseFlags())) {
                     parseLikeField(parser, ignoreTexts, ignoreItems);
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[mlt] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (likeTexts.isEmpty() && likeItems.isEmpty()) {
-            throw new QueryParsingException(parseContext.index(), "more_like_this requires 'like' to be specified");
+            throw new QueryParsingException(parseContext, "more_like_this requires 'like' to be specified");
         }
         if (moreLikeFields != null && moreLikeFields.isEmpty()) {
-            throw new QueryParsingException(parseContext.index(), "more_like_this requires 'fields' to be non-empty");
+            throw new QueryParsingException(parseContext, "more_like_this requires 'fields' to be non-empty");
         }
 
         // set analyzer
@@ -259,8 +258,9 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 }
                 if (item.type() == null) {
                     if (parseContext.queryTypes().size() > 1) {
-                        throw new QueryParsingException(parseContext.index(),
-                                "ambiguous type for item with id: " + item.id() + " and index: " + item.index());
+                        throw new QueryParsingException(parseContext,
+                                    "ambiguous type for item with id: " + item.id()
+                                + " and index: " + item.index());
                     } else {
                         item.type(parseContext.queryTypes().iterator().next());
                     }
@@ -313,7 +313,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
         } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
             items.add(parseDocument(parser));
         } else {
-            throw new ElasticsearchIllegalArgumentException("Content of 'like' parameter should either be a string or an object");
+            throw new IllegalArgumentException("Content of 'like' parameter should either be a string or an object");
         }
     }
 
@@ -331,7 +331,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
             final String fieldName = it.next();
             if (!Analysis.generatesCharacterTokenStream(analyzer, fieldName)) {
                 if (failOnUnsupportedField) {
-                    throw new ElasticsearchIllegalArgumentException("more_like_this doesn't support binary/numeric fields: [" + fieldName + "]");
+                    throw new IllegalArgumentException("more_like_this doesn't support binary/numeric fields: [" + fieldName + "]");
                 } else {
                     it.remove();
                 }
@@ -350,8 +350,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
             uids.add(createUidAsBytes(item.type(), item.id()));
         }
         if (!uids.isEmpty()) {
-            TermsFilter filter = new TermsFilter(UidFieldMapper.NAME, uids.toArray(new BytesRef[0]));
-            ConstantScoreQuery query = new ConstantScoreQuery(filter);
+            TermsQuery query = new TermsQuery(UidFieldMapper.NAME, uids.toArray(new BytesRef[0]));
             boolQuery.add(query, BooleanClause.Occur.MUST_NOT);
         }
     }

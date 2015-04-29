@@ -139,8 +139,9 @@ public class SimpleQueryStringParser implements QueryParser {
                         }
                     }
                 } else {
-                    throw new QueryParsingException(parseContext.index(),
-                            "[" + NAME + "] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext,
+ "[" + NAME + "] query does not support [" + currentFieldName
+ + "]");
                 }
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {
@@ -148,7 +149,7 @@ public class SimpleQueryStringParser implements QueryParser {
                 } else if ("analyzer".equals(currentFieldName)) {
                     analyzer = parseContext.analysisService().analyzer(parser.text());
                     if (analyzer == null) {
-                        throw new QueryParsingException(parseContext.index(), "[" + NAME + "] analyzer [" + parser.text() + "] not found");
+                        throw new QueryParsingException(parseContext, "[" + NAME + "] analyzer [" + parser.text() + "] not found");
                     }
                 } else if ("field".equals(currentFieldName)) {
                     field = parser.text();
@@ -159,8 +160,7 @@ public class SimpleQueryStringParser implements QueryParser {
                     } else if ("and".equalsIgnoreCase(op)) {
                         defaultOperator = BooleanClause.Occur.MUST;
                     } else {
-                        throw new QueryParsingException(parseContext.index(),
-                                "[" + NAME + "] default operator [" + op + "] is not allowed");
+                        throw new QueryParsingException(parseContext, "[" + NAME + "] default operator [" + op + "] is not allowed");
                     }
                 } else if ("flags".equals(currentFieldName)) {
                     if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {
@@ -188,14 +188,14 @@ public class SimpleQueryStringParser implements QueryParser {
                 } else if ("minimum_should_match".equals(currentFieldName)) {
                     minimumShouldMatch = parser.textOrNull();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[" + NAME + "] unsupported field [" + parser.currentName() + "]");
+                    throw new QueryParsingException(parseContext, "[" + NAME + "] unsupported field [" + parser.currentName() + "]");
                 }
             }
         }
 
         // Query text is required
         if (queryBody == null) {
-            throw new QueryParsingException(parseContext.index(), "[" + NAME + "] query text missing");
+            throw new QueryParsingException(parseContext, "[" + NAME + "] query text missing");
         }
 
         // Support specifying only a field instead of a map

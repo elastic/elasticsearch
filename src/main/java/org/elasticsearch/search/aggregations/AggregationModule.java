@@ -39,6 +39,7 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeParser;
 import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeParser;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceParser;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IpRangeParser;
+import org.elasticsearch.search.aggregations.bucket.sampler.SamplerParser;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsParser;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificantTermsHeuristicModule;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsParser;
@@ -87,6 +88,7 @@ public class AggregationModule extends AbstractModule implements SpawnModules{
         aggParsers.add(MissingParser.class);
         aggParsers.add(FilterParser.class);
         aggParsers.add(FiltersParser.class);
+        aggParsers.add(SamplerParser.class);
         aggParsers.add(TermsParser.class);
         aggParsers.add(SignificantTermsParser.class);
         aggParsers.add(RangeParser.class);

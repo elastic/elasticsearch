@@ -20,16 +20,25 @@
 package org.elasticsearch.common.lucene;
 
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
+
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.ComplexExplanation;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Filter;
@@ -43,17 +52,19 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
-import org.apache.lucene.search.TotalHitCountCollector;
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.Lock;
+import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
@@ -63,7 +74,11 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.lucene.search.NoopCollector.NOOP_COLLECTOR;
 
@@ -235,10 +250,7 @@ public class Lucene {
     }
 
     public static long count(IndexSearcher searcher, Query query) throws IOException {
-        TotalHitCountCollector countCollector = new TotalHitCountCollector();
-        query = wrapCountQuery(query);
-        searcher.search(query, countCollector);
-        return countCollector.getTotalHits();
+        return searcher.count(query);
     }
 
     /**
@@ -312,7 +324,6 @@ public class Lucene {
      */
     public static boolean countWithEarlyTermination(IndexSearcher searcher, Filter filter, Query query,
                                                         EarlyTerminatingCollector collector) throws IOException {
-        query = wrapCountQuery(query);
         try {
             if (filter == null) {
                 searcher.search(query, collector);
@@ -332,14 +343,6 @@ public class Lucene {
      */
     public final static EarlyTerminatingCollector createExistsCollector() {
         return createCountBasedEarlyTerminatingCollector(1);
-    }
-
-    private final static Query wrapCountQuery(Query query) {
-        // we don't need scores, so wrap it in a constant score query
-        if (!(query instanceof ConstantScoreQuery)) {
-            query = new ConstantScoreQuery(query);
-        }
-        return query;
     }
 
     /**
@@ -508,7 +511,7 @@ public class Lucene {
 
     public static void writeScoreDoc(StreamOutput out, ScoreDoc scoreDoc) throws IOException {
         if (!scoreDoc.getClass().equals(ScoreDoc.class)) {
-            throw new ElasticsearchIllegalArgumentException("This method can only be used to serialize a ScoreDoc, not a " + scoreDoc.getClass());
+            throw new IllegalArgumentException("This method can only be used to serialize a ScoreDoc, not a " + scoreDoc.getClass());
         }
         out.writeVInt(scoreDoc.doc);
         out.writeFloat(scoreDoc.score);
@@ -524,45 +527,29 @@ public class Lucene {
     }
 
     public static Explanation readExplanation(StreamInput in) throws IOException {
-        Explanation explanation;
-        if (in.readBoolean()) {
-            Boolean match = in.readOptionalBoolean();
-            explanation = new ComplexExplanation();
-            ((ComplexExplanation) explanation).setMatch(match);
-
+        boolean match = in.readBoolean();
+        String description = in.readString();
+        final Explanation[] subExplanations = new Explanation[in.readVInt()];
+        for (int i = 0; i < subExplanations.length; ++i) {
+            subExplanations[i] = readExplanation(in);
+        }
+        if (match) {
+            return Explanation.match(in.readFloat(), description, subExplanations);
         } else {
-            explanation = new Explanation();
+            return Explanation.noMatch(description, subExplanations);
         }
-        explanation.setValue(in.readFloat());
-        explanation.setDescription(in.readString());
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            for (int i = 0; i < size; i++) {
-                explanation.addDetail(readExplanation(in));
-            }
-        }
-        return explanation;
     }
 
     public static void writeExplanation(StreamOutput out, Explanation explanation) throws IOException {
-
-        if (explanation instanceof ComplexExplanation) {
-            out.writeBoolean(true);
-            out.writeOptionalBoolean(((ComplexExplanation) explanation).getMatch());
-        } else {
-            out.writeBoolean(false);
-        }
-        out.writeFloat(explanation.getValue());
+        out.writeBoolean(explanation.isMatch());
         out.writeString(explanation.getDescription());
         Explanation[] subExplanations = explanation.getDetails();
-        if (subExplanations == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeVInt(subExplanations.length);
-            for (Explanation subExp : subExplanations) {
-                writeExplanation(out, subExp);
-            }
+        out.writeVInt(subExplanations.length);
+        for (Explanation subExp : subExplanations) {
+            writeExplanation(out, subExp);
+        }
+        if (explanation.isMatch()) {
+            out.writeFloat(explanation.getValue());
         }
     }
 
@@ -644,6 +631,35 @@ public class Lucene {
     }
 
     /**
+     * Wait for an index to exist for up to {@code timeLimitMillis}. Returns
+     * true if the index eventually exists, false if not.
+     *
+     * Will retry the directory every second for at least {@code timeLimitMillis}
+     */
+    public static final boolean waitForIndex(final Directory directory, final long timeLimitMillis)
+            throws IOException {
+        final long DELAY = 1000;
+        long waited = 0;
+        try {
+            while (true) {
+                if (waited >= timeLimitMillis) {
+                    break;
+                }
+                if (indexExists(directory)) {
+                    return true;
+                }
+                Thread.sleep(DELAY);
+                waited += DELAY;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+        // one more try after all retries
+        return indexExists(directory);
+    }
+
+    /**
      * Returns <tt>true</tt> iff the given exception or
      * one of it's causes is an instance of {@link CorruptIndexException}, 
      * {@link IndexFormatTooOldException}, or {@link IndexFormatTooNewException} otherwise <tt>false</tt>.
@@ -659,6 +675,7 @@ public class Lucene {
         return LenientParser.parse(toParse, defaultValue);
     }
 
+    @SuppressForbidden(reason = "Version#parseLeniently() used in a central place")
     private static final class LenientParser {
         public static Version parse(String toParse, Version defaultValue) {
             if (Strings.hasLength(toParse)) {
@@ -680,27 +697,27 @@ public class Lucene {
         return new Scorer(null) {
             @Override
             public float score() throws IOException {
-                throw new ElasticsearchIllegalStateException(message);
+                throw new IllegalStateException(message);
             }
             @Override
             public int freq() throws IOException {
-                throw new ElasticsearchIllegalStateException(message);
+                throw new IllegalStateException(message);
             }
             @Override
             public int advance(int arg0) throws IOException {
-                throw new ElasticsearchIllegalStateException(message);
+                throw new IllegalStateException(message);
             }
             @Override
             public long cost() {
-                throw new ElasticsearchIllegalStateException(message);
+                throw new IllegalStateException(message);
             }
             @Override
             public int docID() {
-                throw new ElasticsearchIllegalStateException(message);
+                throw new IllegalStateException(message);
             }
             @Override
             public int nextDoc() throws IOException {
-                throw new ElasticsearchIllegalStateException(message);
+                throw new IllegalStateException(message);
             }
         };
     }

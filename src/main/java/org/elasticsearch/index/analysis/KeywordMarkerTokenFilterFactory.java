@@ -24,7 +24,6 @@ import java.util.Set;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.SetKeywordMarkerFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -44,7 +43,7 @@ public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory 
         boolean ignoreCase = settings.getAsBoolean("ignore_case", false);
         Set<?> rules = Analysis.getWordSet(env, settings, "keywords");
         if (rules == null) {
-            throw new ElasticsearchIllegalArgumentException("keyword filter requires either `keywords` or `keywords_path` to be configured");
+            throw new IllegalArgumentException("keyword filter requires either `keywords` or `keywords_path` to be configured");
         }
         keywordLookup = new CharArraySet(rules, ignoreCase);
     }

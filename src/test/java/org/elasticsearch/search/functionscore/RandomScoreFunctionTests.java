@@ -37,9 +37,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
-
 public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
 
+    @Slow
     public void testConsistentHitsWithSameSeed() throws Exception {
         createIndex("test");
         ensureGreen(); // make sure we are done otherwise preference could change?

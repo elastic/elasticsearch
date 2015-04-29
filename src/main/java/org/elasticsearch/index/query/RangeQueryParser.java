@@ -55,12 +55,12 @@ public class RangeQueryParser implements QueryParser {
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext.index(), "[range] query malformed, no field to indicate field name");
+            throw new QueryParsingException(parseContext, "[range] query malformed, no field to indicate field name");
         }
         String fieldName = parser.currentName();
         token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new QueryParsingException(parseContext.index(), "[range] query malformed, after field missing start object");
+            throw new QueryParsingException(parseContext, "[range] query malformed, after field missing start object");
         }
 
         Object from = null;
@@ -106,7 +106,7 @@ public class RangeQueryParser implements QueryParser {
                 } else if ("format".equals(currentFieldName)) {
                     forcedDateParser = new DateMathParser(Joda.forPattern(parser.text()), DateFieldMapper.Defaults.TIME_UNIT);
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[range] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[range] query does not support [" + currentFieldName + "]");
                 }
             }
         }
@@ -114,7 +114,7 @@ public class RangeQueryParser implements QueryParser {
         // move to the next end object, to close the field name
         token = parser.nextToken();
         if (token != XContentParser.Token.END_OBJECT) {
-            throw new QueryParsingException(parseContext.index(), "[range] query malformed, does not end with an object");
+            throw new QueryParsingException(parseContext, "[range] query malformed, does not end with an object");
         }
 
         Query query = null;
@@ -124,12 +124,15 @@ public class RangeQueryParser implements QueryParser {
                 FieldMapper mapper = smartNameFieldMappers.mapper();
                 if (mapper instanceof DateFieldMapper) {
                     if ((from instanceof Number || to instanceof Number) && timeZone != null) {
-                        throw new QueryParsingException(parseContext.index(), "[range] time_zone when using ms since epoch format as it's UTC based can not be applied to [" + fieldName + "]");
+                        throw new QueryParsingException(parseContext,
+                                "[range] time_zone when using ms since epoch format as it's UTC based can not be applied to [" + fieldName
+                                        + "]");
                     }
                     query = ((DateFieldMapper) mapper).rangeQuery(from, to, includeLower, includeUpper, timeZone, forcedDateParser, parseContext);
                 } else  {
                     if (timeZone != null) {
-                        throw new QueryParsingException(parseContext.index(), "[range] time_zone can not be applied to non date field [" + fieldName + "]");
+                        throw new QueryParsingException(parseContext, "[range] time_zone can not be applied to non date field ["
+                                + fieldName + "]");
                     }
                     //LUCENE 4 UPGRADE Mapper#rangeQuery should use bytesref as well?
                     query = mapper.rangeQuery(from, to, includeLower, includeUpper, parseContext);

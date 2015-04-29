@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
@@ -186,12 +185,12 @@ public class AnalysisModule extends AbstractModule {
                     }
                 }
                 if (type == null) {
-                    throw new ElasticsearchIllegalArgumentException("failed to find char filter type [" + charFilterSettings.get("type") + "] for [" + charFilterName + "]", e);
+                    throw new IllegalArgumentException("failed to find char filter type [" + charFilterSettings.get("type") + "] for [" + charFilterName + "]", e);
                 }
             }
             if (type == null) {
                 // nothing found, see if its in bindings as a binding name
-                throw new ElasticsearchIllegalArgumentException("Char Filter [" + charFilterName + "] must have a type associated with it");
+                throw new IllegalArgumentException("Char Filter [" + charFilterName + "] must have a type associated with it");
             }
             charFilterBinder.addBinding(charFilterName).toProvider(FactoryProvider.newFactory(CharFilterFactoryFactory.class, type)).in(Scopes.SINGLETON);
         }
@@ -246,11 +245,11 @@ public class AnalysisModule extends AbstractModule {
                     }
                 }
                 if (type == null) {
-                    throw new ElasticsearchIllegalArgumentException("failed to find token filter type [" + tokenFilterSettings.get("type") + "] for [" + tokenFilterName + "]", e);
+                    throw new IllegalArgumentException("failed to find token filter type [" + tokenFilterSettings.get("type") + "] for [" + tokenFilterName + "]", e);
                 }
             }
             if (type == null) {
-                throw new ElasticsearchIllegalArgumentException("token filter [" + tokenFilterName + "] must have a type associated with it");
+                throw new IllegalArgumentException("token filter [" + tokenFilterName + "] must have a type associated with it");
             }
             tokenFilterBinder.addBinding(tokenFilterName).toProvider(FactoryProvider.newFactory(TokenFilterFactoryFactory.class, type)).in(Scopes.SINGLETON);
         }
@@ -305,11 +304,11 @@ public class AnalysisModule extends AbstractModule {
                     }
                 }
                 if (type == null) {
-                    throw new ElasticsearchIllegalArgumentException("failed to find tokenizer type [" + tokenizerSettings.get("type") + "] for [" + tokenizerName + "]", e);
+                    throw new IllegalArgumentException("failed to find tokenizer type [" + tokenizerSettings.get("type") + "] for [" + tokenizerName + "]", e);
                 }
             }
             if (type == null) {
-                throw new ElasticsearchIllegalArgumentException("token filter [" + tokenizerName + "] must have a type associated with it");
+                throw new IllegalArgumentException("token filter [" + tokenizerName + "] must have a type associated with it");
             }
             tokenizerBinder.addBinding(tokenizerName).toProvider(FactoryProvider.newFactory(TokenizerFactoryFactory.class, type)).in(Scopes.SINGLETON);
         }
@@ -369,7 +368,7 @@ public class AnalysisModule extends AbstractModule {
                         // we have a tokenizer, use the CustomAnalyzer
                         type = CustomAnalyzerProvider.class;
                     } else {
-                        throw new ElasticsearchIllegalArgumentException("failed to find analyzer type [" + analyzerSettings.get("type") + "] or tokenizer for [" + analyzerName + "]", e);
+                        throw new IllegalArgumentException("failed to find analyzer type [" + analyzerSettings.get("type") + "] or tokenizer for [" + analyzerName + "]", e);
                     }
                 }
             }
@@ -380,7 +379,7 @@ public class AnalysisModule extends AbstractModule {
                     // we have a tokenizer, use the CustomAnalyzer
                     type = CustomAnalyzerProvider.class;
                 } else {
-                    throw new ElasticsearchIllegalArgumentException("failed to find analyzer type [" + analyzerSettings.get("type") + "] or tokenizer for [" + analyzerName + "]");
+                    throw new IllegalArgumentException("failed to find analyzer type [" + analyzerSettings.get("type") + "] or tokenizer for [" + analyzerName + "]");
                 }
             }
             analyzerBinder.addBinding(analyzerName).toProvider(FactoryProvider.newFactory(AnalyzerProviderFactory.class, type)).in(Scopes.SINGLETON);

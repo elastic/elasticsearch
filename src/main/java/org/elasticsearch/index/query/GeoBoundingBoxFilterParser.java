@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterCachingPolicy;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -72,7 +72,7 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
+        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
         HashedBytesRef cacheKey = null;
         String fieldName = null;
 
@@ -147,7 +147,7 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
                 } else if ("type".equals(currentFieldName)) {
                     type = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[geo_bbox] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[geo_bbox] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
@@ -169,11 +169,11 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
 
         MapperService.SmartNameFieldMappers smartMappers = parseContext.smartFieldMappers(fieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new QueryParsingException(parseContext.index(), "failed to find geo_point field [" + fieldName + "]");
+            throw new QueryParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
         }
         FieldMapper<?> mapper = smartMappers.mapper();
         if (!(mapper instanceof GeoPointFieldMapper)) {
-            throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
+            throw new QueryParsingException(parseContext, "field [" + fieldName + "] is not a geo_point field");
         }
         GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper) mapper);
 
@@ -184,7 +184,8 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
             IndexGeoPointFieldData indexFieldData = parseContext.getForField(mapper);
             filter = new InMemoryGeoBoundingBoxFilter(topLeft, bottomRight, indexFieldData);
         } else {
-            throw new QueryParsingException(parseContext.index(), "geo bounding box type [" + type + "] not supported, either 'indexed' or 'memory' are allowed");
+            throw new QueryParsingException(parseContext, "geo bounding box type [" + type
+                    + "] not supported, either 'indexed' or 'memory' are allowed");
         }
 
         if (cache != null) {

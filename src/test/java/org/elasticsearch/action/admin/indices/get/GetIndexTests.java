@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.get;
 
 import com.google.common.collect.ImmutableList;
-
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -34,12 +33,13 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.hamcrest.Matchers.*;
 
 @ElasticsearchIntegrationTest.SuiteScopeTest
 public class GetIndexTests extends ElasticsearchIntegrationTest {
@@ -203,6 +203,32 @@ public class GetIndexTests extends ElasticsearchIntegrationTest {
             assertEmptySettings(response);
         }
         assertEmptyWarmers(response);
+    }
+
+    @Test
+    public void testGetIndexWithBlocks() {
+        for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {
+            try {
+                enableIndexBlock("idx", block);
+                GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("idx")
+                        .addFeatures(Feature.MAPPINGS, Feature.ALIASES).get();
+                String[] indices = response.indices();
+                assertThat(indices, notNullValue());
+                assertThat(indices.length, equalTo(1));
+                assertThat(indices[0], equalTo("idx"));
+                assertMappings(response, "idx");
+                assertAliases(response, "idx");
+            } finally {
+                disableIndexBlock("idx", block);
+            }
+        }
+
+        try {
+            enableIndexBlock("idx", SETTING_BLOCKS_METADATA);
+            assertBlocked(client().admin().indices().prepareGetIndex().addIndices("idx").addFeatures(Feature.MAPPINGS, Feature.ALIASES), INDEX_METADATA_BLOCK);
+        } finally {
+            disableIndexBlock("idx", SETTING_BLOCKS_METADATA);
+        }
     }
 
     private GetIndexResponse runWithRandomFeatureMethod(GetIndexRequestBuilder requestBuilder, Feature... features) {

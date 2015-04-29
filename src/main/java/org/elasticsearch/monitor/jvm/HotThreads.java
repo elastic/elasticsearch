@@ -20,7 +20,6 @@
 package org.elasticsearch.monitor.jvm;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.unit.TimeValue;
@@ -75,7 +74,7 @@ public class HotThreads {
         if ("cpu".equals(type) || "wait".equals(type) || "block".equals(type)) {
             this.type = type;
         } else {
-            throw new ElasticsearchIllegalArgumentException("type not supported [" + type + "]");
+            throw new IllegalArgumentException("type not supported [" + type + "]");
         }
         return this;
     }

@@ -23,15 +23,15 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.ToStringUtils;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -40,6 +40,7 @@ import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.search.NoCacheQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.ResolvableFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -51,7 +52,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.LongFieldMapper.CustomLongNumericField;
@@ -297,13 +298,6 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 true, true);
     }
 
-    @Override
-    public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        long lValue = parseToMilliseconds(value);
-        return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
-                lValue, lValue, true, true);
-    }
-
     public long parseToMilliseconds(Object value) {
         return parseToMilliseconds(value, false, null, dateMathParser);
     }
@@ -321,13 +315,6 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             dateParser = forcedDateParser;
         }
         return dateParser.parse(value, now(), inclusive, zone);
-    }
-
-    @Override
-    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        final long lValue = parseToMilliseconds(value);
-        return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
-                lValue, lValue, true, true);
     }
 
     @Override
@@ -405,9 +392,9 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         if (fieldData != null) {
             filter = NumericRangeFieldDataFilter.newLongRange(fieldData, lowerVal,upperVal, includeLower, includeUpper);
         } else {
-            filter = NumericRangeFilter.newLongRange(
+            filter = Queries.wrap(NumericRangeQuery.newLongRange(
                     names.indexName(), precisionStep, lowerVal, upperVal, includeLower, includeUpper
-            );
+            ));
         }
 
         return filter;
@@ -419,10 +406,10 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             return null;
         }
         long value = parseStringValue(nullValue);
-        return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
+        return Queries.wrap(NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 value,
                 value,
-                true, true);
+                true, true));
     }
 
 
@@ -470,7 +457,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                         } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
                         } else {
-                            throw new ElasticsearchIllegalArgumentException("unknown property [" + currentFieldName + "]");
+                            throw new IllegalArgumentException("unknown property [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -506,12 +493,12 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        super.merge(mergeWith, mergeContext);
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+        super.merge(mergeWith, mergeResult);
         if (!this.getClass().equals(mergeWith.getClass())) {
             return;
         }
-        if (!mergeContext.mergeFlags().simulate()) {
+        if (!mergeResult.simulate()) {
             this.nullValue = ((DateFieldMapper) mergeWith).nullValue;
             this.dateTimeFormatter = ((DateFieldMapper) mergeWith).dateTimeFormatter;
         }
@@ -547,6 +534,15 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 builder.field("locale", dateTimeFormatter.locale());
             }
         }
+    }
+
+    @Override
+    public FieldStats stats(Terms terms, int maxDoc) throws IOException {
+        long minValue = NumericUtils.getMinLong(terms);
+        long maxValue = NumericUtils.getMaxLong(terms);
+        return new FieldStats.Date(
+                maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue, dateTimeFormatter
+        );
     }
 
     private long parseStringValue(String value) {

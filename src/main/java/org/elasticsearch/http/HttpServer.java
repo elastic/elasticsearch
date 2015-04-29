@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.service.NodeService;
@@ -87,7 +88,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         transport.start();
         if (logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());
@@ -96,13 +97,13 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         nodeService.removeAttribute("http_address");
         transport.stop();
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
         transport.close();
     }
 
@@ -175,12 +176,14 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         // Convert file separators.
         sitePath = sitePath.replace("/", separator);
         // this is a plugin provided site, serve it as static files from the plugin location
-        Path file = FileSystemUtils.append(siteFile, Paths.get(sitePath), 0);
-        if (!Files.exists(file) || Files.isHidden(file)) {
+        Path file = FileSystemUtils.append(siteFile, PathUtils.get(sitePath), 0);
+
+        // return not found instead of forbidden to prevent malicious requests to find out if files exist or dont exist
+        if (!Files.exists(file) || Files.isHidden(file) || !file.toAbsolutePath().normalize().startsWith(siteFile.toAbsolutePath())) {
             channel.sendResponse(new BytesRestResponse(NOT_FOUND));
             return;
         }
-        
+
         BasicFileAttributes attributes = Files.readAttributes(file, BasicFileAttributes.class);
         if (!attributes.isRegularFile()) {
             // If it's not a dir, we send a 403
@@ -195,10 +198,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
                 return;
             }
         }
-        if (!file.toAbsolutePath().startsWith(siteFile)) {
-            channel.sendResponse(new BytesRestResponse(FORBIDDEN));
-            return;
-        }
+
         try {
             byte[] data = Files.readAllBytes(file);
             channel.sendResponse(new BytesRestResponse(OK, guessMimeType(sitePath), data));

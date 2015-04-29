@@ -21,6 +21,7 @@ package org.elasticsearch.plugins;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.rest.RestStatus;
@@ -33,6 +34,9 @@ import org.junit.Test;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -48,16 +52,12 @@ public class SitePluginTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        try {
-            Path pluginDir = Paths.get(SitePluginTests.class.getResource("/org/elasticsearch/plugins").toURI());
-            return settingsBuilder()
-                    .put(super.nodeSettings(nodeOrdinal))
-                    .put("path.plugins", pluginDir.toAbsolutePath())
-                    .put("force.http.enabled", true)
-                    .build();
-        } catch (URISyntaxException ex) {
-            throw new RuntimeException(ex);
-        }
+        Path pluginDir = getDataPath("/org/elasticsearch/plugins");
+        return settingsBuilder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("path.plugins", pluginDir.toAbsolutePath())
+                .put("force.http.enabled", true)
+                .build();
     }
 
     public HttpRequestBuilder httpClient() {
@@ -85,6 +85,34 @@ public class SitePluginTests extends ElasticsearchIntegrationTest {
     @Test
     public void testAnyPage() throws Exception {
         HttpResponse response = httpClient().path("/_plugin/dummy/index.html").execute();
+        assertThat(response.getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(response.getBody(), containsString("<title>Dummy Site Plugin</title>"));
+    }
+
+    /**
+     * Test normalizing of path
+     */
+    @Test
+    public void testThatPathsAreNormalized() throws Exception {
+        // more info: https://www.owasp.org/index.php/Path_Traversal
+        List<String> notFoundUris = new ArrayList<>();
+        notFoundUris.add("/_plugin/dummy/../../../../../log4j.properties");
+        notFoundUris.add("/_plugin/dummy/../../../../../%00log4j.properties");
+        notFoundUris.add("/_plugin/dummy/..%c0%af..%c0%af..%c0%af..%c0%af..%c0%aflog4j.properties");
+        notFoundUris.add("/_plugin/dummy/%2E%2E/%2E%2E/%2E%2E/%2E%2E/index.html");
+        notFoundUris.add("/_plugin/dummy/%2e%2e/%2e%2e/%2e%2e/%2e%2e/index.html");
+        notFoundUris.add("/_plugin/dummy/%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2findex.html");
+        notFoundUris.add("/_plugin/dummy/%2E%2E/%2E%2E/%2E%2E/%2E%2E/index.html");
+        notFoundUris.add("/_plugin/dummy/..\\..\\..\\..\\..\\log4j.properties");
+
+        for (String uri : notFoundUris) {
+            HttpResponse response = httpClient().path(uri).execute();
+            String message = String.format(Locale.ROOT, "URI [%s] expected to be not found", uri);
+            assertThat(message, response.getStatusCode(), equalTo(RestStatus.NOT_FOUND.getStatus()));
+        }
+
+        // using relative path inside of the plugin should work
+        HttpResponse response = httpClient().path("/_plugin/dummy/dir1/../dir1/../index.html").execute();
         assertThat(response.getStatusCode(), equalTo(RestStatus.OK.getStatus()));
         assertThat(response.getBody(), containsString("<title>Dummy Site Plugin</title>"));
     }

@@ -21,6 +21,7 @@ package org.elasticsearch;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -226,17 +227,21 @@ public class Version {
     public static final int V_1_4_4_ID = 1040499;
     public static final Version V_1_4_4 = new Version(V_1_4_4_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_3);
     public static final int V_1_4_5_ID = 1040599;
-    public static final Version V_1_4_5 = new Version(V_1_4_5_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_4);
+    public static final Version V_1_4_5 = new Version(V_1_4_5_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_4);
+    public static final int V_1_4_6_ID = 1040699;
+    public static final Version V_1_4_6 = new Version(V_1_4_6_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_4);
     public static final int V_1_5_0_ID = 1050099;
     public static final Version V_1_5_0 = new Version(V_1_5_0_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_4);
     public static final int V_1_5_1_ID = 1050199;
     public static final Version V_1_5_1 = new Version(V_1_5_1_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_4);
     public static final int V_1_5_2_ID = 1050299;
-    public static final Version V_1_5_2 = new Version(V_1_5_2_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_4);
+    public static final Version V_1_5_2 = new Version(V_1_5_2_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_4);
+    public static final int V_1_5_3_ID = 1050399;
+    public static final Version V_1_5_3 = new Version(V_1_5_3_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_4);
     public static final int V_1_6_0_ID = 1060099;
     public static final Version V_1_6_0 = new Version(V_1_6_0_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_4);
     public static final int V_2_0_0_ID = 2000099;
-    public static final Version V_2_0_0 = new Version(V_2_0_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_1_0);
+    public static final Version V_2_0_0 = new Version(V_2_0_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_2_0);
 
     public static final Version CURRENT = V_2_0_0;
 
@@ -254,12 +259,16 @@ public class Version {
                 return V_2_0_0;
             case V_1_6_0_ID:
                 return V_1_6_0;
+            case V_1_5_3_ID:
+                return V_1_5_3;
             case V_1_5_2_ID:
                 return V_1_5_2;
             case V_1_5_1_ID:
                 return V_1_5_1;
             case V_1_5_0_ID:
                 return V_1_5_0;
+            case V_1_4_6_ID:
+                return V_1_4_6;
             case V_1_4_5_ID:
                 return V_1_4_5;
             case V_1_4_4_ID:
@@ -450,12 +459,12 @@ public class Version {
     /**
      * Return the {@link Version} of Elasticsearch that has been used to create an index given its settings.
      *
-     * @throws ElasticsearchIllegalStateException if the given index settings doesn't contain a value for the key {@value IndexMetaData#SETTING_VERSION_CREATED}
+     * @throws IllegalStateException if the given index settings doesn't contain a value for the key {@value IndexMetaData#SETTING_VERSION_CREATED}
      */
     public static Version indexCreated(Settings indexSettings) {
         final Version indexVersion = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null);
         if (indexVersion == null) {
-            throw new ElasticsearchIllegalStateException("[" + IndexMetaData.SETTING_VERSION_CREATED + "] is not present in the index settings for index with uuid: [" + indexSettings.get(IndexMetaData.SETTING_UUID) + "]");
+            throw new IllegalStateException("[" + IndexMetaData.SETTING_VERSION_CREATED + "] is not present in the index settings for index with uuid: [" + indexSettings.get(IndexMetaData.SETTING_UUID) + "]");
         }
         return indexVersion;
     }
@@ -484,7 +493,7 @@ public class Version {
         }
         String[] parts = version.split("\\.");
         if (parts.length < 3 || parts.length > 4) {
-            throw new IllegalArgumentException("the version needs to contain major, minor and revision, and optionally the build");
+            throw new IllegalArgumentException("the version needs to contain major, minor and revision, and optionally the build: " + version);
         }
 
         try {
@@ -580,6 +589,7 @@ public class Version {
         return sb.toString();
     }
 
+    @SuppressForbidden(reason = "System.out.*")
     public static void main(String[] args) {
         System.out.println("Version: " + Version.CURRENT + ", Build: " + Build.CURRENT.hashShort() + "/" + Build.CURRENT.timestamp() + ", JVM: " + JvmInfo.jvmInfo().version());
     }

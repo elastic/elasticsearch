@@ -168,9 +168,9 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.detailedErrorsEnabled = settings.getAsBoolean(SETTING_HTTP_DETAILED_ERRORS_ENABLED, true);
 
         long defaultReceiverPredictor = 512 * 1024;
-        if (JvmInfo.jvmInfo().mem().directMemoryMax().bytes() > 0) {
+        if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes() > 0) {
             // we can guess a better default...
-            long l = (long) ((0.3 * JvmInfo.jvmInfo().mem().directMemoryMax().bytes()) / workerCount);
+            long l = (long) ((0.3 * JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes()) / workerCount);
             defaultReceiverPredictor = Math.min(defaultReceiverPredictor, Math.max(l, 64 * 1024));
         }
 
@@ -209,7 +209,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         this.serverOpenChannels = new OpenChannelsHandler(logger);
 
         if (blockingServer) {
@@ -286,7 +286,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         if (serverChannel != null) {
             serverChannel.close().awaitUninterruptibly();
             serverChannel = null;
@@ -304,7 +304,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
     }
 
     @Override

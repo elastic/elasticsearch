@@ -150,13 +150,7 @@ large, it is recommended to make it replicated to all nodes by setting
 `index.auto_expand_replicas: 0-all` in order to remove the network overhead as
 well.
 
-=== Parent parameter on update request
-
-The `parent` parameter has been removed from the update request. Before 2.x it just set the routing parameter. The
-`routing` setting should be used instead. The `parent` setting was confusing, because it had the impression that the parent
-a child documents points to can be changed but this is not true.
-
-==== Delete by query
+=== Delete by query
 
 The meaning of the `_shards` headers in the delete by query response has changed. Before version 2.0 the `total`,
 `successful` and `failed` fields in the header are based on the number of primary shards. The failures on replica
@@ -276,7 +270,7 @@ to provide special features.  They now have limited configuration options.
 * `_field_names` configuration is limited to disabling the field.
 * `_size` configuration is limited to enabling the field.
 
-=== Boolean fields
+==== Boolean fields
 
 Boolean fields used to have a string fielddata with `F` meaning `false` and `T`
 meaning `true`. They have been refactored to use numeric fielddata, with `0`
@@ -307,6 +301,14 @@ the user-friendly representation of boolean fields: `false`/`true`:
   }
 ]
 ---------------
+
+==== Murmur3 Fields
+Fields of type `murmur3` can no longer change `doc_values` or `index` setting.
+They are always stored with doc values, and not indexed.
+
+==== Source field configuration
+The `_source` field no longer supports `includes` and `excludes` paramters. When
+`_source` is enabled, the entire original source will be stored.
 
 === Codecs
 
@@ -347,6 +349,11 @@ Deprecated script parameters `id`, `file`, and `scriptField` have been removed
 from all scriptable APIs. `script_id`, `script_file` and `script` should be used
 in their place.
 
+=== Groovy scripts sandbox
+
+The groovy sandbox and related settings have been removed. Groovy is now a non
+sandboxed scripting language, without any option to turn the sandbox on.
+
 === Plugins making use of scripts
 
 Plugins that make use of scripts must register their own script context through
@@ -380,9 +387,58 @@ http.cors.allow-origin: /https?:\/\/localhost(:[0-9]+)?/
 The cluster state api doesn't return the `routing_nodes` section anymore when
 `routing_table` is requested. The newly introduced `routing_nodes` flag can
 be used separately to control whether `routing_nodes` should be returned.
+
 === Query DSL
+
+Change to ranking behaviour: single-term queries on numeric fields now score in the same way as string fields (use of IDF, norms if enabled). 
+Previously, term queries on numeric fields were deliberately prevented from using the usual Lucene scoring logic and this behaviour was undocumented and, to some, unexpected.
+If the introduction of scoring to numeric fields is undesirable for your query clauses the fix is simple: wrap them in a `constant_score` or use a `filter` expression instead.  
+
 
 The `fuzzy_like_this` and `fuzzy_like_this_field` queries have been removed.
 
 The `limit` filter is deprecated and becomes a no-op. You can achieve similar
 behaviour using the <<search-request-body,terminate_after>> parameter.
+
+`or` and `and` on the one hand and `bool` on the other hand used to have
+different performance characteristics depending on the wrapped filters. This is
+fixed now, as a consequence the `or` and `and` filters are now deprecated in
+favour or `bool`.
+
+The `execution` option of the `terms` filter is now deprecated and ignored if
+provided.
+
+=== Snapshot and Restore
+
+The obsolete parameters `expand_wildcards_open` and `expand_wildcards_close` are no longer
+supported by the snapshot and restore operations. These parameters have been replaced by
+a single `expand_wildcards` parameter. See <<multi-index,the multi-index docs>> for more.
+
+=== `_shutdown` API
+
+The `_shutdown` API has been removed without a replacement. Nodes should be managed via operating
+systems and the provided start/stop scripts.
+
+=== Analyze API
+
+The Analyze API return 0 as first Token's position instead of 1.
+
+=== Multiple data.path striping
+
+Previously, if the `data.path` setting listed multiple data paths, then a
+shard would be ``striped'' across all paths by writing a whole file to each
+path in turn (in accordance with the `index.store.distributor` setting).  The
+result was that the files from a single segment in a shard could be spread
+across multiple disks, and the failure of any one disk could corrupt multiple
+shards.
+
+This striping is no longer supported.  Instead, different shards may be
+allocated to different paths, but all of the files in a single shard will be
+written to the same path.
+
+If striping is detected while starting Elasticsearch 2.0.0 or later, all of
+the files belonging to the same shard will be migrated to the same path. If
+there is not enough disk space to complete this migration, the upgrade will be
+cancelled and can only be resumed once enough disk space is made available.
+
+The `index.store.distributor` setting has also been removed.

@@ -154,10 +154,6 @@
 #
 #path.data: /path/to/data1,/path/to/data2
 
-# Path to temporary files:
-#
-#path.work: /path/to/work
-
 # Path to log files:
 #
 #path.logs: /path/to/logs
@@ -230,7 +226,6 @@
 # Disable HTTP completely:
 #
 #http.enabled: false
-
 
 ################################### Gateway ###################################
 

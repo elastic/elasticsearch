@@ -146,7 +146,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
      * and releasing the snapshot once all 3 phases of recovery are complete
      */
     @Override
-    public void phase1(final SnapshotIndexCommit snapshot) throws ElasticsearchException {
+    public void phase1(final SnapshotIndexCommit snapshot) {
         cancellableThreads.checkForCancel();
         // Total size of segment files that are recovered
         long totalSize = 0;
@@ -428,7 +428,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
      * of the translog and releasing it once all 3 phases of recovery are complete
      */
     @Override
-    public void phase2(Translog.Snapshot snapshot) throws ElasticsearchException {
+    public void phase2(Translog.Snapshot snapshot) {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
@@ -479,7 +479,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
      * three phases are released.
      */
     @Override
-    public void phase3(Translog.Snapshot snapshot) throws ElasticsearchException {
+    public void phase3(Translog.Snapshot snapshot) {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
@@ -567,7 +567,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
             }
         };
         for (DocumentMapper documentMapper : documentMappersToUpdate) {
-            mappingUpdatedAction.updateMappingOnMaster(indexService.index().getName(), documentMapper, indexService.indexUUID(), listener);
+            mappingUpdatedAction.updateMappingOnMaster(indexService.index().getName(), documentMapper.type(), documentMapper.mapping(), recoverySettings.internalActionTimeout(), listener);
         }
         cancellableThreads.execute(new Interruptable() {
             @Override
@@ -593,18 +593,27 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
      *
      * @return the total number of translog operations that were sent
      */
-    protected int sendSnapshot(Translog.Snapshot snapshot) throws ElasticsearchException {
+    protected int sendSnapshot(Translog.Snapshot snapshot) {
         int ops = 0;
         long size = 0;
         int totalOperations = 0;
         final List<Translog.Operation> operations = Lists.newArrayList();
-        Translog.Operation operation = snapshot.next();
+        Translog.Operation operation;
+        try {
+             operation = snapshot.next(); // this ex should bubble up
+        } catch (IOException ex){
+            throw new ElasticsearchException("failed to get next operation from translog", ex);
+        }
 
         final TransportRequestOptions recoveryOptions = TransportRequestOptions.options()
                 .withCompress(recoverySettings.compress())
                 .withType(TransportRequestOptions.Type.RECOVERY)
                 .withTimeout(recoverySettings.internalActionLongTimeout());
 
+        if (operation == null) {
+            logger.trace("[{}][{}] no translog operations to send to {}",
+                    indexName, shardId, request.targetNode());
+        }
         while (operation != null) {
             if (shard.state() == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(request.shardId());
@@ -637,13 +646,22 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                                 recoveryOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                     }
                 });
+                if (logger.isTraceEnabled()) {
+                    logger.trace("[{}][{}] sent batch of [{}][{}] (total: [{}]) translog operations to {}",
+                            indexName, shardId, ops, new ByteSizeValue(size),
+                            shard.translog().estimatedNumberOfOperations(),
+                            request.targetNode());
+                }
 
                 ops = 0;
                 size = 0;
                 operations.clear();
             }
-            operation = snapshot.next();
-        }
+            try {
+                operation = snapshot.next(); // this ex should bubble up
+            } catch (IOException ex){
+                throw new ElasticsearchException("failed to get next operation from translog", ex);
+            }        }
         // send the leftover
         if (!operations.isEmpty()) {
             cancellableThreads.execute(new Interruptable() {
@@ -656,6 +674,12 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                 }
             });
 
+        }
+        if (logger.isTraceEnabled()) {
+            logger.trace("[{}][{}] sent final batch of [{}][{}] (total: [{}]) translog operations to {}",
+                    indexName, shardId, ops, new ByteSizeValue(size),
+                    shard.translog().estimatedNumberOfOperations(),
+                    request.targetNode());
         }
         return totalOperations;
     }

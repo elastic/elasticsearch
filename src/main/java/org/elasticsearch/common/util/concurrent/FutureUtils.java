@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.SuppressForbidden;
 
 import java.util.concurrent.Future;
 
@@ -27,6 +27,7 @@ import java.util.concurrent.Future;
  */
 public class FutureUtils {
 
+    @SuppressForbidden(reason = "Future#cancel()")
     public static boolean cancel(Future<?> toCancel) {
         if (toCancel != null) {
             return toCancel.cancel(false); // this method is a forbidden API since it interrupts threads

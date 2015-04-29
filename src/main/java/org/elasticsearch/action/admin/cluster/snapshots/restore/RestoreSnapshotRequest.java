@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -493,7 +492,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
         try {
             return source(source.bytes());
         } catch (Exception e) {
-            throw new ElasticsearchIllegalArgumentException("Failed to build json for repository request", e);
+            throw new IllegalArgumentException("Failed to build json for repository request", e);
         }
     }
 
@@ -504,11 +503,6 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
      * @return this request
      */
     public RestoreSnapshotRequest source(Map source) {
-        boolean ignoreUnavailable = IndicesOptions.lenientExpandOpen().ignoreUnavailable();
-        boolean allowNoIndices = IndicesOptions.lenientExpandOpen().allowNoIndices();
-        boolean expandWildcardsOpen = IndicesOptions.lenientExpandOpen().expandWildcardsOpen();
-        boolean expandWildcardsClosed = IndicesOptions.lenientExpandOpen().expandWildcardsClosed();
-
         for (Map.Entry<String, Object> entry : ((Map<String, Object>) source).entrySet()) {
             String name = entry.getKey();
             if (name.equals("indices")) {
@@ -517,21 +511,13 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
                 } else if (entry.getValue() instanceof ArrayList) {
                     indices((ArrayList<String>) entry.getValue());
                 } else {
-                    throw new ElasticsearchIllegalArgumentException("malformed indices section, should be an array of strings");
+                    throw new IllegalArgumentException("malformed indices section, should be an array of strings");
                 }
-            } else if (name.equals("ignore_unavailable") || name.equals("ignoreUnavailable")) {
-                ignoreUnavailable = nodeBooleanValue(entry.getValue());
-            } else if (name.equals("allow_no_indices") || name.equals("allowNoIndices")) {
-                allowNoIndices = nodeBooleanValue(entry.getValue());
-            } else if (name.equals("expand_wildcards_open") || name.equals("expandWildcardsOpen")) {
-                expandWildcardsOpen = nodeBooleanValue(entry.getValue());
-            } else if (name.equals("expand_wildcards_closed") || name.equals("expandWildcardsClosed")) {
-                expandWildcardsClosed = nodeBooleanValue(entry.getValue());
             } else if (name.equals("partial")) {
                 partial(nodeBooleanValue(entry.getValue()));
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
-                    throw new ElasticsearchIllegalArgumentException("malformed settings section");
+                    throw new IllegalArgumentException("malformed settings section");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
@@ -542,17 +528,17 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
                 if (entry.getValue() instanceof String) {
                     renamePattern((String) entry.getValue());
                 } else {
-                    throw new ElasticsearchIllegalArgumentException("malformed rename_pattern");
+                    throw new IllegalArgumentException("malformed rename_pattern");
                 }
             } else if (name.equals("rename_replacement")) {
                 if (entry.getValue() instanceof String) {
                     renameReplacement((String) entry.getValue());
                 } else {
-                    throw new ElasticsearchIllegalArgumentException("malformed rename_replacement");
+                    throw new IllegalArgumentException("malformed rename_replacement");
                 }
             } else if (name.equals("index_settings")) {
                 if (!(entry.getValue() instanceof Map)) {
-                    throw new ElasticsearchIllegalArgumentException("malformed index_settings section");
+                    throw new IllegalArgumentException("malformed index_settings section");
                 }
                 indexSettings((Map<String, Object>) entry.getValue());
             } else if (name.equals("ignore_index_settings")) {
@@ -561,13 +547,13 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
                     } else if (entry.getValue() instanceof List) {
                         ignoreIndexSettings((List<String>) entry.getValue());
                     } else {
-                        throw new ElasticsearchIllegalArgumentException("malformed ignore_index_settings section, should be an array of strings");
+                        throw new IllegalArgumentException("malformed ignore_index_settings section, should be an array of strings");
                     }
             } else {
-                throw new ElasticsearchIllegalArgumentException("Unknown parameter " + name);
+                throw new IllegalArgumentException("Unknown parameter " + name);
             }
         }
-        indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
+        indicesOptions(IndicesOptions.fromMap((Map<String, Object>) source, IndicesOptions.lenientExpandOpen()));
         return this;
     }
 
@@ -584,7 +570,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
             try {
                 return source(XContentFactory.xContent(source).createParser(source).mapOrderedAndClose());
             } catch (Exception e) {
-                throw new ElasticsearchIllegalArgumentException("failed to parse repository source [" + source + "]", e);
+                throw new IllegalArgumentException("failed to parse repository source [" + source + "]", e);
             }
         }
         return this;
@@ -617,7 +603,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
             try {
                 return source(XContentFactory.xContent(source, offset, length).createParser(source, offset, length).mapOrderedAndClose());
             } catch (IOException e) {
-                throw new ElasticsearchIllegalArgumentException("failed to parse repository source", e);
+                throw new IllegalArgumentException("failed to parse repository source", e);
             }
         }
         return this;
@@ -635,7 +621,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
         try {
             return source(XContentFactory.xContent(source).createParser(source).mapOrderedAndClose());
         } catch (IOException e) {
-            throw new ElasticsearchIllegalArgumentException("failed to parse template source", e);
+            throw new IllegalArgumentException("failed to parse template source", e);
         }
     }
 

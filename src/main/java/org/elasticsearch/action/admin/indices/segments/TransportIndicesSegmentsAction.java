@@ -33,6 +33,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
@@ -41,6 +43,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -56,18 +59,9 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
     @Inject
     public TransportIndicesSegmentsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                           IndicesService indicesService, ActionFilters actionFilters) {
-        super(settings, IndicesSegmentsAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, IndicesSegmentsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                IndicesSegmentsRequest.class, TransportIndicesSegmentsAction.IndexShardSegmentRequest.class, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected IndicesSegmentsRequest newRequest() {
-        return new IndicesSegmentsRequest();
     }
 
     /**
@@ -80,12 +74,12 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, IndicesSegmentsRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, IndicesSegmentsRequest countRequest, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, concreteIndices);
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 
     @Override
@@ -113,11 +107,6 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
     }
 
     @Override
-    protected IndexShardSegmentRequest newShardRequest() {
-        return new IndexShardSegmentRequest();
-    }
-
-    @Override
     protected IndexShardSegmentRequest newShardRequest(int numShards, ShardRouting shard, IndicesSegmentsRequest request) {
         return new IndexShardSegmentRequest(shard.shardId(), request);
     }
@@ -128,14 +117,14 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
     }
 
     @Override
-    protected ShardSegments shardOperation(IndexShardSegmentRequest request) throws ElasticsearchException {
+    protected ShardSegments shardOperation(IndexShardSegmentRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.shardSafe(request.shardId().id());
         return new ShardSegments(indexShard.routingEntry(), indexShard.engine().segments(request.verbose));
     }
 
     static class IndexShardSegmentRequest extends BroadcastShardOperationRequest {
-        final boolean verbose;
+        boolean verbose;
         
         IndexShardSegmentRequest() {
             verbose = false;
@@ -144,6 +133,18 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
         IndexShardSegmentRequest(ShardId shardId, IndicesSegmentsRequest request) {
             super(shardId, request);
             verbose = request.verbose();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeBoolean(verbose);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            verbose = in.readBoolean();
         }
     }
 }

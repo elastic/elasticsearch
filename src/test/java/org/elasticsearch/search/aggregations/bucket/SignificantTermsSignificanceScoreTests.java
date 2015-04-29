@@ -58,9 +58,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -79,7 +76,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("plugin.types", CustomSignificanceHeuristicPlugin.class.getName())
-                .put("path.conf", this.getResourcePath("config"))
+                .put("path.conf", this.getDataPath("config"))
                 .build();
     }
 

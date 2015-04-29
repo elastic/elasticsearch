@@ -19,10 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.util.List;
@@ -48,11 +46,11 @@ public class ParsedDocument {
 
     private BytesReference source;
 
-    private boolean mappingsModified;
+    private Mapping dynamicMappingsUpdate;
 
     private String parent;
 
-    public ParsedDocument(Field uid, Field version, String id, String type, String routing, long timestamp, long ttl, List<Document> documents, BytesReference source, boolean mappingsModified) {
+    public ParsedDocument(Field uid, Field version, String id, String type, String routing, long timestamp, long ttl, List<Document> documents, BytesReference source, Mapping dynamicMappingsUpdate) {
         this.uid = uid;
         this.version = version;
         this.id = id;
@@ -62,7 +60,7 @@ public class ParsedDocument {
         this.ttl = ttl;
         this.documents = documents;
         this.source = source;
-        this.mappingsModified = mappingsModified;
+        this.dynamicMappingsUpdate = dynamicMappingsUpdate;
     }
 
     public Field uid() {
@@ -119,28 +117,19 @@ public class ParsedDocument {
     }
 
     /**
-     * Has the parsed document caused mappings to be modified?
+     * Return dynamic updates to mappings or {@code null} if there were no
+     * updates to the mappings.
      */
-    public boolean mappingsModified() {
-        return mappingsModified;
+    public Mapping dynamicMappingsUpdate() {
+        return dynamicMappingsUpdate;
     }
 
-    /**
-     * latches the mapping to be marked as modified.
-     */
-    public void setMappingsModified() {
-        this.mappingsModified = true;
-    }
-
-    /**
-     * Uses the value of get document or create to automatically set if mapping is
-     * modified or not.
-     */
-    public ParsedDocument setMappingsModified(Tuple<DocumentMapper, Boolean> docMapper) {
-        if (docMapper.v2()) {
-            setMappingsModified();
+    public void addDynamicMappingsUpdate(Mapping update) {
+        if (dynamicMappingsUpdate == null) {
+            dynamicMappingsUpdate = update;
+        } else {
+            MapperUtils.merge(dynamicMappingsUpdate, update);
         }
-        return this;
     }
 
     @Override

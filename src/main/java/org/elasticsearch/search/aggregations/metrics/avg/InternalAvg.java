@@ -109,7 +109,7 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(CommonFields.VALUE, count != 0 ? getValue() : null);
-        if (count != 0 && valueFormatter != null) {
+        if (count != 0 && valueFormatter != null && !(valueFormatter instanceof ValueFormatter.Raw)) {
             builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(getValue()));
         }
         return builder;

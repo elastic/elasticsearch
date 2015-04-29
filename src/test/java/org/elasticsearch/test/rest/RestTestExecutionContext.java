@@ -19,6 +19,7 @@
 package org.elasticsearch.test.rest;
 
 import com.google.common.collect.Maps;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -124,11 +125,6 @@ public class RestTestExecutionContext implements Closeable {
         }
     }
 
-    public void resetClient() {
-        restClient.close();
-        restClient = null;
-    }
-
     /**
      * Clears the last obtained response and the stashed fields
      */
@@ -145,7 +141,7 @@ public class RestTestExecutionContext implements Closeable {
     /**
      * Returns the current es version as a string
      */
-    public String esVersion() {
+    public Version esVersion() {
         return restClient.getEsVersion();
     }
 

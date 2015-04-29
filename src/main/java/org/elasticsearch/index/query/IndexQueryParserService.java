@@ -22,8 +22,8 @@ package org.elasticsearch.index.query;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterCachingPolicy;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -94,7 +94,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     final BitsetFilterCache bitsetFilterCache;
 
-    final FilterCachingPolicy autoFilterCachePolicy;
+    final QueryCachingPolicy autoFilterCachePolicy;
 
     private final Map<String, QueryParser> queryParsers;
 
@@ -111,7 +111,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
                                    ScriptService scriptService, AnalysisService analysisService,
                                    MapperService mapperService, IndexCache indexCache, IndexFieldDataService fieldDataService,
                                    BitsetFilterCache bitsetFilterCache,
-                                   FilterCachingPolicy autoFilterCachePolicy,
+                                   QueryCachingPolicy autoFilterCachePolicy,
                                    @Nullable SimilarityService similarityService,
                                    @Nullable Map<String, QueryParserFactory> namedQueryParsers,
                                    @Nullable Map<String, FilterParserFactory> namedFilterParsers) {
@@ -185,7 +185,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         return this.defaultField;
     }
 
-    public FilterCachingPolicy autoFilterCachePolicy() {
+    public QueryCachingPolicy autoFilterCachePolicy() {
         return autoFilterCachePolicy;
     }
 
@@ -201,7 +201,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         return filterParsers.get(name);
     }
 
-    public ParsedQuery parse(QueryBuilder queryBuilder) throws ElasticsearchException {
+    public ParsedQuery parse(QueryBuilder queryBuilder) {
         XContentParser parser = null;
         try {
             BytesReference bytes = queryBuilder.buildAsBytes();
@@ -210,7 +210,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         } catch (QueryParsingException e) {
             throw e;
         } catch (Exception e) {
-            throw new QueryParsingException(index, "Failed to parse", e);
+            throw new QueryParsingException(getParseContext(), "Failed to parse", e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -218,11 +218,11 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         }
     }
 
-    public ParsedQuery parse(byte[] source) throws ElasticsearchException {
+    public ParsedQuery parse(byte[] source) {
         return parse(source, 0, source.length);
     }
 
-    public ParsedQuery parse(byte[] source, int offset, int length) throws ElasticsearchException {
+    public ParsedQuery parse(byte[] source, int offset, int length) {
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length);
@@ -230,7 +230,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         } catch (QueryParsingException e) {
             throw e;
         } catch (Exception e) {
-            throw new QueryParsingException(index, "Failed to parse", e);
+            throw new QueryParsingException(getParseContext(), "Failed to parse", e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -238,11 +238,11 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         }
     }
 
-    public ParsedQuery parse(BytesReference source) throws ElasticsearchException {
+    public ParsedQuery parse(BytesReference source) {
         return parse(cache.get(), source);
     }
 
-    public ParsedQuery parse(QueryParseContext context, BytesReference source) throws ElasticsearchException {
+    public ParsedQuery parse(QueryParseContext context, BytesReference source) {
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(source).createParser(source);
@@ -250,7 +250,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         } catch (QueryParsingException e) {
             throw e;
         } catch (Exception e) {
-            throw new QueryParsingException(index, "Failed to parse", e);
+            throw new QueryParsingException(context, "Failed to parse", e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -266,7 +266,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         } catch (QueryParsingException e) {
             throw e;
         } catch (Exception e) {
-            throw new QueryParsingException(index, "Failed to parse [" + source + "]", e);
+            throw new QueryParsingException(getParseContext(), "Failed to parse [" + source + "]", e);
         } finally {
             if (parser != null) {
                 parser.close();
@@ -282,7 +282,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         try {
             return innerParse(context, parser);
         } catch (IOException e) {
-            throw new QueryParsingException(index, "Failed to parse", e);
+            throw new QueryParsingException(context, "Failed to parse", e);
         }
     }
 
@@ -359,7 +359,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
                         XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
                         parsedQuery = parse(qSourceParser);
                     } else {
-                        throw new QueryParsingException(index(), "request does not support [" + fieldName + "]");
+                        throw new QueryParsingException(getParseContext(), "request does not support [" + fieldName + "]");
                     }
                 }
             }
@@ -369,10 +369,10 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         } catch (QueryParsingException e) {
             throw e;
         } catch (Throwable e) {
-            throw new QueryParsingException(index, "Failed to parse", e);
+            throw new QueryParsingException(getParseContext(), "Failed to parse", e);
         }
 
-        throw new QueryParsingException(index(), "Required query is missing");
+        throw new QueryParsingException(getParseContext(), "Required query is missing");
     }
 
     private ParsedQuery innerParse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {

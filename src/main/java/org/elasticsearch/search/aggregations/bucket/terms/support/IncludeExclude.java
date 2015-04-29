@@ -34,7 +34,6 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -165,7 +164,7 @@ public class IncludeExclude {
         }
 
         @Override
-        public TermsEnum iterator(TermsEnum reuse) throws IOException {
+        public TermsEnum iterator() throws IOException {
             return values.termsEnum();
         }
 
@@ -293,7 +292,7 @@ public class IncludeExclude {
             RegExp excludePattern = exclude != null ? new RegExp(exclude) : null;
             if (includePattern != null || excludePattern != null) {
                 if (includeValues != null || excludeValues != null) {
-                    throw new ElasticsearchIllegalArgumentException("Can only use regular expression include/exclude or a set of values, not both");
+                    throw new IllegalArgumentException("Can only use regular expression include/exclude or a set of values, not both");
                 }
                 return new IncludeExclude(includePattern, excludePattern);
             } else if (includeValues != null || excludeValues != null) {

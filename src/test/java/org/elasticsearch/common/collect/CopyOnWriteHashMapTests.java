@@ -20,7 +20,6 @@
 package org.elasticsearch.common.collect;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.util.HashMap;
@@ -138,14 +137,14 @@ public class CopyOnWriteHashMapTests extends ElasticsearchTestCase {
         try {
             new CopyOnWriteHashMap<>().copyAndPut("a", null);
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             // expected
         }
         
         try {
             new CopyOnWriteHashMap<>().copyAndPut(null, "b");
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             // expected
         }
     }

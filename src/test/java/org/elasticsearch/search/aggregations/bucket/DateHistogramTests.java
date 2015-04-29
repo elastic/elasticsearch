@@ -1314,7 +1314,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                     .actionGet();
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("IllegalArgumentException"));
+            assertThat(e.toString(), containsString("IllegalArgumentException"));
         }
     }
 }

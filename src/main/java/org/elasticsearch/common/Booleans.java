@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 /**
  *
  */
@@ -96,7 +95,7 @@ public class Booleans {
             return true;
         }
 
-        throw new ElasticsearchIllegalArgumentException("value cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]  ");
+        throw new IllegalArgumentException("value cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]  ");
     }
 
     public static Boolean parseBoolean(String value, Boolean defaultValue) {

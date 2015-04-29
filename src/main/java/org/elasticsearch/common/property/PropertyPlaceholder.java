@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.property;
 
-import org.elasticsearch.common.Preconditions;
+import com.google.common.base.Preconditions;
 import org.elasticsearch.common.Strings;
 
 import java.util.HashSet;
@@ -159,7 +159,7 @@ public class PropertyPlaceholder {
      *
      * @see PropertyPlaceholder
      */
-    public static interface PlaceholderResolver {
+    public interface PlaceholderResolver {
 
         /**
          * Resolves the supplied placeholder name into the replacement value.

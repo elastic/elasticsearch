@@ -129,8 +129,8 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
         }
 
         @Override
-        public TermsEnum iterator(TermsEnum reuse) throws IOException {
-            TermsEnum termsEnum = super.iterator(reuse);
+        public TermsEnum iterator() throws IOException {
+            TermsEnum termsEnum = super.iterator();
             thrower.maybeThrow(Flags.TermsEnum);
             return new ThrowingTermsEnum(termsEnum, thrower);
         }

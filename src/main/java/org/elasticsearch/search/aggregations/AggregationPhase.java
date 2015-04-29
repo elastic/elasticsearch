@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
@@ -97,7 +96,7 @@ public class AggregationPhase implements SearchPhase {
     }
 
     @Override
-    public void execute(SearchContext context) throws ElasticsearchException {
+    public void execute(SearchContext context) {
         if (context.aggregations() == null) {
             context.queryResult().aggregations(null);
             return;
@@ -119,7 +118,7 @@ public class AggregationPhase implements SearchPhase {
         // optimize the global collector based execution
         if (!globals.isEmpty()) {
             BucketCollector globalsCollector = BucketCollector.wrap(globals);
-            Query query = new ConstantScoreQuery(Queries.MATCH_ALL_FILTER);
+            Query query = Queries.newMatchAllQuery();
             Filter searchFilter = context.searchFilter(context.types());
             if (searchFilter != null) {
                 query = new FilteredQuery(query, searchFilter);

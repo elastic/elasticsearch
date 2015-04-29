@@ -20,10 +20,12 @@
 package org.elasticsearch.action.termvectors;
 
 import com.carrotsearch.hppc.ObjectIntOpenHashMap;
+
 import org.apache.lucene.analysis.payloads.PayloadHelper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -49,6 +51,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.*;
 
+@Slow
 public class GetTermVectorsTests extends AbstractTermVectorsTests {
 
     @Test
@@ -181,7 +184,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     }
 
     @Test
-    public void testSimpleTermVectors() throws ElasticsearchException, IOException {
+    public void testSimpleTermVectors() throws IOException {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
                         .startObject("field")
@@ -219,7 +222,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     }
 
     @Test
-    public void testRandomSingleTermVectors() throws ElasticsearchException, IOException {
+    public void testRandomSingleTermVectors() throws IOException {
         FieldType ft = new FieldType();
         int config = randomInt(6);
         boolean storePositions = false;
@@ -313,7 +316,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
             if (ft.storeTermVectors()) {
                 Terms terms = fields.terms("field");
                 assertThat(terms.size(), equalTo(8l));
-                TermsEnum iterator = terms.iterator(null);
+                TermsEnum iterator = terms.iterator();
                 for (int j = 0; j < values.length; j++) {
                     String string = values[j];
                     BytesRef next = iterator.next();
@@ -407,7 +410,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     }
 
     @Test
-    public void testRandomPayloadWithDelimitedPayloadTokenFilter() throws ElasticsearchException, IOException {
+    public void testRandomPayloadWithDelimitedPayloadTokenFilter() throws IOException {
         //create the test document
         int encoding = randomIntBetween(0, 2);
         String encodingString = "";
@@ -448,7 +451,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         Fields fields = response.getFields();
         assertThat(fields.size(), equalTo(1));
         Terms terms = fields.terms("field");
-        TermsEnum iterator = terms.iterator(null);
+        TermsEnum iterator = terms.iterator();
         while (iterator.next() != null) {
             String term = iterator.term().utf8ToString();
             PostingsEnum docsAndPositions = iterator.postings(null, null, PostingsEnum.ALL);
@@ -575,7 +578,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
 
     // like testSimpleTermVectors but we create fields with no term vectors
     @Test
-    public void testSimpleTermVectorsWithGenerate() throws ElasticsearchException, IOException {
+    public void testSimpleTermVectorsWithGenerate() throws IOException {
         String[] fieldNames = new String[10];
         for (int i = 0; i < fieldNames.length; i++) {
             fieldNames[i] = "field" + String.valueOf(i);
@@ -627,7 +630,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         }
     }
 
-    private void checkBrownFoxTermVector(Fields fields, String fieldName, boolean withPayloads) throws ElasticsearchException, IOException {
+    private void checkBrownFoxTermVector(Fields fields, String fieldName, boolean withPayloads) throws IOException {
         String[] values = {"brown", "dog", "fox", "jumps", "lazy", "over", "quick", "the"};
         int[] freq = {1, 1, 1, 1, 1, 1, 1, 2};
         int[][] pos = {{2}, {8}, {3}, {4}, {7}, {5}, {1}, {0, 6}};
@@ -636,7 +639,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
 
         Terms terms = fields.terms(fieldName);
         assertThat(terms.size(), equalTo(8l));
-        TermsEnum iterator = terms.iterator(null);
+        TermsEnum iterator = terms.iterator();
         for (int j = 0; j < values.length; j++) {
             String string = values[j];
             BytesRef next = iterator.next();
@@ -668,7 +671,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     }
 
     @Test
-    public void testDuelWithAndWithoutTermVectors() throws ElasticsearchException, IOException, ExecutionException, InterruptedException {
+    public void testDuelWithAndWithoutTermVectors() throws IOException, ExecutionException, InterruptedException {
         // setup indices
         String[] indexNames = new String[] {"with_tv", "without_tv"};
         assertAcked(prepareCreate(indexNames[0])
@@ -722,8 +725,8 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         assertThat(terms1, notNullValue());
         assertThat(terms0.size(), equalTo(terms1.size()));
 
-        TermsEnum iter0 = terms0.iterator(null);
-        TermsEnum iter1 = terms1.iterator(null);
+        TermsEnum iter0 = terms0.iterator();
+        TermsEnum iter1 = terms1.iterator();
         for (int i = 0; i < terms0.size(); i++) {
             BytesRef next0 = iter0.next();
             assertThat(next0, notNullValue());
@@ -757,7 +760,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     }
 
     @Test
-    public void testSimpleWildCards() throws ElasticsearchException, IOException {
+    public void testSimpleWildCards() throws IOException {
         int numFields = 25;
 
         XContentBuilder mapping = jsonBuilder().startObject().startObject("type1").startObject("properties");
@@ -785,7 +788,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     }
 
     @Test
-    public void testArtificialVsExisting() throws ElasticsearchException, ExecutionException, InterruptedException, IOException {
+    public void testArtificialVsExisting() throws ExecutionException, InterruptedException, IOException {
         // setup indices
         ImmutableSettings.Builder settings = settingsBuilder()
                 .put(indexSettings())
@@ -921,7 +924,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     }
 
     @Test
-    public void testPerFieldAnalyzer() throws ElasticsearchException, IOException {
+    public void testPerFieldAnalyzer() throws IOException {
         int numFields = 25;
 
         // setup mapping and document source
@@ -1003,7 +1006,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
             assertThat("Existing field " + fieldName + "should have been returned", terms, notNullValue());
             // check overridden by keyword analyzer ...
             if (perFieldAnalyzer.containsKey(fieldName)) {
-                TermsEnum iterator = terms.iterator(null);
+                TermsEnum iterator = terms.iterator();
                 assertThat("Analyzer for " + fieldName + " should have been overridden!", iterator.next().utf8ToString(), equalTo("some text here"));
                 assertThat(iterator.next(), nullValue());
             }
@@ -1018,7 +1021,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     }
 
     @Test
-    public void testDfs() throws ElasticsearchException, ExecutionException, InterruptedException, IOException {
+    public void testDfs() throws ExecutionException, InterruptedException, IOException {
         logger.info("Setting up the index ...");
         ImmutableSettings.Builder settings = settingsBuilder()
                 .put(indexSettings())
@@ -1090,7 +1093,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
                     (int) terms.getSumTotalTermFreq(),
                     equalOrLessThanTo(fieldStatistics.get("sum_ttf"), isEqual));
 
-            final TermsEnum termsEnum = terms.iterator(null);
+            final TermsEnum termsEnum = terms.iterator();
             BytesRef text;
             while((text = termsEnum.next()) != null) {
                 String term = text.utf8ToString();
@@ -1224,5 +1227,134 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getVersion(), equalTo(2l));
+    }
+
+    @Test
+    public void testFilterLength() throws ExecutionException, InterruptedException, IOException {
+        logger.info("Setting up the index ...");
+        ImmutableSettings.Builder settings = settingsBuilder()
+                .put(indexSettings())
+                .put("index.analysis.analyzer", "keyword");
+        assertAcked(prepareCreate("test")
+                .setSettings(settings)
+                .addMapping("type1", "tags", "type=string"));
+        ensureYellow();
+
+        int numTerms = scaledRandomIntBetween(10, 50);
+        logger.info("Indexing one document with tags of increasing length ...");
+        List<String> tags = new ArrayList<>();
+        for (int i = 0; i < numTerms; i++) {
+            String tag = "a";
+            for (int j = 0; j < i; j++) {
+                tag += "a";
+            }
+            tags.add(tag);
+        }
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("tags", tags));
+
+        logger.info("Checking best tags by longest to shortest size ...");
+        TermVectorsRequest.FilterSettings filterSettings = new TermVectorsRequest.FilterSettings();
+        filterSettings.maxNumTerms = numTerms;
+        TermVectorsResponse response;
+        for (int i = 0; i < numTerms; i++) {
+            filterSettings.minWordLength = numTerms - i;
+            response = client().prepareTermVectors("test", "type1", "1")
+                    .setSelectedFields("tags")
+                    .setFieldStatistics(true)
+                    .setTermStatistics(true)
+                    .setFilterSettings(filterSettings)
+                    .get();
+            checkBestTerms(response.getFields().terms("tags"), tags.subList((numTerms - i - 1), numTerms));
+        }
+    }
+
+    @Test
+    public void testFilterTermFreq() throws ExecutionException, InterruptedException, IOException {
+        logger.info("Setting up the index ...");
+        ImmutableSettings.Builder settings = settingsBuilder()
+                .put(indexSettings())
+                .put("index.analysis.analyzer", "keyword");
+        assertAcked(prepareCreate("test")
+                .setSettings(settings)
+                .addMapping("type1", "tags", "type=string"));
+        ensureYellow();
+
+        logger.info("Indexing one document with tags of increasing frequencies ...");
+        int numTerms = scaledRandomIntBetween(10, 50);
+        List<String> tags = new ArrayList<>();
+        List<String> uniqueTags = new ArrayList<>();
+        String tag;
+        for (int i = 0; i < numTerms; i++) {
+            tag = "tag_" + i;
+            tags.add(tag);
+            for (int j = 0; j < i; j++) {
+                tags.add(tag);
+            }
+            uniqueTags.add(tag);
+        }
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("tags", tags));
+
+        logger.info("Checking best tags by highest to lowest term freq ...");
+        TermVectorsRequest.FilterSettings filterSettings = new TermVectorsRequest.FilterSettings();
+        TermVectorsResponse response;
+        for (int i = 0; i < numTerms; i++) {
+            filterSettings.maxNumTerms = i + 1;
+            response = client().prepareTermVectors("test", "type1", "1")
+                    .setSelectedFields("tags")
+                    .setFieldStatistics(true)
+                    .setTermStatistics(true)
+                    .setFilterSettings(filterSettings)
+                    .get();
+            checkBestTerms(response.getFields().terms("tags"), uniqueTags.subList((numTerms - i - 1), numTerms));
+        }
+    }
+
+    @Test
+    public void testFilterDocFreq() throws ExecutionException, InterruptedException, IOException {
+        logger.info("Setting up the index ...");
+        ImmutableSettings.Builder settings = settingsBuilder()
+                .put(indexSettings())
+                .put("index.analysis.analyzer", "keyword")
+                .put("index.number_of_shards", 1); // no dfs
+        assertAcked(prepareCreate("test")
+                .setSettings(settings)
+                .addMapping("type1", "tags", "type=string"));
+        ensureYellow();
+
+        int numDocs = scaledRandomIntBetween(10, 50); // as many terms as there are docs
+        logger.info("Indexing {} documents with tags of increasing dfs ...", numDocs);
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        List<String> tags = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            tags.add("tag_" + i);
+            builders.add(client().prepareIndex("test", "type1", i + "").setSource("tags", tags));
+        }
+        indexRandom(true, builders);
+
+        logger.info("Checking best terms by highest to lowest idf ...");
+        TermVectorsRequest.FilterSettings filterSettings = new TermVectorsRequest.FilterSettings();
+        TermVectorsResponse response;
+        for (int i = 0; i < numDocs; i++) {
+            filterSettings.maxNumTerms = i + 1;
+            response = client().prepareTermVectors("test", "type1", (numDocs - 1) + "")
+                    .setSelectedFields("tags")
+                    .setFieldStatistics(true)
+                    .setTermStatistics(true)
+                    .setFilterSettings(filterSettings)
+                    .get();
+            checkBestTerms(response.getFields().terms("tags"), tags.subList((numDocs - i - 1), numDocs));
+        }
+    }
+
+    private void checkBestTerms(Terms terms, List<String> expectedTerms) throws IOException {
+        final TermsEnum termsEnum = terms.iterator();
+        List<String> bestTerms = new ArrayList<>();
+        BytesRef text;
+        while((text = termsEnum.next()) != null) {
+            bestTerms.add(text.utf8ToString());
+        }
+        Collections.sort(expectedTerms);
+        Collections.sort(bestTerms);
+        assertArrayEquals(expectedTerms.toArray(), bestTerms.toArray());
     }
 }

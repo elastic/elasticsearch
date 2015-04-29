@@ -885,34 +885,4 @@ public class SearchSourceBuilder implements ToXContent {
             return params;
         }
     }
-
-    private static class PartialField {
-        private final String name;
-        private final String[] includes;
-        private final String[] excludes;
-
-        private PartialField(String name, String[] includes, String[] excludes) {
-            this.name = name;
-            this.includes = includes;
-            this.excludes = excludes;
-        }
-
-        private PartialField(String name, String include, String exclude) {
-            this.name = name;
-            this.includes = include == null ? null : new String[]{include};
-            this.excludes = exclude == null ? null : new String[]{exclude};
-        }
-
-        public String name() {
-            return name;
-        }
-
-        public String[] includes() {
-            return includes;
-        }
-
-        public String[] excludes() {
-            return excludes;
-        }
-    }
 }

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.common.collect;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.google.common.collect.UnmodifiableIterator;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.lucene.util.mutable.MutableValueInt;
-import org.elasticsearch.common.Preconditions;
 
 import java.util.*;
 

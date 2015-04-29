@@ -1,10 +1,10 @@
 {
-  "ack_watch": {
-    "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-ack-watch.html",
+  "watcher.put_watch": {
+    "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-put-watch.html",
     "methods": [ "PUT", "POST" ],
     "url": {
-      "path": "/_watcher/watch/{id}/_ack",
-      "paths": [ "/_watcher/watch/{id}/_ack" ],
+      "path": "/_watcher/watch/{id}",
+      "paths": [ "/_watcher/watch/{id}" ],
       "parts": {
         "id": {
           "type" : "string",
@@ -20,6 +20,9 @@
         }
       }
     },
-    "body": null
+    "body": {
+      "description" : "The watch",
+      "required" : true
+    }    
   }
 }

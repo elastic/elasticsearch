@@ -4,5 +4,5 @@
       cluster.health:
           wait_for_status: green
 
-  - do: {start_watcher: {}}
+  - do: {watcher.start: {}}
   - match: { acknowledged: true }

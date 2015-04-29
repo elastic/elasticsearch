@@ -1,5 +1,5 @@
 {
-  "delete_watch": {
+  "watcher.delete_watch": {
     "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-delete-watch.html",
     "methods": [ "DELETE" ],
     "url": {
@@ -13,11 +13,6 @@
         }
       },
       "params": {
-        "pretty": {
-          "type": "boolean",
-          "description": "Pretty the output",
-          "default": false
-        }
       }
     },
     "body": null

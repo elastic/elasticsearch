@@ -1,5 +1,5 @@
 {
-  "watcher_stats": {
+  "watcher.stats": {
     "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-stats.html",
     "methods": [ "GET" ],
     "url": {
@@ -8,11 +8,6 @@
       "parts": {
       },
       "params": {
-        "pretty": {
-          "type": "boolean",
-          "description": "Pretty the output",
-          "default": false
-        }
       }
     },
     "body": null

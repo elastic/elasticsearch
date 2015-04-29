@@ -1,0 +1,20 @@
+{
+  "watcher.ack_watch": {
+    "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-ack-watch.html",
+    "methods": [ "PUT", "POST" ],
+    "url": {
+      "path": "/_watcher/watch/{id}/_ack",
+      "paths": [ "/_watcher/watch/{id}/_ack" ],
+      "parts": {
+        "id": {
+          "type" : "string",
+          "description" : "Watch ID",
+          "required" : true
+        }
+      },
+      "params": {
+      }
+    },
+    "body": null
+  }
+}

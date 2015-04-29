@@ -25,10 +25,10 @@ public class WatcherVersion implements Serializable {
     // the (internal) format of the id is there so we can easily do after/before checks on the id
 
     // The first internal beta has already been released, without this class being here, so we start version version 2.
-    public static final int V_1_0_0_Beta2_ID = /*00*/1000002;
-    public static final WatcherVersion V_1_0_0_Beta2 = new WatcherVersion(V_1_0_0_Beta2_ID, true, Version.V_1_4_0, LicenseVersion.V_1_0_0);
+    public static final int V_1_0_0_Beta1_ID = /*00*/1000001;
+    public static final WatcherVersion V_1_0_0_Beta1 = new WatcherVersion(V_1_0_0_Beta1_ID, true, Version.V_1_4_0, LicenseVersion.V_1_0_0);
 
-    public static final WatcherVersion CURRENT = V_1_0_0_Beta2;
+    public static final WatcherVersion CURRENT = V_1_0_0_Beta1;
 
     public static WatcherVersion readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
@@ -36,8 +36,8 @@ public class WatcherVersion implements Serializable {
 
     public static WatcherVersion fromId(int id) {
         switch (id) {
-            case V_1_0_0_Beta2_ID:
-                return V_1_0_0_Beta2;
+            case V_1_0_0_Beta1_ID:
+                return V_1_0_0_Beta1;
 
             default:
                 return new WatcherVersion(id, null, Version.CURRENT, LicenseVersion.CURRENT);

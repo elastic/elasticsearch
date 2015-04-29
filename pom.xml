@@ -9,6 +9,12 @@
     <artifactId>elasticsearch-watcher</artifactId>
     <version>1.0.0-Beta1-SNAPSHOT</version>
 
+    <scm>
+        <connection>scm:git:git@github.com:elastic/elasticsearch-watcher.git</connection>
+        <developerConnection>scm:git:git@github.com:elastic/elasticsearch-watcher.git</developerConnection>
+        <url>http://github.com/elastic/elasticsearch-watcher</url>
+    </scm>
+
     <parent>
         <groupId>org.sonatype.oss</groupId>
         <artifactId>oss-parent</artifactId>

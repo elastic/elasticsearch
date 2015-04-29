@@ -75,20 +75,24 @@ public class RestTable {
 
         BytesStreamOutput bytesOut = channel.bytesOutput();
         UTF8StreamWriter out = new UTF8StreamWriter().setOutput(bytesOut);
+        int lastHeader = headers.size() - 1;
         if (verbose) {
             for (int col = 0; col < headers.size(); col++) {
                 DisplayHeader header = headers.get(col);
                 pad(new Table.Cell(header.display, table.findHeaderByName(header.name)), width[col], request, out);
-                out.append(" ");
+                if (col != lastHeader) {
+                    out.append(" ");
+                }
             }
             out.append("\n");
         }
-
         for (int row = 0; row < table.getRows().size(); row++) {
             for (int col = 0; col < headers.size(); col++) {
                 DisplayHeader header = headers.get(col);
                 pad(table.getAsMap().get(header.name).get(row), width[col], request, out);
-                out.append(" ");
+                if (col != lastHeader) {
+                    out.append(" ");
+                }
             }
             out.append("\n");
         }

@@ -28,8 +28,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
@@ -137,7 +135,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
 
         public Builder maxInputLength(int maxInputLength) {
             if (maxInputLength <= 0) {
-                throw new ElasticsearchIllegalArgumentException(Fields.MAX_INPUT_LENGTH.getPreferredName() + " must be > 0 but was [" + maxInputLength + "]");
+                throw new IllegalArgumentException(Fields.MAX_INPUT_LENGTH.getPreferredName() + " must be > 0 but was [" + maxInputLength + "]");
             }
             this.maxInputLength = maxInputLength;
             return this;
@@ -215,7 +213,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         private NamedAnalyzer getNamedAnalyzer(ParserContext parserContext, String name) {
             NamedAnalyzer analyzer = parserContext.analysisService().analyzer(name);
             if (analyzer == null) {
-                throw new ElasticsearchIllegalArgumentException("Can't find default or mapped analyzer with name [" + name + "]");
+                throw new IllegalArgumentException("Can't find default or mapped analyzer with name [" + name + "]");
             }
             return analyzer;
         }
@@ -257,7 +255,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
 
     public synchronized PostingsFormat postingsFormat(PostingsFormat in) {
         if (in instanceof Completion090PostingsFormat) {
-            throw new ElasticsearchIllegalStateException("Double wrapping of " + Completion090PostingsFormat.class);
+            throw new IllegalStateException("Double wrapping of " + Completion090PostingsFormat.class);
         }
         if (postingsFormat == null) {
             postingsFormat = new Completion090PostingsFormat(in, analyzingSuggestLookupProvider);
@@ -286,7 +284,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                     if (!ALLOWED_CONTENT_FIELD_NAMES.contains(currentFieldName)) {
-                        throw new ElasticsearchIllegalArgumentException("Unknown field name[" + currentFieldName + "], must be one of " + ALLOWED_CONTENT_FIELD_NAMES);
+                        throw new IllegalArgumentException("Unknown field name[" + currentFieldName + "], must be one of " + ALLOWED_CONTENT_FIELD_NAMES);
                     }
                 } else if (Fields.CONTEXT.equals(currentFieldName)) {
                     SortedMap<String, ContextConfig> configs = Maps.newTreeMap(); 
@@ -335,7 +333,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                         try {
                             weightValue = Long.parseLong(parser.text());
                         } catch (NumberFormatException e) {
-                            throw new ElasticsearchIllegalArgumentException("Weight must be a string representing a numeric value, but was [" + parser.text() + "]");
+                            throw new IllegalArgumentException("Weight must be a string representing a numeric value, but was [" + parser.text() + "]");
                         }
                         weight = weightValue.longValue(); // always parse a long to make sure we don't get overflow
                         checkWeight(weight);
@@ -344,7 +342,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                     if (Fields.CONTENT_FIELD_NAME_WEIGHT.equals(currentFieldName)) {
                         NumberType numberType = parser.numberType();
                         if (NumberType.LONG != numberType && NumberType.INT != numberType) {
-                            throw new ElasticsearchIllegalArgumentException("Weight must be an integer, but was [" + parser.numberValue() + "]");
+                            throw new IllegalArgumentException("Weight must be an integer, but was [" + parser.numberValue() + "]");
                         }
                         weight = parser.longValue(); // always parse a long to make sure we don't get overflow
                         checkWeight(weight);
@@ -387,7 +385,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
 
     private void checkWeight(long weight) {
         if (weight < 0 || weight > Integer.MAX_VALUE) {
-            throw new ElasticsearchIllegalArgumentException("Weight must be in the interval [0..2147483647], but was [" + weight + "]");
+            throw new IllegalArgumentException("Weight must be in the interval [0..2147483647], but was [" + weight + "]");
         }
     }
 
@@ -415,7 +413,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         }
         for (int i = 0; i < input.length(); i++) {
             if (isReservedChar(input.charAt(i))) {
-                throw new ElasticsearchIllegalArgumentException("Illegal input [" + originalInput + "] UTF-16 codepoint  [0x"
+                throw new IllegalArgumentException("Illegal input [" + originalInput + "] UTF-16 codepoint  [0x"
                         + Integer.toHexString((int) input.charAt(i)).toUpperCase(Locale.ROOT)
                         + "] at position " + i + " is a reserved character");
             }

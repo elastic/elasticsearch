@@ -19,7 +19,6 @@
 package org.elasticsearch.action.percolate;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -27,7 +26,6 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -187,7 +185,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                     header.put("id", entry.getValue());
                 } else if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
                     if (!allowExplicitIndex) {
-                        throw new ElasticsearchIllegalArgumentException("explicit index in multi percolate is not allowed");
+                        throw new IllegalArgumentException("explicit index in multi percolate is not allowed");
                     }
                     getRequest.index(nodeStringValue(value, null));
                 } else if ("type".equals(entry.getKey())) {
@@ -225,7 +223,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                 Object value = entry.getValue();
                 if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
                     if (!allowExplicitIndex) {
-                        throw new ElasticsearchIllegalArgumentException("explicit index in multi percolate is not allowed");
+                        throw new IllegalArgumentException("explicit index in multi percolate is not allowed");
                     }
                     percolateRequest.indices(nodeStringArrayValue(value));
                 } else if ("type".equals(entry.getKey())) {

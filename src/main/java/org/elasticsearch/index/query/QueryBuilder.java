@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -33,9 +32,9 @@ import java.io.IOException;
  */
 public interface QueryBuilder extends ToXContent {
 
-    BytesReference buildAsBytes() throws ElasticsearchException;
+    BytesReference buildAsBytes();
 
-    BytesReference buildAsBytes(XContentType contentType) throws ElasticsearchException;
+    BytesReference buildAsBytes(XContentType contentType);
 
     /**
      * Create a {@link Query} based on this QueryBuilder

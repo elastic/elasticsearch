@@ -20,7 +20,6 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionWriteResponse;
@@ -292,7 +291,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     }
                 }
             } else {
-                throw new ElasticsearchIllegalStateException("Unexpected index operation: " + item.request());
+                throw new IllegalStateException("Unexpected index operation: " + item.request());
             }
 
             assert item.getPrimaryResponse() != null;
@@ -502,7 +501,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 indexShard.indexingService().noopUpdate(updateRequest.type());
                 return new UpdateResult(translate, updateResponse);
             default:
-                throw new ElasticsearchIllegalStateException("Illegal update operation " + translate.operation());
+                throw new IllegalStateException("Illegal update operation " + translate.operation());
         }
     }
 
@@ -556,7 +555,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     }
                 }
             } else {
-                throw new ElasticsearchIllegalStateException("Unexpected index operation: " + item.request());
+                throw new IllegalStateException("Unexpected index operation: " + item.request());
             }
         }
 

@@ -19,15 +19,11 @@
 
 package org.elasticsearch.search.functionscore;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -469,7 +465,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
 
     }
 
-    @Test(expected = ElasticsearchIllegalStateException.class)
+    @Test(expected = IllegalStateException.class)
     public void testExceptionThrownIfScaleRefNotBetween0And1() throws Exception {
         DecayFunctionBuilder gfb = new GaussDecayFunctionBuilder("num1", "2013-05-28", "1d").setDecay(100);
     }
@@ -916,17 +912,17 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         // next test java client
         try {
             client().prepareSearch("t").setQuery(QueryBuilders.functionScoreQuery(FilterBuilders.matchAllFilter(), null)).get();
-        } catch (ElasticsearchIllegalArgumentException failure) {
+        } catch (IllegalArgumentException failure) {
             assertTrue(failure.toString().contains("function must not be null"));
         }
         try {
             client().prepareSearch("t").setQuery(QueryBuilders.functionScoreQuery().add(FilterBuilders.matchAllFilter(), null)).get();
-        } catch (ElasticsearchIllegalArgumentException failure) {
+        } catch (IllegalArgumentException failure) {
             assertTrue(failure.toString().contains("function must not be null"));
         }
         try {
             client().prepareSearch("t").setQuery(QueryBuilders.functionScoreQuery().add(null)).get();
-        } catch (ElasticsearchIllegalArgumentException failure) {
+        } catch (IllegalArgumentException failure) {
             assertTrue(failure.toString().contains("function must not be null"));
         }
     }

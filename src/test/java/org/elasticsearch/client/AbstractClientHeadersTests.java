@@ -23,8 +23,6 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.GenericAction;
-import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownAction;
-import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
@@ -80,7 +78,7 @@ public abstract class AbstractClientHeadersTests extends ElasticsearchTestCase {
                 IndexAction.INSTANCE,
 
                 // cluster admin actions
-                ClusterStatsAction.INSTANCE, CreateSnapshotAction.INSTANCE, NodesShutdownAction.INSTANCE, ClusterRerouteAction.INSTANCE,
+                ClusterStatsAction.INSTANCE, CreateSnapshotAction.INSTANCE, ClusterRerouteAction.INSTANCE,
 
                 // indices admin actions
                 CreateIndexAction.INSTANCE, IndicesStatsAction.INSTANCE, ClearIndicesCacheAction.INSTANCE, FlushAction.INSTANCE
@@ -119,7 +117,6 @@ public abstract class AbstractClientHeadersTests extends ElasticsearchTestCase {
         // choosing arbitrary cluster admin actions to test
         client.admin().cluster().prepareClusterStats().execute().addListener(new AssertingActionListener<ClusterStatsResponse>(ClusterStatsAction.NAME));
         client.admin().cluster().prepareCreateSnapshot("repo", "bck").execute().addListener(new AssertingActionListener<CreateSnapshotResponse>(CreateSnapshotAction.NAME));
-        client.admin().cluster().prepareNodesShutdown("n1", "n2").execute().addListener(new AssertingActionListener<NodesShutdownResponse>(NodesShutdownAction.NAME));
         client.admin().cluster().prepareReroute().execute().addListener(new AssertingActionListener<ClusterRerouteResponse>(ClusterRerouteAction.NAME));
 
         // choosing arbitrary indices admin actions to test

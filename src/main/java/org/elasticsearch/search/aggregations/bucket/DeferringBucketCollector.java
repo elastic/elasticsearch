@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -74,7 +73,7 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             in.close();
         }
 
@@ -110,19 +109,19 @@ public abstract class DeferringBucketCollector extends BucketCollector {
 
         @Override
         public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-            throw new ElasticsearchIllegalStateException(
+            throw new IllegalStateException(
                     "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
         }
 
         @Override
         public void preCollection() throws IOException {
-            throw new ElasticsearchIllegalStateException(
+            throw new IllegalStateException(
                     "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
         }
 
         @Override
         public void postCollection() throws IOException {
-            throw new ElasticsearchIllegalStateException(
+            throw new IllegalStateException(
                     "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
         }
 

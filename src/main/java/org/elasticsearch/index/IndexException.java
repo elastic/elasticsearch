@@ -35,7 +35,7 @@ public class IndexException extends ElasticsearchException {
         this(index, msg, null);
     }
 
-    protected IndexException(Index index, String msg, Throwable cause) {
+    public IndexException(Index index, String msg, Throwable cause) {
         super(msg, cause);
         this.index = index;
     }

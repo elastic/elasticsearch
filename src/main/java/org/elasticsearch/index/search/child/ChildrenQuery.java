@@ -378,7 +378,7 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             Releasables.close(parentIdxs);
         }
     }
@@ -404,7 +404,7 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             Releasables.close(parentIdxs, scores);
         }
     }
@@ -427,7 +427,7 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             Releasables.close(parentIdxs, scores, occurrences);
         }
     }
@@ -453,7 +453,7 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             Releasables.close(parentIdxs, occurrences);
         }
     }

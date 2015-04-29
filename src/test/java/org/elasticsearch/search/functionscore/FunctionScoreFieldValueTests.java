@@ -88,6 +88,14 @@ public class FunctionScoreFieldValueTests extends ElasticsearchIntegrationTest {
             // We are expecting an exception, because 3 has no field
         }
 
+        // doc 3 doesn't have a "test" field but we're defaulting it to 100 so it should be last
+        response = client().prepareSearch("test")
+                .setExplain(randomBoolean())
+                .setQuery(functionScoreQuery(matchAllQuery(),
+                        fieldValueFactorFunction("test").modifier(FieldValueFactorFunction.Modifier.RECIPROCAL).missing(100)))
+                .get();
+        assertOrderedSearchHits(response, "1", "2", "3");
+
         // n divided by 0 is infinity, which should provoke an exception.
         try {
             response = client().prepareSearch("test")

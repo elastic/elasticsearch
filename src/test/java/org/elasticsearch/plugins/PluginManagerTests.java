@@ -23,17 +23,14 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -68,7 +65,7 @@ import static org.hamcrest.Matchers.notNullValue;
 // if its in your classpath, then do not use plugins!!!!!!
 public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
-    @Test(expected = ElasticsearchIllegalArgumentException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testDownloadAndExtract_NullName_ThrowsException() throws IOException {
         pluginManager(getPluginUrlForResource("plugin_single_folder.zip")).downloadAndExtract(null);
     }
@@ -422,7 +419,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Test
     @Network
     public void testInstallPluginWithElasticsearchDownloadService() throws IOException {
-        assumeTrue("download.elasticsearch.org is accessible", isDownloadServiceWorking("download.elasticsearch.org", 80, "/elasticsearch/ci-test.txt"));
+        assumeTrue("download.elastic.co is accessible", isDownloadServiceWorking("download.elastic.co", 80, "/elasticsearch/ci-test.txt"));
         singlePluginInstallAndRemove("elasticsearch/elasticsearch-transport-thrift/2.4.0", null);
     }
 
@@ -480,12 +477,12 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         singlePluginInstallAndRemove("groupid/plugintest", getPluginUrlForResource("plugin_without_folders.zip"));
     }
 
-    @Test(expected = ElasticsearchIllegalArgumentException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testRemovePlugin_NullName_ThrowsException() throws IOException {
         pluginManager(getPluginUrlForResource("plugin_single_folder.zip")).removePlugin(null);
     }
 
-    @Test(expected = ElasticsearchIllegalArgumentException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testRemovePluginWithURLForm() throws Exception {
         PluginManager pluginManager = pluginManager(null);
         pluginManager.removePlugin("file://whatever");
@@ -510,7 +507,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             pluginManager(null).removePlugin(name);
             fail("this plugin name [" + name +
                     "] should not be allowed");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             // We expect that error
         }
     }

@@ -128,7 +128,7 @@ public class TransportDfsOnlyAction extends TransportBroadcastOperationAction<Df
     }
 
     @Override
-    protected ShardDfsOnlyResponse shardOperation(ShardDfsOnlyRequest request) throws ElasticsearchException {
+    protected ShardDfsOnlyResponse shardOperation(ShardDfsOnlyRequest request) {
         DfsSearchResult dfsSearchResult = searchService.executeDfsPhase(request.getShardSearchRequest());
         searchService.freeContext(dfsSearchResult.id());
         return new ShardDfsOnlyResponse(request.shardId(), dfsSearchResult);

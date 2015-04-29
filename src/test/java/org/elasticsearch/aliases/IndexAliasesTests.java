@@ -20,7 +20,6 @@
 package org.elasticsearch.aliases;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -112,7 +111,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         try {
             indicesAliasesRequestBuilder.get();
             fail("put alias should have been failed due to invalid filter");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias1]"));
         }
 
@@ -121,7 +120,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         try {
             indicesAliasesRequestBuilder.get();
             fail("put alias should have been failed due to invalid filter");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias1]"));
         }
     }
@@ -405,26 +404,6 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> checking counts before delete");
         assertThat(client().prepareCount("bars").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(1L));
-
-        logger.info("--> delete by query from a single alias");
-        client().prepareDeleteByQuery("bars").setQuery(QueryBuilders.termQuery("name", "test")).get();
-
-        logger.info("--> verify that only one record was deleted");
-        assertThat(client().prepareCount("test1").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(3L));
-
-        logger.info("--> delete by query from an aliases pointing to two indices");
-        client().prepareDeleteByQuery("foos").setQuery(QueryBuilders.matchAllQuery()).get();
-
-        logger.info("--> verify that proper records were deleted");
-        SearchResponse searchResponse = client().prepareSearch("aliasToTests").setQuery(QueryBuilders.matchAllQuery()).get();
-        assertHits(searchResponse.getHits(), "3", "4", "6", "7", "8");
-
-        logger.info("--> delete by query from an aliases and an index");
-        client().prepareDeleteByQuery("tests", "test2").setQuery(QueryBuilders.matchAllQuery()).get();
-
-        logger.info("--> verify that proper records were deleted");
-        searchResponse = client().prepareSearch("aliasToTests").setQuery(QueryBuilders.matchAllQuery()).get();
-        assertHits(searchResponse.getHits(), "4");
     }
 
     
@@ -763,7 +742,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         try {
             assertAcked(admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, "alias1")));
             fail("create alias should have failed due to null index");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat("Exception text does not contain \"Alias action [add]: [index] may not be empty string\"",
                     e.getMessage(), containsString("Alias action [add]: [index] may not be empty string"));
         }
@@ -780,7 +759,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         try {
             assertAcked(admin().indices().prepareAliases().addAlias((String) null, "empty-alias"));
             fail("create alias should have failed due to null index");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat("Exception text does not contain \"Alias action [add]: [index] may not be empty string\"",
                     e.getMessage(), containsString("Alias action [add]: [index] may not be empty string"));
         }
@@ -924,7 +903,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         try {
             createIndexRequestBuilder.get();
             fail("create index should have failed due to invalid alias filter");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias2]"));
         }
 
@@ -934,7 +913,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         try {
             createIndexRequestBuilder.get();
             fail("create index should have failed due to invalid alias filter");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias2]"));
         }
     }
@@ -948,8 +927,8 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
                     .addAlias("test", "a", FilterBuilders.termFilter("field1", "term"))
                     .get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
-            assertThat(e.getRootCause(), instanceOf(QueryParsingException.class));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getCause(), instanceOf(QueryParsingException.class));
         }
 
         try {
@@ -957,8 +936,8 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
                     .addAlias("test", "a", FilterBuilders.rangeFilter("field2").from(0).to(1))
                     .get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
-            assertThat(e.getRootCause(), instanceOf(QueryParsingException.class));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getCause(), instanceOf(QueryParsingException.class));
         }
 
         client().admin().indices().prepareAliases()

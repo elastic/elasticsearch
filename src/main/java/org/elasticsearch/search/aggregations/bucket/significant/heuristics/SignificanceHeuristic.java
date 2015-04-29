@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 
@@ -40,13 +39,13 @@ public abstract class SignificanceHeuristic {
 
     protected void checkFrequencyValidity(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize, String scoreFunctionName) {
         if (subsetFreq < 0 || subsetSize < 0 || supersetFreq < 0 || supersetSize < 0) {
-            throw new ElasticsearchIllegalArgumentException("Frequencies of subset and superset must be positive in " + scoreFunctionName + ".getScore()");
+            throw new IllegalArgumentException("Frequencies of subset and superset must be positive in " + scoreFunctionName + ".getScore()");
         }
         if (subsetFreq > subsetSize) {
-            throw new ElasticsearchIllegalArgumentException("subsetFreq > subsetSize, in " + scoreFunctionName);
+            throw new IllegalArgumentException("subsetFreq > subsetSize, in " + scoreFunctionName);
         }
         if (supersetFreq > supersetSize) {
-            throw new ElasticsearchIllegalArgumentException("supersetFreq > supersetSize, in " + scoreFunctionName);
+            throw new IllegalArgumentException("supersetFreq > supersetSize, in " + scoreFunctionName);
         }
     }
 

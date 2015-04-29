@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.indices.state;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
@@ -54,35 +53,35 @@ public class CloseIndexDisableCloseAllTests extends ElasticsearchIntegrationTest
         try {
             client().admin().indices().prepareClose("_all").execute().actionGet();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
         }
 
         // Close all wildcard
         try {
             client().admin().indices().prepareClose("*").execute().actionGet();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
         }
 
         // Close all wildcard
         try {
             client().admin().indices().prepareClose("test*").execute().actionGet();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
         }
 
         // Close all wildcard
         try {
             client().admin().indices().prepareClose("*", "-test1").execute().actionGet();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
         }
 
         // Close all wildcard
         try {
             client().admin().indices().prepareClose("*", "-test1", "+test1").execute().actionGet();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
         }
 
         CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test3", "test2").execute().actionGet();

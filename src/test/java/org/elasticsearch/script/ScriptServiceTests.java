@@ -20,13 +20,11 @@ package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
@@ -103,7 +101,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
     private void buildScriptService(Settings additionalSettings) throws IOException {
         Settings finalSettings = ImmutableSettings.builder().put(baseSettings).put(additionalSettings).build();
         Environment environment = new Environment(finalSettings);
-        scriptService = new ScriptService(finalSettings, environment, scriptEngineServices, resourceWatcherService, new NodeSettingsService(finalSettings), scriptContextRegistry) {
+        scriptService = new ScriptService(finalSettings, environment, scriptEngineServices, resourceWatcherService, scriptContextRegistry) {
             @Override
             String getScriptFromIndex(String scriptLang, String id) {
                 //mock the script that gets retrieved from an index
@@ -117,7 +115,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         try {
             buildScriptService(ImmutableSettings.builder().put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, randomUnicodeOfLength(randomIntBetween(1, 10))).build());
             fail("script service should have thrown exception due to non supported script.disable_dynamic setting");
-        } catch(ElasticsearchIllegalArgumentException e) {
+        } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with fine-grained script settings"));
         }
     }
@@ -145,7 +143,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         try {
             scriptService.compile(new Script("test", "test_script", ScriptType.FILE, null), ScriptContext.Standard.SEARCH);
             fail("the script test_script should no longer exist");
-        } catch (ElasticsearchIllegalArgumentException ex) {
+        } catch (IllegalArgumentException ex) {
             assertThat(ex.getMessage(), containsString("Unable to find on disk script test_script"));
         }
     }
@@ -352,7 +350,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
                 try {
                     scriptService.compile(new Script(type, "test", randomFrom(ScriptType.values()), null), new ScriptContext.Plugin(pluginName, unknownContext));
                     fail("script compilation should have been rejected");
-                } catch(ElasticsearchIllegalArgumentException e) {
+                } catch(IllegalArgumentException e) {
                     assertThat(e.getMessage(), containsString("script context [" + pluginName + "_" + unknownContext + "] not supported"));
                 }
             }

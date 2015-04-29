@@ -21,7 +21,6 @@ package org.elasticsearch.node;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -123,11 +122,11 @@ public class Node implements Releasable {
     private final PluginsService pluginsService;
     private final Client client;
 
-    public Node() throws ElasticsearchException {
+    public Node() {
         this(ImmutableSettings.Builder.EMPTY_SETTINGS, true);
     }
 
-    public Node(Settings preparedSettings, boolean loadConfigSettings) throws ElasticsearchException {
+    public Node(Settings preparedSettings, boolean loadConfigSettings) {
         final Settings pSettings = settingsBuilder().put(preparedSettings)
                 .put(Client.CLIENT_TYPE_SETTING, CLIENT_TYPE).build();
         Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(pSettings, loadConfigSettings);
@@ -157,7 +156,7 @@ public class Node implements Releasable {
         try {
             nodeEnvironment = new NodeEnvironment(this.settings, this.environment);
         } catch (IOException ex) {
-            throw new ElasticsearchIllegalStateException("Failed to created node environment", ex);
+            throw new IllegalStateException("Failed to created node environment", ex);
         }
 
         boolean success = false;

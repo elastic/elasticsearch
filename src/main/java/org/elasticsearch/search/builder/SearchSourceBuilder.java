@@ -24,7 +24,7 @@ import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -315,7 +315,7 @@ public class SearchSourceBuilder implements ToXContent {
      */
     public  SearchSourceBuilder terminateAfter(int terminateAfter) {
         if (terminateAfter <= 0) {
-            throw new ElasticsearchIllegalArgumentException("terminateAfter must be > 0");
+            throw new IllegalArgumentException("terminateAfter must be > 0");
         }
         this.terminateAfter = terminateAfter;
         return this;
@@ -630,7 +630,7 @@ public class SearchSourceBuilder implements ToXContent {
             toXContent(builder, ToXContent.EMPTY_PARAMS);
             return builder.string();
         } catch (Exception e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
+            return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
         }
     }
 

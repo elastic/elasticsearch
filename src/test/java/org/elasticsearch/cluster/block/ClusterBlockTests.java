@@ -28,7 +28,6 @@ import org.junit.Test;
 
 import java.util.EnumSet;
 
-import static org.elasticsearch.cluster.block.ClusterBlockLevel.*;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -64,21 +63,7 @@ public class ClusterBlockTests extends ElasticsearchTestCase {
             assertThat(result.description(), equalTo(clusterBlock.description()));
             assertThat(result.retryable(), equalTo(clusterBlock.retryable()));
             assertThat(result.disableStatePersistence(), equalTo(clusterBlock.disableStatePersistence()));
-
-            // This enum set is used to count the expected serialized/deserialized number of blocks
-            EnumSet<ClusterBlockLevel> expected = EnumSet.noneOf(ClusterBlockLevel.class);
-
-            for (ClusterBlockLevel level : clusterBlock.levels()) {
-                if (level == METADATA) {
-                    assertTrue(result.levels().contains(METADATA_READ));
-                    assertTrue(result.levels().contains(METADATA_WRITE));
-                } else {
-                    assertTrue(result.levels().contains(level));
-                }
-
-                expected.addAll(ClusterBlockLevel.fromId(level.toId(version)));
-            }
-            assertThat(result.levels().size(), equalTo(expected.size()));
+            assertArrayEquals(result.levels().toArray(), clusterBlock.levels().toArray());
         }
     }
 }

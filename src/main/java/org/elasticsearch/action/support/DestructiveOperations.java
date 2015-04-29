@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -55,15 +54,15 @@ public final class DestructiveOperations implements NodeSettingsService.Listener
         }
 
         if (aliasesOrIndices == null || aliasesOrIndices.length == 0) {
-            throw new ElasticsearchIllegalArgumentException("Wildcard expressions or all indices are not allowed");
+            throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
         } else if (aliasesOrIndices.length == 1) {
             if (hasWildcardUsage(aliasesOrIndices[0])) {
-                throw new ElasticsearchIllegalArgumentException("Wildcard expressions or all indices are not allowed");
+                throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
             }
         } else {
             for (String aliasesOrIndex : aliasesOrIndices) {
                 if (hasWildcardUsage(aliasesOrIndex)) {
-                    throw new ElasticsearchIllegalArgumentException("Wildcard expressions or all indices are not allowed");
+                    throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
                 }
             }
         }

@@ -42,6 +42,9 @@ to `100mb`
 |`http.max_initial_line_length` |The max length of an HTTP URL. Defaults
 to `4kb`
 
+|`http.max_header_size` | The max size of allowed headers.  Defaults to `8kB`
+
+
 |`http.compression` |Support for compression when possible (with
 Accept-Encoding). Defaults to `false`.
 

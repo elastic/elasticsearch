@@ -75,7 +75,7 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
      * Operation to be executed at the shard level. Can be called with shardId set to null, meaning that there is no
      * shard involved and the operation just needs to be executed on the local node.
      */
-    protected abstract Response shardOperation(Request request, ShardId shardId) throws ElasticsearchException;
+    protected abstract Response shardOperation(Request request, ShardId shardId);
 
     protected abstract Response newResponse();
 

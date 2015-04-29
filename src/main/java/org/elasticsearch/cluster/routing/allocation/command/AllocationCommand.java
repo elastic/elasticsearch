@@ -88,5 +88,5 @@ public interface AllocationCommand {
      * @param allocation {@link RoutingAllocation} to modify
      * @throws org.elasticsearch.ElasticsearchException if something happens during reconfiguration
      */
-    RerouteExplanation execute(RoutingAllocation allocation, boolean explain) throws ElasticsearchException;
+    RerouteExplanation execute(RoutingAllocation allocation, boolean explain);
 }

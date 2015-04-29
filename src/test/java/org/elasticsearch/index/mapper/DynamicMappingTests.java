@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.mapper.dynamic;
+package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -31,15 +31,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.FieldMappers;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.StrictDynamicMappingException;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 
 import java.io.IOException;
@@ -210,7 +201,7 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
         ctx.reset(XContentHelper.createParser(source.source()), new ParseContext.Document(), source, null);
         assertEquals(XContentParser.Token.START_OBJECT, ctx.parser().nextToken());
         ctx.parser().nextToken();
-        return mapper.root().parse(ctx);
+        return DocumentParser.parseObject(ctx, mapper.root());
     }
 
     public void testDynamicMappingsNotNeeded() throws Exception {

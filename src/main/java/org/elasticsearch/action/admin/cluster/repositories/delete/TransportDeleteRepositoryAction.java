@@ -64,7 +64,7 @@ public class TransportDeleteRepositoryAction extends TransportMasterNodeOperatio
     }
 
     @Override
-    protected void masterOperation(final DeleteRepositoryRequest request, ClusterState state, final ActionListener<DeleteRepositoryResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final DeleteRepositoryRequest request, ClusterState state, final ActionListener<DeleteRepositoryResponse> listener) {
         repositoriesService.unregisterRepository(
                 new RepositoriesService.UnregisterRepositoryRequest("delete_repository [" + request.name() + "]", request.name())
                         .masterNodeTimeout(request.masterNodeTimeout()).ackTimeout(request.timeout()),

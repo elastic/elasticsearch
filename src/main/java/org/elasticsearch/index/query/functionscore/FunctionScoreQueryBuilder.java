@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BaseQueryBuilder;
@@ -98,7 +97,7 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
      */
     public FunctionScoreQueryBuilder(ScoreFunctionBuilder scoreFunctionBuilder) {
         if (scoreFunctionBuilder == null) {
-            throw new ElasticsearchIllegalArgumentException("function_score: function must not be null");
+            throw new IllegalArgumentException("function_score: function must not be null");
         }
         queryBuilder = null;
         filterBuilder = null;
@@ -114,7 +113,7 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
      */
     public FunctionScoreQueryBuilder add(FilterBuilder filter, ScoreFunctionBuilder scoreFunctionBuilder) {
         if (scoreFunctionBuilder == null) {
-            throw new ElasticsearchIllegalArgumentException("function_score: function must not be null");
+            throw new IllegalArgumentException("function_score: function must not be null");
         }
         this.filters.add(filter);
         this.scoreFunctions.add(scoreFunctionBuilder);
@@ -128,7 +127,7 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
      */
     public FunctionScoreQueryBuilder add(ScoreFunctionBuilder scoreFunctionBuilder) {
         if (scoreFunctionBuilder == null) {
-            throw new ElasticsearchIllegalArgumentException("function_score: function must not be null");
+            throw new IllegalArgumentException("function_score: function must not be null");
         }
         this.filters.add(null);
         this.scoreFunctions.add(scoreFunctionBuilder);

@@ -110,7 +110,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
     }
 
     @Override
-    protected NodeStoreFilesMetaData nodeOperation(NodeRequest request) throws ElasticsearchException {
+    protected NodeStoreFilesMetaData nodeOperation(NodeRequest request) {
         if (request.unallocated) {
             IndexService indexService = indicesService.indexService(request.shardId.index().name());
             if (indexService == null) {

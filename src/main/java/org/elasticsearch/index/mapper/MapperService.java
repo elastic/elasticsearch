@@ -39,7 +39,6 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
@@ -717,7 +716,7 @@ public class MapperService extends AbstractIndexComponent  {
             final Mapper.TypeParser.ParserContext parserContext = documentMapperParser().parserContext();
             Mapper.TypeParser typeParser = parserContext.typeParser(type);
             if (typeParser == null) {
-                throw new ElasticsearchIllegalArgumentException("No mapper found for type [" + type + "]");
+                throw new IllegalArgumentException("No mapper found for type [" + type + "]");
             }
             final Mapper.Builder<?, ?> builder = typeParser.parse("__anonymous_" + type, ImmutableMap.<String, Object>of(), parserContext);
             final BuilderContext builderContext = new BuilderContext(indexSettings, new ContentPath(1));

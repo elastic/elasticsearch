@@ -23,8 +23,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Lists;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -130,7 +128,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                     configuredTargetNodes.add(new DiscoveryNode(UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "#", addresses[i], version.minimumCompatibilityVersion()));
                 }
             } catch (Exception e) {
-                throw new ElasticsearchIllegalArgumentException("Failed to resolve address for [" + host + "]", e);
+                throw new IllegalArgumentException("Failed to resolve address for [" + host + "]", e);
             }
         }
         this.configuredTargetNodes = configuredTargetNodes.toArray(new DiscoveryNode[configuredTargetNodes.size()]);
@@ -142,15 +140,15 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
         transportService.removeHandler(ACTION_NAME);
         ThreadPool.terminate(unicastConnectExecutor, 0, TimeUnit.SECONDS);
         try {
@@ -200,7 +198,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     @Override
-    public void ping(final PingListener listener, final TimeValue timeout) throws ElasticsearchException {
+    public void ping(final PingListener listener, final TimeValue timeout) {
         final SendPingsHandler sendPingsHandler = new SendPingsHandler(pingHandlerIdGenerator.incrementAndGet());
         try {
             receivedResponses.put(sendPingsHandler.id(), sendPingsHandler);
@@ -220,11 +218,11 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                         protected void doRun() throws Exception {
                             sendPings(timeout, TimeValue.timeValueMillis(timeout.millis() / 2), sendPingsHandler);
                             sendPingsHandler.close();
+                            listener.onPing(sendPingsHandler.pingCollection().toArray());
                             for (DiscoveryNode node : sendPingsHandler.nodeToDisconnect) {
                                 logger.trace("[{}] disconnecting from {}", sendPingsHandler.id(), node);
                                 transportService.disconnectFromNode(node);
                             }
-                            listener.onPing(sendPingsHandler.pingCollection().toArray());
                         }
 
                         @Override
@@ -462,7 +460,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     private UnicastPingResponse handlePingRequest(final UnicastPingRequest request) {
         if (!lifecycle.started()) {
-            throw new ElasticsearchIllegalStateException("received ping request while not started");
+            throw new IllegalStateException("received ping request while not started");
         }
         temporalResponses.add(request.pingResponse);
         threadPool.schedule(TimeValue.timeValueMillis(request.timeout.millis() * 2), ThreadPool.Names.SAME, new Runnable() {

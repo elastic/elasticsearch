@@ -63,7 +63,7 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeOperationA
     }
 
     @Override
-    protected void masterOperation(final DeleteSnapshotRequest request, ClusterState state, final ActionListener<DeleteSnapshotResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final DeleteSnapshotRequest request, ClusterState state, final ActionListener<DeleteSnapshotResponse> listener) {
         SnapshotId snapshotIds = new SnapshotId(request.repository(), request.snapshot());
         snapshotsService.deleteSnapshot(snapshotIds, new SnapshotsService.DeleteSnapshotListener() {
             @Override

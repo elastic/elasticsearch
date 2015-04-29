@@ -21,7 +21,6 @@ package org.elasticsearch.discovery.local;
 
 import com.google.common.base.Objects;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -99,7 +98,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         synchronized (clusterGroups) {
             ClusterGroup clusterGroup = clusterGroups.get(clusterName);
             if (clusterGroup == null) {
@@ -192,7 +191,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         synchronized (clusterGroups) {
             ClusterGroup clusterGroup = clusterGroups.get(clusterName);
             if (clusterGroup == null) {
@@ -250,7 +249,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
     }
 
     @Override
@@ -276,7 +275,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     @Override
     public void publish(ClusterState clusterState, final Discovery.AckListener ackListener) {
         if (!master) {
-            throw new ElasticsearchIllegalStateException("Shouldn't publish state when not master");
+            throw new IllegalStateException("Shouldn't publish state when not master");
         }
         LocalDiscovery[] members = members();
         if (members.length > 0) {
@@ -379,7 +378,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
         } catch (Exception e) {
             // failure to marshal or un-marshal
-            throw new ElasticsearchIllegalStateException("Cluster state failed to serialize", e);
+            throw new IllegalStateException("Cluster state failed to serialize", e);
         }
     }
 

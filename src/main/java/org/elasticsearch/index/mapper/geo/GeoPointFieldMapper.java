@@ -28,8 +28,6 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -301,7 +299,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         public static final Encoding of(int numBytesPerValue) {
             final Encoding instance = INSTANCES[numBytesPerValue];
             if (instance == null) {
-                throw new ElasticsearchIllegalStateException("No encoding for " + numBytesPerValue + " bytes per value");
+                throw new IllegalStateException("No encoding for " + numBytesPerValue + " bytes per value");
             }
             return instance;
         }
@@ -593,12 +591,12 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
 
         if (validateLat) {
             if (point.lat() > 90.0 || point.lat() < -90.0) {
-                throw new ElasticsearchIllegalArgumentException("illegal latitude value [" + point.lat() + "] for " + name());
+                throw new IllegalArgumentException("illegal latitude value [" + point.lat() + "] for " + name());
             }
         }
         if (validateLon) {
             if (point.lon() > 180.0 || point.lon() < -180) {
-                throw new ElasticsearchIllegalArgumentException("illegal longitude value [" + point.lon() + "] for " + name());
+                throw new IllegalArgumentException("illegal longitude value [" + point.lon() + "] for " + name());
             }
         }
 

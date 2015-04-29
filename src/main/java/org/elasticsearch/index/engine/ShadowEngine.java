@@ -117,6 +117,8 @@ public class ShadowEngine extends Engine {
         throw new UnsupportedOperationException(shardId + " delete operation not allowed on shadow engine");
     }
 
+    /** @deprecated This was removed, but we keep this API so translog can replay any DBQs on upgrade. */
+    @Deprecated
     @Override
     public void delete(DeleteByQuery delete) throws EngineException {
         throw new UnsupportedOperationException(shardId + " delete-by-query operation not allowed on shadow engine");
@@ -212,7 +214,7 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    protected void closeNoLock(String reason) throws ElasticsearchException {
+    protected void closeNoLock(String reason) {
         if (isClosed.compareAndSet(false, true)) {
             try {
                 logger.debug("shadow replica close searcher manager refCount: {}", store.refCount());

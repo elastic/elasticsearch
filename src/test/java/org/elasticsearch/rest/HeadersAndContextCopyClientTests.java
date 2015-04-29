@@ -445,7 +445,7 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
 
         }
 

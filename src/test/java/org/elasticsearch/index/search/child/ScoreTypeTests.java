@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -57,9 +56,9 @@ public class ScoreTypeTests extends ElasticsearchTestCase {
     }
 
     /**
-     * Should throw {@link ElasticsearchIllegalArgumentException} instead of NPE.
+     * Should throw {@link IllegalArgumentException} instead of NPE.
      */
-    @Test(expected = ElasticsearchIllegalArgumentException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void nullFromString_throwsException() {
         ScoreType.fromString(null);
     }
@@ -67,7 +66,7 @@ public class ScoreTypeTests extends ElasticsearchTestCase {
     /**
      * Failure should not change (and the value should never match anything...).
      */
-    @Test(expected = ElasticsearchIllegalArgumentException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void unrecognizedFromString_throwsException() {
         ScoreType.fromString("unrecognized value");
     }

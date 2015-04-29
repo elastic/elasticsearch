@@ -45,12 +45,12 @@ public abstract class BaseFilterBuilder implements FilterBuilder {
     }
 
     @Override
-    public BytesReference buildAsBytes() throws ElasticsearchException {
+    public BytesReference buildAsBytes() {
         return buildAsBytes(XContentType.JSON);
     }
 
     @Override
-    public BytesReference buildAsBytes(XContentType contentType) throws ElasticsearchException {
+    public BytesReference buildAsBytes(XContentType contentType) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             toXContent(builder, EMPTY_PARAMS);

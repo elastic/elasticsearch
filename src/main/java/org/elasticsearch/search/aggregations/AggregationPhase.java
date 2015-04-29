@@ -93,7 +93,7 @@ public class AggregationPhase implements SearchPhase {
     }
 
     @Override
-    public void execute(SearchContext context) throws ElasticsearchException {
+    public void execute(SearchContext context) {
         if (context.aggregations() == null) {
             context.queryResult().aggregations(null);
             return;

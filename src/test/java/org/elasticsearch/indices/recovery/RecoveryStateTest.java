@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -344,7 +343,7 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
                 state.setStage(stage);
             }
             fail("succeeded in performing the illegal sequence [" + Strings.arrayToCommaDelimitedString(stages) + "]");
-        } catch (ElasticsearchIllegalStateException e) {
+        } catch (IllegalStateException e) {
             // cool
         }
 

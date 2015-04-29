@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.IntArrayList;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.search.ReduceSearchPhaseException;
@@ -194,7 +193,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                     raiseEarlyFailure(new ReduceSearchPhaseException(firstPhaseName(), "", e, buildShardFailures()));
                 }
             } else if (xTotalOps > expectedTotalOps) {
-                raiseEarlyFailure(new ElasticsearchIllegalStateException("unexpected higher total ops [" + xTotalOps + "] compared to expected [" + expectedTotalOps + "]"));
+                raiseEarlyFailure(new IllegalStateException("unexpected higher total ops [" + xTotalOps + "] compared to expected [" + expectedTotalOps + "]"));
             }
         }
 

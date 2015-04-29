@@ -24,7 +24,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -303,7 +302,7 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
         } else if (field.numericValue() != null) {
             return field.numericValue();
         } else {
-            throw new ElasticsearchIllegalStateException("Field should have either a string, numeric or binary value");
+            throw new IllegalStateException("Field should have either a string, numeric or binary value");
         }
     }
 

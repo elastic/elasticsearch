@@ -20,7 +20,6 @@ package org.elasticsearch.common;
 
 import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
@@ -60,7 +59,7 @@ public final class PidFile {
         Path parent = path.getParent();
         if (parent != null) {
             if (Files.exists(parent) && Files.isDirectory(parent) == false) {
-                throw new ElasticsearchIllegalArgumentException(parent + " exists but is not a directory");
+                throw new IllegalArgumentException(parent + " exists but is not a directory");
             }
             if (Files.exists(parent) == false) {
                 // only do this if it doesn't exists we get a better exception further down
@@ -71,7 +70,7 @@ public final class PidFile {
             }
         }
         if (Files.exists(path) && Files.isRegularFile(path) == false) {
-            throw new ElasticsearchIllegalArgumentException(path + " exists but is not a regular file");
+            throw new IllegalArgumentException(path + " exists but is not a regular file");
         }
 
         try(OutputStream stream = Files.newOutputStream(path, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {

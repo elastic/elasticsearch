@@ -19,7 +19,6 @@
 package org.elasticsearch.test.cluster;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -107,13 +106,13 @@ public class TestClusterService implements ClusterService {
     }
 
     @Override
-    public void addInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException {
+    public void addInitialStateBlock(ClusterBlock block) throws IllegalStateException {
         throw new UnsupportedOperationException();
 
     }
 
     @Override
-    public void removeInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException {
+    public void removeInitialStateBlock(ClusterBlock block) throws IllegalStateException {
         throw new UnsupportedOperationException();
 
     }
@@ -209,17 +208,17 @@ public class TestClusterService implements ClusterService {
     }
 
     @Override
-    public ClusterService start() throws ElasticsearchException {
+    public ClusterService start() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public ClusterService stop() throws ElasticsearchException {
+    public ClusterService stop() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void close() {
         throw new UnsupportedOperationException();
     }
 

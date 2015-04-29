@@ -146,7 +146,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
      * and releasing the snapshot once all 3 phases of recovery are complete
      */
     @Override
-    public void phase1(final SnapshotIndexCommit snapshot) throws ElasticsearchException {
+    public void phase1(final SnapshotIndexCommit snapshot) {
         cancellableThreads.checkForCancel();
         // Total size of segment files that are recovered
         long totalSize = 0;
@@ -428,7 +428,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
      * of the translog and releasing it once all 3 phases of recovery are complete
      */
     @Override
-    public void phase2(Translog.Snapshot snapshot) throws ElasticsearchException {
+    public void phase2(Translog.Snapshot snapshot) {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
@@ -479,7 +479,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
      * three phases are released.
      */
     @Override
-    public void phase3(Translog.Snapshot snapshot) throws ElasticsearchException {
+    public void phase3(Translog.Snapshot snapshot) {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }

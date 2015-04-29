@@ -20,7 +20,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -152,11 +151,11 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     @Override
     public SearchRequest indices(String... indices) {
         if (indices == null) {
-            throw new ElasticsearchIllegalArgumentException("indices must not be null");
+            throw new IllegalArgumentException("indices must not be null");
         } else {
             for (int i = 0; i < indices.length; i++) {
                 if (indices[i] == null) {
-                    throw new ElasticsearchIllegalArgumentException("indices[" + i + "] must not be null");
+                    throw new IllegalArgumentException("indices[" + i + "] must not be null");
                 }
             }
         }
@@ -241,7 +240,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      * one of "dfs_query_then_fetch"/"dfsQueryThenFetch", "dfs_query_and_fetch"/"dfsQueryAndFetch",
      * "query_then_fetch"/"queryThenFetch", and "query_and_fetch"/"queryAndFetch".
      */
-    public SearchRequest searchType(String searchType) throws ElasticsearchIllegalArgumentException {
+    public SearchRequest searchType(String searchType) {
         return searchType(SearchType.fromString(searchType));
     }
 

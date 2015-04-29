@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import java.util.Locale;
 
@@ -47,7 +46,7 @@ public class LocaleUtils {
                 // lang
                 return new Locale(parts[0]);
             default:
-                throw new ElasticsearchIllegalArgumentException("Can't parse locale: [" + localeStr + "]");
+                throw new IllegalArgumentException("Can't parse locale: [" + localeStr + "]");
         }
     }
 

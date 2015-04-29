@@ -28,8 +28,6 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotT
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
-import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownAction;
-import org.elasticsearch.action.admin.cluster.node.shutdown.TransportNodesShutdownAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryAction;
@@ -126,10 +124,6 @@ import org.elasticsearch.action.count.CountAction;
 import org.elasticsearch.action.count.TransportCountAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryAction;
-import org.elasticsearch.action.deletebyquery.TransportDeleteByQueryAction;
-import org.elasticsearch.action.deletebyquery.TransportIndexDeleteByQueryAction;
-import org.elasticsearch.action.deletebyquery.TransportShardDeleteByQueryAction;
 import org.elasticsearch.action.exists.ExistsAction;
 import org.elasticsearch.action.exists.TransportExistsAction;
 import org.elasticsearch.action.explain.ExplainAction;
@@ -222,7 +216,6 @@ public class ActionModule extends AbstractModule {
         bind(ActionFilters.class).asEagerSingleton();
         registerAction(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class);
         registerAction(NodesStatsAction.INSTANCE, TransportNodesStatsAction.class);
-        registerAction(NodesShutdownAction.INSTANCE, TransportNodesShutdownAction.class);
         registerAction(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
 
         registerAction(ClusterStatsAction.INSTANCE, TransportClusterStatsAction.class);
@@ -287,8 +280,6 @@ public class ActionModule extends AbstractModule {
                 TransportShardMultiGetAction.class);
         registerAction(BulkAction.INSTANCE, TransportBulkAction.class,
                 TransportShardBulkAction.class);
-        registerAction(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class,
-                TransportIndexDeleteByQueryAction.class, TransportShardDeleteByQueryAction.class);
         registerAction(SearchAction.INSTANCE, TransportSearchAction.class,
                 TransportSearchDfsQueryThenFetchAction.class,
                 TransportSearchQueryThenFetchAction.class,

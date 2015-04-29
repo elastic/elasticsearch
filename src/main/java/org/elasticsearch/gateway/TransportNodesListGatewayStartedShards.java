@@ -98,7 +98,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     }
 
     @Override
-    protected NodeGatewayStartedShards nodeOperation(NodeRequest request) throws ElasticsearchException {
+    protected NodeGatewayStartedShards nodeOperation(NodeRequest request) {
         try {
             final ShardId shardId = request.getShardId();
             final String indexUUID = request.getIndexUUID();

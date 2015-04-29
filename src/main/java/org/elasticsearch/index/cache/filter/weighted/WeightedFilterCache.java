@@ -78,7 +78,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     }
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void close() {
         clear("close");
     }
 

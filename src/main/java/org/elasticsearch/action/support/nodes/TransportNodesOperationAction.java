@@ -76,7 +76,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
 
     protected abstract NodeResponse newNodeResponse();
 
-    protected abstract NodeResponse nodeOperation(NodeRequest request) throws ElasticsearchException;
+    protected abstract NodeResponse nodeOperation(NodeRequest request);
 
     protected abstract boolean accumulateExceptions();
 

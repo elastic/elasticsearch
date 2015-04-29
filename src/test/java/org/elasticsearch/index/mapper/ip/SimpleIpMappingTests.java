@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.ip;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -68,7 +67,7 @@ public class SimpleIpMappingTests extends ElasticsearchSingleNodeTest {
         try {
             IpFieldMapper.ipToLong("127.0.011.1111111");
             fail("Expected ip address parsing to fail but did not happen");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("not a valid ip address"));
         }
     }
@@ -78,7 +77,7 @@ public class SimpleIpMappingTests extends ElasticsearchSingleNodeTest {
         try {
             IpFieldMapper.ipToLong("2001:db8:0:8d3:0:8a2e:70:7344");
             fail("Expected ip address parsing to fail but did not happen");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("not a valid ipv4 address"));
         }
     }
@@ -100,14 +99,14 @@ public class SimpleIpMappingTests extends ElasticsearchSingleNodeTest {
         try {
             defaultMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject().field("field2", "").endObject().bytes());
         } catch (MapperParsingException e) {
-            assertThat(e.getCause(), instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         }
 
         // Verify that the default is false
         try {
             defaultMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject().field("field3", "").endObject().bytes());
         } catch (MapperParsingException e) {
-            assertThat(e.getCause(), instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         }
 
         // Unless the global ignore_malformed option is set to true
@@ -120,7 +119,7 @@ public class SimpleIpMappingTests extends ElasticsearchSingleNodeTest {
         try {
             defaultMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject().field("field2", "").endObject().bytes());
         } catch (MapperParsingException e) {
-            assertThat(e.getCause(), instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         }
     }
 

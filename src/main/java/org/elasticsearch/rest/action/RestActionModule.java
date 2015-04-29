@@ -28,7 +28,6 @@ import org.elasticsearch.rest.action.admin.cluster.repositories.verify.RestVerif
 import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthAction;
 import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotThreadsAction;
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
-import org.elasticsearch.rest.action.admin.cluster.node.shutdown.RestNodesShutdownAction;
 import org.elasticsearch.rest.action.admin.cluster.node.stats.RestNodesStatsAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.delete.RestDeleteRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.repositories.get.RestGetRepositoriesAction;
@@ -82,7 +81,6 @@ import org.elasticsearch.rest.action.admin.indices.recovery.RestRecoveryAction;
 import org.elasticsearch.rest.action.bulk.RestBulkAction;
 import org.elasticsearch.rest.action.cat.*;
 import org.elasticsearch.rest.action.delete.RestDeleteAction;
-import org.elasticsearch.rest.action.deletebyquery.RestDeleteByQueryAction;
 import org.elasticsearch.rest.action.explain.RestExplainAction;
 import org.elasticsearch.rest.action.fieldstats.RestFieldStatsAction;
 import org.elasticsearch.rest.action.get.RestGetAction;
@@ -132,7 +130,6 @@ public class RestActionModule extends AbstractModule {
         bind(RestNodesInfoAction.class).asEagerSingleton();
         bind(RestNodesStatsAction.class).asEagerSingleton();
         bind(RestNodesHotThreadsAction.class).asEagerSingleton();
-        bind(RestNodesShutdownAction.class).asEagerSingleton();
         bind(RestClusterStatsAction.class).asEagerSingleton();
         bind(RestClusterStateAction.class).asEagerSingleton();
         bind(RestClusterHealthAction.class).asEagerSingleton();
@@ -196,7 +193,6 @@ public class RestActionModule extends AbstractModule {
         bind(RestHeadAction.class).asEagerSingleton();
         bind(RestMultiGetAction.class).asEagerSingleton();
         bind(RestDeleteAction.class).asEagerSingleton();
-        bind(RestDeleteByQueryAction.class).asEagerSingleton();
         bind(org.elasticsearch.rest.action.count.RestCountAction.class).asEagerSingleton();
         bind(RestSuggestAction.class).asEagerSingleton();
         bind(RestTermVectorsAction.class).asEagerSingleton();

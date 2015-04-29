@@ -39,11 +39,6 @@ public class ExternalRootMapper implements RootMapper {
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
-        return null;
-    }
-
-    @Override
     public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         if (!(mergeWith instanceof ExternalRootMapper)) {
             mergeResult.addConflict("Trying to merge " + mergeWith + " with " + this);

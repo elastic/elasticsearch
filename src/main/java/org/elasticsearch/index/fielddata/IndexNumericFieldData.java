@@ -24,7 +24,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 
@@ -41,7 +40,7 @@ public interface IndexNumericFieldData extends IndexFieldData<AtomicNumericField
                 } else if (indexForm.equals(BooleanFieldMapper.Values.TRUE)) {
                     return 1;
                 } else {
-                    throw new ElasticsearchIllegalArgumentException("Cannot convert " + indexForm + " to a boolean");
+                    throw new IllegalArgumentException("Cannot convert " + indexForm + " to a boolean");
                 }
             }
 

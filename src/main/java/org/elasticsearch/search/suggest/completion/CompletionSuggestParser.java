@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -93,10 +92,10 @@ public class CompletionSuggestParser implements SuggestContextParser {
                     BytesReference bytes = builder.bytes();               
                     contextParser = parser.contentType().xContent().createParser(bytes);
                 } else {
-                    throw new ElasticsearchIllegalArgumentException("suggester [completion] doesn't support field [" + fieldName + "]");
+                    throw new IllegalArgumentException("suggester [completion] doesn't support field [" + fieldName + "]");
                 }
             } else {
-                throw new ElasticsearchIllegalArgumentException("suggester[completion]  doesn't support field [" + fieldName + "]");
+                throw new IllegalArgumentException("suggester[completion]  doesn't support field [" + fieldName + "]");
             }
         }
         
@@ -106,14 +105,14 @@ public class CompletionSuggestParser implements SuggestContextParser {
         if (mapper != null) {
             if (mapper.requiresContext()) {
                 if (contextParser == null) {
-                    throw new ElasticsearchIllegalArgumentException("suggester [completion] requires context to be setup");
+                    throw new IllegalArgumentException("suggester [completion] requires context to be setup");
                 } else {
                     contextParser.nextToken();
                     List<ContextQuery> contextQueries = ContextQuery.parseQueries(mapper.getContextMapping(), contextParser);
                     suggestion.setContextQuery(contextQueries);
                 }
             } else if (contextParser != null) {
-                throw new ElasticsearchIllegalArgumentException("suggester [completion] doesn't expect any context");
+                throw new IllegalArgumentException("suggester [completion] doesn't expect any context");
             }
         }
         return suggestion;

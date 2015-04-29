@@ -64,7 +64,7 @@ public class TransportGetWarmersAction extends TransportClusterInfoAction<GetWar
     }
 
     @Override
-    protected void doMasterOperation(final GetWarmersRequest request, String[] concreteIndices, final ClusterState state, final ActionListener<GetWarmersResponse> listener) throws ElasticsearchException {
+    protected void doMasterOperation(final GetWarmersRequest request, String[] concreteIndices, final ClusterState state, final ActionListener<GetWarmersResponse> listener) {
         ImmutableOpenMap<String, ImmutableList<IndexWarmersMetaData.Entry>> result = state.metaData().findWarmers(
                 concreteIndices, request.types(), request.warmers()
         );

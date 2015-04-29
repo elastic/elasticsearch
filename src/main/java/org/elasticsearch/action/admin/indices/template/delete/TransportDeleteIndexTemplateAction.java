@@ -63,7 +63,7 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeOpera
     }
 
     @Override
-    protected void masterOperation(final DeleteIndexTemplateRequest request, final ClusterState state, final ActionListener<DeleteIndexTemplateResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final DeleteIndexTemplateRequest request, final ClusterState state, final ActionListener<DeleteIndexTemplateResponse> listener) {
         indexTemplateService.removeTemplates(new MetaDataIndexTemplateService.RemoveRequest(request.name()).masterTimeout(request.masterNodeTimeout()), new MetaDataIndexTemplateService.RemoveListener() {
             @Override
             public void onResponse(MetaDataIndexTemplateService.RemoveResponse response) {

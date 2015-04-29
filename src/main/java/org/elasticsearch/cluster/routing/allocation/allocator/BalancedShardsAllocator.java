@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -78,7 +77,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             final float shardBalance = settings.getAsFloat(SETTING_SHARD_BALANCE_FACTOR, weightFunction.shardBalance);
             float threshold = settings.getAsFloat(SETTING_THRESHOLD, BalancedShardsAllocator.this.threshold);
             if (threshold <= 0.0f) {
-                throw new ElasticsearchIllegalArgumentException("threshold must be greater than 0.0f but was: " + threshold);
+                throw new IllegalArgumentException("threshold must be greater than 0.0f but was: " + threshold);
             }
             BalancedShardsAllocator.this.threshold = threshold;
             BalancedShardsAllocator.this.weightFunction = new WeightFunction(indexBalance, shardBalance);
@@ -180,7 +179,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         public WeightFunction(float indexBalance, float shardBalance) {
             float sum = indexBalance + shardBalance;
             if (sum <= 0.0f) {
-                throw new ElasticsearchIllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
+                throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
             }
             theta = new float[]{shardBalance / sum, indexBalance / sum};
             this.indexBalance = indexBalance;

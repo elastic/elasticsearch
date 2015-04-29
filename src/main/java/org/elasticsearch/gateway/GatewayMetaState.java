@@ -20,7 +20,6 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -175,7 +174,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                     }
                     final String name = stateFile.getFileName().toString();
                     if (name.startsWith("metadata-")) {
-                        throw new ElasticsearchIllegalStateException("Detected pre 0.19 metadata file please upgrade to a version before "
+                        throw new IllegalStateException("Detected pre 0.19 metadata file please upgrade to a version before "
                                 + Version.CURRENT.minimumCompatibilityVersion()
                                 + " first to upgrade state structures - metadata found: [" + stateFile.getParent().toAbsolutePath());
                     }
@@ -225,7 +224,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             } else if (indexMetaData.getCreationVersion().onOrAfter(Version.V_2_0_0)) {
                 if (indexMetaData.getSettings().get(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION) != null
                         || indexMetaData.getSettings().get(IndexMetaData.SETTING_LEGACY_ROUTING_USE_TYPE) != null) {
-                    throw new ElasticsearchIllegalStateException("Indices created on or after 2.0 should NOT contain [" + IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION
+                    throw new IllegalStateException("Indices created on or after 2.0 should NOT contain [" + IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION
                             + "] + or [" + IndexMetaData.SETTING_LEGACY_ROUTING_USE_TYPE + "] in their index settings");
                 }
             }
@@ -244,7 +243,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             if (Files.exists(stateLocation)) {
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(stateLocation, "shards-*")) {
                     for (Path stateFile : stream) {
-                        throw new ElasticsearchIllegalStateException("Detected pre 0.19 shard state file please upgrade to a version before "
+                        throw new IllegalStateException("Detected pre 0.19 shard state file please upgrade to a version before "
                                 + Version.CURRENT.minimumCompatibilityVersion()
                                 + " first to upgrade state structures - shard state found: [" + stateFile.getParent().toAbsolutePath());
                     }

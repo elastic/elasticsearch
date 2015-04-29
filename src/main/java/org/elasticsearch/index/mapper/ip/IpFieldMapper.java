@@ -31,7 +31,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -83,22 +82,22 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     private static final Pattern pattern = Pattern.compile("\\.");
 
-    public static long ipToLong(String ip) throws ElasticsearchIllegalArgumentException {
+    public static long ipToLong(String ip) {
         try {
             if (!InetAddresses.isInetAddress(ip)) {
-                throw new ElasticsearchIllegalArgumentException("failed to parse ip [" + ip + "], not a valid ip address");
+                throw new IllegalArgumentException("failed to parse ip [" + ip + "], not a valid ip address");
             }
             String[] octets = pattern.split(ip);
             if (octets.length != 4) {
-                throw new ElasticsearchIllegalArgumentException("failed to parse ip [" + ip + "], not a valid ipv4 address (4 dots)");
+                throw new IllegalArgumentException("failed to parse ip [" + ip + "], not a valid ipv4 address (4 dots)");
             }
             return (Long.parseLong(octets[0]) << 24) + (Integer.parseInt(octets[1]) << 16) +
                     (Integer.parseInt(octets[2]) << 8) + Integer.parseInt(octets[3]);
         } catch (Exception e) {
-            if (e instanceof ElasticsearchIllegalArgumentException) {
-                throw (ElasticsearchIllegalArgumentException) e;
+            if (e instanceof IllegalArgumentException) {
+                throw (IllegalArgumentException) e;
             }
-            throw new ElasticsearchIllegalArgumentException("failed to parse ip [" + ip + "]", e);
+            throw new IllegalArgumentException("failed to parse ip [" + ip + "]", e);
         }
     }
 
@@ -235,7 +234,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         long iSim;
         try {
             iSim = ipToLong(fuzziness.asString());
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             iSim = fuzziness.asLong();
         }
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,

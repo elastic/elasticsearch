@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.action.index;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -71,7 +70,7 @@ public class MappingUpdatedAction extends AbstractComponent {
 
     private PutMappingRequestBuilder updateMappingRequest(String index, String type, Mapping mappingUpdate, final TimeValue timeout) {
         if (type.equals(MapperService.DEFAULT_MAPPING)) {
-            throw new ElasticsearchIllegalArgumentException("_default_ mapping should not be updated");
+            throw new IllegalArgumentException("_default_ mapping should not be updated");
         }
         return client.preparePutMapping(index).setType(type).setSource(mappingUpdate.toString())
             .setMasterNodeTimeout(timeout).setTimeout(timeout);

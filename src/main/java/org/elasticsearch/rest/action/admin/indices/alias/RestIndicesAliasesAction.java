@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices.alias;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.Client;
@@ -62,7 +61,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
             indicesAliasesRequest.timeout(request.paramAsTime("timeout", indicesAliasesRequest.timeout()));
             XContentParser.Token token = parser.nextToken();
             if (token == null) {
-                throw new ElasticsearchIllegalArgumentException("No action is specified");
+                throw new IllegalArgumentException("No action is specified");
             }
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.START_ARRAY) {
@@ -75,7 +74,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                             } else if ("remove".equals(action)) {
                                 type = AliasAction.Type.REMOVE;
                             } else {
-                                throw new ElasticsearchIllegalArgumentException("Alias action [" + action + "] not supported");
+                                throw new IllegalArgumentException("Alias action [" + action + "] not supported");
                             }
                             String index = null;
                             String alias = null;

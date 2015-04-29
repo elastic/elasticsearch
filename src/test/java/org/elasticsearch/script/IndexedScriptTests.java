@@ -158,7 +158,7 @@ public class IndexedScriptTests extends ElasticsearchIntegrationTest {
             fail("update script should have been rejected");
         } catch(Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));
-            assertThat(e.toString(), containsString("scripts of type [indexed], operation [update] and lang [expression] are disabled"));
+            assertThat(e.getCause().toString(), containsString("scripts of type [indexed], operation [update] and lang [expression] are disabled"));
         }
         try {
             String query = "{ \"script_fields\" : { \"test1\" : { \"script_id\" : \"script1\", \"lang\":\"expression\" }}}";

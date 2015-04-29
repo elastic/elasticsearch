@@ -270,7 +270,7 @@ to provide special features.  They now have limited configuration options.
 * `_field_names` configuration is limited to disabling the field.
 * `_size` configuration is limited to enabling the field.
 
-=== Boolean fields
+==== Boolean fields
 
 Boolean fields used to have a string fielddata with `F` meaning `false` and `T`
 meaning `true`. They have been refactored to use numeric fielddata, with `0`
@@ -302,9 +302,13 @@ the user-friendly representation of boolean fields: `false`/`true`:
 ]
 ---------------
 
-=== Murmur3 Fields
+==== Murmur3 Fields
 Fields of type `murmur3` can no longer change `doc_values` or `index` setting.
 They are always stored with doc values, and not indexed.
+
+==== Source field configuration
+The `_source` field no longer supports `includes` and `excludes` paramters. When
+`_source` is enabled, the entire original source will be stored.
 
 === Codecs
 
@@ -344,6 +348,11 @@ script.indexed: on
 Deprecated script parameters `id`, `file`, and `scriptField` have been removed
 from all scriptable APIs. `script_id`, `script_file` and `script` should be used
 in their place.
+
+=== Groovy scripts sandbox
+
+The groovy sandbox and related settings have been removed. Groovy is now a non
+sandboxed scripting language, without any option to turn the sandbox on.
 
 === Plugins making use of scripts
 
@@ -404,4 +413,13 @@ provided.
 The obsolete parameters `expand_wildcards_open` and `expand_wildcards_close` are no longer
 supported by the snapshot and restore operations. These parameters have been replaced by
 a single `expand_wildcards` parameter. See <<multi-index,the multi-index docs>> for more.
+
+=== `_shutdown` API
+
+The `_shutdown` API has been removed without a replacement. Nodes should be managed via operating
+systems and the provided start/stop scripts.
+
+=== Analyze API
+
+The Analyze API return 0 as first Token's position instead of 1.
 

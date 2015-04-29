@@ -64,7 +64,7 @@ public class TransportPutRepositoryAction extends TransportMasterNodeOperationAc
     }
 
     @Override
-    protected void masterOperation(final PutRepositoryRequest request, ClusterState state, final ActionListener<PutRepositoryResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final PutRepositoryRequest request, ClusterState state, final ActionListener<PutRepositoryResponse> listener) {
 
         repositoriesService.registerRepository(
                 new RepositoriesService.RegisterRepositoryRequest("put_repository [" + request.name() + "]",

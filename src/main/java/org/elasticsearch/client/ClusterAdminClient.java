@@ -29,9 +29,6 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRes
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
-import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -247,29 +244,6 @@ public interface ClusterAdminClient extends ElasticsearchClient<ClusterAdminClie
      * for the node ids provided. Note: Use <tt>*</tt> to fetch samples for all nodes
      */
     NodesHotThreadsRequestBuilder prepareNodesHotThreads(String... nodesIds);
-
-    /**
-     * Shutdown nodes in the cluster.
-     *
-     * @param request The nodes shutdown request
-     * @return The result future
-     * @see org.elasticsearch.client.Requests#nodesShutdownRequest(String...)
-     */
-    ActionFuture<NodesShutdownResponse> nodesShutdown(NodesShutdownRequest request);
-
-    /**
-     * Shutdown nodes in the cluster.
-     *
-     * @param request  The nodes shutdown request
-     * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#nodesShutdownRequest(String...)
-     */
-    void nodesShutdown(NodesShutdownRequest request, ActionListener<NodesShutdownResponse> listener);
-
-    /**
-     * Shutdown nodes in the cluster.
-     */
-    NodesShutdownRequestBuilder prepareNodesShutdown(String... nodesIds);
 
     /**
      * Returns list of shards the given search would be executed on.

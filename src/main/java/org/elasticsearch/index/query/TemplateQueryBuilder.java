@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.ScriptService;
 
@@ -71,7 +70,7 @@ public class TemplateQueryBuilder extends BaseQueryBuilder {
                 fieldname = TemplateQueryParser.QUERY;
                 break;
             default:
-                throw new ElasticsearchIllegalArgumentException("Unknown template type " + templateType);
+                throw new IllegalArgumentException("Unknown template type " + templateType);
         }
         builder.field(fieldname, template);
         builder.field(TemplateQueryParser.PARAMS, vars);

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.*;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -73,7 +72,7 @@ public abstract class AbstractSimilarityProvider implements SimilarityProvider {
             float z = settings.getAsFloat("normalization.z.z", 0.30f);
             return new NormalizationZ(z);
         } else {
-            throw new ElasticsearchIllegalArgumentException("Unsupported Normalization [" + normalization + "]");
+            throw new IllegalArgumentException("Unsupported Normalization [" + normalization + "]");
         }
     }
 }

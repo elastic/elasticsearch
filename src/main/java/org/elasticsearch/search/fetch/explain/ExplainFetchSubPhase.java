@@ -47,7 +47,7 @@ public class ExplainFetchSubPhase implements FetchSubPhase {
     }
 
     @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticsearchException {
+    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
     }
 
     @Override
@@ -56,7 +56,7 @@ public class ExplainFetchSubPhase implements FetchSubPhase {
     }
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticsearchException {
+    public void hitExecute(SearchContext context, HitContext hitContext) {
         try {
             final int topLevelDocId = hitContext.hit().docId();
             Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);

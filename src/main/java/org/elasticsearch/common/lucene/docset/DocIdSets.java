@@ -28,8 +28,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.RoaringDocIdSet;
 import org.apache.lucene.util.SparseFixedBitSet;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 
 import java.io.IOException;
@@ -129,7 +127,7 @@ public class DocIdSets {
             @Override
             public boolean get(int index) {
                 if (index < previous) {
-                    throw new ElasticsearchIllegalArgumentException("This Bits instance can only be consumed in order. "
+                    throw new IllegalArgumentException("This Bits instance can only be consumed in order. "
                             + "Got called on [" + index + "] while previously called on [" + previous + "]");
                 }
                 previous = index;
@@ -139,7 +137,7 @@ public class DocIdSets {
                     try {
                         doc = iterator.advance(index);
                     } catch (IOException e) {
-                        throw new ElasticsearchIllegalStateException("Cannot advance iterator", e);
+                        throw new IllegalStateException("Cannot advance iterator", e);
                     }
                 }
                 return index == doc;

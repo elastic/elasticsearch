@@ -24,7 +24,6 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.util.LongArray;
@@ -93,7 +92,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         if (replay == null) {
-            throw new ElasticsearchIllegalStateException();
+            throw new IllegalStateException();
         }
 
         final SortedDocValues globalOrdinals = valuesSource.globalOrdinalsValues(parentType, ctx);

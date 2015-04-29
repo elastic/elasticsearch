@@ -23,7 +23,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -44,8 +43,6 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.elasticsearch.index.query.QueryParserUtils.ensureNotDeleteByQuery;
-
 public class HasParentQueryParser extends BaseQueryParserTemp {
 
     public static final String NAME = "has_parent";
@@ -64,7 +61,6 @@ public class HasParentQueryParser extends BaseQueryParserTemp {
 
     @Override
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
-        ensureNotDeleteByQuery(NAME, parseContext);
         XContentParser parser = parseContext.parser();
 
         boolean queryFound = false;

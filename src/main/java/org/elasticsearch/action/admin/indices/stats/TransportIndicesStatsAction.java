@@ -119,7 +119,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
     }
 
     @Override
-    protected ShardStats shardOperation(IndexShardStatsRequest request) throws ElasticsearchException {
+    protected ShardStats shardOperation(IndexShardStatsRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.shardSafe(request.shardId().id());
         // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet

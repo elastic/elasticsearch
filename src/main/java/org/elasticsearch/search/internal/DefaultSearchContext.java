@@ -207,7 +207,7 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public void doClose() throws ElasticsearchException {
+    public void doClose() {
         if (scanContext != null) {
             scanContext.clear();
         }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -158,7 +157,7 @@ public class AggregationPath {
     public AggregationPath(List<PathElement> tokens) {
         this.pathElements = tokens;
         if (tokens == null || tokens.size() == 0) {
-            throw new ElasticsearchIllegalArgumentException("Invalid path [" + this + "]");
+            throw new IllegalArgumentException("Invalid path [" + this + "]");
         }
     }
 
@@ -206,13 +205,13 @@ public class AggregationPath {
             Aggregation agg = parent.getAggregations().get(token.name);
 
             if (agg == null) {
-                throw new ElasticsearchIllegalArgumentException("Invalid order path [" + this +
+                throw new IllegalArgumentException("Invalid order path [" + this +
                         "]. Cannot find aggregation named [" + token.name + "]");
             }
 
             if (agg instanceof SingleBucketAggregation) {
                 if (token.key != null && !token.key.equals("doc_count")) {
-                    throw new ElasticsearchIllegalArgumentException("Invalid order path [" + this +
+                    throw new IllegalArgumentException("Invalid order path [" + this +
                             "]. Unknown value key [" + token.key + "] for single-bucket aggregation [" + token.name +
                             "]. Either use [doc_count] as key or drop the key all together");
                 }
@@ -223,13 +222,13 @@ public class AggregationPath {
 
             // the agg can only be a metrics agg, and a metrics agg must be at the end of the path
             if (i != pathElements.size() - 1) {
-                throw new ElasticsearchIllegalArgumentException("Invalid order path [" + this +
+                throw new IllegalArgumentException("Invalid order path [" + this +
  "]. Metrics aggregations cannot have sub-aggregations (at [" + token + ">" + pathElements.get(i + 1) + "]");
             }
 
             if (agg instanceof InternalNumericMetricsAggregation.SingleValue) {
                 if (token.key != null && !token.key.equals("value")) {
-                    throw new ElasticsearchIllegalArgumentException("Invalid order path [" + this +
+                    throw new IllegalArgumentException("Invalid order path [" + this +
                             "]. Unknown value key [" + token.key + "] for single-value metric aggregation [" + token.name +
                             "]. Either use [value] as key or drop the key all together");
                 }
@@ -240,7 +239,7 @@ public class AggregationPath {
 
             // we're left with a multi-value metric agg
             if (token.key == null) {
-                throw new ElasticsearchIllegalArgumentException("Invalid order path [" + this +
+                throw new IllegalArgumentException("Invalid order path [" + this +
                         "]. Missing value key in [" + token + "] which refers to a multi-value metric aggregation");
             }
             parent = null;

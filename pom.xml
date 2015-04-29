@@ -73,7 +73,7 @@
         <repository>
             <id>lucene-snapshots</id>
             <name>Lucene Snapshots</name>
-            <url>https://download.elastic.co/lucenesnapshots/${lucene.snapshot.revision}</url>
+            <url>http://download.elastic.co/lucenesnapshots/${lucene.snapshot.revision}</url>
         </repository>
     </repositories>
 

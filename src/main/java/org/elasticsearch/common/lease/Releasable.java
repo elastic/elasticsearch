@@ -27,5 +27,5 @@ import org.elasticsearch.ElasticsearchException;
 public interface Releasable extends AutoCloseable {
 
     @Override
-    void close() throws ElasticsearchException;
+    void close();
 }

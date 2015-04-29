@@ -41,7 +41,7 @@ import org.elasticsearch.repositories.azure.AzureRepository.Repository;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.store.MockDirectoryHelper;
+import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.*;
 
 import java.net.URISyntaxException;
@@ -85,8 +85,8 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
         // During restore we frequently restore index to exactly the same state it was before, that might cause the same
         // checksum file to be written twice during restore operation
         return ImmutableSettings.builder().put(super.indexSettings())
-                .put(MockDirectoryHelper.RANDOM_PREVENT_DOUBLE_WRITE, false)
-                .put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false)
+                .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE, false)
+                .put(MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE, false)
                 .build();
     }
 

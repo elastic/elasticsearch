@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -38,7 +39,7 @@ import java.util.Map;
 /**
  *
  */
-public class LongTerms extends InternalTerms {
+public class LongTerms extends InternalTerms<LongTerms, LongTerms.Bucket> {
 
     public static final Type TYPE = new Type("terms", "lterms");
 
@@ -155,8 +156,11 @@ public class LongTerms extends InternalTerms {
 
     LongTerms() {} // for serialization
 
-    public LongTerms(String name, Terms.Order order, @Nullable ValueFormatter formatter, int requiredSize, int shardSize, long minDocCount, List<InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount, Map<String, Object> metaData) {
-        super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, metaData);
+    public LongTerms(String name, Terms.Order order, @Nullable ValueFormatter formatter, int requiredSize, int shardSize, long minDocCount,
+            List<? extends InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount,
+            List<Reducer> reducers, Map<String, Object> metaData) {
+        super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, reducers,
+                metaData);
         this.formatter = formatter;
     }
 
@@ -166,8 +170,23 @@ public class LongTerms extends InternalTerms {
     }
 
     @Override
-    protected InternalTerms newAggregation(String name, List<InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount, Map<String, Object> metaData) {
-        return new LongTerms(name, order, formatter, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, metaData);
+    public LongTerms create(List<Bucket> buckets) {
+        return new LongTerms(this.name, this.order, this.formatter, this.requiredSize, this.shardSize, this.minDocCount, buckets,
+                this.showTermDocCountError, this.docCountError, this.otherDocCount, this.reducers(), this.metaData);
+    }
+
+    @Override
+    public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
+        return new Bucket(prototype.term, prototype.docCount, aggregations, prototype.showDocCountError, prototype.docCountError,
+                prototype.formatter);
+    }
+
+    @Override
+    protected LongTerms create(String name, List<org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.Bucket> buckets,
+            long docCountError, long otherDocCount, InternalTerms prototype) {
+        return new LongTerms(name, prototype.order, ((LongTerms) prototype).formatter, prototype.requiredSize, prototype.shardSize,
+                prototype.minDocCount, buckets, prototype.showTermDocCountError, docCountError, otherDocCount, prototype.reducers(),
+                prototype.getMetaData());
     }
 
     @Override

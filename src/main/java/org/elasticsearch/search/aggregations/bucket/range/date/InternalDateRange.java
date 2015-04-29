@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -37,7 +38,7 @@ import java.util.Map;
 /**
  *
  */
-public class InternalDateRange extends InternalRange<InternalDateRange.Bucket> {
+public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, InternalDateRange> {
 
     public final static Type TYPE = new Type("date_range", "drange");
 
@@ -112,7 +113,7 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket> {
         }
     }
 
-    private static class Factory extends InternalRange.Factory<InternalDateRange.Bucket, InternalDateRange> {
+    public static class Factory extends InternalRange.Factory<InternalDateRange.Bucket, InternalDateRange> {
 
         @Override
         public String type() {
@@ -120,20 +121,34 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket> {
         }
 
         @Override
-        public InternalDateRange create(String name, List<InternalDateRange.Bucket> ranges, ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
-            return new InternalDateRange(name, ranges, formatter, keyed, metaData);
+        public InternalDateRange create(String name, List<InternalDateRange.Bucket> ranges, ValueFormatter formatter, boolean keyed,
+                List<Reducer> reducers, Map<String, Object> metaData) {
+            return new InternalDateRange(name, ranges, formatter, keyed, reducers, metaData);
+        }
+
+        @Override
+        public InternalDateRange create(List<Bucket> ranges, InternalDateRange prototype) {
+            return new InternalDateRange(prototype.name, ranges, prototype.formatter, prototype.keyed, prototype.reducers(),
+                    prototype.metaData);
         }
 
         @Override
         public Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed, ValueFormatter formatter) {
             return new Bucket(key, from, to, docCount, aggregations, keyed, formatter);
         }
+
+        @Override
+        public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
+            return new Bucket(prototype.getKey(), ((Number) prototype.getFrom()).doubleValue(), ((Number) prototype.getTo()).doubleValue(),
+                    prototype.getDocCount(), aggregations, prototype.getKeyed(), prototype.getFormatter());
+        }
     }
 
     InternalDateRange() {} // for serialization
 
-    InternalDateRange(String name, List<InternalDateRange.Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
-        super(name, ranges, formatter, keyed, metaData);
+    InternalDateRange(String name, List<InternalDateRange.Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed,
+            List<Reducer> reducers, Map<String, Object> metaData) {
+        super(name, ranges, formatter, keyed, reducers, metaData);
     }
 
     @Override
@@ -142,7 +157,7 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket> {
     }
 
     @Override
-    protected InternalRange.Factory<Bucket, ?> getFactory() {
+    public InternalRange.Factory<Bucket, InternalDateRange> getFactory() {
         return FACTORY;
     }
 }

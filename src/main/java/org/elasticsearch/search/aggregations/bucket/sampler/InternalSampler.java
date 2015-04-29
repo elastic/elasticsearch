@@ -22,8 +22,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -49,8 +51,8 @@ public class InternalSampler extends InternalSingleBucketAggregation implements 
     InternalSampler() {
     } // for serialization
 
-    InternalSampler(String name, long docCount, InternalAggregations subAggregations, Map<String, Object> metaData) {
-        super(name, docCount, subAggregations, metaData);
+    InternalSampler(String name, long docCount, InternalAggregations subAggregations, List<Reducer> reducers, Map<String, Object> metaData) {
+        super(name, docCount, subAggregations, reducers, metaData);
     }
 
     @Override
@@ -59,7 +61,8 @@ public class InternalSampler extends InternalSingleBucketAggregation implements 
     }
 
     @Override
-    protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
-        return new InternalSampler(name, docCount, subAggregations, metaData);
+    protected InternalSingleBucketAggregation newAggregation(String name, long docCount,
+            InternalAggregations subAggregations) {
+        return new InternalSampler(name, docCount, subAggregations, reducers(), metaData);
     }
 }

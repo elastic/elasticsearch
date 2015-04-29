@@ -587,6 +587,44 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 1l);
     }
 
+    @Test // https://github.com/elasticsearch/elasticsearch/issues/10477
+    public void testDateRangeInQueryStringWithTimeZone_10477() {
+        //the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
+        //as with dynamic mappings some shards might be lacking behind and parse a different query
+        assertAcked(prepareCreate("test").addMapping(
+                "type", "past", "type=date"
+        ));
+        ensureGreen();
+
+        client().prepareIndex("test", "type", "1").setSource("past", "2015-04-05T23:00:00+0000").get();
+        client().prepareIndex("test", "type", "2").setSource("past", "2015-04-06T00:00:00+0000").get();
+        refresh();
+
+        // Timezone set with dates
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(queryStringQuery("past:[2015-04-06T00:00:00+0200 TO 2015-04-06T23:00:00+0200]"))
+                .get();
+        assertHitCount(searchResponse, 2l);
+
+        // Same timezone set with time_zone
+        searchResponse = client().prepareSearch()
+                .setQuery(queryStringQuery("past:[2015-04-06T00:00:00 TO 2015-04-06T23:00:00]").timeZone("+0200"))
+                .get();
+        assertHitCount(searchResponse, 2l);
+
+        // We set a timezone which will give no result
+        searchResponse = client().prepareSearch()
+                .setQuery(queryStringQuery("past:[2015-04-06T00:00:00-0200 TO 2015-04-06T23:00:00-0200]"))
+                .get();
+        assertHitCount(searchResponse, 0l);
+
+        // Same timezone set with time_zone but another timezone is set directly within dates which has the precedence
+        searchResponse = client().prepareSearch()
+                .setQuery(queryStringQuery("past:[2015-04-06T00:00:00-0200 TO 2015-04-06T23:00:00-0200]").timeZone("+0200"))
+                .get();
+        assertHitCount(searchResponse, 0l);
+    }
+
     @Test
     public void typeFilterTypeIndexedTests() throws Exception {
         typeFilterTests("not_analyzed");

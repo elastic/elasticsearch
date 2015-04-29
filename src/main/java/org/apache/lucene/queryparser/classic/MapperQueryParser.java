@@ -39,6 +39,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
@@ -131,9 +132,6 @@ public class MapperQueryParser extends QueryParser {
         setFuzzyMinSim(settings.fuzzyMinSim());
         setFuzzyPrefixLength(settings.fuzzyPrefixLength());
         setLocale(settings.locale());
-        if (settings.timeZone() != null) {
-            setTimeZone(settings.timeZone().toTimeZone());
-        }
         this.analyzeWildcard = settings.analyzeWildcard();
     }
 
@@ -377,7 +375,14 @@ public class MapperQueryParser extends QueryParser {
                 }
 
                 try {
-                    return currentMapper.rangeQuery(part1, part2, startInclusive, endInclusive, parseContext);
+                    Query rangeQuery;
+                    if (currentMapper instanceof DateFieldMapper && settings.timeZone() != null) {
+                        DateFieldMapper dateFieldMapper = (DateFieldMapper) this.currentMapper;
+                        rangeQuery = dateFieldMapper.rangeQuery(part1, part2, startInclusive, endInclusive, settings.timeZone(), null, parseContext);
+                    } else {
+                        rangeQuery = currentMapper.rangeQuery(part1, part2, startInclusive, endInclusive, parseContext);
+                    }
+                    return rangeQuery;
                 } catch (RuntimeException e) {
                     if (settings.lenient()) {
                         return null;

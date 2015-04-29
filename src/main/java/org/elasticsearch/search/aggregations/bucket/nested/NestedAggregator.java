@@ -66,7 +66,7 @@ public class NestedAggregator extends SingleBucketAggregator {
     public LeafBucketCollector getLeafCollector(final LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         // Reset parentFilter, so we resolve the parentDocs for each new segment being searched
         this.parentFilter = null;
-            // In ES if parent is deleted, then also the children are deleted. Therefore acceptedDocs can also null here.
+        // In ES if parent is deleted, then also the children are deleted. Therefore acceptedDocs can also null here.
         DocIdSet childDocIdSet = childFilter.getDocIdSet(ctx, null);
         if (DocIdSets.isEmpty(childDocIdSet)) {
             childDocs = null;

@@ -318,9 +318,9 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             indices.add(routing.index());
         }
         // we have to check the meta data also: closed indices will not appear in the routing table, but we must still write the state if we have it written on disk previously
-        for (ObjectCursor<String> index : state.metaData().indices().keys()) {
-            if (previouslyWrittenIndices.contains(index.value) && state.metaData().getIndices().get(index.value).state().equals(IndexMetaData.State.CLOSE)) {
-                indices.add(index.value);
+        for (IndexMetaData indexMetaData : state.metaData()) {
+            if (previouslyWrittenIndices.contains(indexMetaData.getIndex()) && state.metaData().getIndices().get(indexMetaData.getIndex()).state().equals(IndexMetaData.State.CLOSE)) {
+                indices.add(indexMetaData.getIndex());
             }
         }
         return indices;
@@ -330,8 +330,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         Set<String> relevantIndices;
         relevantIndices = new HashSet<>();
         // we have to iterate over the metadata to make sure we also capture closed indices
-        for (ObjectCursor<String> index : state.metaData().indices().keys()) {
-            relevantIndices.add(index.value);
+        for (IndexMetaData indexMetaData : state.metaData()) {
+            relevantIndices.add(indexMetaData.getIndex());
         }
         return relevantIndices;
     }

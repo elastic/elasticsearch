@@ -30,7 +30,11 @@ import java.util.List;
 
 /**
  * Delete by query response executed on a specific index.
+ *
+ * @deprecated Delete by query will be removed in 2.0.  Instead, use the scroll/scan API to find all matching IDs and then issue a bulk
+ * request to delete them.
  */
+@Deprecated
 public class IndexDeleteByQueryResponse extends ActionResponse {
 
     private String index;

@@ -42,7 +42,7 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope = TEST)
+@ClusterScope(scope = TEST, minNumDataNodes = 2)
 public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest {
 
     @Override

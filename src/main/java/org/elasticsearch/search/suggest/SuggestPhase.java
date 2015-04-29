@@ -66,7 +66,7 @@ public class SuggestPhase extends AbstractComponent implements SearchPhase {
     }
 
     @Override
-    public void execute(SearchContext context) throws ElasticsearchException {
+    public void execute(SearchContext context) {
         final SuggestionSearchContext suggest = context.suggest();
         if (suggest == null) {
             return;

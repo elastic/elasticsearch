@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 /**
  */
@@ -92,7 +91,7 @@ public enum SnapshotIndexShardStage {
             case 4:
                 return FAILURE;
             default:
-                throw new ElasticsearchIllegalArgumentException("No snapshot shard stage for value [" + value + "]");
+                throw new IllegalArgumentException("No snapshot shard stage for value [" + value + "]");
         }
     }
 }

@@ -69,7 +69,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
 
     protected abstract String executor();
 
-    protected abstract void shardOperation(InternalRequest request, ActionListener<Response> listener) throws ElasticsearchException;
+    protected abstract void shardOperation(InternalRequest request, ActionListener<Response> listener);
 
     protected abstract Response newResponse();
 
@@ -97,7 +97,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
     /**
      * Should return an iterator with a single shard!
      */
-    protected abstract ShardIterator shards(ClusterState clusterState, InternalRequest request) throws ElasticsearchException;
+    protected abstract ShardIterator shards(ClusterState clusterState, InternalRequest request);
 
     class AsyncSingleAction {
 
@@ -118,7 +118,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
             doStart();
         }
 
-        protected boolean doStart() throws ElasticsearchException {
+        protected boolean doStart() {
             nodes = observer.observedState().nodes();
             try {
                 ClusterBlockException blockException = checkGlobalBlock(observer.observedState());

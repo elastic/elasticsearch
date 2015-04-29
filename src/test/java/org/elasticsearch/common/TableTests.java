@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -28,37 +27,37 @@ import java.util.Map;
 
 public class TableTests extends ElasticsearchTestCase {
 
-    @Test(expected = ElasticsearchIllegalStateException.class)
+    @Test(expected = IllegalStateException.class)
     public void testFailOnStartRowWithoutHeader() {
         Table table = new Table();
         table.startRow();
     }
 
-    @Test(expected = ElasticsearchIllegalStateException.class)
+    @Test(expected = IllegalStateException.class)
     public void testFailOnEndHeadersWithoutStart() {
         Table table = new Table();
         table.endHeaders();
     }
 
-    @Test(expected = ElasticsearchIllegalStateException.class)
+    @Test(expected = IllegalStateException.class)
     public void testFailOnAddCellWithoutHeader() {
         Table table = new Table();
         table.addCell("error");
     }
 
-    @Test(expected = ElasticsearchIllegalStateException.class)
+    @Test(expected = IllegalStateException.class)
     public void testFailOnAddCellWithoutRow() {
         Table table = this.getTableWithHeaders();
         table.addCell("error");
     }
 
-    @Test(expected = ElasticsearchIllegalStateException.class)
+    @Test(expected = IllegalStateException.class)
     public void testFailOnEndRowWithoutStart() {
         Table table = this.getTableWithHeaders();
         table.endRow();
     }
 
-    @Test(expected = ElasticsearchIllegalStateException.class)
+    @Test(expected = IllegalStateException.class)
     public void testFailOnLessCellsThanDeclared() {
         Table table = this.getTableWithHeaders();
         table.startRow();
@@ -74,7 +73,7 @@ public class TableTests extends ElasticsearchTestCase {
         table.endRow(false);
     }
 
-    @Test(expected = ElasticsearchIllegalStateException.class)
+    @Test(expected = IllegalStateException.class)
     public void testFailOnMoreCellsThanDeclared() {
         Table table = this.getTableWithHeaders();
         table.startRow();

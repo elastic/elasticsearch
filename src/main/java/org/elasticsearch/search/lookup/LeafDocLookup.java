@@ -19,7 +19,6 @@
 package org.elasticsearch.search.lookup;
 
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -76,7 +75,7 @@ public class LeafDocLookup implements Map {
         if (scriptValues == null) {
             FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName, types);
             if (mapper == null) {
-                throw new ElasticsearchIllegalArgumentException("No field found for [" + fieldName + "] in mapping with types " + Arrays.toString(types) + "");
+                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping with types " + Arrays.toString(types) + "");
             }
             scriptValues = fieldDataService.getForField(mapper).load(reader).getScriptValues();
             localCacheFieldData.put(fieldName, scriptValues);

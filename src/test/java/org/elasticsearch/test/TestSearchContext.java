@@ -590,7 +590,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void doClose() throws ElasticsearchException {
+    public void doClose() {
     }
 
     @Override

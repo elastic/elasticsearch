@@ -35,29 +35,29 @@ public interface ActionFuture<T> extends Future<T> {
 
     /**
      * Similar to {@link #get()}, just catching the {@link InterruptedException} and throwing
-     * an {@link org.elasticsearch.ElasticsearchIllegalStateException} instead. Also catches
+     * an {@link IllegalStateException} instead. Also catches
      * {@link java.util.concurrent.ExecutionException} and throws the actual cause instead.
      * <p/>
      * <p>Note, the actual cause is unwrapped to the actual failure (for example, unwrapped
      * from {@link org.elasticsearch.transport.RemoteTransportException}. The root failure is
      * still accessible using {@link #getRootFailure()}.
      */
-    T actionGet() throws ElasticsearchException;
+    T actionGet();
 
     /**
      * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just catching the {@link InterruptedException} and throwing
-     * an {@link org.elasticsearch.ElasticsearchIllegalStateException} instead. Also catches
+     * an {@link IllegalStateException} instead. Also catches
      * {@link java.util.concurrent.ExecutionException} and throws the actual cause instead.
      * <p/>
      * <p>Note, the actual cause is unwrapped to the actual failure (for example, unwrapped
      * from {@link org.elasticsearch.transport.RemoteTransportException}. The root failure is
      * still accessible using {@link #getRootFailure()}.
      */
-    T actionGet(String timeout) throws ElasticsearchException;
+    T actionGet(String timeout);
 
     /**
      * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just catching the {@link InterruptedException} and throwing
-     * an {@link org.elasticsearch.ElasticsearchIllegalStateException} instead. Also catches
+     * an {@link IllegalStateException} instead. Also catches
      * {@link java.util.concurrent.ExecutionException} and throws the actual cause instead.
      * <p/>
      * <p>Note, the actual cause is unwrapped to the actual failure (for example, unwrapped
@@ -66,29 +66,29 @@ public interface ActionFuture<T> extends Future<T> {
      *
      * @param timeoutMillis Timeout in millis
      */
-    T actionGet(long timeoutMillis) throws ElasticsearchException;
+    T actionGet(long timeoutMillis);
 
     /**
      * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just catching the {@link InterruptedException} and throwing
-     * an {@link org.elasticsearch.ElasticsearchIllegalStateException} instead. Also catches
+     * an {@link IllegalStateException} instead. Also catches
      * {@link java.util.concurrent.ExecutionException} and throws the actual cause instead.
      * <p/>
      * <p>Note, the actual cause is unwrapped to the actual failure (for example, unwrapped
      * from {@link org.elasticsearch.transport.RemoteTransportException}. The root failure is
      * still accessible using {@link #getRootFailure()}.
      */
-    T actionGet(long timeout, TimeUnit unit) throws ElasticsearchException;
+    T actionGet(long timeout, TimeUnit unit);
 
     /**
      * Similar to {@link #get(long, java.util.concurrent.TimeUnit)}, just catching the {@link InterruptedException} and throwing
-     * an {@link org.elasticsearch.ElasticsearchIllegalStateException} instead. Also catches
+     * an {@link IllegalStateException} instead. Also catches
      * {@link java.util.concurrent.ExecutionException} and throws the actual cause instead.
      * <p/>
      * <p>Note, the actual cause is unwrapped to the actual failure (for example, unwrapped
      * from {@link org.elasticsearch.transport.RemoteTransportException}. The root failure is
      * still accessible using {@link #getRootFailure()}.
      */
-    T actionGet(TimeValue timeout) throws ElasticsearchException;
+    T actionGet(TimeValue timeout);
 
     /**
      * The root (possibly) wrapped failure.

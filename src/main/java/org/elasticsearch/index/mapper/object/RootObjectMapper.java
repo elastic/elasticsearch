@@ -255,11 +255,6 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    protected boolean allowValue() {
-        return true;
-    }
-
-    @Override
     protected void doMerge(ObjectMapper mergeWith, MergeResult mergeResult) {
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
         if (!mergeResult.simulate()) {

@@ -21,7 +21,6 @@ package org.elasticsearch.gateway;
 import com.google.common.collect.Iterators;
 
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -29,9 +28,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.TestRuleMarkFailure;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -44,10 +41,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Assert;
 import org.junit.Test;
 
-import java.io.Closeable;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -272,7 +267,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         try {
             format.loadLatestState(logger, dirs);
             fail("latest version can not be read");
-        } catch (ElasticsearchIllegalStateException ex) {
+        } catch (IllegalStateException ex) {
             assertThat(ex.getMessage(), startsWith("Could not find a state file to recover from among "));
         }
         // write the next state file in the new format and ensure it get's a higher ID
@@ -535,33 +530,6 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
                 }
             }
             return this;
-        }
-    }
-
-    // copied from lucene - it's package private
-    final class CloseableDirectory implements Closeable {
-        private final BaseDirectoryWrapper dir;
-        private final TestRuleMarkFailure failureMarker;
-
-        public CloseableDirectory(BaseDirectoryWrapper dir,
-                                  TestRuleMarkFailure failureMarker) {
-            this.dir = dir;
-            this.failureMarker = failureMarker;
-        }
-
-        @Override
-        public void close() throws IOException {
-            // We only attempt to check open/closed state if there were no other test
-            // failures.
-            try {
-                if (failureMarker.wasSuccessful() && dir.isOpen()) {
-                    Assert.fail("Directory not closed: " + dir);
-                }
-            } finally {
-                if (dir.isOpen()) {
-                    dir.close();
-                }
-            }
         }
     }
 

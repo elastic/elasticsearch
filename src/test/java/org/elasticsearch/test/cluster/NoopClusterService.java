@@ -19,7 +19,6 @@
 package org.elasticsearch.test.cluster;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -67,12 +66,12 @@ public class NoopClusterService implements ClusterService {
     }
 
     @Override
-    public void addInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException {
+    public void addInitialStateBlock(ClusterBlock block) throws IllegalStateException {
 
     }
 
     @Override
-    public void removeInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException {
+    public void removeInitialStateBlock(ClusterBlock block) throws IllegalStateException {
 
     }
 
@@ -152,17 +151,17 @@ public class NoopClusterService implements ClusterService {
     }
 
     @Override
-    public ClusterService start() throws ElasticsearchException {
+    public ClusterService start() {
         return null;
     }
 
     @Override
-    public ClusterService stop() throws ElasticsearchException {
+    public ClusterService stop() {
         return null;
     }
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void close() {
 
     }
 }

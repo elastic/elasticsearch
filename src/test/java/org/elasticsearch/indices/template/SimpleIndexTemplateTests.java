@@ -20,7 +20,6 @@ package org.elasticsearch.indices.template;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -33,7 +32,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
@@ -70,6 +68,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
 
         client().admin().indices().preparePutTemplate("template_1")
                 .setTemplate("te*")
+                .setSettings(indexSettings())
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("field1").field("type", "string").field("store", "yes").endObject()
@@ -79,6 +78,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
 
         client().admin().indices().preparePutTemplate("template_2")
                 .setTemplate("test*")
+                .setSettings(indexSettings())
                 .setOrder(1)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("field2").field("type", "string").field("store", "no").endObject()
@@ -88,6 +88,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
         // test create param
         assertThrows(client().admin().indices().preparePutTemplate("template_2")
                 .setTemplate("test*")
+                .setSettings(indexSettings())
                 .setCreate(true)
                 .setOrder(1)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
@@ -103,8 +104,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
         // index something into test_index, will match on both templates
         client().prepareIndex("test_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefresh(true).execute().actionGet();
 
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
+        ensureGreen();
         SearchResponse searchResponse = client().prepareSearch("test_index")
                 .setQuery(termQuery("field1", "value1"))
                 .addField("field1").addField("field2")
@@ -116,8 +116,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
 
         client().prepareIndex("text_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefresh(true).execute().actionGet();
 
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
+        ensureGreen();
         // now only match on one template (template_1)
         searchResponse = client().prepareSearch("text_index")
                 .setQuery(termQuery("field1", "value1"))
@@ -494,7 +493,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
         try {
             createIndex("test");
             fail("index creation should have failed due to invalid alias filter in matching index template");
-        } catch(ElasticsearchIllegalArgumentException e) {
+        } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [invalid_alias]"));
             assertThat(e.getCause(), instanceOf(QueryParsingException.class));
             assertThat(e.getCause().getMessage(), equalTo("No filter registered for [invalid]"));
@@ -511,7 +510,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
 
         try {
             putIndexTemplateRequestBuilder.get();
-        } catch(ElasticsearchIllegalArgumentException e) {
+        } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [invalid_alias]"));
         }
 
@@ -545,7 +544,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
         try {
             putIndexTemplateRequestBuilder.get();
             fail("put template should have failed due to alias with empty name");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("alias name is required"));
         }
     }
@@ -559,7 +558,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
         try {
             putIndexTemplateRequestBuilder.get();
             fail("put template should have failed due to alias with multiple index routings");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("alias [alias] has several index routing values associated with it"));
         }
     }
@@ -660,7 +659,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
             client().prepareIndex("d1", "test", "test").setSource("{}").get();
             fail();
         } catch (Exception e) {
-            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(IllegalArgumentException.class));
             assertThat(e.getMessage(), containsString("failed to parse filter for alias [alias4]"));
         }
         response = client().prepareBulk().add(new IndexRequest("d2", "test", "test").source("{}")).get();

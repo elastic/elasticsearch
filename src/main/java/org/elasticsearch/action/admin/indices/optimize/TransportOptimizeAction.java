@@ -91,7 +91,7 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
     }
 
     @Override
-    protected ShardOptimizeResponse shardOperation(ShardOptimizeRequest request) throws ElasticsearchException {
+    protected ShardOptimizeResponse shardOperation(ShardOptimizeRequest request) {
         IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).shardSafe(request.shardId().id());
         indexShard.optimize(request.optimizeRequest());
         return new ShardOptimizeResponse(request.shardId());

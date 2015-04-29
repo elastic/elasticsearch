@@ -55,7 +55,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         transportService.registerRequestHandler(ACTION_NAME, NodeMappingRefreshRequest.class, ThreadPool.Names.SAME, new NodeMappingRefreshTransportHandler());
     }
 
-    public void nodeMappingRefresh(final ClusterState state, final NodeMappingRefreshRequest request) throws ElasticsearchException {
+    public void nodeMappingRefresh(final ClusterState state, final NodeMappingRefreshRequest request) {
         final DiscoveryNodes nodes = state.nodes();
         if (nodes.masterNode() == null) {
             logger.warn("can't send mapping refresh for [{}][{}], no master known.", request.index(), Strings.arrayToCommaDelimitedString(request.types()));

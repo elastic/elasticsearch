@@ -64,7 +64,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadOpera
     }
 
     @Override
-    protected void masterOperation(final GetRepositoriesRequest request, ClusterState state, final ActionListener<GetRepositoriesResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final GetRepositoriesRequest request, ClusterState state, final ActionListener<GetRepositoriesResponse> listener) {
         MetaData metaData = state.metaData();
         RepositoriesMetaData repositories = metaData.custom(RepositoriesMetaData.TYPE);
         if (request.repositories().length == 0 || (request.repositories().length == 1 && "_all".equals(request.repositories()[0]))) {

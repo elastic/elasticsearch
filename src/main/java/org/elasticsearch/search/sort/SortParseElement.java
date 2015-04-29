@@ -26,7 +26,6 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -89,7 +88,7 @@ public class SortParseElement implements SearchParseElement {
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     addSortField(context, sortFields, parser.text(), false, null, null, null, null);
                 } else {
-                    throw new ElasticsearchIllegalArgumentException("malformed sort format, within the sort array, an object, or an actual string are allowed");
+                    throw new IllegalArgumentException("malformed sort format, within the sort array, an object, or an actual string are allowed");
                 }
             }
         } else if (token == XContentParser.Token.VALUE_STRING) {
@@ -97,7 +96,7 @@ public class SortParseElement implements SearchParseElement {
         } else if (token == XContentParser.Token.START_OBJECT) {
             addCompoundSortField(parser, context, sortFields);
         } else {
-            throw new ElasticsearchIllegalArgumentException("malformed sort format, either start with array, object, or an actual string");
+            throw new IllegalArgumentException("malformed sort format, either start with array, object, or an actual string");
         }
         if (!sortFields.isEmpty()) {
             // optimize if we just sort on score non reversed, we don't really need sorting
@@ -137,7 +136,7 @@ public class SortParseElement implements SearchParseElement {
                     } else if (direction.equals("desc")) {
                         reverse = !SCORE_FIELD_NAME.equals(fieldName);
                     } else {
-                        throw new ElasticsearchIllegalArgumentException("sort direction [" + fieldName + "] not supported");
+                        throw new IllegalArgumentException("sort direction [" + fieldName + "] not supported");
                     }
                     addSortField(context, sortFields, fieldName, reverse, unmappedType, missing, sortMode, nestedFilterParseHelper);
                 } else {
@@ -174,7 +173,7 @@ public class SortParseElement implements SearchParseElement {
                                     }
                                     nestedFilterParseHelper.setPath(parser.text());
                                 } else {
-                                    throw new ElasticsearchIllegalArgumentException("sort option [" + innerJsonName + "] not supported");
+                                    throw new IllegalArgumentException("sort option [" + innerJsonName + "] not supported");
                                 }
                             } else if (token == XContentParser.Token.START_OBJECT) {
                                 if ("nested_filter".equals(innerJsonName) || "nestedFilter".equals(innerJsonName)) {
@@ -183,7 +182,7 @@ public class SortParseElement implements SearchParseElement {
                                     }
                                     nestedFilterParseHelper.filter();
                                 } else {
-                                    throw new ElasticsearchIllegalArgumentException("sort option [" + innerJsonName + "] not supported");
+                                    throw new IllegalArgumentException("sort option [" + innerJsonName + "] not supported");
                                 }
                             }
                         }

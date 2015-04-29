@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -61,10 +59,10 @@ public class AllocationCommands {
     }
 
     @SuppressWarnings("unchecked")
-    public static <T extends AllocationCommand> AllocationCommand.Factory<T> lookupFactorySafe(String name) throws ElasticsearchIllegalArgumentException {
+    public static <T extends AllocationCommand> AllocationCommand.Factory<T> lookupFactorySafe(String name) {
         AllocationCommand.Factory<T> factory = factories.get(name);
         if (factory == null) {
-            throw new ElasticsearchIllegalArgumentException("No allocation command factory registered for name [" + name + "]");
+            throw new IllegalArgumentException("No allocation command factory registered for name [" + name + "]");
         }
         return factory;
     }
@@ -113,7 +111,7 @@ public class AllocationCommands {
      * @param allocation {@link RoutingAllocation} to apply this command to
      * @throws org.elasticsearch.ElasticsearchException if something happens during execution
      */
-    public RoutingExplanations execute(RoutingAllocation allocation, boolean explain) throws ElasticsearchException {
+    public RoutingExplanations execute(RoutingAllocation allocation, boolean explain) {
         RoutingExplanations explanations = new RoutingExplanations();
         for (AllocationCommand command : commands) {
             explanations.add(command.execute(allocation, explain));

@@ -26,7 +26,6 @@ import org.apache.lucene.search.DocValuesDocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.HashedBytesRef;
@@ -197,7 +196,7 @@ public class ScriptFilterParser implements FilterParser {
                 if (val instanceof Number) {
                     return ((Number) val).longValue() != 0;
                 }
-                throw new ElasticsearchIllegalArgumentException("Can't handle type [" + val + "] in script filter");
+                throw new IllegalArgumentException("Can't handle type [" + val + "] in script filter");
             }
 
             @Override

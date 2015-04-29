@@ -166,7 +166,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
     }
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void close() {
         Releasables.close(keys, values);
     }
 

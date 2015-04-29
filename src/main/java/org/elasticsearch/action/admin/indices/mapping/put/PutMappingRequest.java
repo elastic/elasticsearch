@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 
 import com.carrotsearch.hppc.ObjectOpenHashSet;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -170,7 +169,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
                     for (String s : s1) {
                         String[] s2 = Strings.split(s, "=");
                         if (s2.length != 2) {
-                            throw new ElasticsearchIllegalArgumentException("malformed " + s);
+                            throw new IllegalArgumentException("malformed " + s);
                         }
                         builder.field(s2[0], s2[1]);
                     }
@@ -190,7 +189,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
                 for (String s : s1) {
                     String[] s2 = Strings.split(s, "=");
                     if (s2.length != 2) {
-                        throw new ElasticsearchIllegalArgumentException("malformed " + s);
+                        throw new IllegalArgumentException("malformed " + s);
                     }
                     builder.field(s2[0], s2[1]);
                 }
@@ -203,7 +202,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             builder.endObject();
             return builder;
         } catch (Exception e) {
-            throw new ElasticsearchIllegalArgumentException("failed to generate simplified mapping definition", e);
+            throw new IllegalArgumentException("failed to generate simplified mapping definition", e);
         }
     }
 
@@ -214,7 +213,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         try {
             return source(mappingBuilder.string());
         } catch (IOException e) {
-            throw new ElasticsearchIllegalArgumentException("Failed to build json for mapping request", e);
+            throw new IllegalArgumentException("Failed to build json for mapping request", e);
         }
     }
 

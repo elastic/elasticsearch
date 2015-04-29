@@ -96,7 +96,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         String address = settings.get(TRANSPORT_LOCAL_ADDRESS);
         if (address == null) {
             address = Long.toString(transportAddressIdGenerator.incrementAndGet());
@@ -110,7 +110,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         transports.remove(localAddress);
         // now, go over all the transports connected to me, and raise disconnected event
         for (final LocalTransport targetTransport : transports.values()) {
@@ -123,7 +123,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
         ThreadPool.terminate(workers, 10, TimeUnit.SECONDS);
     }
 

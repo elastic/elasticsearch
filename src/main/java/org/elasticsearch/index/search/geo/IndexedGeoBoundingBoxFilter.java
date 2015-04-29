@@ -22,7 +22,6 @@ package org.elasticsearch.index.search.geo;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
@@ -33,7 +32,7 @@ public class IndexedGeoBoundingBoxFilter {
 
     public static Filter create(GeoPoint topLeft, GeoPoint bottomRight, GeoPointFieldMapper fieldMapper) {
         if (!fieldMapper.isEnableLatLon()) {
-            throw new ElasticsearchIllegalArgumentException("lat/lon is not enabled (indexed) for field [" + fieldMapper.name() + "], can't use indexed filter on it");
+            throw new IllegalArgumentException("lat/lon is not enabled (indexed) for field [" + fieldMapper.name() + "], can't use indexed filter on it");
         }
         //checks to see if bounding box crosses 180 degrees
         if (topLeft.lon() > bottomRight.lon()) {

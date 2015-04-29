@@ -209,7 +209,7 @@ public class ParentQuery extends Query {
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             Releasables.close(parentIdxs, scores);
         }
 

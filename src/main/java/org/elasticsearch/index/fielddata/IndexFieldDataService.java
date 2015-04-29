@@ -21,7 +21,6 @@ package org.elasticsearch.index.fielddata;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
@@ -230,7 +229,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
         final FieldMapper.Names fieldNames = mapper.names();
         final FieldDataType type = mapper.fieldDataType();
         if (type == null) {
-            throw new ElasticsearchIllegalArgumentException("found no fielddata type for field [" + fieldNames.fullName() + "]");
+            throw new IllegalArgumentException("found no fielddata type for field [" + fieldNames.fullName() + "]");
         }
         final boolean docValues = mapper.hasDocValues();
         final String key = fieldNames.indexName();
@@ -259,7 +258,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                         builder = buildersByType.get(type.getType());
                     }
                     if (builder == null) {
-                        throw new ElasticsearchIllegalArgumentException("failed to find field data builder for field " + fieldNames.fullName() + ", and type " + type.getType());
+                        throw new IllegalArgumentException("failed to find field data builder for field " + fieldNames.fullName() + ", and type " + type.getType());
                     }
 
                     IndexFieldDataCache cache = fieldDataCaches.get(fieldNames.indexName());
@@ -272,7 +271,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                         } else if ("none".equals(cacheType)){
                             cache = new IndexFieldDataCache.None();
                         } else {
-                            throw new ElasticsearchIllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldNames.fullName() + "]");
+                            throw new IllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldNames.fullName() + "]");
                         }
                         fieldDataCaches.put(fieldNames.indexName(), cache);
                     }

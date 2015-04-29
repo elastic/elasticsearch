@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.metrics.stats;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -135,7 +134,7 @@ public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
             case max: return valuesSource == null ? Double.NEGATIVE_INFINITY : maxes.get(owningBucketOrd);
             case avg: return valuesSource == null ? Double.NaN : sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
             default:
-                throw new ElasticsearchIllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
+                throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
         }
     }
 

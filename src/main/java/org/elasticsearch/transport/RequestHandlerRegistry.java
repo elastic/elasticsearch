@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 
 import java.lang.reflect.Constructor;
 
@@ -40,7 +39,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         try {
             this.requestConstructor = request.getDeclaredConstructor();
         } catch (NoSuchMethodException e) {
-            throw new ElasticsearchIllegalStateException("failed to create constructor (does it have a default constructor?) for request " + request, e);
+            throw new IllegalStateException("failed to create constructor (does it have a default constructor?) for request " + request, e);
         }
         this.requestConstructor.setAccessible(true);
         assert newRequest() != null;
@@ -57,7 +56,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         try {
             return requestConstructor.newInstance();
         } catch (Exception e) {
-            throw new ElasticsearchIllegalStateException("failed to instantiate request ", e);
+            throw new IllegalStateException("failed to instantiate request ", e);
         }
     }
 

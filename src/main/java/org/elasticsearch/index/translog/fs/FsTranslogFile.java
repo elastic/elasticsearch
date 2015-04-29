@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.translog.fs;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -49,13 +48,13 @@ public interface FsTranslogFile extends Closeable {
 
         public abstract FsTranslogFile create(ShardId shardId, long id, ChannelReference raf, int bufferSize) throws IOException;
 
-        public static Type fromString(String type) throws ElasticsearchIllegalArgumentException {
+        public static Type fromString(String type) {
             if (SIMPLE.name().equalsIgnoreCase(type)) {
                 return SIMPLE;
             } else if (BUFFERED.name().equalsIgnoreCase(type)) {
                 return BUFFERED;
             }
-            throw new ElasticsearchIllegalArgumentException("No translog fs type [" + type + "]");
+            throw new IllegalArgumentException("No translog fs type [" + type + "]");
         }
     }
 

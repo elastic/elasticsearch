@@ -62,7 +62,7 @@ public class TransportPendingClusterTasksAction extends TransportMasterNodeReadO
     }
 
     @Override
-    protected void masterOperation(PendingClusterTasksRequest request, ClusterState state, ActionListener<PendingClusterTasksResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(PendingClusterTasksRequest request, ClusterState state, ActionListener<PendingClusterTasksResponse> listener) {
         listener.onResponse(new PendingClusterTasksResponse(clusterService.pendingTasks()));
     }
 }

@@ -89,7 +89,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
     }
 
     @Override
-    protected GetResponse shardOperation(GetRequest request, ShardId shardId) throws ElasticsearchException {
+    protected GetResponse shardOperation(GetRequest request, ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.shardSafe(shardId.id());
 

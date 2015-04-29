@@ -21,7 +21,6 @@ package org.elasticsearch.env;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -35,7 +34,6 @@ import org.junit.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -61,7 +59,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
         try {
             new NodeEnvironment(settings, new Environment(settings));
             fail("env is already locked");
-        } catch (ElasticsearchIllegalStateException ex) {
+        } catch (IllegalStateException ex) {
 
         }
         env.close();

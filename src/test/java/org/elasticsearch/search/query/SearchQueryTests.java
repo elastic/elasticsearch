@@ -1460,7 +1460,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test // see #2926
-    public void testMustNot() throws ElasticsearchException, IOException, ExecutionException, InterruptedException {
+    public void testMustNot() throws IOException, ExecutionException, InterruptedException {
         assertAcked(prepareCreate("test")
                 //issue manifested only with shards>=2
                 .setSettings(SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS)));
@@ -1483,7 +1483,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test // see #2994
-    public void testSimpleSpan() throws ElasticsearchException, IOException, ExecutionException, InterruptedException {
+    public void testSimpleSpan() throws IOException, ExecutionException, InterruptedException {
         createIndex("test");
         ensureGreen();
 
@@ -1505,7 +1505,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testSpanMultiTermQuery() throws ElasticsearchException, IOException {
+    public void testSpanMultiTermQuery() throws IOException {
         createIndex("test");
         ensureGreen();
 
@@ -1538,7 +1538,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testSpanNot() throws ElasticsearchException, IOException, ExecutionException, InterruptedException {
+    public void testSpanNot() throws IOException, ExecutionException, InterruptedException {
         createIndex("test");
         ensureGreen();
 
@@ -1577,7 +1577,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testSimpleDFSQuery() throws ElasticsearchException, IOException {
+    public void testSimpleDFSQuery() throws IOException {
         assertAcked(prepareCreate("test")
             .addMapping("s", jsonBuilder()
                 .startObject()

@@ -88,7 +88,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         transport.start();
         if (logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());
@@ -97,13 +97,13 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         nodeService.removeAttribute("http_address");
         transport.stop();
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
         transport.close();
     }
 

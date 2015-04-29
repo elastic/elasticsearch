@@ -194,7 +194,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         if (this instanceof ElasticsearchWrapperException) {
             toXContent(builder, params, this);
         } else {
-            builder.field("type", getExceptionName(this));
+            builder.field("type", getExceptionName());
             builder.field("reason", getMessage());
             innerToXContent(builder, params);
         }
@@ -261,7 +261,16 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         if (ex instanceof ElasticsearchException) {
             return ((ElasticsearchException) ex).guessRootCauses();
         }
-        return new ElasticsearchException[0];
+        return new ElasticsearchException[] {new ElasticsearchException(t.getMessage(), t) {
+            @Override
+            protected String getExceptionName() {
+                return getExceptionName(getCause());
+            }
+        }};
+    }
+
+    protected String getExceptionName() {
+        return getExceptionName(this);
     }
 
     /**

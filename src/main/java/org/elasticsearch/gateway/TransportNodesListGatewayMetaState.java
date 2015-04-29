@@ -100,7 +100,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
     }
 
     @Override
-    protected NodeGatewayMetaState nodeOperation(NodeRequest request) throws ElasticsearchException {
+    protected NodeGatewayMetaState nodeOperation(NodeRequest request) {
         try {
             return new NodeGatewayMetaState(clusterService.localNode(), metaState.loadMetaState());
         } catch (Exception e) {

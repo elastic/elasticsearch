@@ -25,8 +25,6 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -124,11 +122,11 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         ImmutableSet<String> indices = ImmutableSet.copyOf(this.indices.keySet());
         final CountDownLatch latch = new CountDownLatch(indices.size());
 
@@ -160,7 +158,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
         IOUtils.closeWhileHandlingException(injector.getInstance(RecoverySettings.class),
             indicesAnalysisService);
     }
@@ -280,9 +278,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         return indexService;
     }
 
-    public synchronized IndexService createIndex(String sIndexName, @IndexSettings Settings settings, String localNodeId) throws ElasticsearchException {
+    public synchronized IndexService createIndex(String sIndexName, @IndexSettings Settings settings, String localNodeId) {
         if (!lifecycle.started()) {
-            throw new ElasticsearchIllegalStateException("Can't create an index [" + sIndexName + "], node is closed");
+            throw new IllegalStateException("Can't create an index [" + sIndexName + "], node is closed");
         }
         Index index = new Index(sIndexName);
         if (indices.containsKey(index.name())) {
@@ -342,11 +340,11 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param index the index to remove
      * @param reason  the high level reason causing this removal
      */
-    public void removeIndex(String index, String reason) throws ElasticsearchException {
+    public void removeIndex(String index, String reason) {
         removeIndex(index, reason, false);
     }
 
-    private void removeIndex(String index, String reason, boolean delete) throws ElasticsearchException {
+    private void removeIndex(String index, String reason, boolean delete) {
         try {
             final IndexService indexService;
             final Injector indexInjector;
@@ -449,7 +447,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             try {
                 if (clusterState.metaData().hasIndex(indexName)) {
                     final IndexMetaData index = clusterState.metaData().index(indexName);
-                    throw new ElasticsearchIllegalStateException("Can't delete closed index store for [" + indexName + "] - it's still part of the cluster state [" + index.getUUID() + "] [" + metaData.getUUID() + "]");
+                    throw new IllegalStateException("Can't delete closed index store for [" + indexName + "] - it's still part of the cluster state [" + index.getUUID() + "] [" + metaData.getUUID() + "]");
                 }
                 deleteIndexStore(reason, metaData, clusterState);
             } catch (IOException e) {
@@ -468,13 +466,13 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                 String indexName = metaData.index();
                 if (indices.containsKey(indexName)) {
                     String localUUid = indices.get(indexName).v1().indexUUID();
-                    throw new ElasticsearchIllegalStateException("Can't delete index store for [" + indexName + "] - it's still part of the indices service [" + localUUid+ "] [" + metaData.getUUID() + "]");
+                    throw new IllegalStateException("Can't delete index store for [" + indexName + "] - it's still part of the indices service [" + localUUid+ "] [" + metaData.getUUID() + "]");
                 }
                 if (clusterState.metaData().hasIndex(indexName) && (clusterState.nodes().localNode().masterNode() == true)) {
                     // we do not delete the store if it is a master eligible node and the index is still in the cluster state
                     // because we want to keep the meta data for indices around even if no shards are left here
                     final IndexMetaData index = clusterState.metaData().index(indexName);
-                    throw new ElasticsearchIllegalStateException("Can't delete closed index store for [" + indexName + "] - it's still part of the cluster state [" + index.getUUID() + "] [" + metaData.getUUID() + "]");
+                    throw new IllegalStateException("Can't delete closed index store for [" + indexName + "] - it's still part of the cluster state [" + index.getUUID() + "] [" + metaData.getUUID() + "]");
                 }
             }
             Index index = new Index(metaData.index());
@@ -533,7 +531,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     public void deleteShardStore(String reason, ShardId shardId, IndexMetaData metaData) throws IOException {
         final Settings indexSettings = buildIndexSettings(metaData);
         if (canDeleteShardContent(shardId, indexSettings) == false) {
-            throw new ElasticsearchIllegalStateException("Can't delete shard " + shardId);
+            throw new IllegalStateException("Can't delete shard " + shardId);
         }
         nodeEnv.deleteShardDirectorySafe(shardId, indexSettings);
         logger.trace("{} deleting shard reason [{}]", shardId, reason);
@@ -614,10 +612,10 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      */
     public void addPendingDelete(ShardId shardId, @IndexSettings Settings settings) {
         if (shardId == null) {
-            throw new ElasticsearchIllegalArgumentException("shardId must not be null");
+            throw new IllegalArgumentException("shardId must not be null");
         }
         if (settings == null) {
-            throw new ElasticsearchIllegalArgumentException("settings must not be null");
+            throw new IllegalArgumentException("settings must not be null");
         }
         PendingDelete pendingDelete = new PendingDelete(shardId, settings, false);
         addPendingDelete(shardId.index(), pendingDelete);

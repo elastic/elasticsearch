@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -272,14 +271,14 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         return indexSettings.get(IndexMetaData.SETTING_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
     }
 
-    public synchronized IndexShard createShard(int sShardId, boolean primary) throws ElasticsearchException {
+    public synchronized IndexShard createShard(int sShardId, boolean primary) {
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
          * be able to serialize the execution via the cluster state in the future. for now we just
          * keep it synced.
          */
         if (closed.get()) {
-            throw new ElasticsearchIllegalStateException("Can't create shard [" + index.name() + "][" + sShardId + "], closed");
+            throw new IllegalStateException("Can't create shard [" + index.name() + "][" + sShardId + "], closed");
         }
         final ShardId shardId = new ShardId(index, sShardId);
         ShardLock lock = null;
@@ -312,7 +311,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             modules.add(new ShardIndexingModule());
             modules.add(new ShardSearchModule());
             modules.add(new ShardGetModule());
-            modules.add(new StoreModule(indexSettings, injector.getInstance(IndexStore.class).shardDirectory(), lock,
+            modules.add(new StoreModule(injector.getInstance(IndexStore.class).shardDirectory(), lock,
                     new StoreCloseListener(shardId, canDeleteShardContent), path));
             modules.add(new DeletionPolicyModule(indexSettings));
             modules.add(new MergePolicyModule(indexSettings));
@@ -355,7 +354,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         }
     }
 
-    public synchronized void removeShard(int shardId, String reason) throws ElasticsearchException {
+    public synchronized void removeShard(int shardId, String reason) {
         final ShardId sId = new ShardId(index, shardId);
         final Injector shardInjector;
         final IndexShard indexShard;

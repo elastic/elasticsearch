@@ -93,7 +93,7 @@ public class CustomQueryWrappingFilter extends NoCacheFilter implements Releasab
     }
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void close() {
         // We need to clear the docIdSets, otherwise this is leaved unused
         // DocIdSets around and can potentially become a memory leak.
         docIdSets = null;

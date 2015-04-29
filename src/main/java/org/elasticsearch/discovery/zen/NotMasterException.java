@@ -18,25 +18,16 @@
  */
 package org.elasticsearch.discovery.zen;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 
 
 /**
  * Thrown when a node join request or a master ping reaches a node which is not
  * currently acting as a master.
  */
-public class NotMasterException extends ElasticsearchIllegalStateException {
-
-    public NotMasterException() {
-        super(null);
-    }
+public class NotMasterException extends IllegalStateException {
 
     public NotMasterException(String msg) {
         super(msg);
-    }
-
-    public NotMasterException(String msg, Throwable cause) {
-        super(msg, cause);
     }
 
     @Override

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gateway;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import org.apache.lucene.codecs.CodecUtil;
@@ -26,9 +27,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.xcontent.*;
@@ -300,7 +299,7 @@ public abstract class MetaDataStateFormat<T> {
         ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
         if (files.size() > 0) {
             // We have some state files but none of them gave us a usable state
-            throw new ElasticsearchIllegalStateException("Could not find a state file to recover from among " + files);
+            throw new IllegalStateException("Could not find a state file to recover from among " + files);
         }
         return state;
     }

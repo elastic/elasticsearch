@@ -41,6 +41,6 @@ public class NoMergePolicyProvider extends AbstractMergePolicyProvider<MergePoli
     }
 
     @Override
-    public void close() throws ElasticsearchException {}
+    public void close() {}
 }
 

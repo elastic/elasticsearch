@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
@@ -165,7 +164,7 @@ public class CancelAllocationCommand implements AllocationCommand {
     }
 
     @Override
-    public RerouteExplanation execute(RoutingAllocation allocation, boolean explain) throws ElasticsearchException {
+    public RerouteExplanation execute(RoutingAllocation allocation, boolean explain) {
         DiscoveryNode discoNode = allocation.nodes().resolveNode(node);
         boolean found = false;
         for (RoutingNodes.RoutingNodeIterator it = allocation.routingNodes().routingNodeIter(discoNode.id()); it.hasNext(); ) {
@@ -197,7 +196,7 @@ public class CancelAllocationCommand implements AllocationCommand {
                             return new RerouteExplanation(this, allocation.decision(Decision.NO, "cancel_allocation_command",
                                     "can't cancel " + shardId + " on node " + discoNode + ", shard is primary and initializing its state"));
                         }
-                        throw new ElasticsearchIllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " +
+                        throw new IllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " +
                                 discoNode + ", shard is primary and initializing its state");
                     }
                     it.moveToUnassigned();
@@ -220,7 +219,7 @@ public class CancelAllocationCommand implements AllocationCommand {
                         return new RerouteExplanation(this, allocation.decision(Decision.NO, "cancel_allocation_command",
                                 "can't cancel " + shardId + " on node " + discoNode + ", shard is primary and started"));
                     }
-                    throw new ElasticsearchIllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " +
+                    throw new IllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " +
                             discoNode + ", shard is primary and started");
                 }
                 it.remove();
@@ -233,7 +232,7 @@ public class CancelAllocationCommand implements AllocationCommand {
                 return new RerouteExplanation(this, allocation.decision(Decision.NO, "cancel_allocation_command",
                         "can't cancel " + shardId + ", failed to find it on node " + discoNode));
             }
-            throw new ElasticsearchIllegalArgumentException("[cancel_allocation] can't cancel " + shardId + ", failed to find it on node " + discoNode);
+            throw new IllegalArgumentException("[cancel_allocation] can't cancel " + shardId + ", failed to find it on node " + discoNode);
         }
         return new RerouteExplanation(this, allocation.decision(Decision.YES, "cancel_allocation_command",
                 "shard " + shardId + " on node " + discoNode + " can be cancelled"));

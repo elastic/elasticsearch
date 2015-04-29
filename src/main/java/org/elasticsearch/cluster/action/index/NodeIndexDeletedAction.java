@@ -72,7 +72,7 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         listeners.remove(listener);
     }
 
-    public void nodeIndexDeleted(final ClusterState clusterState, final String index, final Settings indexSettings, final String nodeId) throws ElasticsearchException {
+    public void nodeIndexDeleted(final ClusterState clusterState, final String index, final Settings indexSettings, final String nodeId) {
         final DiscoveryNodes nodes = clusterState.nodes();
         transportService.sendRequest(clusterState.nodes().masterNode(),
                 INDEX_DELETED_ACTION_NAME, new NodeIndexDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);

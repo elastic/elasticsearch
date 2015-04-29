@@ -125,13 +125,6 @@ public interface Mapper extends ToXContent {
 
     String name();
 
-    /**
-     * Parse using the provided {@link ParseContext} and return a mapping
-     * update if dynamic mappings modified the mappings, or {@code null} if
-     * mappings were not modified.
-     */
-    Mapper parse(ParseContext context) throws IOException;
-
     void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException;
 
     void traverse(FieldMapperListener fieldMapperListener);

@@ -24,15 +24,13 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.Lucene43NGramTokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.io.Reader;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Locale;
@@ -83,7 +81,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
             characterClass = characterClass.toLowerCase(Locale.ROOT).trim();
             CharMatcher matcher = MATCHERS.get(characterClass);
             if (matcher == null) {
-                throw new ElasticsearchIllegalArgumentException("Unknown token type: '" + characterClass + "', must be one of " + MATCHERS.keySet());
+                throw new IllegalArgumentException("Unknown token type: '" + characterClass + "', must be one of " + MATCHERS.keySet());
             }
             builder.or(matcher);
         }

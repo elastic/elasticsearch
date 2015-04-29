@@ -71,8 +71,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllFilesClosed;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSearchersClosed;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -203,26 +201,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     @AfterClass
     public static void restoreProcessors() {
         System.clearProperty(EsExecutors.DEFAULT_SYSPROP);
-    }
-
-    // check some things (like MockDirectoryWrappers) are closed where we currently
-    // manage them. TODO: can we add these to LuceneTestCase.closeAfterSuite directly?
-    // or something else simpler instead of the fake closeables?
-
-    @BeforeClass
-    public static void setAfterSuiteAssertions() throws Exception {
-        closeAfterSuite(new Closeable() {
-            @Override
-            public void close() throws IOException {
-                assertAllFilesClosed();
-            }
-        });
-        closeAfterSuite(new Closeable() {
-            @Override
-            public void close() throws IOException {
-                assertAllSearchersClosed();
-            }
-        });
     }
 
     @After

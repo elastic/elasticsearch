@@ -145,7 +145,7 @@ public class FsChannelSnapshot implements Translog.Snapshot {
     }
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void close() {
         if (closed.compareAndSet(false, true)) {
             channelReference.decRef();
         }

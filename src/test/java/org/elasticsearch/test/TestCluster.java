@@ -20,7 +20,6 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -81,8 +80,6 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
      * This method checks all the things that need to be checked after each test
      */
     public void assertAfterTest() throws IOException {
-        assertAllSearchersClosed();
-        assertAllFilesClosed();
         ensureEstimatedStats();
     }
 
@@ -134,7 +131,7 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
                 assertAcked(client().admin().indices().prepareDelete(indices));
             } catch (IndexMissingException e) {
                 // ignore
-            } catch (ElasticsearchIllegalArgumentException e) {
+            } catch (IllegalArgumentException e) {
                 // Happens if `action.destructive_requires_name` is set to true
                 // which is the case in the CloseIndexDisableCloseAllTests
                 if ("_all".equals(indices[0])) {

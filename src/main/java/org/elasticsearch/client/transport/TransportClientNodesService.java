@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -145,7 +144,7 @@ public class TransportClientNodesService extends AbstractComponent {
     public TransportClientNodesService addTransportAddresses(TransportAddress... transportAddresses) {
         synchronized (mutex) {
             if (closed) {
-                throw new ElasticsearchIllegalStateException("transport client is closed, can't add an address");
+                throw new IllegalStateException("transport client is closed, can't add an address");
             }
             List<TransportAddress> filtered = Lists.newArrayListWithExpectedSize(transportAddresses.length);
             for (TransportAddress transportAddress : transportAddresses) {
@@ -180,7 +179,7 @@ public class TransportClientNodesService extends AbstractComponent {
     public TransportClientNodesService removeTransportAddress(TransportAddress transportAddress) {
         synchronized (mutex) {
             if (closed) {
-                throw new ElasticsearchIllegalStateException("transport client is closed, can't remove an address");
+                throw new IllegalStateException("transport client is closed, can't remove an address");
             }
             ImmutableList.Builder<DiscoveryNode> builder = ImmutableList.builder();
             for (DiscoveryNode otherNode : listedNodes) {
@@ -196,7 +195,7 @@ public class TransportClientNodesService extends AbstractComponent {
         return this;
     }
 
-    public <Response> void execute(NodeListenerCallback<Response> callback, ActionListener<Response> listener) throws ElasticsearchException {
+    public <Response> void execute(NodeListenerCallback<Response> callback, ActionListener<Response> listener) {
         ImmutableList<DiscoveryNode> nodes = this.nodes;
         ensureNodesAreAvailable(nodes);
         int index = getNodeNumber();

@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -389,7 +388,7 @@ public class RestoreMetaData implements MetaData.Custom {
                 case 3:
                     return FAILURE;
                 default:
-                    throw new ElasticsearchIllegalArgumentException("No snapshot state for value [" + value + "]");
+                    throw new IllegalArgumentException("No snapshot state for value [" + value + "]");
             }
         }
     }

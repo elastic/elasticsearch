@@ -107,7 +107,7 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             try {
                 this.reader().close();
                 rootDocMemoryIndex.reset();

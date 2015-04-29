@@ -29,8 +29,8 @@ import org.elasticsearch.common.xcontent.XContentType;
  */
 public interface FilterBuilder extends ToXContent {
 
-    BytesReference buildAsBytes() throws ElasticsearchException;
+    BytesReference buildAsBytes();
 
-    BytesReference buildAsBytes(XContentType contentType) throws ElasticsearchException;
+    BytesReference buildAsBytes(XContentType contentType);
 
 }

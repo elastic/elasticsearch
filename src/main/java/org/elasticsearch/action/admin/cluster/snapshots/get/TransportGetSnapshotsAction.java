@@ -66,7 +66,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeOperationAct
     }
 
     @Override
-    protected void masterOperation(final GetSnapshotsRequest request, ClusterState state, final ActionListener<GetSnapshotsResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final GetSnapshotsRequest request, ClusterState state, final ActionListener<GetSnapshotsResponse> listener) {
         try {
             ImmutableList.Builder<SnapshotInfo> snapshotInfoBuilder = ImmutableList.builder();
             if (isAllSnapshots(request.snapshots())) {

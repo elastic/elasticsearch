@@ -21,7 +21,6 @@ package org.elasticsearch.common.bytes;
 
 import com.google.common.base.Charsets;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -90,7 +89,7 @@ public class BytesArray implements BytesReference {
     @Override
     public BytesReference slice(int from, int length) {
         if (from < 0 || (from + length) > this.length) {
-            throw new ElasticsearchIllegalArgumentException("can't slice a buffer with length [" + this.length + "], with slice parameters from [" + from + "], length [" + length + "]");
+            throw new IllegalArgumentException("can't slice a buffer with length [" + this.length + "], with slice parameters from [" + from + "], length [" + length + "]");
         }
         return new BytesArray(bytes, offset + from, length);
     }

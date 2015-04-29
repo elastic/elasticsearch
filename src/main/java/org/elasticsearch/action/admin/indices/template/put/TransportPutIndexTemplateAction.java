@@ -63,7 +63,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeOperatio
     }
 
     @Override
-    protected void masterOperation(final PutIndexTemplateRequest request, final ClusterState state, final ActionListener<PutIndexTemplateResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final PutIndexTemplateRequest request, final ClusterState state, final ActionListener<PutIndexTemplateResponse> listener) {
         String cause = request.cause();
         if (cause.length() == 0) {
             cause = "api";

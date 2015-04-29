@@ -27,8 +27,6 @@ import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -58,7 +56,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.TemplateQueryParser;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.watcher.FileChangesListener;
@@ -100,7 +97,6 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     private final Cache<CacheKey, CompiledScript> cache;
     private final Path scriptsDirectory;
-    private final FileWatcher fileWatcher;
 
     private final ScriptModes scriptModes;
     private final ScriptContextRegistry scriptContextRegistry;
@@ -114,11 +110,11 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     @Inject
     public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines,
-                         ResourceWatcherService resourceWatcherService, NodeSettingsService nodeSettingsService, ScriptContextRegistry scriptContextRegistry) throws IOException {
+                         ResourceWatcherService resourceWatcherService, ScriptContextRegistry scriptContextRegistry) throws IOException {
         super(settings);
 
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
-            throw new ElasticsearchIllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with fine-grained script settings. \n" +
+            throw new IllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with fine-grained script settings. \n" +
                     "Dynamic scripts can be enabled for all languages and all operations by replacing `script.disable_dynamic: false` with `script.inline: on` and `script.indexed: on` in elasticsearch.yml");
         }
 
@@ -159,7 +155,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         if (logger.isTraceEnabled()) {
             logger.trace("Using scripts directory [{}] ", scriptsDirectory);
         }
-        this.fileWatcher = new FileWatcher(scriptsDirectory);
+        FileWatcher fileWatcher = new FileWatcher(scriptsDirectory);
         fileWatcher.addListener(new ScriptChangesListener());
 
         if (settings.getAsBoolean(SCRIPT_AUTO_RELOAD_ENABLED_SETTING, true)) {
@@ -169,7 +165,6 @@ public class ScriptService extends AbstractComponent implements Closeable {
             // automatic reload is disable just load scripts once
             fileWatcher.init();
         }
-        nodeSettingsService.addListener(new ApplySettings());
     }
 
     //This isn't set in the ctor because doing so creates a guice circular
@@ -183,25 +178,10 @@ public class ScriptService extends AbstractComponent implements Closeable {
         IOUtils.close(scriptEngines);
     }
 
-    /**
-     * Clear both the in memory and on disk compiled script caches. Files on
-     * disk will be treated as if they are new and recompiled.
-     * */
-    public void clearCache() {
-        logger.debug("clearing script cache");
-        // Clear the in-memory script caches
-        this.cache.invalidateAll();
-        this.cache.cleanUp();
-        // Clear the cache of on-disk scripts
-        this.staticCache.clear();
-        // Clear the file watcher's state so it re-compiles on-disk scripts
-        this.fileWatcher.clearState();
-    }
-
     private ScriptEngineService getScriptEngineServiceForLang(String lang) {
         ScriptEngineService scriptEngineService = scriptEnginesByLang.get(lang);
         if (scriptEngineService == null) {
-            throw new ElasticsearchIllegalArgumentException("script_lang not supported [" + lang + "]");
+            throw new IllegalArgumentException("script_lang not supported [" + lang + "]");
         }
         return scriptEngineService;
     }
@@ -209,7 +189,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
     private ScriptEngineService getScriptEngineServiceForFileExt(String fileExtension) {
         ScriptEngineService scriptEngineService = scriptEnginesByExt.get(fileExtension);
         if (scriptEngineService == null) {
-            throw new ElasticsearchIllegalArgumentException("script file extension not supported [" + fileExtension + "]");
+            throw new IllegalArgumentException("script file extension not supported [" + fileExtension + "]");
         }
         return scriptEngineService;
     }
@@ -219,10 +199,10 @@ public class ScriptService extends AbstractComponent implements Closeable {
      */
     public CompiledScript compile(Script script, ScriptContext scriptContext) {
         if (script == null) {
-            throw new ElasticsearchIllegalArgumentException("The parameter script (Script) must not be null.");
+            throw new IllegalArgumentException("The parameter script (Script) must not be null.");
         }
         if (scriptContext == null) {
-            throw new ElasticsearchIllegalArgumentException("The parameter scriptContext (ScriptContext) must not be null.");
+            throw new IllegalArgumentException("The parameter scriptContext (ScriptContext) must not be null.");
         }
 
         String lang = script.getLang();
@@ -243,7 +223,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
      */
     public CompiledScript compileInternal(Script script) {
         if (script == null) {
-            throw new ElasticsearchIllegalArgumentException("The parameter script (Script) must not be null.");
+            throw new IllegalArgumentException("The parameter script (Script) must not be null.");
         }
 
         String lang = script.getLang();
@@ -261,7 +241,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         if (script.getType() == ScriptType.FILE) {
             CompiledScript compiled = staticCache.get(cacheKey); //On disk scripts will be loaded into the staticCache by the listener
             if (compiled == null) {
-                throw new ElasticsearchIllegalArgumentException("Unable to find on disk script " + script.getScript());
+                throw new IllegalArgumentException("Unable to find on disk script " + script.getScript());
             }
             return compiled;
         }
@@ -297,14 +277,14 @@ public class ScriptService extends AbstractComponent implements Closeable {
         if (scriptLang == null) {
             scriptLang = defaultLang;
         } else if (scriptEnginesByLang.containsKey(scriptLang) == false) {
-            throw new ElasticsearchIllegalArgumentException("script_lang not supported [" + scriptLang + "]");
+            throw new IllegalArgumentException("script_lang not supported [" + scriptLang + "]");
         }
         return scriptLang;
     }
 
     String getScriptFromIndex(String scriptLang, String id) {
         if (client == null) {
-            throw new ElasticsearchIllegalArgumentException("Got an indexed script with no Client registered.");
+            throw new IllegalArgumentException("Got an indexed script with no Client registered.");
         }
         scriptLang = validateScriptLanguage(scriptLang);
         GetRequest getRequest = new GetRequest(SCRIPT_INDEX, scriptLang, id);
@@ -312,7 +292,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         if (responseFields.isExists()) {
             return getScriptFromResponse(responseFields);
         }
-        throw new ElasticsearchIllegalArgumentException("Unable to find script [" + SCRIPT_INDEX + "/"
+        throw new IllegalArgumentException("Unable to find script [" + SCRIPT_INDEX + "/"
                 + scriptLang + "/" + id + "]");
     }
 
@@ -329,21 +309,21 @@ public class ScriptService extends AbstractComponent implements Closeable {
                     if (isAnyScriptContextEnabled(scriptLang, getScriptEngineServiceForLang(scriptLang), ScriptType.INDEXED)) {
                         CompiledScript compiledScript = compileInternal(new Script(scriptLang, context.template(), ScriptType.INLINE, null));
                         if (compiledScript == null) {
-                            throw new ElasticsearchIllegalArgumentException("Unable to parse [" + context.template() +
+                            throw new IllegalArgumentException("Unable to parse [" + context.template() +
                                     "] lang [" + scriptLang + "] (ScriptService.compile returned null)");
                         }
                     } else {
                         logger.warn("skipping compile of script [{}], lang [{}] as all scripted operations are disabled for indexed scripts", context.template(), scriptLang);
                     }
                 } catch (Exception e) {
-                    throw new ElasticsearchIllegalArgumentException("Unable to parse [" + context.template() +
+                    throw new IllegalArgumentException("Unable to parse [" + context.template() +
                             "] lang [" + scriptLang + "]", e);
                 }
             } else {
-                throw new ElasticsearchIllegalArgumentException("Unable to find script in : " + scriptBytes.toUtf8());
+                throw new IllegalArgumentException("Unable to find script in : " + scriptBytes.toUtf8());
             }
         } catch (IOException e) {
-            throw new ElasticsearchIllegalArgumentException("failed to parse template script", e);
+            throw new IllegalArgumentException("failed to parse template script", e);
         }
     }
 
@@ -379,7 +359,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                     return template.toString();
                 }
             } catch (IOException | ClassCastException e) {
-                throw new ElasticsearchIllegalStateException("Unable to parse "  + responseFields.getSourceAsString() + " as json", e);
+                throw new IllegalStateException("Unable to parse "  + responseFields.getSourceAsString() + " as json", e);
             }
         } else  if (source.containsKey("script")) {
             return source.get("script").toString();
@@ -389,7 +369,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                 builder.map(responseFields.getSource());
                 return builder.string();
             } catch (IOException|ClassCastException e) {
-                throw new ElasticsearchIllegalStateException("Unable to parse "  + responseFields.getSourceAsString() + " as json", e);
+                throw new IllegalStateException("Unable to parse "  + responseFields.getSourceAsString() + " as json", e);
             }
         }
     }
@@ -428,7 +408,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
     private boolean canExecuteScript(String lang, ScriptEngineService scriptEngineService, ScriptType scriptType, ScriptContext scriptContext) {
         assert lang != null;
         if (scriptContextRegistry.isSupportedContext(scriptContext) == false) {
-            throw new ElasticsearchIllegalArgumentException("script context [" + scriptContext.getKey() + "] not supported");
+            throw new IllegalArgumentException("script context [" + scriptContext.getKey() + "] not supported");
         }
         ScriptMode mode = scriptModes.getScriptMode(lang, scriptType, scriptContext);
         switch (mode) {
@@ -439,7 +419,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
             case SANDBOX:
                 return scriptEngineService.sandboxed();
             default:
-                throw new ElasticsearchIllegalArgumentException("script mode [" + mode + "] not supported");
+                throw new IllegalArgumentException("script mode [" + mode + "] not supported");
         }
     }
 
@@ -561,7 +541,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                 case FILE_VAL:
                     return FILE;
                 default:
-                    throw new ElasticsearchIllegalArgumentException("Unexpected value read for ScriptType got [" + scriptTypeVal +
+                    throw new IllegalArgumentException("Unexpected value read for ScriptType got [" + scriptTypeVal +
                             "] expected one of [" + INLINE_VAL + "," + INDEXED_VAL + "," + FILE_VAL + "]");
             }
         }
@@ -579,7 +559,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                         out.writeVInt(FILE_VAL);
                         return;
                     default:
-                        throw new ElasticsearchIllegalStateException("Unknown ScriptType " + scriptType);
+                        throw new IllegalStateException("Unknown ScriptType " + scriptType);
                 }
             } else {
                 out.writeVInt(INLINE_VAL); //Default to inline
@@ -631,32 +611,13 @@ public class ScriptService extends AbstractComponent implements Closeable {
                 this.id = script;
             } else {
                 if (parts.length != 3) {
-                    throw new ElasticsearchIllegalArgumentException("Illegal index script format [" + script + "]" +
+                    throw new IllegalArgumentException("Illegal index script format [" + script + "]" +
                             " should be /lang/id");
                 } else {
                     if (!parts[1].equals(this.lang)) {
-                        throw new ElasticsearchIllegalStateException("Conflicting script language, found [" + parts[1] + "] expected + ["+ this.lang + "]");
+                        throw new IllegalStateException("Conflicting script language, found [" + parts[1] + "] expected + ["+ this.lang + "]");
                     }
                     this.id = parts[2];
-                }
-            }
-        }
-    }
-
-    private class ApplySettings implements NodeSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            GroovyScriptEngineService engine = (GroovyScriptEngineService) ScriptService.this.scriptEnginesByLang.get(GroovyScriptEngineService.NAME);
-            if (engine != null) {
-                String[] patches = settings.getAsArray(GroovyScriptEngineService.GROOVY_SCRIPT_BLACKLIST_PATCH, Strings.EMPTY_ARRAY);
-                boolean blacklistChanged = engine.addToBlacklist(patches);
-                if (blacklistChanged) {
-                    logger.info("adding {} to [{}], new blacklisted methods: {}", patches,
-                            GroovyScriptEngineService.GROOVY_SCRIPT_BLACKLIST_PATCH, engine.blacklistAdditions());
-                    engine.reloadConfig();
-                    // Because the GroovyScriptEngineService knows nothing about the
-                    // cache, we need to clear it here if the setting changes
-                    ScriptService.this.clearCache();
                 }
             }
         }

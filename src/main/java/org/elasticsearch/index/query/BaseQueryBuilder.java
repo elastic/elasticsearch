@@ -45,12 +45,12 @@ public abstract class BaseQueryBuilder implements QueryBuilder {
     }
 
     @Override
-    public BytesReference buildAsBytes() throws ElasticsearchException {
+    public BytesReference buildAsBytes() {
         return buildAsBytes(XContentType.JSON);
     }
 
     @Override
-    public BytesReference buildAsBytes(XContentType contentType) throws ElasticsearchException {
+    public BytesReference buildAsBytes(XContentType contentType) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             toXContent(builder, EMPTY_PARAMS);

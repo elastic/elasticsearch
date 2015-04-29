@@ -214,7 +214,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    public void testRandomSorting() throws ElasticsearchException, IOException, InterruptedException, ExecutionException {
+    public void testRandomSorting() throws IOException, InterruptedException, ExecutionException {
         Random random = getRandom();
         assertAcked(prepareCreate("test")
                 .addMapping("type",
@@ -1023,7 +1023,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
     }
 
     @Test @Slow
-    public void testSortMissingStrings() throws ElasticsearchException, IOException {
+    public void testSortMissingStrings() throws IOException {
         assertAcked(prepareCreate("test").addMapping("type1",
                 XContentFactory.jsonBuilder()
                         .startObject()
@@ -1458,7 +1458,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testSortOnRareField() throws ElasticsearchException, IOException {
+    public void testSortOnRareField() throws IOException {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("string_values").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
@@ -1626,7 +1626,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
      * Test case for issue 6150: https://github.com/elasticsearch/elasticsearch/issues/6150
      */
     @Test
-    public void testNestedSort() throws ElasticsearchException, IOException, InterruptedException, ExecutionException {
+    public void testNestedSort() throws IOException, InterruptedException, ExecutionException {
         assertAcked(prepareCreate("test")
                 .addMapping("type",
                         XContentFactory.jsonBuilder()

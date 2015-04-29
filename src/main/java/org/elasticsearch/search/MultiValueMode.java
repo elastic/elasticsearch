@@ -27,7 +27,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -375,13 +374,13 @@ public enum MultiValueMode {
     /**
      * A case insensitive version of {@link #valueOf(String)}
      *
-     * @throws org.elasticsearch.ElasticsearchIllegalArgumentException if the given string doesn't match a sort mode or is <code>null</code>.
+     * @throws IllegalArgumentException if the given string doesn't match a sort mode or is <code>null</code>.
      */
     public static MultiValueMode fromString(String sortMode) {
         try {
             return valueOf(sortMode.toUpperCase(Locale.ROOT));
         } catch (Throwable t) {
-            throw new ElasticsearchIllegalArgumentException("Illegal sort_mode " + sortMode);
+            throw new IllegalArgumentException("Illegal sort_mode " + sortMode);
         }
     }
 
@@ -615,7 +614,7 @@ public enum MultiValueMode {
     }
 
     protected BytesRef pick(SortedBinaryDocValues values, BytesRef missingValue) {
-        throw new ElasticsearchIllegalArgumentException("Unsupported sort mode: " + this);
+        throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
     /**
@@ -735,7 +734,7 @@ public enum MultiValueMode {
     }
 
     protected int pick(RandomAccessOrds values) {
-        throw new ElasticsearchIllegalArgumentException("Unsupported sort mode: " + this);
+        throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
     /**

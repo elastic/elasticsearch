@@ -36,7 +36,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
@@ -196,7 +195,7 @@ public class PercolatorService extends AbstractComponent {
             if (request.docSource() != null && request.docSource().length() != 0) {
                 parsedDocument = parseFetchedDoc(context, request.docSource(), percolateIndexService, request.documentType());
             } else if (parsedDocument == null) {
-                throw new ElasticsearchIllegalArgumentException("Nothing to percolate");
+                throw new IllegalArgumentException("Nothing to percolate");
             }
 
             if (context.percolateQuery() == null && (context.trackScores() || context.doSort || context.aggregations() != null) || context.aliasFilter() != null) {
@@ -204,11 +203,11 @@ public class PercolatorService extends AbstractComponent {
             }
 
             if (context.doSort && !context.limit) {
-                throw new ElasticsearchIllegalArgumentException("Can't sort if size isn't specified");
+                throw new IllegalArgumentException("Can't sort if size isn't specified");
             }
 
             if (context.highlight() != null && !context.limit) {
-                throw new ElasticsearchIllegalArgumentException("Can't highlight if size isn't specified");
+                throw new IllegalArgumentException("Can't highlight if size isn't specified");
             }
 
             if (context.size() < 0) {
@@ -247,7 +246,7 @@ public class PercolatorService extends AbstractComponent {
         }
     }
 
-    private ParsedDocument parseRequest(IndexService documentIndexService, PercolateShardRequest request, PercolateContext context) throws ElasticsearchException {
+    private ParsedDocument parseRequest(IndexService documentIndexService, PercolateShardRequest request, PercolateContext context) {
         BytesReference source = request.source();
         if (source == null || source.length() == 0) {
             return null;

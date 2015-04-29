@@ -144,7 +144,7 @@ public class TransportExistsAction extends TransportBroadcastOperationAction<Exi
     }
 
     @Override
-    protected ShardExistsResponse shardOperation(ShardExistsRequest request) throws ElasticsearchException {
+    protected ShardExistsResponse shardOperation(ShardExistsRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.shardSafe(request.shardId().id());
 

@@ -178,7 +178,7 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
         }
         Set<String> newIndicesList = GatewayMetaState.getRelevantIndices(event.state(), oldIndicesList);
         // third, get the actual write info
-        Iterator<GatewayMetaState.IndexMetaWriteInfo> indices = GatewayMetaState.filterStates(oldIndicesList, newIndicesList, inMemoryMetaData, event.state().metaData()).iterator();
+        Iterator<GatewayMetaState.IndexMetaWriteInfo> indices = GatewayMetaState.resolveStatesToBeWritten(oldIndicesList, newIndicesList, inMemoryMetaData, event.state().metaData()).iterator();
 
         if (expectMetaData) {
             assertThat(indices.hasNext(), equalTo(true));

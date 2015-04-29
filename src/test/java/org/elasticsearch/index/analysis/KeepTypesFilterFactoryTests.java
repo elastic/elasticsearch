@@ -36,6 +36,7 @@ public class KeepTypesFilterFactoryTests extends ElasticsearchTokenStreamTestCas
     @Test
     public void testKeepTypes() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
+                .put("path.home", createTempDir().toString())
                 .put("index.analysis.filter.keep_numbers.type", "keep_types")
                 .putArray("index.analysis.filter.keep_numbers.types", new String[] {"<NUM>", "<SOMETHINGELSE>"})
                 .build();

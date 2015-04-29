@@ -32,7 +32,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 
 import static org.elasticsearch.common.Strings.cleanPath;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 
 /**
  * The environment of where things exists.
@@ -69,16 +68,12 @@ public class Environment {
         fileStores = allStores.toArray(new ESFileStore[allStores.size()]);
     }
 
-    public Environment() {
-        this(EMPTY_SETTINGS);
-    }
-
     public Environment(Settings settings) {
         this.settings = settings;
         if (settings.get("path.home") != null) {
             homeFile = PathUtils.get(cleanPath(settings.get("path.home")));
         } else {
-            homeFile = PathUtils.get(System.getProperty("user.dir"));
+            throw new IllegalStateException("path.home is not configured");
         }
 
         if (settings.get("path.conf") != null) {

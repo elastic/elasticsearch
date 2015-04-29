@@ -121,7 +121,10 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
     }
 
     private void assertTokenFilter(String name, Class clazz) throws IOException {
-        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        Settings settings = ImmutableSettings.settingsBuilder()
+                               .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                               .put("path.home", createTempDir().toString()).build();
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter(name);
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader("foo bar"));

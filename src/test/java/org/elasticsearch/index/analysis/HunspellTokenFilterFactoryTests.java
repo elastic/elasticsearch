@@ -33,6 +33,7 @@ public class HunspellTokenFilterFactoryTests extends ElasticsearchTestCase {
     @Test
     public void testDedup() throws IOException {
         Settings settings = settingsBuilder()
+                .put("path.home", createTempDir().toString())
                 .put("path.conf", getDataPath("/indices/analyze/conf_dir"))
                 .put("index.analysis.filter.en_US.type", "hunspell")
                 .put("index.analysis.filter.en_US.locale", "en_US")
@@ -45,6 +46,7 @@ public class HunspellTokenFilterFactoryTests extends ElasticsearchTestCase {
         assertThat(hunspellTokenFilter.dedup(), is(true));
 
         settings = settingsBuilder()
+                .put("path.home", createTempDir().toString())
                 .put("path.conf", getDataPath("/indices/analyze/conf_dir"))
                 .put("index.analysis.filter.en_US.type", "hunspell")
                 .put("index.analysis.filter.en_US.dedup", false)

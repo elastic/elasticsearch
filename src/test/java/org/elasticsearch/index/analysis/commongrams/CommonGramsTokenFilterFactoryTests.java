@@ -39,7 +39,10 @@ public class CommonGramsTokenFilterFactoryTests extends ElasticsearchTokenStream
 
     @Test
     public void testDefault() throws IOException {
-        Settings settings = ImmutableSettings.settingsBuilder().put("index.analysis.filter.common_grams_default.type", "common_grams").build();
+        Settings settings = ImmutableSettings.settingsBuilder()
+                                .put("index.analysis.filter.common_grams_default.type", "common_grams")
+                                .put("path.home", createTempDir().toString())
+                                .build();
 
         try {
             AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
@@ -53,6 +56,7 @@ public class CommonGramsTokenFilterFactoryTests extends ElasticsearchTokenStream
         {
             Settings settings = ImmutableSettings.settingsBuilder().put("index.analysis.filter.common_grams_default.type", "common_grams")
                      .putArray("index.analysis.filter.common_grams_default.common_words", "chromosome", "protein")
+                     .put("path.home", createTempDir().toString())
                      .build();
 
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
@@ -69,6 +73,7 @@ public class CommonGramsTokenFilterFactoryTests extends ElasticsearchTokenStream
         {
             Settings settings = ImmutableSettings.settingsBuilder().put("index.analysis.filter.common_grams_default.type", "common_grams")
                      .put("index.analysis.filter.common_grams_default.query_mode", false)
+                     .put("path.home", createTempDir().toString())
                      .putArray("index.analysis.filter.common_grams_default.common_words", "chromosome", "protein")
                      .build();
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
@@ -88,6 +93,7 @@ public class CommonGramsTokenFilterFactoryTests extends ElasticsearchTokenStream
         {
             Settings settings = ImmutableSettings.settingsBuilder().put("index.analysis.filter.common_grams_1.type", "common_grams")
                     .put("index.analysis.filter.common_grams_1.ignore_case", true)
+                    .put("path.home", createTempDir().toString())
                     .putArray("index.analysis.filter.common_grams_1.common_words", "the", "Or", "Not", "a", "is", "an", "they", "are")
                     .build();
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
@@ -101,6 +107,7 @@ public class CommonGramsTokenFilterFactoryTests extends ElasticsearchTokenStream
         {
             Settings settings = ImmutableSettings.settingsBuilder().put("index.analysis.filter.common_grams_2.type", "common_grams")
                     .put("index.analysis.filter.common_grams_2.ignore_case", false)
+                    .put("path.home", createTempDir().toString())
                     .putArray("index.analysis.filter.common_grams_2.common_words", "the", "Or", "noT", "a", "is", "an", "they", "are")
                     .build();
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
@@ -114,6 +121,7 @@ public class CommonGramsTokenFilterFactoryTests extends ElasticsearchTokenStream
         {
             Settings settings = ImmutableSettings.settingsBuilder().put("index.analysis.filter.common_grams_3.type", "common_grams")
                     .putArray("index.analysis.filter.common_grams_3.common_words", "the", "or", "not", "a", "is", "an", "they", "are")
+                    .put("path.home", createTempDir().toString())
                     .build();
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
             TokenFilterFactory tokenFilter = analysisService.tokenFilter("common_grams_3");
@@ -127,7 +135,10 @@ public class CommonGramsTokenFilterFactoryTests extends ElasticsearchTokenStream
 
     @Test
     public void testCommonGramsAnalysis() throws IOException {
-        Settings settings = ImmutableSettings.settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/commongrams/commongrams.json").build();
+        Settings settings = ImmutableSettings.settingsBuilder()
+                     .loadFromClasspath("org/elasticsearch/index/analysis/commongrams/commongrams.json")
+                     .put("path.home", createTempDir().toString())
+                     .build();
         {
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
             Analyzer analyzer = analysisService.analyzer("commongramsAnalyzer").analyzer();
@@ -151,6 +162,7 @@ public class CommonGramsTokenFilterFactoryTests extends ElasticsearchTokenStream
                     .put("index.analysis.filter.common_grams_1.query_mode", true)
                     .putArray("index.analysis.filter.common_grams_1.common_words", "the", "Or", "Not", "a", "is", "an", "they", "are")
                     .put("index.analysis.filter.common_grams_1.ignore_case", true)
+                    .put("path.home", createTempDir().toString())
                     .build();
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
             TokenFilterFactory tokenFilter = analysisService.tokenFilter("common_grams_1");
@@ -165,6 +177,7 @@ public class CommonGramsTokenFilterFactoryTests extends ElasticsearchTokenStream
                     .put("index.analysis.filter.common_grams_2.query_mode", true)
                     .putArray("index.analysis.filter.common_grams_2.common_words", "the", "Or", "noT", "a", "is", "an", "they", "are")
                     .put("index.analysis.filter.common_grams_2.ignore_case", false)
+                    .put("path.home", createTempDir().toString())
                     .build();
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
             TokenFilterFactory tokenFilter = analysisService.tokenFilter("common_grams_2");
@@ -178,6 +191,7 @@ public class CommonGramsTokenFilterFactoryTests extends ElasticsearchTokenStream
             Settings settings = ImmutableSettings.settingsBuilder().put("index.analysis.filter.common_grams_3.type", "common_grams")
                     .put("index.analysis.filter.common_grams_3.query_mode", true)
                     .putArray("index.analysis.filter.common_grams_3.common_words", "the", "Or", "noT", "a", "is", "an", "they", "are")
+                    .put("path.home", createTempDir().toString())
                     .build();
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
             TokenFilterFactory tokenFilter = analysisService.tokenFilter("common_grams_3");
@@ -191,6 +205,7 @@ public class CommonGramsTokenFilterFactoryTests extends ElasticsearchTokenStream
             Settings settings = ImmutableSettings.settingsBuilder().put("index.analysis.filter.common_grams_4.type", "common_grams")
                     .put("index.analysis.filter.common_grams_4.query_mode", true)
                     .putArray("index.analysis.filter.common_grams_4.common_words", "the", "or", "not", "a", "is", "an", "they", "are")
+                    .put("path.home", createTempDir().toString())
                     .build();
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
             TokenFilterFactory tokenFilter = analysisService.tokenFilter("common_grams_4");
@@ -204,7 +219,10 @@ public class CommonGramsTokenFilterFactoryTests extends ElasticsearchTokenStream
 
     @Test
     public void testQueryModeCommonGramsAnalysis() throws IOException {
-        Settings settings = ImmutableSettings.settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/commongrams/commongrams_query_mode.json").build();
+        Settings settings = ImmutableSettings.settingsBuilder()
+                .loadFromClasspath("org/elasticsearch/index/analysis/commongrams/commongrams_query_mode.json")
+                .put("path.home", createTempDir().toString())
+                .build();
         {
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
             Analyzer analyzer = analysisService.analyzer("commongramsAnalyzer").analyzer();

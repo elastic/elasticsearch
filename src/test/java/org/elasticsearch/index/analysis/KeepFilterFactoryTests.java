@@ -40,7 +40,7 @@ public class KeepFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
 
     @Test
     public void testLoadWithoutSettings() {
-        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(RESOURCE);
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("keep");
         Assert.assertNull(tokenFilter);
     }
@@ -48,6 +48,7 @@ public class KeepFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
     @Test
     public void testLoadOverConfiguredSettings() {
         Settings settings = ImmutableSettings.settingsBuilder()
+                .put("path.home", createTempDir().toString())
                 .put("index.analysis.filter.broken_keep_filter.type", "keep")
                 .put("index.analysis.filter.broken_keep_filter.keep_words_path", "does/not/exists.txt")
                 .put("index.analysis.filter.broken_keep_filter.keep_words", "[\"Hello\", \"worlD\"]")
@@ -63,6 +64,7 @@ public class KeepFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
     @Test
     public void testKeepWordsPathSettings() {
         Settings settings = ImmutableSettings.settingsBuilder()
+                .put("path.home", createTempDir().toString())
                 .put("index.analysis.filter.non_broken_keep_filter.type", "keep")
                 .put("index.analysis.filter.non_broken_keep_filter.keep_words_path", "does/not/exists.txt")
                 .build();
@@ -89,7 +91,7 @@ public class KeepFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
 
     @Test
     public void testCaseInsensitiveMapping() throws IOException {
-        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(RESOURCE);
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_keep_filter");
         assertThat(tokenFilter, instanceOf(KeepWordFilterFactory.class));
         String source = "hello small world";
@@ -101,7 +103,7 @@ public class KeepFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
 
     @Test
     public void testCaseSensitiveMapping() throws IOException {
-        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(RESOURCE);
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_case_sensitive_keep_filter");
         assertThat(tokenFilter, instanceOf(KeepWordFilterFactory.class));
         String source = "Hello small world";

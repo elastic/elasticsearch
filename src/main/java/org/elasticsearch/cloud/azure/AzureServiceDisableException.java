@@ -19,13 +19,7 @@
 
 package org.elasticsearch.cloud.azure;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
-
-public class AzureServiceDisableException extends ElasticsearchIllegalStateException {
-    public AzureServiceDisableException() {
-        super(null);
-    }
-
+public class AzureServiceDisableException extends IllegalStateException {
     public AzureServiceDisableException(String msg) {
         super(msg);
     }

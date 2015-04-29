@@ -28,7 +28,6 @@ import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.base.Function;
 import org.elasticsearch.common.collect.Iterables;
 import org.elasticsearch.common.collect.Lists;
@@ -141,7 +140,7 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
                     .build();
         } catch (Exception e) {
             logger.warn("unable to start GCE discovery service: {} : {}", e.getClass().getName(), e.getMessage());
-            throw new ElasticsearchIllegalArgumentException("unable to start GCE discovery service", e);
+            throw new IllegalArgumentException("unable to start GCE discovery service", e);
         }
 
         return this.client;

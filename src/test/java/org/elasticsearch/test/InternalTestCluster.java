@@ -805,7 +805,7 @@ public final class InternalTestCluster extends TestCluster {
             /* no sniff client for now - doesn't work will all tests since it might throw NoNodeAvailableException if nodes are shut down.
              * we first need support of transportClientRatio as annotations or so
              */
-            return transportClient = TransportClientFactory.noSniff(settingsSource.transportClient()).client(node, clusterName);
+            return transportClient = new TransportClientFactory(false, settingsSource.transportClient(), baseDir).client(node, clusterName);
         }
 
         void resetClient() throws IOException {
@@ -859,29 +859,14 @@ public final class InternalTestCluster extends TestCluster {
 
     public static final String TRANSPORT_CLIENT_PREFIX = "transport_client_";
     static class TransportClientFactory {
-        private static TransportClientFactory NO_SNIFF_CLIENT_FACTORY = new TransportClientFactory(false, ImmutableSettings.EMPTY);
-        private static TransportClientFactory SNIFF_CLIENT_FACTORY = new TransportClientFactory(true, ImmutableSettings.EMPTY);
-
         private final boolean sniff;
         private final Settings settings;
+        private final Path baseDir;
 
-        public static TransportClientFactory noSniff(Settings settings) {
-            if (settings == null || settings.names().isEmpty()) {
-                return NO_SNIFF_CLIENT_FACTORY;
-            }
-            return new TransportClientFactory(false, settings);
-        }
-
-        public static TransportClientFactory sniff(Settings settings) {
-            if (settings == null || settings.names().isEmpty()) {
-                return SNIFF_CLIENT_FACTORY;
-            }
-            return new TransportClientFactory(true, settings);
-        }
-
-        TransportClientFactory(boolean sniff, Settings settings) {
+        TransportClientFactory(boolean sniff, Settings settings, Path baseDir) {
             this.sniff = sniff;
             this.settings = settings != null ? settings : ImmutableSettings.EMPTY;
+            this.baseDir = baseDir;
         }
 
         public Client client(Node node, String clusterName) {
@@ -889,6 +874,7 @@ public final class InternalTestCluster extends TestCluster {
             Settings nodeSettings = node.settings();
             Builder builder = settingsBuilder()
                     .put("client.transport.nodes_sampler_interval", "1s")
+                    .put("path.home", baseDir)
                     .put("name", TRANSPORT_CLIENT_PREFIX + node.settings().get("name"))
                     .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                     .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", sniff)

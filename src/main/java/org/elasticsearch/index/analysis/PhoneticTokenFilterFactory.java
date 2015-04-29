@@ -29,7 +29,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.phonetic.BeiderMorseFilter;
 import org.apache.lucene.analysis.phonetic.DoubleMetaphoneFilter;
 import org.apache.lucene.analysis.phonetic.PhoneticFilter;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -90,7 +89,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             } else if ("exact".equalsIgnoreCase(ruleType)) {
                 ruletype = RuleType.EXACT;
             } else {
-                throw new ElasticsearchIllegalArgumentException("No matching rule type [" + ruleType + "] for beider morse encoder");
+                throw new IllegalArgumentException("No matching rule type [" + ruleType + "] for beider morse encoder");
             }
             String nameType = settings.get("name_type", "generic");
             if ("GENERIC".equalsIgnoreCase(nameType)) {
@@ -107,7 +106,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         } else if ("nysiis".equalsIgnoreCase(encodername)) {
             this.encoder = new Nysiis();
         } else {
-            throw new ElasticsearchIllegalArgumentException("unknown encoder [" + encodername + "] for phonetic token filter");
+            throw new IllegalArgumentException("unknown encoder [" + encodername + "] for phonetic token filter");
         }
     }
 
@@ -127,6 +126,6 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         } else {
             return new PhoneticFilter(tokenStream, encoder, !replace);
         }
-        throw new ElasticsearchIllegalArgumentException("encoder error");
+        throw new IllegalArgumentException("encoder error");
     }
 }

@@ -847,16 +847,11 @@ public class PercolatorService extends AbstractComponent {
             return null;
         }
 
-        InternalAggregations aggregations;
-        if (shardResults.size() == 1) {
-            aggregations = shardResults.get(0).aggregations();
-        } else {
         List<InternalAggregations> aggregationsList = new ArrayList<>(shardResults.size());
         for (PercolateShardResponse shardResult : shardResults) {
             aggregationsList.add(shardResult.aggregations());
         }
-            aggregations = InternalAggregations.reduce(aggregationsList, new ReduceContext(bigArrays, scriptService));
-        }
+        InternalAggregations aggregations = InternalAggregations.reduce(aggregationsList, new ReduceContext(bigArrays, scriptService));
         if (aggregations != null) {
             List<SiblingReducer> reducers = shardResults.get(0).reducers();
             if (reducers != null) {

@@ -279,12 +279,14 @@ public class ExecutionService extends AbstractComponent {
         for (WatchRecord record : records) {
             Watch watch = watchStore.get(record.name());
             if (watch == null) {
-                logger.warn("unable to find watch [{}]/[{}] in watch store. perhaps it has been deleted. skipping...", record.name(), record.id());
-                continue;
+                String message = "unable to find watch for record [" + record. name()+ "]/[" + record.id() + "], perhaps it has been deleted, ignoring...";
+                record.update(WatchRecord.State.DELETED_WHILE_QUEUED, message);
+                historyStore.update(record);
+            } else {
+                TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, clock.now(UTC), record.triggerEvent());
+                executeAsync(ctx, record);
+                counter++;
             }
-            TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, clock.now(UTC), record.triggerEvent());
-            executeAsync(ctx, record);
-            counter++;
         }
         logger.debug("executed [{}] watches from the watch history", counter);
     }

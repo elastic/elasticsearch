@@ -183,7 +183,8 @@ public class WatchRecord implements ToXContent {
         EXECUTION_NOT_NEEDED,
         THROTTLED,
         EXECUTED,
-        FAILED;
+        FAILED,
+        DELETED_WHILE_QUEUED;
 
         public String id() {
             return name().toLowerCase(Locale.ROOT);

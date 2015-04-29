@@ -964,7 +964,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         public static MetadataSnapshot read(StreamInput in) throws IOException {
             MetadataSnapshot storeFileMetaDatas = new MetadataSnapshot();
             storeFileMetaDatas.readFrom(in);
-
             return storeFileMetaDatas;
         }
 

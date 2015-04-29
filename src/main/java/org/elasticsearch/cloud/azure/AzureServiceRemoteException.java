@@ -19,13 +19,7 @@
 
 package org.elasticsearch.cloud.azure;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
-
-public class AzureServiceRemoteException extends ElasticsearchIllegalStateException {
-    public AzureServiceRemoteException() {
-        super(null);
-    }
-
+public class AzureServiceRemoteException extends IllegalStateException {
     public AzureServiceRemoteException(String msg) {
         super(msg);
     }

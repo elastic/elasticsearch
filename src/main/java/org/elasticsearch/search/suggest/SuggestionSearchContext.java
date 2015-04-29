@@ -20,7 +20,6 @@ package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
-import java.lang.IllegalArgumentException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

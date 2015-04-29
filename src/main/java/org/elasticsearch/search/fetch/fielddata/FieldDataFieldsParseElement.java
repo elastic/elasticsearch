@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.fetch.fielddata;
 
-import java.lang.IllegalStateException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;

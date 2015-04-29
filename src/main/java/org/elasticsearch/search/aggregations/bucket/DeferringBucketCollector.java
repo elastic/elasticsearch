@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -74,7 +73,7 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             in.close();
         }
 

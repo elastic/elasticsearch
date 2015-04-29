@@ -20,7 +20,6 @@
 package org.elasticsearch.common.lucene.all;
 
 import com.google.common.collect.Lists;
-import java.lang.IllegalStateException;
 import org.elasticsearch.common.io.FastCharArrayWriter;
 import org.elasticsearch.common.io.FastStringReader;
 

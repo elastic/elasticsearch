@@ -26,7 +26,6 @@ import org.apache.lucene.search.spell.SuggestWord;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.search.suggest.SuggestUtils;
 
 import java.io.IOException;

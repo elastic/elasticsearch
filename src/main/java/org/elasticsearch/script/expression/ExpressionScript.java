@@ -26,7 +26,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.search.Scorer;
-import java.lang.IllegalStateException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.SearchScript;

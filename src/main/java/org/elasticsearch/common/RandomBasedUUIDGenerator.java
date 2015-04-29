@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common;
 
-import java.lang.IllegalStateException;
 
 import java.io.IOException;
 import java.util.Random;

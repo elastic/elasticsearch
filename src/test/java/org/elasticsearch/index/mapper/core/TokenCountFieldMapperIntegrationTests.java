@@ -67,7 +67,7 @@ public class TokenCountFieldMapperIntegrationTests extends ElasticsearchIntegrat
      * It is possible to get the token count in a search response.
      */
     @Test
-    public void searchReturnsTokenCount() throws ElasticsearchException, IOException {
+    public void searchReturnsTokenCount() throws IOException {
         init();
 
         assertSearchReturns(searchById("single"), "single");
@@ -82,7 +82,7 @@ public class TokenCountFieldMapperIntegrationTests extends ElasticsearchIntegrat
      * It is possible to search by token count.
      */
     @Test
-    public void searchByTokenCount() throws ElasticsearchException, IOException {
+    public void searchByTokenCount() throws IOException {
         init();
 
         assertSearchReturns(searchByNumericRange(4, 4).get(), "single");
@@ -96,7 +96,7 @@ public class TokenCountFieldMapperIntegrationTests extends ElasticsearchIntegrat
      * It is possible to search by token count.
      */
     @Test
-    public void facetByTokenCount() throws ElasticsearchException, IOException {
+    public void facetByTokenCount() throws IOException {
         init();
 
         String facetField = randomFrom(ImmutableList.of(
@@ -109,7 +109,7 @@ public class TokenCountFieldMapperIntegrationTests extends ElasticsearchIntegrat
         assertThat(terms.getBuckets().size(), equalTo(9));
     }
 
-    private void init() throws ElasticsearchException, IOException {
+    private void init() throws IOException {
         prepareCreate("test").addMapping("test", jsonBuilder().startObject()
                 .startObject("test")
                     .startObject("properties")

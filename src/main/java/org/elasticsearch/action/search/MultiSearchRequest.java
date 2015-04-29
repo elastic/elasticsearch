@@ -20,7 +20,6 @@
 package org.elasticsearch.action.search;
 
 import com.google.common.collect.Lists;
-import java.lang.IllegalArgumentException;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;

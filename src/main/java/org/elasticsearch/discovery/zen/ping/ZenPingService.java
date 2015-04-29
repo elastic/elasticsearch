@@ -21,7 +21,6 @@ package org.elasticsearch.discovery.zen.ping;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Nullable;
@@ -79,21 +78,21 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         for (ZenPing zenPing : zenPings) {
             zenPing.start();
         }
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         for (ZenPing zenPing : zenPings) {
             zenPing.stop();
         }
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
         for (ZenPing zenPing : zenPings) {
             zenPing.close();
         }
@@ -119,7 +118,7 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     @Override
-    public void ping(PingListener listener, TimeValue timeout) throws ElasticsearchException {
+    public void ping(PingListener listener, TimeValue timeout) {
         ImmutableList<? extends ZenPing> zenPings = this.zenPings;
         CompoundPingListener compoundPingListener = new CompoundPingListener(listener, zenPings);
         for (ZenPing zenPing : zenPings) {

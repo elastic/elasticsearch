@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;

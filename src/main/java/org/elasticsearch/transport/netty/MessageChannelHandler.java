@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport.netty;
 
-import java.lang.IllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.Compressor;

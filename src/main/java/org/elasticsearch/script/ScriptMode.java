@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Booleans;
 
 import java.util.Locale;

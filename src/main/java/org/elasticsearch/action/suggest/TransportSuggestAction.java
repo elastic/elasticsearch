@@ -20,7 +20,6 @@
 package org.elasticsearch.action.suggest;
 
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -128,7 +127,7 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
     }
 
     @Override
-    protected ShardSuggestResponse shardOperation(ShardSuggestRequest request) throws ElasticsearchException {
+    protected ShardSuggestResponse shardOperation(ShardSuggestRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.shardSafe(request.shardId().id());
         final Engine.Searcher searcher = indexShard.acquireSearcher("suggest");

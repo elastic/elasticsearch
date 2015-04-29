@@ -25,7 +25,6 @@ import org.apache.lucene.analysis.compound.Lucene43HyphenationCompoundWordTokenF
 import org.apache.lucene.analysis.compound.hyphenation.HyphenationTree;
 import org.apache.lucene.util.Version;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;

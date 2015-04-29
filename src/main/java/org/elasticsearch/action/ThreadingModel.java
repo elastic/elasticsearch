@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action;
 
-import java.lang.IllegalArgumentException;
 
 /**
  *

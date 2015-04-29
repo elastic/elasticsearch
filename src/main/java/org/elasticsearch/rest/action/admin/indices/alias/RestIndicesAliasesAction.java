@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices.alias;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.Client;

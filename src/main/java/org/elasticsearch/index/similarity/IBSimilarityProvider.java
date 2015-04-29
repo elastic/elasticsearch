@@ -21,7 +21,6 @@ package org.elasticsearch.index.similarity;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.similarities.*;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;

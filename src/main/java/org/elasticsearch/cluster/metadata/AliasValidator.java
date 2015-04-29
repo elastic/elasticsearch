@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;

@@ -20,7 +20,6 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.common.logging.ESLogger;
@@ -46,7 +45,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
     }
 
     @Override
-    public void phase1(SnapshotIndexCommit snapshot) throws ElasticsearchException {
+    public void phase1(SnapshotIndexCommit snapshot) {
         if (request.recoveryType() == RecoveryState.Type.RELOCATION && shard.routingEntry().primary()) {
             // here we simply fail the primary shard since we can't move them (have 2 writers open at the same time)
             // by failing the shard we play safe and just go through the entire reallocation procedure of the primary
@@ -60,7 +59,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
 
 
     @Override
-    protected int sendSnapshot(Translog.Snapshot snapshot) throws ElasticsearchException {
+    protected int sendSnapshot(Translog.Snapshot snapshot) {
         logger.trace("{} recovery [phase3] to {}: skipping transaction log operations for file sync", shard.shardId(), request.targetNode());
         return 0;
     }

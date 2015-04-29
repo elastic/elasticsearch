@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import java.lang.IllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;

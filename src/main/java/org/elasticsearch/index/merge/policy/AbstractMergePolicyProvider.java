@@ -20,7 +20,6 @@ package org.elasticsearch.index.merge.policy;
 
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.TieredMergePolicy;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.store.Store;
 

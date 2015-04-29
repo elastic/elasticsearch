@@ -64,7 +64,7 @@ public class LogDocMergePolicyProvider extends AbstractMergePolicyProvider<LogDo
     }
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void close() {
         indexSettingsService.removeListener(applySettings);
     }
 

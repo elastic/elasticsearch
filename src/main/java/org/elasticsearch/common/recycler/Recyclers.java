@@ -22,7 +22,6 @@ package org.elasticsearch.common.recycler;
 import com.carrotsearch.hppc.hash.MurmurHash3;
 import com.google.common.collect.Queues;
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalArgumentException;
 
 public enum Recyclers {
     ;
@@ -126,7 +125,7 @@ public enum Recyclers {
                 return new Recycler.V<T>() {
 
                     @Override
-                    public void close() throws ElasticsearchException {
+                    public void close() {
                         synchronized (lock) {
                             delegate.close();
                         }

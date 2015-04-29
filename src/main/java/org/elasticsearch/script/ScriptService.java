@@ -27,8 +27,6 @@ import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.lucene.util.IOUtils;
-import java.lang.IllegalArgumentException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;

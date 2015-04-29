@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.miscellaneous.Lucene43TrimFilter;
 import org.apache.lucene.util.Version;
-import java.lang.IllegalArgumentException;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.TrimFilter;

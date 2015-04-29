@@ -21,7 +21,6 @@ package org.elasticsearch.index.fielddata.plain;
 
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.IndexReader;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import java.lang.IllegalStateException;
 
 import java.util.AbstractQueue;
 import java.util.Collection;

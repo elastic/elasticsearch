@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.shard;
 
-import java.lang.IllegalStateException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;

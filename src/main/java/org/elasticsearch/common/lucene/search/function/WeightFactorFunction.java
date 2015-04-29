@@ -21,7 +21,6 @@ package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
-import java.lang.IllegalArgumentException;
 
 import java.io.IOException;
 

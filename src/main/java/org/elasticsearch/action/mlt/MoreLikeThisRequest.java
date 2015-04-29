@@ -21,7 +21,6 @@ package org.elasticsearch.action.mlt;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchGenerationException;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
@@ -475,7 +474,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
     /**
      * The search type of the mlt search query.
      */
-    public MoreLikeThisRequest searchType(String searchType) throws IllegalArgumentException {
+    public MoreLikeThisRequest searchType(String searchType) {
         return searchType(SearchType.fromString(searchType));
     }
 

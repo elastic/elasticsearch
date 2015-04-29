@@ -20,7 +20,6 @@ package org.elasticsearch.common;
 
 import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;

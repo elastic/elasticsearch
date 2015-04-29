@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.indices;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;

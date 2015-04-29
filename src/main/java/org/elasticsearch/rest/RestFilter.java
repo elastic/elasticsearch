@@ -37,7 +37,7 @@ public abstract class RestFilter implements Closeable {
     }
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void close() {
         // a no op
     }
 

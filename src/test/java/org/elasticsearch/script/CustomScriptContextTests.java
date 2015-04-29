@@ -21,7 +21,6 @@ package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableSet;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;

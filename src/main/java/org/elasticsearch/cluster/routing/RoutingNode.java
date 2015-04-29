@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing;
 
 import com.google.common.collect.Iterators;
-import java.lang.IllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
 import java.util.ArrayList;

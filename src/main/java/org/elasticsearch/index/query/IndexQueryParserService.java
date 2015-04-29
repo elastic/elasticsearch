@@ -201,7 +201,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         return filterParsers.get(name);
     }
 
-    public ParsedQuery parse(QueryBuilder queryBuilder) throws ElasticsearchException {
+    public ParsedQuery parse(QueryBuilder queryBuilder) {
         XContentParser parser = null;
         try {
             BytesReference bytes = queryBuilder.buildAsBytes();
@@ -218,11 +218,11 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         }
     }
 
-    public ParsedQuery parse(byte[] source) throws ElasticsearchException {
+    public ParsedQuery parse(byte[] source) {
         return parse(source, 0, source.length);
     }
 
-    public ParsedQuery parse(byte[] source, int offset, int length) throws ElasticsearchException {
+    public ParsedQuery parse(byte[] source, int offset, int length) {
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length);
@@ -238,11 +238,11 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         }
     }
 
-    public ParsedQuery parse(BytesReference source) throws ElasticsearchException {
+    public ParsedQuery parse(BytesReference source) {
         return parse(cache.get(), source);
     }
 
-    public ParsedQuery parse(QueryParseContext context, BytesReference source) throws ElasticsearchException {
+    public ParsedQuery parse(QueryParseContext context, BytesReference source) {
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(source).createParser(source);

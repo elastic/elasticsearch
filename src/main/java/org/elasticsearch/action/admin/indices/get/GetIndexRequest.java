@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.get;
 
 import com.google.common.collect.ObjectArrays;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -74,7 +73,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
             return this.validNames.contains(name);
         }
 
-        public static Feature fromName(String name) throws IllegalArgumentException {
+        public static Feature fromName(String name) {
             for (Feature feature : Feature.values()) {
                 if (feature.validName(name)) {
                     return feature;
@@ -83,7 +82,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
             throw new IllegalArgumentException("No feature for name [" + name + "]");
         }
 
-        public static Feature fromId(byte id) throws IllegalArgumentException {
+        public static Feature fromId(byte id) {
             if (id < 0 || id >= FEATURES.length) {
                 throw new IllegalArgumentException("No mapping for id [" + id + "]");
             }

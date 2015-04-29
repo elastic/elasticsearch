@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -86,7 +85,7 @@ public class CodecService extends AbstractIndexComponent {
         return mapperService;
     }
 
-    public Codec codec(String name) throws IllegalArgumentException {
+    public Codec codec(String name) {
         Codec codec = codecs.get(name);
         if (codec == null) {
             throw new IllegalArgumentException("failed to find codec [" + name + "]");

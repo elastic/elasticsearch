@@ -91,7 +91,7 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
     }
 
     @Override
-    protected ShardRefreshResponse shardOperation(ShardRefreshRequest request) throws ElasticsearchException {
+    protected ShardRefreshResponse shardOperation(ShardRefreshRequest request) {
         IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).shardSafe(request.shardId().id());
         indexShard.refresh("api");
         logger.trace("{} refresh request executed", indexShard.shardId());

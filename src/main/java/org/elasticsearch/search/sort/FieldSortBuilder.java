@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.sort;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 

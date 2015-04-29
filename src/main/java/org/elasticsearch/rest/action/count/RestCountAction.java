@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.count;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.support.IndicesOptions;

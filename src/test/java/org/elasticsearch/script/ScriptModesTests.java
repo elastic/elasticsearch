@@ -20,7 +20,6 @@
 package org.elasticsearch.script;
 
 import com.google.common.collect.*;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.script.ScriptService.ScriptType;

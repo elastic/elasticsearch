@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.breaker;
 
-import java.lang.IllegalArgumentException;
 
 import java.util.Locale;
 

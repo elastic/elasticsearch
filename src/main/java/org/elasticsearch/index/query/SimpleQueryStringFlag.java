@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.query;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Strings;
 
 import java.util.Locale;

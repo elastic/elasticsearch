@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**

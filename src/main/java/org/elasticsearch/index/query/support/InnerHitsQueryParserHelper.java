@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.support;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;

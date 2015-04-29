@@ -78,14 +78,14 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
     }
 
     @Override
-    protected ShardIterator shards(ClusterState state, InternalRequest request) throws ElasticsearchException {
+    protected ShardIterator shards(ClusterState state, InternalRequest request) {
         return clusterService.operationRouting().getShards(
                 state, request.concreteIndex(), request.request().shardId(), request.request().preference
         );
     }
 
     @Override
-    protected Response shardOperation(Request request, ShardId shardId) throws ElasticsearchException {
+    protected Response shardOperation(Request request, ShardId shardId) {
         // TODO: Look into combining the shard req's docs into one in memory index.
         Response response = new Response();
         response.items = new ArrayList<>(request.items.size());

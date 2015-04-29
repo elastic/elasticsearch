@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.recycler;
 
-import java.lang.IllegalStateException;
 
 import java.util.Deque;
 

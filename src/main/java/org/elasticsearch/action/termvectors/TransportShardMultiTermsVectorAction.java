@@ -72,7 +72,7 @@ public class TransportShardMultiTermsVectorAction extends TransportShardSingleOp
     }
 
     @Override
-    protected MultiTermVectorsShardResponse shardOperation(MultiTermVectorsShardRequest request, ShardId shardId) throws ElasticsearchException {
+    protected MultiTermVectorsShardResponse shardOperation(MultiTermVectorsShardRequest request, ShardId shardId) {
         MultiTermVectorsShardResponse response = new MultiTermVectorsShardResponse();
         for (int i = 0; i < request.locations.size(); i++) {
             TermVectorsRequest termVectorsRequest = request.requests.get(i);

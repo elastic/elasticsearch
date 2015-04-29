@@ -21,7 +21,6 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticsearchException;
 
-import java.lang.IllegalArgumentException;
 
 import java.util.ArrayList;
 import java.util.List;

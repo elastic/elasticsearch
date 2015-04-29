@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;

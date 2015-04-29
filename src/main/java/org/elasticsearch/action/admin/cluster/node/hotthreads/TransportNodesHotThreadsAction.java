@@ -73,7 +73,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesOperationActio
     }
 
     @Override
-    protected NodeHotThreads nodeOperation(NodeRequest request) throws ElasticsearchException {
+    protected NodeHotThreads nodeOperation(NodeRequest request) {
         HotThreads hotThreads = new HotThreads()
                 .busiestThreads(request.request.threads)
                 .type(request.request.type)

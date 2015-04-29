@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import java.lang.IllegalStateException;
 import org.elasticsearch.common.metrics.CounterMetric;
 
 import java.util.concurrent.BlockingQueue;

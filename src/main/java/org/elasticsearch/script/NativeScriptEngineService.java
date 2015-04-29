@@ -22,7 +22,6 @@ package org.elasticsearch.script;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.lucene.index.LeafReaderContext;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;

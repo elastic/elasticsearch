@@ -17,7 +17,6 @@
 
 package org.elasticsearch.common.geo;
 
-import java.lang.IllegalArgumentException;
 
 import java.util.ArrayList;
 import java.util.Collection;

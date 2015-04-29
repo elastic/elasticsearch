@@ -19,7 +19,6 @@
 package org.elasticsearch.rest.action.admin.indices.analyze;
 
 import com.google.common.collect.Lists;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.client.Client;
@@ -84,7 +83,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
         client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<AnalyzeResponse>(channel));
     }
 
-    public static void buildFromContent(BytesReference content, AnalyzeRequest analyzeRequest) throws IllegalArgumentException {
+    public static void buildFromContent(BytesReference content, AnalyzeRequest analyzeRequest) {
         try (XContentParser parser = XContentHelper.createParser(content)) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new IllegalArgumentException("Malforrmed content, must start with an object");

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.index;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;

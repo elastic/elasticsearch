@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.support.format;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 

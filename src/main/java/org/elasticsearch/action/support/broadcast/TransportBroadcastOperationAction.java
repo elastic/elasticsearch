@@ -75,7 +75,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
     protected abstract ShardResponse newShardResponse();
 
-    protected abstract ShardResponse shardOperation(ShardRequest request) throws ElasticsearchException;
+    protected abstract ShardResponse shardOperation(ShardRequest request);
 
     /**
      * Determines the shards this operation will be executed on. The operation is executed once per shard iterator, typically

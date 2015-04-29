@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.query;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.ScriptService;
 

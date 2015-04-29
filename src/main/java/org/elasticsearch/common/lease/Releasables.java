@@ -104,7 +104,7 @@ public enum Releasables {
         return new Releasable() {
 
             @Override
-            public void close() throws ElasticsearchException {
+            public void close() {
                 Releasables.close(releasables);
             }
 
@@ -116,7 +116,7 @@ public enum Releasables {
         return new Releasable() {
 
             @Override
-            public void close() throws ElasticsearchException {
+            public void close() {
                 Releasables.close(releasables);
             }
 

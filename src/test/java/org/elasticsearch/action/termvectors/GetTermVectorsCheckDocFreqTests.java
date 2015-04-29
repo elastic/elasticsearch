@@ -62,7 +62,7 @@ public class GetTermVectorsCheckDocFreqTests extends ElasticsearchIntegrationTes
     }
 
     @Test
-    public void testSimpleTermVectors() throws ElasticsearchException, IOException {
+    public void testSimpleTermVectors() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
                         .startObject("field")

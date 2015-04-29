@@ -158,7 +158,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * {@inheritDoc}
      */
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
 
         this.snapshotsBlobContainer = blobStore().blobContainer(basePath());
         indexShardRepository.initialize(blobStore(), basePath(), chunkSize(), snapshotRateLimiter, restoreRateLimiter, this);
@@ -168,14 +168,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * {@inheritDoc}
      */
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
         try {
             blobStore().close();
         } catch (Throwable t) {

@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;

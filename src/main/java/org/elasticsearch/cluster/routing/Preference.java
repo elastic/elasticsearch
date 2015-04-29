@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.cluster.routing;
 
-import java.lang.IllegalArgumentException;
 
 /**
  * Routing Preference Type

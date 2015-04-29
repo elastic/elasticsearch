@@ -536,7 +536,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         }
 
         @Override
-        public void close() throws ElasticsearchException {
+        public void close() {
             try {
                 input.close();
             } catch (IOException ex) {

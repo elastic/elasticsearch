@@ -58,7 +58,6 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.util.Version;
-import java.lang.IllegalArgumentException;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;

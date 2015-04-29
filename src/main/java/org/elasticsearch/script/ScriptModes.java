@@ -21,7 +21,6 @@ package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService.ScriptType;

@@ -19,7 +19,6 @@
 package org.elasticsearch.indices;
 
 import org.apache.lucene.store.LockObtainFailedException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;

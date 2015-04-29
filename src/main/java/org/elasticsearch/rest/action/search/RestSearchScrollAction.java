@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
@@ -83,7 +82,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
         client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<SearchResponse>(channel));
     }
 
-    public static void buildFromContent(BytesReference content, SearchScrollRequest searchScrollRequest) throws IllegalArgumentException {
+    public static void buildFromContent(BytesReference content, SearchScrollRequest searchScrollRequest) {
         try (XContentParser parser = XContentHelper.createParser(content)) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new IllegalArgumentException("Malforrmed content, must start with an object");

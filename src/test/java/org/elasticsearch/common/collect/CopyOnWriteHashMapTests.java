@@ -20,7 +20,6 @@
 package org.elasticsearch.common.collect;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableMap;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.util.HashMap;

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common;
 
-import java.lang.IllegalArgumentException;
 
 import java.util.EnumSet;
 import java.util.HashSet;

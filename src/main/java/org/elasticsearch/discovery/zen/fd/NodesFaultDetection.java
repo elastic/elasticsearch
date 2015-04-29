@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.zen.fd;
 
-import java.lang.IllegalStateException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;

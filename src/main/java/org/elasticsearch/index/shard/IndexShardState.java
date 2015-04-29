@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.shard;
 
-import java.lang.IllegalArgumentException;
 
 /**
  *
@@ -51,7 +50,7 @@ public enum IndexShardState {
         return this.id;
     }
 
-    public static IndexShardState fromId(byte id) throws IllegalArgumentException {
+    public static IndexShardState fromId(byte id) {
         if (id < 0 || id >= IDS.length) {
             throw new IllegalArgumentException("No mapping for id [" + id + "]");
         }

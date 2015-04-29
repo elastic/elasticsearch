@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import java.lang.IllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.type.*;
 import org.elasticsearch.action.support.ActionFilters;

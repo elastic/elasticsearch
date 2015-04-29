@@ -946,7 +946,7 @@ public class InternalEngine extends Engine {
      * is failed.
      */
     @Override
-    protected final void closeNoLock(String reason) throws ElasticsearchException {
+    protected final void closeNoLock(String reason) {
         if (isClosed.compareAndSet(false, true)) {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread() : "Either the write lock must be held or the engine must be currently be failing itself";
             try {

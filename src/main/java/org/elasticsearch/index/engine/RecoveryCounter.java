@@ -52,7 +52,7 @@ public class RecoveryCounter implements Releasable {
      * End the recovery counter by decrementing the store's ref and the ongoing recovery counter
      * @return number of ongoing recoveries remaining
      */
-    int endRecovery() throws ElasticsearchException {
+    int endRecovery() {
         store.decRef();
         int left = onGoingRecoveries.decrementAndGet();
         assert onGoingRecoveries.get() >= 0 : "ongoingRecoveries must be >= 0 but was: " + onGoingRecoveries.get();
@@ -60,7 +60,7 @@ public class RecoveryCounter implements Releasable {
     }
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void close() {
         endRecovery();
     }
 }

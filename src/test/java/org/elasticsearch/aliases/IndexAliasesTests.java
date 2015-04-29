@@ -20,7 +20,6 @@
 package org.elasticsearch.aliases;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;

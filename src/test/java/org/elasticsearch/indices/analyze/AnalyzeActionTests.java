@@ -19,7 +19,6 @@
 package org.elasticsearch.indices.analyze;
 
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
@@ -73,7 +72,7 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
     }
     
     @Test
-    public void analyzeNumericField() throws ElasticsearchException, IOException {
+    public void analyzeNumericField() throws IOException {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("test", "long", "type=long", "double", "type=double"));
         ensureGreen("test");
 

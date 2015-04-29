@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.util.List;

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;

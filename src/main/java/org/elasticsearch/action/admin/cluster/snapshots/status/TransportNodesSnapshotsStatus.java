@@ -94,7 +94,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesOperationAction
     }
 
     @Override
-    protected NodeSnapshotStatus nodeOperation(NodeRequest request) throws ElasticsearchException {
+    protected NodeSnapshotStatus nodeOperation(NodeRequest request) {
         ImmutableMap.Builder<SnapshotId, ImmutableMap<ShardId, SnapshotIndexShardStatus>> snapshotMapBuilder = ImmutableMap.builder();
         try {
             String nodeId = clusterService.localNode().id();

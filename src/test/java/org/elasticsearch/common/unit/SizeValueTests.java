@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.unit;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 

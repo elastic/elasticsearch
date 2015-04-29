@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.update;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;

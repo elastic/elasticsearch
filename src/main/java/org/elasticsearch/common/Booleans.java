@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common;
 
-import java.lang.IllegalArgumentException;
 /**
  *
  */

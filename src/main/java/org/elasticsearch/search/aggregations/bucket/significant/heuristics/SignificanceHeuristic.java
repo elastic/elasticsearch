@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 

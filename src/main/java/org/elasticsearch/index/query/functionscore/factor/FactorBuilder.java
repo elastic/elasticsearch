@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.functionscore.factor;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;

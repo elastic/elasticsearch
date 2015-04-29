@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.preference;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;

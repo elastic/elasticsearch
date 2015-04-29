@@ -41,7 +41,6 @@ import org.apache.lucene.search.postingshighlight.WholeBreakIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.UnicodeUtil;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.text.StringText;

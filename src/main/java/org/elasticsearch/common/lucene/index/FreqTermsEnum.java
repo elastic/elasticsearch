@@ -103,7 +103,7 @@ public class FreqTermsEnum extends FilterableTermsEnum implements Releasable {
 
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void close() {
         try {
             Releasables.close(cachedTermOrds, termDocFreqs, termsTotalFreqs);
         } finally {

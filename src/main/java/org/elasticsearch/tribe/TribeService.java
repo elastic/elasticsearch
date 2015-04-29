@@ -164,7 +164,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         for (Node node : nodes) {
             try {
                 node.start();
@@ -186,12 +186,12 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         doClose();
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
         for (Node node : nodes) {
             try {
                 node.close();

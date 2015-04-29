@@ -20,7 +20,6 @@
 package org.elasticsearch.action.bulk;
 
 import com.google.common.collect.Lists;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;

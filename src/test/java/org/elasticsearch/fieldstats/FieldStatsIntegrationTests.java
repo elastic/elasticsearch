@@ -19,7 +19,6 @@
 
 package org.elasticsearch.fieldstats;
 
-import java.lang.IllegalStateException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;

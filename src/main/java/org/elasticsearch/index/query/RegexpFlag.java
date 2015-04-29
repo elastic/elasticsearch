@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 import java.util.Locale;
 
 import org.apache.lucene.util.automaton.RegExp;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Strings;
 
 /**

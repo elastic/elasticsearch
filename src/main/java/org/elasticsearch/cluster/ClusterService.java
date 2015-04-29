@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import java.lang.IllegalStateException;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;

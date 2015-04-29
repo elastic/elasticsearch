@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.index;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 import static org.hamcrest.Matchers.equalTo;

@@ -20,7 +20,6 @@
 package org.elasticsearch.monitor.jvm;
 
 import org.apache.lucene.util.CollectionUtil;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.unit.TimeValue;

@@ -67,7 +67,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadO
     }
 
     @Override
-    protected void masterOperation(final ClusterSearchShardsRequest request, final ClusterState state, final ActionListener<ClusterSearchShardsResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final ClusterSearchShardsRequest request, final ClusterState state, final ActionListener<ClusterSearchShardsResponse> listener) {
         ClusterState clusterState = clusterService.state();
         String[] concreteIndices = clusterState.metaData().concreteIndices(request.indicesOptions(), request.indices());
         Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());

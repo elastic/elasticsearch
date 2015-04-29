@@ -22,7 +22,6 @@ package org.elasticsearch.search.highlight;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.IndexQueryParserService;

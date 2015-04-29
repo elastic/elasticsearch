@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.client.Client;
@@ -78,7 +77,7 @@ public class RestClearScrollAction extends BaseRestHandler {
         return Strings.splitStringByCommaToArray(scrollIds);
     }
 
-    public static void buildFromContent(BytesReference content, ClearScrollRequest clearScrollRequest) throws IllegalArgumentException {
+    public static void buildFromContent(BytesReference content, ClearScrollRequest clearScrollRequest) {
         try (XContentParser parser = XContentHelper.createParser(content)) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new IllegalArgumentException("Malformed content, must start with an object");

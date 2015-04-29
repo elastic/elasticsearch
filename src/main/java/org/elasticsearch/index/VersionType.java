@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.lucene.uid.Versions;
 
 /**

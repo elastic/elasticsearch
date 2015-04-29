@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.util.List;

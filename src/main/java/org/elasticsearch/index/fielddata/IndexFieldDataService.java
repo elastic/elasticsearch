@@ -21,7 +21,6 @@ package org.elasticsearch.index.fielddata;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;

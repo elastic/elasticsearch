@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.object;
 
 import com.google.common.collect.Maps;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.ContentPath;

@@ -66,7 +66,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
     }
 
     @Override
-    protected void masterOperation(final CreateIndexRequest request, final ClusterState state, final ActionListener<CreateIndexResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final CreateIndexRequest request, final ClusterState state, final ActionListener<CreateIndexResponse> listener) {
         String cause = request.cause();
         if (cause.length() == 0) {
             cause = "api";

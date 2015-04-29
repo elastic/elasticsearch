@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.support;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;

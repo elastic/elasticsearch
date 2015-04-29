@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.Sets;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetaData.State;

@@ -22,7 +22,6 @@ package org.elasticsearch.repositories;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
 
-import java.lang.IllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;

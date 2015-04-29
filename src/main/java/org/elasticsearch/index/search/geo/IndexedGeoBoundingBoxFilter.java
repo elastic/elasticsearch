@@ -22,7 +22,6 @@ package org.elasticsearch.index.search.geo;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;

@@ -20,7 +20,6 @@ package org.elasticsearch.search.child;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -180,7 +179,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     // see #6722
-    public void test6722() throws ElasticsearchException, IOException {
+    public void test6722() throws IOException {
         assertAcked(prepareCreate("test")
                 .addMapping("foo")
                 .addMapping("test", "_parent", "type=foo"));
@@ -199,7 +198,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     // see #2744
-    public void test2744() throws ElasticsearchException, IOException {
+    public void test2744() throws IOException {
         assertAcked(prepareCreate("test")
                 .addMapping("foo")
                 .addMapping("test", "_parent", "type=foo"));
@@ -1341,7 +1340,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testHasChildNotBeingCached() throws ElasticsearchException, IOException {
+    public void testHasChildNotBeingCached() throws IOException {
         assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
@@ -1457,7 +1456,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void indexChildDocWithNoParentMapping() throws ElasticsearchException, IOException {
+    public void indexChildDocWithNoParentMapping() throws IOException {
         assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("child1"));
@@ -1481,7 +1480,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testAddingParentToExistingMapping() throws ElasticsearchException, IOException {
+    public void testAddingParentToExistingMapping() throws IOException {
         createIndex("test");
         ensureGreen();
 

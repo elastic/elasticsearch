@@ -19,7 +19,6 @@
 package org.elasticsearch.watcher;
 
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -92,7 +91,7 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         if (!enabled) {
             return;
         }
@@ -102,7 +101,7 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         if (!enabled) {
             return;
         }
@@ -112,7 +111,7 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
     }
 
     /**

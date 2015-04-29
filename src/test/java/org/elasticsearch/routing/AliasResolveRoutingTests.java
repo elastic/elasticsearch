@@ -19,7 +19,6 @@
 
 package org.elasticsearch.routing;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;

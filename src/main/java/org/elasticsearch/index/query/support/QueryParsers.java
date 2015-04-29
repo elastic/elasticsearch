@@ -21,7 +21,6 @@ package org.elasticsearch.index.query.support;
 
 import org.apache.lucene.search.MultiTermQuery;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 
 /**

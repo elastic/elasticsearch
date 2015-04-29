@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
-import java.lang.IllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -196,7 +195,7 @@ public class TransportClientNodesService extends AbstractComponent {
         return this;
     }
 
-    public <Response> void execute(NodeListenerCallback<Response> callback, ActionListener<Response> listener) throws ElasticsearchException {
+    public <Response> void execute(NodeListenerCallback<Response> callback, ActionListener<Response> listener) {
         ImmutableList<DiscoveryNode> nodes = this.nodes;
         ensureNodesAreAvailable(nodes);
         int index = getNodeNumber();

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import java.lang.IllegalArgumentException;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;

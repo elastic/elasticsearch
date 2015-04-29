@@ -79,7 +79,7 @@ public class TransportTermVectorsAction extends TransportShardSingleOperationAct
     }
 
     @Override
-    protected TermVectorsResponse shardOperation(TermVectorsRequest request, ShardId shardId) throws ElasticsearchException {
+    protected TermVectorsResponse shardOperation(TermVectorsRequest request, ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.shardSafe(shardId.id());
         TermVectorsResponse response = indexShard.termVectorsService().getTermVectors(request, shardId.getIndex());

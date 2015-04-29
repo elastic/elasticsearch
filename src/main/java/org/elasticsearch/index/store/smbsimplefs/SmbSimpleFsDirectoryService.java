@@ -26,9 +26,9 @@ import org.apache.lucene.store.SmbDirectoryWrapper;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.store.fs.FsDirectoryService;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -36,8 +36,8 @@ import java.nio.file.Path;
 public class SmbSimpleFsDirectoryService extends FsDirectoryService {
 
     @Inject
-    public SmbSimpleFsDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore) {
-        super(shardId, indexSettings, indexStore);
+    public SmbSimpleFsDirectoryService(@IndexSettings Settings indexSettings, IndexStore indexStore, ShardPath path) {
+        super(indexSettings, indexStore, path);
     }
 
     @Override

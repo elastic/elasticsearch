@@ -1,5 +1,5 @@
 [[search-aggregations-reducer]]
 
-include::reducer/derivative.asciidoc[]
+include::reducer/derivative-aggregation.asciidoc[]
 include::reducer/max-bucket-aggregation.asciidoc[]
-include::reducer/movavg-reducer.asciidoc[]
+include::reducer/movavg-aggregation.asciidoc[]

@@ -132,14 +132,14 @@ track the data and only smooth out small scale fluctuations:
 
 [[movavg_10window]]
 .Moving average with window of size 10
-image::images/movavg_10window.png[]
+image::images/reducers_movavg/movavg_10window.png[]
 
 In contrast, a `simple` moving average with larger window (`"window": 100`) will smooth out all higher-frequency fluctuations,
 leaving only low-frequency, long term trends.  It also tends to "lag" behind the actual data by a substantial amount:
 
 [[movavg_100window]]
 .Moving average with window of size 100
-image::images/movavg_100window.png[]
+image::images/reducers_movavg/movavg_100window.png[]
 
 
 ==== Linear
@@ -166,7 +166,7 @@ will closely track the data and only smooth out small scale fluctuations:
 
 [[linear_10window]]
 .Linear moving average with window of size 10
-image::images/linear_10window.png[]
+image::images/reducers_movavg/linear_10window.png[]
 
 In contrast, a `linear` moving average with larger window (`"window": 100`) will smooth out all higher-frequency fluctuations,
 leaving only low-frequency, long term trends.  It also tends to "lag" behind the actual data by a substantial amount,
@@ -174,7 +174,7 @@ although typically less than the `simple` model:
 
 [[linear_100window]]
 .Linear moving average with window of size 100
-image::images/linear_100window.png[]
+image::images/reducers_movavg/linear_100window.png[]
 
 ==== Single Exponential
 
@@ -204,11 +204,11 @@ The default value of `alpha` is `0.5`, and the setting accepts any float from 0-
 
 [[single_0.2alpha]]
 .Single Exponential moving average with window of size 10, alpha = 0.2
-image::images/single_0.2alpha.png[]
+image::images/reducers_movavg/single_0.2alpha.png[]
 
 [[single_0.7alpha]]
 .Single Exponential moving average with window of size 10, alpha = 0.7
-image::images/single_0.7alpha.png[]
+image::images/reducers_movavg/single_0.7alpha.png[]
 
 ==== Double Exponential
 
@@ -247,11 +247,11 @@ values emphasize short-term trends.  This will become more apparently when you a
 
 [[double_0.2beta]]
 .Double Exponential moving average with window of size 100, alpha = 0.5, beta = 0.2
-image::images/double_0.2beta.png[]
+image::images/reducers_movavg/double_0.2beta.png[]
 
 [[double_0.7beta]]
 .Double Exponential moving average with window of size 100, alpha = 0.5, beta = 0.7
-image::images/double_0.7beta.png[]
+image::images/reducers_movavg/double_0.7beta.png[]
 
 === Prediction
 
@@ -279,7 +279,7 @@ of the last value in the series, producing a flat:
 
 [[simple_prediction]]
 .Simple moving average with window of size 10, predict = 50
-image::images/simple_prediction.png[]
+image::images/reducers_movavg/simple_prediction.png[]
 
 In contrast, the `double_exp` model can extrapolate based on local or global constant trends.  If we set a high `beta`
 value, we can extrapolate based on local constant trends (in this case the predictions head down, because the data at the end
@@ -287,11 +287,11 @@ of the series was heading in a downward direction):
 
 [[double_prediction_local]]
 .Double Exponential moving average with window of size 100, predict = 20, alpha = 0.5, beta = 0.8
-image::images/double_prediction_local.png[]
+image::images/reducers_movavg/double_prediction_local.png[]
 
 In contrast, if we choose a small `beta`, the predictions are based on the global constant trend.  In this series, the
 global trend is slightly positive, so the prediction makes a sharp u-turn and begins a positive slope:
 
 [[double_prediction_global]]
 .Double Exponential moving average with window of size 100, predict = 20, alpha = 0.5, beta = 0.1
-image::images/double_prediction_global.png[]
+image::images/reducers_movavg/double_prediction_global.png[]

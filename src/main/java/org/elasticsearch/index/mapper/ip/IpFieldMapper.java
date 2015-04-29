@@ -93,7 +93,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
             }
             return (Long.parseLong(octets[0]) << 24) + (Integer.parseInt(octets[1]) << 16) +
                     (Integer.parseInt(octets[2]) << 8) + Integer.parseInt(octets[3]);
-        } catch (Exception e)
+        } catch (Exception e) {
             if (e instanceof IllegalArgumentException) {
                 throw (IllegalArgumentException) e;
             }

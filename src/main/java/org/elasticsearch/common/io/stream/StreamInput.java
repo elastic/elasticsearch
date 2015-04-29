@@ -21,7 +21,6 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -413,6 +412,8 @@ public abstract class StreamInput extends InputStream {
                 return readFloatArray();
             case 20:
                 return readDoubleArray();
+            case 21:
+                return readBytesRef();
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }

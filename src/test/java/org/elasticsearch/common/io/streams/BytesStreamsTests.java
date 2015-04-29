@@ -22,6 +22,7 @@ package org.elasticsearch.common.io.streams;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Ignore;
@@ -263,8 +264,8 @@ public class BytesStreamsTests extends ElasticsearchTestCase {
         assumeTrue("requires a 64-bit JRE ... ?!", Constants.JRE_IS_64BIT);
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeBoolean(false);
-        out.writeByte((byte)1);
-        out.writeShort((short)-1);
+        out.writeByte((byte) 1);
+        out.writeShort((short) -1);
         out.writeInt(-1);
         out.writeVInt(2);
         out.writeLong(-3);
@@ -281,6 +282,7 @@ public class BytesStreamsTests extends ElasticsearchTestCase {
         out.writeGenericValue(doubleArray);
         out.writeString("hello");
         out.writeString("goodbye");
+        out.writeGenericValue(BytesRefs.toBytesRef("bytesref"));
         BytesStreamInput in = new BytesStreamInput(out.bytes().toBytes());
         assertThat(in.readBoolean(), equalTo(false));
         assertThat(in.readByte(), equalTo((byte)1));
@@ -291,12 +293,13 @@ public class BytesStreamsTests extends ElasticsearchTestCase {
         assertThat(in.readVLong(), equalTo((long)4));
         assertThat((double)in.readFloat(), closeTo(1.1, 0.0001));
         assertThat(in.readDouble(), closeTo(2.2, 0.0001));
-        assertThat(in.readGenericValue(), equalTo((Object)intArray));
+        assertThat(in.readGenericValue(), equalTo((Object) intArray));
         assertThat(in.readGenericValue(), equalTo((Object)longArray));
         assertThat(in.readGenericValue(), equalTo((Object)floatArray));
         assertThat(in.readGenericValue(), equalTo((Object)doubleArray));
         assertThat(in.readString(), equalTo("hello"));
         assertThat(in.readString(), equalTo("goodbye"));
+        assertThat(in.readGenericValue(), equalTo((Object)BytesRefs.toBytesRef("bytesref")));
         in.close();
         out.close();
     }

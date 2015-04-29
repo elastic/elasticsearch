@@ -19,9 +19,8 @@
 
 package org.elasticsearch.index.merge.policy;
 
+import com.google.common.base.Preconditions;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;

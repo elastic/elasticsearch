@@ -33,7 +33,7 @@ import java.io.IOException;
  */
 public class QueryParsingException extends IndexException {
 
-    public static final int UNKNOWN_POSITION = -1;
+    static final int UNKNOWN_POSITION = -1;
     private int lineNumber = UNKNOWN_POSITION;
     private int columnNumber = UNKNOWN_POSITION;
 
@@ -58,7 +58,7 @@ public class QueryParsingException extends IndexException {
      * This constructor is provided for use in unit tests where a
      * {@link QueryParseContext} may not be available
      */
-    protected QueryParsingException(Index index, int line, int col, String msg, Throwable cause) {
+    QueryParsingException(Index index, int line, int col, String msg, Throwable cause) {
         super(index, msg, cause);
         this.lineNumber = line;
         this.columnNumber = col;

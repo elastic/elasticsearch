@@ -20,10 +20,10 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchExceptionTests.TestQueryParsingException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.TestQueryParsingException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;

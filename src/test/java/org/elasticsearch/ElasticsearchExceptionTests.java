@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.query.TestQueryParsingException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
@@ -62,18 +63,6 @@ public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
 
         exception = new RemoteTransportException("test", new IllegalStateException("foobar"));
         assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
-    }
-
-    // Test class to avoid dragging QueryContext into unit testing framework
-    public static class TestQueryParsingException extends QueryParsingException {
-
-        public TestQueryParsingException(Index index, int line, int col, String msg, Throwable cause) {
-            super(index, line, col, msg, cause);
-        }
-
-        public TestQueryParsingException(Index index, String msg, Throwable cause) {
-            super(index, UNKNOWN_POSITION, UNKNOWN_POSITION, msg, cause);
-        }
     }
 
     public void testGuessRootCause() {

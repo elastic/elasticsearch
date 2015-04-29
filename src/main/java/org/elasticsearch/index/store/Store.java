@@ -678,11 +678,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         MetadataSnapshot(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
-            initMetadata(commit, directory, logger);
+            loadMetadata(commit, directory, logger);
             assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
         }
 
-        void initMetadata(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
+        void loadMetadata(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
             ImmutableMap.Builder<String, StoreFileMetaData> builder = ImmutableMap.builder();
             Map<String, String> checksumMap = readLegacyChecksums(directory).v1();
             try {

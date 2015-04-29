@@ -21,6 +21,7 @@ package org.elasticsearch.discovery.azure;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
 import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -42,7 +43,7 @@ public class AzureDiscovery extends ZenDiscovery {
     @Inject
     public AzureDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool, TransportService transportService,
                           ClusterService clusterService, NodeSettingsService nodeSettingsService, ZenPingService pingService,
-                          DiscoverySettings discoverySettings, ElectMasterService electMasterService, DynamicSettings dynamicSettings) {
+                          DiscoverySettings discoverySettings, ElectMasterService electMasterService, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
         super(settings, clusterName, threadPool, transportService, clusterService, nodeSettingsService,
                 pingService, electMasterService, discoverySettings, dynamicSettings);
     }

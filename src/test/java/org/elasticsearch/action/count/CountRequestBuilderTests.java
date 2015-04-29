@@ -23,6 +23,8 @@ import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -46,7 +48,10 @@ public class CountRequestBuilderTests extends ElasticsearchTestCase {
     public static void initClient() {
         //this client will not be hit by any request, but it needs to be a non null proper client
         //that is why we create it but we don't add any transport address to it
-        client = new TransportClient();
+        Settings settings = ImmutableSettings.builder()
+                .put("path.home", createTempDir().toString())
+                .build();
+        client = new TransportClient(settings);
     }
 
     @AfterClass

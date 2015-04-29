@@ -31,6 +31,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
@@ -120,14 +121,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
 
     @Override
     public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {
-        // Historically we run the deferred aggs here but a test with
-        // terms->sampler->max aggs was failing if the top-level terms agg had
-        // an Order setting that referred to the leaf Max value. This is because
-        // before calling this method the terms agg would try access the value
-        // of the Max agg which was unset because there had been no collections.
-        // That is why the runDeferredAggs logic was moved to the postCollection
-        // call above.
-
+        // no-op - deferred aggs processed in postCollection call
     }
 
     private void runDeferredAggs() throws IOException {
@@ -261,6 +255,8 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
                 if ((rebased >= 0) && (rebased <= maxDocId)) {
                     currentScore = scoreDoc.score;
                     currentDocId = rebased;
+                    // We stored the bucket ID in Lucene's shardIndex property
+                    // for convenience. 
                     leafCollector.collect(rebased, scoreDoc.shardIndex);
                 }
             }
@@ -313,6 +309,12 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     public int getDocCount(long parentBucket) {
         PerParentBucketSamples sampler = perBucketSamples.get((int) parentBucket);
         if (sampler == null) {
+            if (parentBucket != 0) {
+                throw new AggregationExecutionException("Missing sample for parentBucket #" + parentBucket);
+            }
+            // A missing sample for parent 0 can occur if we are being used as
+            // the root aggregation and no docs were collected - the aggs
+            // framework still asks for doc count.
             return 0;
         }
         return sampler.getDocCount();

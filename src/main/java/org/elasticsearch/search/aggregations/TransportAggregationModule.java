@@ -61,7 +61,8 @@ import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCount;
 import org.elasticsearch.search.aggregations.reducers.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.reducers.bucketmetrics.InternalBucketMetricValue;
-import org.elasticsearch.search.aggregations.reducers.bucketmetrics.MaxBucketReducer;
+import org.elasticsearch.search.aggregations.reducers.bucketmetrics.max.MaxBucketReducer;
+import org.elasticsearch.search.aggregations.reducers.bucketmetrics.min.MinBucketReducer;
 import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeReducer;
 import org.elasticsearch.search.aggregations.reducers.movavg.MovAvgReducer;
 import org.elasticsearch.search.aggregations.reducers.movavg.models.TransportMovAvgModelModule;
@@ -118,6 +119,7 @@ public class TransportAggregationModule extends AbstractModule implements SpawnM
         InternalSimpleValue.registerStreams();
         InternalBucketMetricValue.registerStreams();
         MaxBucketReducer.registerStreams();
+        MinBucketReducer.registerStreams();
         MovAvgReducer.registerStreams();
     }
 

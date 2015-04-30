@@ -223,7 +223,12 @@ public class InternalCryptoServiceTests extends ElasticsearchTestCase {
         assertThat(Arrays.equals(encrypted, bytes), is(false));
 
         int tamperedIndex = randomIntBetween(0, encrypted.length - 1);
-        encrypted[tamperedIndex] = randomByte();
+        final byte untamperedByte = encrypted[tamperedIndex];
+        byte tamperedByte = randomByte();
+        while (tamperedByte == untamperedByte) {
+            tamperedByte = randomByte();
+        }
+        encrypted[tamperedIndex] = tamperedByte;
         final byte[] decrypted = service.decrypt(encrypted);
         assertThat(Arrays.equals(bytes, decrypted), is(false));
     }

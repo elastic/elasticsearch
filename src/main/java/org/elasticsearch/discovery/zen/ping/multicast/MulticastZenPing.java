@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.zen.ping.multicast;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -29,7 +28,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.io.stream.*;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.MulticastChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -63,6 +65,8 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     public static final String ACTION_NAME = "internal:discovery/zen/multicast";
 
     private static final byte[] INTERNAL_HEADER = new byte[]{1, 9, 8, 4};
+
+    private static final int PING_SIZE_ESTIMATE = 150;
 
     private final String address;
     private final int port;
@@ -248,7 +252,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
     private void sendPingRequest(int id) {
         try {
-            BytesStreamOutput out = new BytesStreamOutput();
+            BytesStreamOutput out = new BytesStreamOutput(PING_SIZE_ESTIMATE);
             out.writeBytes(INTERNAL_HEADER);
             // TODO: change to min_required version!
             Version.writeVersion(version, out);

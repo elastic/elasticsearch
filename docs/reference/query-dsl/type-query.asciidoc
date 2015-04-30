@@ -1,9 +1,7 @@
 [[query-dsl-type-query]]
 == Type Query
 
-Filters documents matching the provided document / mapping type. Note,
-this query can work even when the `_type` field is not indexed (using
-the <<mapping-uid-field,_uid>> field).
+Filters documents matching the provided document / mapping type.
 
 [source,js]
 --------------------------------------------------

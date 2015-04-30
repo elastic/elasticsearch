@@ -566,13 +566,19 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             }
         };
         t.start();
+        // shard operation should be ongoing, so the counter is at 2
+        // we have to wait here because increment happens in thread
         awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(@Nullable Object input) {
-                return testIndexShard != null;
+                if (testIndexShard != null) {
+                    return testIndexShard.getOperationCounter() == 2;
+                } else {
+                    return false;
+                }
             }
         });
-        // shard operation should be ongoing, so the counter is at 2
+
         assertIndexShardCounter(2);
         assertThat(transport.capturedRequests().length, equalTo(0));
         ((ActionWithDelay) action).countDownLatch.countDown();
@@ -644,14 +650,18 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             }
         };
         t.start();
-        // operation should be ongoing
+        // shard operation should be ongoing, so the counter is at 2
+        // we have to wait here because increment happens in thread
         awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(@Nullable Object input) {
-                return testIndexShard != null;
+                if (testIndexShard != null) {
+                    return testIndexShard.getOperationCounter() == 2;
+                } else {
+                    return false;
+                }
             }
         });
-        assertIndexShardCounter(2);
         ((ActionWithDelay) action).countDownLatch.countDown();
         t.join();
         // operation should have finished and counter decreased because no outstanding replica requests

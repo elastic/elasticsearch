@@ -205,7 +205,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
 
         @Override
         public Iterator<StoreFileMetaData> iterator() {
-            return metadataSnapshot.asMap().values().iterator();
+            return metadataSnapshot.iterator();
         }
 
         public boolean fileExists(String name) {

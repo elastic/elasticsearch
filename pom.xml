@@ -25,7 +25,7 @@
         <elasticsearch.version>1.5.0</elasticsearch.version>
         <lucene.maven.version>4.10.4</lucene.maven.version>
         <lucene.version>4.10.4</lucene.version>
-        <shield.version>1.2.1-SNAPSHOT</shield.version>
+        <shield.version>1.2.1</shield.version>
         <license.version>1.0.0</license.version>
 
         <tests.jvms>auto</tests.jvms>

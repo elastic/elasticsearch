@@ -13,15 +13,16 @@ bin/plugin install elasticsearch/elasticsearch-analysis-smartcn/2.5.0
 | elasticsearch |  Smart Chinese Analysis Plugin  |   Docs     |  
 |---------------|-----------------------|------------|
 | master        |  Build from source    | See below  |
-| es-1.x        |  Build from source    | [2.6.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-analysis-smartcn/tree/es-1.x/#version-260-snapshot-for-elasticsearch-1x)  |
-|    es-1.5              |     2.5.0         | [2.5.0](https://github.com/elastic/elasticsearch-analysis-smartcn/tree/v2.5.0/#version-250-for-elasticsearch-15)                  |
-|    es-1.4              |     2.4.3         | [2.4.3](https://github.com/elasticsearch/elasticsearch-analysis-smartcn/tree/v2.4.3/#version-243-for-elasticsearch-14)                  |
-| < 1.4.3       |     2.4.2             | [2.4.2](https://github.com/elasticsearch/elasticsearch-analysis-smartcn/tree/v2.4.2/#version-242-for-elasticsearch-14)                  |
-|    es-1.3              |     2.3.1         | [2.3.1](https://github.com/elasticsearch/elasticsearch-analysis-smartcn/tree/v2.3.1/#version-231-for-elasticsearch-13)                  |
-| es-1.2        |  2.2.0                | [2.2.0](https://github.com/elasticsearch/elasticsearch-analysis-smartcn/tree/v2.2.0/#smart-chinese-analysis-for-elasticsearch)  |
-| es-1.1        |  2.1.0                | [2.1.0](https://github.com/elasticsearch/elasticsearch-analysis-smartcn/tree/v2.1.0/#smart-chinese-analysis-for-elasticsearch)  |
-| es-1.0        |  2.0.0                | [2.0.0](https://github.com/elasticsearch/elasticsearch-analysis-smartcn/tree/v2.0.0/#smart-chinese-analysis-for-elasticsearch)  |
-| es-0.90       |  1.8.0                | [1.8.0](https://github.com/elasticsearch/elasticsearch-analysis-smartcn/tree/v1.8.0/#smart-chinese-analysis-for-elasticsearch)  |
+| es-1.x        |  Build from source    | [2.6.0-SNAPSHOT](https://github.com/elastic/elasticsearch-analysis-smartcn/tree/es-1.x/#version-260-snapshot-for-elasticsearch-1x)  |
+| es-1.5        |  2.5.0                | [2.5.0](https://github.com/elastic/elasticsearch-analysis-smartcn/tree/v2.5.0/#version-250-for-elasticsearch-15)                  |
+| es-1.4        |  Build from source    | [2.4.4-SNAPSHOT](https://github.com/elastic/elasticsearch-analysis-smartcn/tree/es-1.4/#version-244-snapshot-for-elasticsearch-14)                  |
+| < 1.4.5       |  2.4.3                | [2.4.3](https://github.com/elastic/elasticsearch-analysis-smartcn/tree/v2.4.3/#version-243-for-elasticsearch-14)                  |
+| < 1.4.3       |  2.4.2                | [2.4.2](https://github.com/elastic/elasticsearch-analysis-smartcn/tree/v2.4.2/#version-242-for-elasticsearch-14)                  |
+| es-1.3        |  2.3.1                | [2.3.1](https://github.com/elastic/elasticsearch-analysis-smartcn/tree/v2.3.1/#version-231-for-elasticsearch-13)                  |
+| es-1.2        |  2.2.0                | [2.2.0](https://github.com/elastic/elasticsearch-analysis-smartcn/tree/v2.2.0/#smart-chinese-analysis-for-elasticsearch)  |
+| es-1.1        |  2.1.0                | [2.1.0](https://github.com/elastic/elasticsearch-analysis-smartcn/tree/v2.1.0/#smart-chinese-analysis-for-elasticsearch)  |
+| es-1.0        |  2.0.0                | [2.0.0](https://github.com/elastic/elasticsearch-analysis-smartcn/tree/v2.0.0/#smart-chinese-analysis-for-elasticsearch)  |
+| es-0.90       |  1.8.0                | [1.8.0](https://github.com/elastic/elasticsearch-analysis-smartcn/tree/v1.8.0/#smart-chinese-analysis-for-elasticsearch)  |
 
 To build a `SNAPSHOT` version, you need to build it with Maven:
 

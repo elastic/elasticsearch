@@ -33,6 +33,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.transport.TransportModule;
 
 import java.io.Closeable;
@@ -53,7 +54,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 final class ExternalNode implements Closeable {
 
     public static final Settings REQUIRED_SETTINGS = Settings.builder()
-            .put("config.ignore_system_properties", true)
+            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
             .put(DiscoveryModule.DISCOVERY_TYPE_KEY, "zen")
             .put("node.mode", "network").build(); // we need network mode for this
 
@@ -115,7 +116,7 @@ final class ExternalNode implements Closeable {
                 case TransportModule.TRANSPORT_TYPE_KEY:
                 case DiscoveryModule.DISCOVERY_TYPE_KEY:
                 case TransportModule.TRANSPORT_SERVICE_TYPE_KEY:
-                case "config.ignore_system_properties":
+                case InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING:
                     continue;
                 default:
                     externaNodeSettingsBuilder.put(entry.getKey(), entry.getValue());

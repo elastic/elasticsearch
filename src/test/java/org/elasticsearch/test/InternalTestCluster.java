@@ -88,6 +88,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchService;
@@ -279,7 +280,7 @@ public final class InternalTestCluster extends TestCluster {
         builder.put("path.repo", baseDir.resolve("repos"));
         builder.put("transport.tcp.port", BASE_PORT + "-" + (BASE_PORT+100));
         builder.put("http.port", BASE_PORT+101 + "-" + (BASE_PORT+200));
-        builder.put("config.ignore_system_properties", true);
+        builder.put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true);
         builder.put("node.mode", NODE_MODE);
         builder.put("http.pipelining", enableHttpPipelining);
         builder.put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false);
@@ -874,7 +875,7 @@ public final class InternalTestCluster extends TestCluster {
                     .put("node.local", nodeSettings.get("node.local", ""))
                     .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
                     .put("logger.level", nodeSettings.get("logger.level", "INFO"))
-                    .put("config.ignore_system_properties", true)
+                    .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
                     .put(settings);
 
             TransportClient client = TransportClient.builder().settings(builder.build()).build();

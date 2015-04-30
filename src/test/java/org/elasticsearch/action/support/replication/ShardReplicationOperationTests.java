@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.support.replication;
 
-import com.google.common.base.Predicate;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
@@ -45,6 +44,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -88,7 +88,6 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.*;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -109,11 +108,35 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
     private TransportService transportService;
     private CapturingTransport transport;
     private Action action;
+
     /* *
     * TransportShardReplicationOperationAction needs an instance of IndexShard to count operations.
     * indexShards is reset to null before each test and will be initialized upon request in the tests.
     */
-    volatile IndexShard testIndexShard;
+    public static class IndexShardReference {
+        IndexShard testIndexShard = null;
+
+        @SuppressForbidden(reason = "Uses wait / notifyAll")
+        public synchronized IndexShard waitForNotNullAndGet() throws InterruptedException {
+            while (testIndexShard == null) {
+                this.wait();
+            }
+            return testIndexShard;
+        }
+
+        public synchronized IndexShard get() {
+            return testIndexShard;
+        }
+
+        @SuppressForbidden(reason = "Uses wait / notifyAll")
+        public synchronized void set(IndexShard testIndexShard) {
+            this.testIndexShard = testIndexShard;
+            this.notifyAll();
+        }
+
+    }
+
+    volatile IndexShardReference testIndexShard = new IndexShardReference();
 
     @BeforeClass
     public static void beforeClass() {
@@ -128,7 +151,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         transportService = new TransportService(transport, threadPool);
         transportService.start();
         action = new Action(ImmutableSettings.EMPTY, "testAction", transportService, clusterService, threadPool);
-        testIndexShard = null;
+        testIndexShard.set(null);
     }
 
     @AfterClass
@@ -180,7 +203,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
     }
 
     public void assertIndexShardUninitialized() {
-        assertNull("index shard should not be initialized because no operations should have been performed", testIndexShard);
+        assertNull("index shard should not be initialized because no operations should have been performed", testIndexShard.get());
     }
 
     ClusterState stateWithStartedPrimary(String index, boolean primaryLocal, int numberOfReplicas) {
@@ -305,7 +328,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testRoutingToPrimary() {
+    public void testRoutingToPrimary() throws InterruptedException {
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);
 
@@ -566,12 +589,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             }
         };
         t.start();
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(@Nullable Object input) {
-                return testIndexShard != null;
-            }
-        });
         // shard operation should be ongoing, so the counter is at 2
         assertIndexShardCounter(2);
         assertThat(transport.capturedRequests().length, equalTo(0));
@@ -645,12 +662,6 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         };
         t.start();
         // operation should be ongoing
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(@Nullable Object input) {
-                return testIndexShard != null;
-            }
-        });
         assertIndexShardCounter(2);
         ((ActionWithDelay) action).countDownLatch.countDown();
         t.join();
@@ -685,8 +696,8 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         assertIndexShardCounter(1);
     }
 
-    private void assertIndexShardCounter(int expected) {
-        assertThat(testIndexShard.getOperationCounter(), equalTo(expected));
+    private void assertIndexShardCounter(int expected) throws InterruptedException {
+        assertThat(testIndexShard.waitForNotNullAndGet().getOperationCounter(), equalTo(expected));
     }
 
     static class Request extends ShardReplicationOperationRequest<Request> {
@@ -769,15 +780,15 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
     * */
     private synchronized IndexShard getIndexShard(ShardId shardId) {
         try {
-            if (testIndexShard == null) {
-                testIndexShard = createIndexShard(shardId, clusterService);
+            if (testIndexShard.get() == null) {
+                testIndexShard.set(createIndexShard(shardId, clusterService));
             } else {
-                assertThat(shardId, equalTo(testIndexShard.shardId()));
+                assertThat(shardId, equalTo(testIndexShard.get().shardId()));
             }
         } catch (IOException e) {
             fail("could not create index shard for test");
         }
-        return testIndexShard;
+        return testIndexShard.get();
     }
 
     class ActionWithConsistency extends Action {

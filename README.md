@@ -6,7 +6,7 @@ The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding 
 In order to install the plugin, simply run: 
 
 ```sh
-bin/plugin install elasticsearch/elasticsearch-analysis-icu/2.4.3
+bin/plugin install elasticsearch/elasticsearch-analysis-icu/2.5.0
 ```
 
 You need to install a version matching your Elasticsearch version:

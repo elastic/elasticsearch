@@ -42,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -629,7 +630,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     }
 
-    protected IndexShard.IndexShardOperationCounter getIndexShardOperationsCounter(ShardId shardId) {
+    protected RefCounted getIndexShardOperationsCounter(ShardId shardId) {
         return indicesService.indexServiceSafe(shardId.index().getName()).shardSafe(shardId.id()).getOperationsCounter();
     }
 
@@ -988,19 +989,19 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     }
 
     static class IndexShardReference {
-        private final AtomicReference<IndexShard.IndexShardOperationCounter> ref = new AtomicReference();
+        private final AtomicReference<RefCounted> ref = new AtomicReference();
 
-        void setReference(IndexShard.IndexShardOperationCounter indexShardOperationCounter) {
-            indexShardOperationCounter.incrementOperationCounter();
+        void setReference(RefCounted indexShardOperationCounter) {
+            indexShardOperationCounter.incRef();
             assert ref.get() == null;
             ref.set(indexShardOperationCounter);
         }
 
         void removeReference() {
-            IndexShard.IndexShardOperationCounter indexShardOperationCounter = ref.get();
+            RefCounted indexShardOperationCounter = ref.get();
             ref.set(null);
             if (indexShardOperationCounter != null) {
-                indexShardOperationCounter.decrementOperationCounter();
+                indexShardOperationCounter.decRef();
             }
         }
     }

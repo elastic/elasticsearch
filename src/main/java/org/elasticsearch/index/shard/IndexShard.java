@@ -57,6 +57,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.IndexService;
@@ -753,7 +754,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                     mergeScheduleFuture = null;
                 }
                 changeState(IndexShardState.CLOSED, reason);
-                indexShardOperationCounter.decrementOperationCounter();
+                indexShardOperationCounter.decRef();
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
                 try {
@@ -1313,35 +1314,26 @@ public class IndexShard extends AbstractIndexShardComponent {
                 mapperAnalyzer, similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer);
     }
 
-    public static class IndexShardOperationCounter {
+    public static class IndexShardOperationCounter extends AbstractRefCounted {
         final private ESLogger logger;
         private final ShardId shardId;
 
         public IndexShardOperationCounter(ESLogger logger, ShardId shardId) {
+            super("index-shard-operations-counter");
             this.logger = logger;
             this.shardId = shardId;
-
         }
 
-        private final AbstractRefCounted counter = new AbstractRefCounted("in-flight-operations-counter") {
-            @Override
-            protected void closeInternal() {
-                logger.debug("operations counter reached 0, will not accept any further writes");
-            }
-        };
-
-        public void decrementOperationCounter() {
-            counter.decRef();
+        @Override
+        protected void closeInternal() {
+            logger.debug("operations counter reached 0, will not accept any further writes");
         }
 
-        public void incrementOperationCounter() {
-            if (counter.tryIncRef() == false) {
+        @Override
+        public void incRef() {
+            if (tryIncRef() == false) {
                 throw new IndexShardClosedException(shardId, "could not increment operation counter. shard is closed.");
             }
-        }
-
-        public int getOperationCount() {
-            return counter.refCount();
         }
 
         public ShardId getShardId() {

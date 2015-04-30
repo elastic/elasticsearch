@@ -36,7 +36,7 @@ public abstract class AbstractRefCounted implements RefCounted {
     }
 
     @Override
-    public final void incRef() {
+    public void incRef() {
         if (tryIncRef() == false) {
             throw new AlreadyClosedException(name + " is already closed can't increment refCount current count [" + refCount.get() + "]");
         }

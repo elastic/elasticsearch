@@ -49,6 +49,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -87,7 +89,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
     * TransportShardReplicationOperationAction needs an instance of IndexShard to count operations.
     * indexShards is reset to null before each test and will be initialized upon request in the tests.
     */
-    volatile IndexShard.IndexShardOperationCounter testIndexShardOperationsCounter;
+    volatile AbstractRefCounted testIndexShardOperationsCounter;
 
     @BeforeClass
     public static void beforeClass() {
@@ -445,7 +447,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         final TransportShardReplicationOperationAction<Request, Request, Response>.InternalRequest internalRequest = action.new InternalRequest(request);
         internalRequest.concreteIndex(shardId.index().name());
         TransportShardReplicationOperationAction.IndexShardReference indexShardAtomicReference = new TransportShardReplicationOperationAction.IndexShardReference();
-        indexShardAtomicReference.setReference(getIndexShardOperationsCounter(shardId));
+        indexShardAtomicReference.setReference(getOrCreateIndexShardOperationsCounter(shardId));
         assertIndexShardCounter(2);
         TransportShardReplicationOperationAction<Request, Request, Response>.ReplicationPhase replicationPhase =
                 action.new ReplicationPhase(shardIt, request,
@@ -503,15 +505,15 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
     public void testIndexShardRefCounter() throws IOException {
         IndexShard.IndexShardOperationCounter indexShardOperationsCounter = new IndexShard.IndexShardOperationCounter(logger, new ShardId("test", 0));
 
-        assertThat(indexShardOperationsCounter.getOperationCount(), equalTo(1));
-        indexShardOperationsCounter.incrementOperationCounter();
-        assertThat(indexShardOperationsCounter.getOperationCount(), equalTo(2));
-        indexShardOperationsCounter.decrementOperationCounter();
-        assertThat(indexShardOperationsCounter.getOperationCount(), equalTo(1));
-        indexShardOperationsCounter.incrementOperationCounter();
-        assertThat(indexShardOperationsCounter.getOperationCount(), equalTo(2));
-        indexShardOperationsCounter.decrementOperationCounter();
-        assertThat(indexShardOperationsCounter.getOperationCount(), equalTo(1));
+        assertThat(indexShardOperationsCounter.refCount(), equalTo(1));
+        indexShardOperationsCounter.incRef();
+        assertThat(indexShardOperationsCounter.refCount(), equalTo(2));
+        indexShardOperationsCounter.decRef();
+        assertThat(indexShardOperationsCounter.refCount(), equalTo(1));
+        indexShardOperationsCounter.incRef();
+        assertThat(indexShardOperationsCounter.refCount(), equalTo(2));
+        indexShardOperationsCounter.decRef();
+        assertThat(indexShardOperationsCounter.refCount(), equalTo(1));
     }
 
     @Test
@@ -546,7 +548,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             @Override
             public boolean apply(@Nullable Object input) {
                 if (testIndexShardOperationsCounter != null) {
-                    return testIndexShardOperationsCounter.getOperationCount() == 2;
+                    return testIndexShardOperationsCounter.refCount() == 2;
                 } else {
                     return false;
                 }
@@ -613,7 +615,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             @Override
             public boolean apply(@Nullable Object input) {
                 if (testIndexShardOperationsCounter != null) {
-                    return testIndexShardOperationsCounter.getOperationCount() == 2;
+                    return testIndexShardOperationsCounter.refCount() == 2;
                 } else {
                     return false;
                 }
@@ -653,17 +655,17 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
     }
 
     private void assertIndexShardCounter(int expected) {
-        assertThat(testIndexShardOperationsCounter.getOperationCount(), equalTo(expected));
+        assertThat(testIndexShardOperationsCounter.refCount(), equalTo(expected));
     }
 
     /*
     * Returns testIndexShardOperationsCounter or initializes it if it was already created in this test run.
     * */
-    private synchronized IndexShard.IndexShardOperationCounter getIndexShardOperationsCounter(ShardId shardId) {
+    private synchronized RefCounted getOrCreateIndexShardOperationsCounter(ShardId shardId) {
         if (testIndexShardOperationsCounter == null) {
             testIndexShardOperationsCounter = new IndexShard.IndexShardOperationCounter(logger, shardId);
         } else {
-            assertThat(shardId, equalTo(testIndexShardOperationsCounter.getShardId()));
+            assertThat(shardId, equalTo(((IndexShard.IndexShardOperationCounter) testIndexShardOperationsCounter).getShardId()));
         }
         return testIndexShardOperationsCounter;
     }
@@ -743,8 +745,8 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         }
 
         @Override
-        protected IndexShard.IndexShardOperationCounter getIndexShardOperationsCounter(ShardId shardId) {
-            return ShardReplicationOperationTests.this.getIndexShardOperationsCounter(shardId);
+        protected RefCounted getIndexShardOperationsCounter(ShardId shardId) {
+            return getOrCreateIndexShardOperationsCounter(shardId);
         }
     }
 

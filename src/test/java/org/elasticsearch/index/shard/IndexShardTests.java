@@ -201,9 +201,9 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         IndexService indexService = indicesService.indexServiceSafe("test");
         IndexShard indexShard = indexService.shard(0);
         client().admin().indices().prepareDelete("test").get();
-        assertThat(indexShard.getOperationsCounter().getOperationCount(), equalTo(0));
+        assertThat(indexShard.getOperationsCounter().refCount(), equalTo(0));
         try {
-            indexShard.getOperationsCounter().incrementOperationCounter();
+            indexShard.getOperationsCounter().incRef();
             fail("we should not be able to increment anymore");
         } catch (IndexShardClosedException e) {
             // expected

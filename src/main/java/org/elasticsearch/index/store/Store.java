@@ -665,16 +665,17 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         public static final MetadataSnapshot EMPTY = new MetadataSnapshot();
 
-        private Map<String, String> commitUserData;
+        private ImmutableMap<String, String> commitUserData;
 
         public MetadataSnapshot(Map<String, StoreFileMetaData> metadata, Map<String, String> commitUserData) {
             this.metadata = metadata;
-            this.commitUserData = commitUserData;
+            ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+            this.commitUserData = builder.putAll(commitUserData).build();
         }
 
         MetadataSnapshot() {
             this.metadata = Collections.EMPTY_MAP;
-            this.commitUserData = Collections.EMPTY_MAP;
+            this.commitUserData = ImmutableMap.of();
         }
 
         MetadataSnapshot(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
@@ -687,7 +688,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             Map<String, String> checksumMap = readLegacyChecksums(directory).v1();
             try {
                 final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
-                commitUserData = segmentCommitInfos.getUserData();
+                ImmutableMap.Builder<String, String> commitUserDataBuilder = ImmutableMap.builder();
+                commitUserData = commitUserDataBuilder.putAll(segmentCommitInfos.getUserData()).build();
                 Version maxVersion = Version.LUCENE_4_0; // we don't know which version was used to write so we take the max version.
                 for (SegmentCommitInfo info : segmentCommitInfos) {
                     final Version version = info.info.getVersion();
@@ -977,11 +979,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             }
             this.metadata = builder.build();
             assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
-            commitUserData = new HashMap<>();
+            ImmutableMap.Builder<String, String> commitUserDataBuilder = ImmutableMap.builder();
             int num = in.readVInt();
             for (int i = num; i > 0; i--) {
-                commitUserData.put(in.readString(), in.readString());
+                commitUserDataBuilder.put(in.readString(), in.readString());
             }
+            commitUserData = commitUserDataBuilder.build();
         }
 
         @Override

@@ -1111,7 +1111,8 @@ public class StoreTest extends ElasticsearchTestCase {
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
         in.setVersion(targetNodeVersion);
         Store.MetadataSnapshot inMetadataSnapshot = Store.MetadataSnapshot.read(in);
-        Map<String, StoreFileMetaData> origEntries = outMetadataSnapshot.asMap();
+        Map<String, StoreFileMetaData> origEntries = new HashMap<>();
+        origEntries.putAll(outMetadataSnapshot.asMap());
         for (Map.Entry<String, StoreFileMetaData> entry : inMetadataSnapshot.asMap().entrySet()) {
             assertThat(entry.getValue().name(), equalTo(origEntries.remove(entry.getKey()).name()));
         }

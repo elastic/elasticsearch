@@ -657,39 +657,42 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @see StoreFileMetaData
      */
-    public final static class MetadataSnapshot implements Iterable<StoreFileMetaData>, Streamable {
+    public final static class MetadataSnapshot implements Iterable<StoreFileMetaData> {
         private static final ESLogger logger = Loggers.getLogger(MetadataSnapshot.class);
         private static final Version FIRST_LUCENE_CHECKSUM_VERSION = Version.LUCENE_4_8;
 
-        private Map<String, StoreFileMetaData> metadata;
+        private final ImmutableMap<String, StoreFileMetaData> metadata;
 
         public static final MetadataSnapshot EMPTY = new MetadataSnapshot();
 
-        private ImmutableMap<String, String> commitUserData;
+        private final ImmutableMap<String, String> commitUserData;
 
         public MetadataSnapshot(Map<String, StoreFileMetaData> metadata, Map<String, String> commitUserData) {
-            this.metadata = metadata;
-            ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-            this.commitUserData = builder.putAll(commitUserData).build();
+            ImmutableMap.Builder<String, StoreFileMetaData> metaDataBuilder = ImmutableMap.builder();
+            this.metadata = metaDataBuilder.putAll(metadata).build();
+            ImmutableMap.Builder<String, String> commitUserDataBuilder = ImmutableMap.builder();
+            this.commitUserData = commitUserDataBuilder.putAll(commitUserData).build();
         }
 
         MetadataSnapshot() {
-            this.metadata = Collections.EMPTY_MAP;
-            this.commitUserData = ImmutableMap.of();
+            metadata = ImmutableMap.of();
+            commitUserData = ImmutableMap.of();
         }
 
         MetadataSnapshot(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
-            loadMetadata(commit, directory, logger);
+            Tuple<ImmutableMap<String, StoreFileMetaData>, ImmutableMap<String, String>> loadedMetadata = loadMetadata(commit, directory, logger);
+            metadata = loadedMetadata.v1();
+            commitUserData = loadedMetadata.v2();
             assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
         }
 
-        void loadMetadata(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
+        static Tuple<ImmutableMap<String, StoreFileMetaData>, ImmutableMap<String, String>> loadMetadata(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
             ImmutableMap.Builder<String, StoreFileMetaData> builder = ImmutableMap.builder();
             Map<String, String> checksumMap = readLegacyChecksums(directory).v1();
+            ImmutableMap.Builder<String, String> commitUserDataBuilder = ImmutableMap.builder();
             try {
                 final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
-                ImmutableMap.Builder<String, String> commitUserDataBuilder = ImmutableMap.builder();
-                commitUserData = commitUserDataBuilder.putAll(segmentCommitInfos.getUserData()).build();
+                commitUserDataBuilder.putAll(segmentCommitInfos.getUserData());
                 Version maxVersion = Version.LUCENE_4_0; // we don't know which version was used to write so we take the max version.
                 for (SegmentCommitInfo info : segmentCommitInfos) {
                     final Version version = info.info.getVersion();
@@ -742,7 +745,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
                 throw ex;
             }
-            metadata = builder.build();
+            return new Tuple<ImmutableMap<String, StoreFileMetaData>, ImmutableMap<String, String>>(builder.build(), commitUserDataBuilder.build());
         }
 
         /**
@@ -964,30 +967,23 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         public static MetadataSnapshot read(StreamInput in) throws IOException {
-            MetadataSnapshot storeFileMetaDatas = new MetadataSnapshot();
-            storeFileMetaDatas.readFrom(in);
+            int size = in.readVInt();
+            Map<String, StoreFileMetaData> metadata = new HashMap<>();
+            for (int i = 0; i < size; i++) {
+                StoreFileMetaData meta = StoreFileMetaData.readStoreFileMetaData(in);
+                metadata.put(meta.name(), meta);
+            }
+            Map<String, String> commitUserData = new HashMap<>();
+            int num = in.readVInt();
+            for (int i = num; i > 0; i--) {
+                commitUserData.put(in.readString(), in.readString());
+            }
+
+            MetadataSnapshot storeFileMetaDatas = new MetadataSnapshot(metadata, commitUserData);
+            assert metadata.isEmpty() || storeFileMetaDatas.numSegmentFiles() == 1 : "numSegmentFiles: " + storeFileMetaDatas.numSegmentFiles();
             return storeFileMetaDatas;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            int size = in.readVInt();
-            ImmutableMap.Builder<String, StoreFileMetaData> builder = ImmutableMap.builder();
-            for (int i = 0; i < size; i++) {
-                StoreFileMetaData meta = StoreFileMetaData.readStoreFileMetaData(in);
-                builder.put(meta.name(), meta);
-            }
-            this.metadata = builder.build();
-            assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
-            ImmutableMap.Builder<String, String> commitUserDataBuilder = ImmutableMap.builder();
-            int num = in.readVInt();
-            for (int i = num; i > 0; i--) {
-                commitUserDataBuilder.put(in.readString(), in.readString());
-            }
-            commitUserData = commitUserDataBuilder.build();
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(this.metadata.size());
             for (StoreFileMetaData meta : this) {

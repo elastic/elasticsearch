@@ -51,6 +51,10 @@ And the following may be the response:
                     "doc_count": 4
                 },
                 {
+                    "key": 100,
+                    "doc_count": 0
+                },
+                {
                     "key": 150,
                     "doc_count": 3
                 }
@@ -60,10 +64,11 @@ And the following may be the response:
 }
 --------------------------------------------------
 
-The response above shows that none of the aggregated products has a price that falls within the range of `[100 - 150)`.
-By default, the response will only contain those buckets with a `doc_count` greater than 0. It is possible change that
-and request buckets with either a higher minimum count or even 0 (in which case elasticsearch will "fill in the gaps"
-and create buckets with zero documents). This can be configured using the `min_doc_count` setting:
+==== Minimum document count
+
+The response above show that no documents has a price that falls within the range of `[100 - 150)`. By default the
+response will fill gaps in the histogram with empty buckets. It is possible change that and request buckets with
+a higher minimum count thanks to the `min_doc_count` setting:
 
 [source,js]
 --------------------------------------------------
@@ -73,7 +78,7 @@ and create buckets with zero documents). This can be configured using the `min_d
             "histogram" : {
                 "field" : "price",
                 "interval" : 50,
-                "min_doc_count" : 0
+                "min_doc_count" : 1
             }
         }
     }
@@ -97,10 +102,6 @@ Response:
                     "doc_count": 4
                 },
                 {
-                    "key" : 100,
-                    "doc_count" : 0 <1>
-                },
-                {
                     "key": 150,
                     "doc_count": 3
                 }
@@ -110,13 +111,11 @@ Response:
 }
 --------------------------------------------------
 
-<1> No documents were found that belong in this bucket, yet it is still returned with zero `doc_count`.
-
 [[search-aggregations-bucket-histogram-aggregation-extended-bounds]]
 By default the date_/histogram returns all the buckets within the range of the data itself, that is, the documents with
 the smallest values (on which with histogram) will determine the min bucket (the bucket with the smallest key) and the
 documents with the highest values will determine the max bucket (the bucket with the highest key). Often, when when
-requesting empty buckets (`"min_doc_count" : 0`), this causes a confusion, specifically, when the data is also filtered.
+requesting empty buckets, this causes a confusion, specifically, when the data is also filtered.
 
 To understand why, let's look at an example:
 
@@ -149,7 +148,6 @@ Example:
             "histogram" : {
                 "field" : "price",
                 "interval" : 50,
-                "min_doc_count" : 0,
                 "extended_bounds" : {
                     "min" : 0,
                     "max" : 500
@@ -264,67 +262,6 @@ PATH                :=  <AGG_NAME>[<AGG_SEPARATOR><AGG_NAME>]*[<METRIC_SEPARATOR
 
 The above will sort the buckets based on the avg rating among the promoted products
 
-
-==== Minimum document count
-
-It is possible to only return buckets that have a document count that is greater than or equal to a configured
-limit through the `min_doc_count` option.
-
-[source,js]
---------------------------------------------------
-{
-    "aggs" : {
-        "prices" : {
-            "histogram" : {
-                "field" : "price",
-                "interval" : 50,
-                "min_doc_count": 10
-            }
-        }
-    }
-}
---------------------------------------------------
-
-The above aggregation would only return buckets that contain 10 documents or more. Default value is `1`.
-
-NOTE:   The special value `0` can be used to add empty buckets to the response between the minimum and the maximum buckets.
-Here is an example of what the response could look like:
-
-[source,js]
---------------------------------------------------
-{
-    "aggregations": {
-        "prices": {
-            "buckets": {
-                "0": {
-                    "key": 0,
-                    "doc_count": 2
-                },
-                "50": {
-                    "key": 50,
-                    "doc_count": 0
-                },
-                "150": {
-                    "key": 150,
-                    "doc_count": 3
-                },
-                "200": {
-                    "key": 150,
-                    "doc_count": 0
-                },
-                "250": {
-                    "key": 150,
-                    "doc_count": 0
-                },
-                "300": {
-                    "key": 150,
-                    "doc_count": 1
-                }
-            }
-        }
-   }
-}
---------------------------------------------------
 
 ==== Offset
 

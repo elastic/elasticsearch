@@ -2,7 +2,8 @@
 === Derivative Aggregation
 
 A parent reducer aggregation which calculates the derivative of a specified metric in a parent histogram (or date_histogram) 
-aggregation. The specified metric must be numeric and the enclosing histogram must have `min_doc_count` set to `0`.
+aggregation. The specified metric must be numeric and the enclosing histogram must have `min_doc_count` set to `0` (default
+for `histogram` aggregations).
 
 The following snippet calculates the derivative of the total monthly `sales`:
 
@@ -13,8 +14,7 @@ The following snippet calculates the derivative of the total monthly `sales`:
         "sales_per_month" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "month",
-                "min_doc_count" : 0
+                "interval" : "month"
             },
             "aggs": {
                 "sales": {

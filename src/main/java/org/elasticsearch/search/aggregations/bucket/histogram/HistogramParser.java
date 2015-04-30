@@ -52,7 +52,7 @@ public class HistogramParser implements Aggregator.Parser {
                 .build();
 
         boolean keyed = false;
-        long minDocCount = 1;
+        long minDocCount = 0;
         InternalOrder order = (InternalOrder) InternalOrder.KEY_ASC;
         long interval = -1;
         ExtendedBounds extendedBounds = null;

@@ -118,6 +118,7 @@ public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/10897")
     public void testCustomScriptCache() throws Exception {
         assertAcked(prepareCreate("test").setSettings(
             ImmutableSettings.settingsBuilder()

@@ -1863,6 +1863,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/10897")
     public void testValidateThatHasChildAndHasParentFilterAreNeverCached() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(builder().put(indexSettings())

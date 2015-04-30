@@ -471,9 +471,9 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         final TransportShardReplicationOperationAction<Request, Request, Response>.InternalRequest internalRequest = action.new InternalRequest(request);
         internalRequest.concreteIndex(shardId.index().name());
         IndexShard indexShard = getIndexShard(shardId);
-        indexShard.incrementOperationCounter();
+        TransportShardReplicationOperationAction.IndexShardReference indexShardAtomicReference = new TransportShardReplicationOperationAction.IndexShardReference();
+        indexShardAtomicReference.setReference(indexShard);
         assertIndexShardCounter(2);
-        AtomicReference<IndexShard> indexShardAtomicReference = new AtomicReference<>(indexShard);
         TransportShardReplicationOperationAction<Request, Request, Response>.ReplicationPhase replicationPhase =
                 action.new ReplicationPhase(shardIt, request,
                         new Response(), new ClusterStateObserver(clusterService, logger),
@@ -622,24 +622,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         final ShardId shardId = new ShardId("test", 0);
         clusterService.setState(state(shardId.index().getName(), true,
                 ShardRoutingState.STARTED, ShardRoutingState.STARTED));
-        final IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().index(shardId.index().getName()).shard(shardId.id());
-        final ShardRouting primaryShard = shardRoutingTable.primaryShard();
-        final ShardIterator shardIt = shardRoutingTable.shardsIt();
-        final Request request = new Request();
-        PlainActionFuture<Response> listener = new PlainActionFuture<>();
         action = new ActionWithDelay(ImmutableSettings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
-        final TransportShardReplicationOperationAction<Request, Request, Response>.InternalRequest internalRequest = action.new InternalRequest(request);
-        internalRequest.concreteIndex(shardId.index().name());
-        TransportShardReplicationOperationAction<Request, Request, Response>.ReplicationPhase replicationPhase =
-                action.new ReplicationPhase(shardIt, request,
-                        new Response(), new ClusterStateObserver(clusterService, logger),
-                        primaryShard, internalRequest, listener, new AtomicReference<IndexShard>());
-
-        assertThat(replicationPhase.totalShards(), equalTo(2));
-        assertThat(replicationPhase.pending(), equalTo(1));
-        replicationPhase.run();
-        final CapturingTransport.CapturedRequest[] capturedRequests = transport.capturedRequests();
-        assertThat(capturedRequests.length, equalTo(1));
         final Action.ReplicaOperationTransportHandler replicaOperationTransportHandler = action.new ReplicaOperationTransportHandler();
         Thread t = new Thread() {
             public void run() {

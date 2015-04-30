@@ -314,7 +314,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("type")
                 .addAggregation(
-                        histogram("histo").field(INTERVAL_FIELD).interval(interval).minDocCount(0)
+                        histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                 .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
                                 .subAggregation(metric)
                                 .subAggregation(movingAvg("movavg_counts")
@@ -367,7 +367,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("type")
                 .addAggregation(
-                        histogram("histo").field(INTERVAL_FIELD).interval(interval).minDocCount(0)
+                        histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                 .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
                                 .subAggregation(metric)
                                 .subAggregation(movingAvg("movavg_counts")
@@ -420,7 +420,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("type")
                 .addAggregation(
-                        histogram("histo").field(INTERVAL_FIELD).interval(interval).minDocCount(0)
+                        histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                 .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
                                 .subAggregation(metric)
                                 .subAggregation(movingAvg("movavg_counts")
@@ -473,7 +473,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("type")
                 .addAggregation(
-                        histogram("histo").field(INTERVAL_FIELD).interval(interval).minDocCount(0)
+                        histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                 .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
                                 .subAggregation(metric)
                                 .subAggregation(movingAvg("movavg_counts")
@@ -525,7 +525,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             client()
                     .prepareSearch("idx").setTypes("type")
                     .addAggregation(
-                            histogram("histo").field(INTERVAL_FIELD).interval(interval).minDocCount(0)
+                            histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                     .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
                                     .subAggregation(randomMetric("the_metric", VALUE_FIELD))
                                     .subAggregation(movingAvg("movavg_counts")
@@ -568,7 +568,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             client()
                     .prepareSearch("idx").setTypes("type")
                     .addAggregation(
-                            histogram("histo").field(INTERVAL_FIELD).interval(interval).minDocCount(0)
+                            histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                     .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
                                     .subAggregation(randomMetric("the_metric", VALUE_FIELD))
                                     .subAggregation(movingAvg("movavg_counts")
@@ -592,7 +592,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("type")
                 .addAggregation(
-                        histogram("histo").field("test").interval(interval).minDocCount(0)
+                        histogram("histo").field("test").interval(interval)
                                 .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
                                 .subAggregation(randomMetric("the_metric", VALUE_FIELD))
                                 .subAggregation(movingAvg("movavg_counts")
@@ -617,7 +617,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("type")
                 .addAggregation(
-                        histogram("histo").field("test").interval(interval).minDocCount(0)
+                        histogram("histo").field("test").interval(interval)
                                 .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
                                 .subAggregation(randomMetric("the_metric", VALUE_FIELD))
                                 .subAggregation(movingAvg("movavg_counts")
@@ -643,7 +643,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             client()
                     .prepareSearch("idx").setTypes("type")
                     .addAggregation(
-                            histogram("histo").field(INTERVAL_FIELD).interval(interval).minDocCount(0)
+                            histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                     .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
                                     .subAggregation(randomMetric("the_metric", VALUE_FIELD))
                                     .subAggregation(movingAvg("movavg_counts")
@@ -666,7 +666,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             client()
                     .prepareSearch("idx").setTypes("type")
                     .addAggregation(
-                            histogram("histo").field(INTERVAL_FIELD).interval(interval).minDocCount(0)
+                            histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                     .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
                                     .subAggregation(randomMetric("the_metric", VALUE_FIELD))
                                     .subAggregation(movingAvg("movavg_counts")
@@ -695,7 +695,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("gap_type")
                 .addAggregation(
-                        histogram("histo").field(INTERVAL_FIELD).interval(1).minDocCount(0).extendedBounds(0L, 49L)
+                        histogram("histo").field(INTERVAL_FIELD).interval(1).extendedBounds(0L, 49L)
                                 .subAggregation(min("the_metric").field(GAP_FIELD))
                                 .subAggregation(movingAvg("movavg_values")
                                         .window(windowSize)
@@ -754,7 +754,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("gap_type")
                 .addAggregation(
-                        histogram("histo").field(INTERVAL_FIELD).interval(1).minDocCount(0).extendedBounds(0L, 49L)
+                        histogram("histo").field(INTERVAL_FIELD).interval(1).extendedBounds(0L, 49L)
                                 .subAggregation(min("the_metric").field(GAP_FIELD))
                                 .subAggregation(movingAvg("movavg_values")
                                         .window(windowSize)
@@ -822,7 +822,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                 .prepareSearch("idx").setTypes("gap_type")
                 .addAggregation(
                         filter("filtered").filter(new RangeFilterBuilder(INTERVAL_FIELD).from(1)).subAggregation(
-                                histogram("histo").field(INTERVAL_FIELD).interval(1).minDocCount(0).extendedBounds(0L, 49L)
+                                histogram("histo").field(INTERVAL_FIELD).interval(1).extendedBounds(0L, 49L)
                                         .subAggregation(randomMetric("the_metric", GAP_FIELD))
                                         .subAggregation(movingAvg("movavg_values")
                                                 .window(windowSize)
@@ -865,7 +865,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                 .prepareSearch("idx").setTypes("gap_type")
                 .addAggregation(
                         filter("filtered").filter(new RangeFilterBuilder(INTERVAL_FIELD).from(1)).subAggregation(
-                                histogram("histo").field(INTERVAL_FIELD).interval(1).minDocCount(0).extendedBounds(0L, 49L)
+                                histogram("histo").field(INTERVAL_FIELD).interval(1).extendedBounds(0L, 49L)
                                         .subAggregation(randomMetric("the_metric", GAP_FIELD))
                                         .subAggregation(movingAvg("movavg_values")
                                                 .window(windowSize)
@@ -921,7 +921,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                 .prepareSearch("idx").setTypes("gap_type")
                 .addAggregation(
                         filter("filtered").filter(new RangeFilterBuilder(INTERVAL_FIELD).to(1)).subAggregation(
-                                histogram("histo").field(INTERVAL_FIELD).interval(1).minDocCount(0).extendedBounds(0L, 49L)
+                                histogram("histo").field(INTERVAL_FIELD).interval(1).extendedBounds(0L, 49L)
                                         .subAggregation(randomMetric("the_metric", GAP_FIELD))
                                         .subAggregation(movingAvg("movavg_values")
                                                 .window(windowSize)
@@ -968,7 +968,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                 .prepareSearch("idx").setTypes("gap_type")
                 .addAggregation(
                         filter("filtered").filter(new RangeFilterBuilder(INTERVAL_FIELD).to(1)).subAggregation(
-                                histogram("histo").field(INTERVAL_FIELD).interval(1).minDocCount(0).extendedBounds(0L, 49L)
+                                histogram("histo").field(INTERVAL_FIELD).interval(1).extendedBounds(0L, 49L)
                                         .subAggregation(randomMetric("the_metric", GAP_FIELD))
                                         .subAggregation(movingAvg("movavg_values")
                                                 .window(windowSize)

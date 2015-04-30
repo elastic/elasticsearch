@@ -167,7 +167,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                 .subAggregation(derivative("deriv").setBucketsPaths("_count"))
                                 .subAggregation(derivative("2nd_deriv").setBucketsPaths("deriv"))).execute().actionGet();
 
@@ -204,7 +204,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
                                 .subAggregation(derivative("deriv").setBucketsPaths("sum"))).execute().actionGet();
 
@@ -250,7 +250,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                 .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
                                 .subAggregation(derivative("deriv").setBucketsPaths("stats.sum"))).execute().actionGet();
 
@@ -296,7 +296,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx_unmapped")
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                 .subAggregation(derivative("deriv").setBucketsPaths("_count"))).execute().actionGet();
 
         assertSearchResponse(response);
@@ -312,7 +312,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx", "idx_unmapped")
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                 .subAggregation(derivative("deriv").setBucketsPaths("_count"))).execute().actionGet();
 
         assertSearchResponse(response);
@@ -342,7 +342,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
                 .prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1).minDocCount(0)
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1)
                                 .subAggregation(derivative("deriv").setBucketsPaths("_count"))).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocsEmptyIdx));
@@ -371,7 +371,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
                 .prepareSearch("empty_bucket_idx_rnd")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1).minDocCount(0)
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1)
                                 .extendedBounds(0l, (long) numBuckets_empty_rnd - 1)
                                 .subAggregation(derivative("deriv").setBucketsPaths("_count").gapPolicy(randomFrom(GapPolicy.values()))))
                 .execute().actionGet();
@@ -402,7 +402,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
                 .prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1).minDocCount(0)
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1)
                                 .subAggregation(derivative("deriv").setBucketsPaths("_count").gapPolicy(GapPolicy.INSERT_ZEROS))).execute()
                                 .actionGet();
 
@@ -432,7 +432,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
                 .prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1).minDocCount(0)
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1)
                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
                                 .subAggregation(derivative("deriv").setBucketsPaths("sum"))).execute().actionGet();
 
@@ -474,7 +474,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
                 .prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1).minDocCount(0)
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1)
                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
                                 .subAggregation(derivative("deriv").setBucketsPaths("sum").gapPolicy(GapPolicy.INSERT_ZEROS))).execute()
                 .actionGet();
@@ -514,7 +514,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
                 .prepareSearch("empty_bucket_idx_rnd")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1).minDocCount(0)
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1)
                                 .extendedBounds(0l, (long) numBuckets_empty_rnd - 1)
                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
                                 .subAggregation(derivative("deriv").setBucketsPaths("sum").gapPolicy(gapPolicy))).execute().actionGet();

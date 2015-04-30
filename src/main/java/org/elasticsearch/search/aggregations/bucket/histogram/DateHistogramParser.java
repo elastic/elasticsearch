@@ -86,7 +86,7 @@ public class DateHistogramParser implements Aggregator.Parser {
                 .build();
 
         boolean keyed = false;
-        long minDocCount = 1;
+        long minDocCount = 0;
         ExtendedBounds extendedBounds = null;
         InternalOrder order = (InternalOrder) Histogram.Order.KEY_ASC;
         String interval = null;

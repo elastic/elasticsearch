@@ -94,7 +94,7 @@ public class MaxBucketTests extends ElasticsearchIntegrationTest {
     @Test
     public void testDocCount_topLevel() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
+                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                         .extendedBounds((long) minRandomValue, (long) maxRandomValue))
                 .addAggregation(maxBucket("max_bucket").setBucketsPaths("histo>_count")).execute().actionGet();
 
@@ -138,7 +138,7 @@ public class MaxBucketTests extends ElasticsearchIntegrationTest {
                                 .field("tag")
                                 .order(Order.term(true))
                                 .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
+                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds((long) minRandomValue, (long) maxRandomValue))
                                 .subAggregation(maxBucket("max_bucket").setBucketsPaths("histo>_count"))).execute().actionGet();
 
@@ -232,7 +232,7 @@ public class MaxBucketTests extends ElasticsearchIntegrationTest {
                                 .field("tag")
                                 .order(Order.term(true))
                                 .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
+                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds((long) minRandomValue, (long) maxRandomValue)
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                                 .subAggregation(maxBucket("max_bucket").setBucketsPaths("histo>sum"))).execute().actionGet();
@@ -291,7 +291,7 @@ public class MaxBucketTests extends ElasticsearchIntegrationTest {
                                 .field("tag")
                                 .order(Order.term(true))
                                 .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
+                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds((long) minRandomValue, (long) maxRandomValue)
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                                 .subAggregation(maxBucket("max_bucket").setBucketsPaths("histo>sum").gapPolicy(GapPolicy.INSERT_ZEROS)))
@@ -370,7 +370,7 @@ public class MaxBucketTests extends ElasticsearchIntegrationTest {
                                 .field("tag")
                                 .order(Order.term(true))
                                 .subAggregation(
-                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
+                                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds((long) minRandomValue, (long) maxRandomValue))
                                 .subAggregation(maxBucket("max_histo_bucket").setBucketsPaths("histo>_count")))
                 .addAggregation(maxBucket("max_terms_bucket").setBucketsPaths("terms>max_histo_bucket")).execute().actionGet();

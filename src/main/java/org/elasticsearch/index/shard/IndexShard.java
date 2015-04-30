@@ -1307,6 +1307,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final AbstractRefCounted counter = new AbstractRefCounted("in-flight-operations-counter") {
         @Override
         protected void closeInternal() {
+            logger.debug("operations counter reached 0, will not accept any further writes");
         }
     };
 

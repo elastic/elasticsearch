@@ -10,10 +10,7 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.isOneOf;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.core.IsNull.nullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -96,12 +93,12 @@ public class AccountsTests extends ElasticsearchTestCase {
         new Accounts(builder.build(), new SecretService.PlainText(), logger);
     }
 
-    @Test
+    @Test(expected = EmailSettingsException.class)
     public void testNoAccount() throws Exception {
         ImmutableSettings.Builder builder = ImmutableSettings.builder();
         Accounts accounts = new Accounts(builder.build(), new SecretService.PlainText(), logger);
-        Account account = accounts.account(null);
-        assertThat(account, nullValue());
+        accounts.account(null);
+        fail("no accounts are configured so trying to get the default account should throw an EmailSettingsException");
     }
 
     @Test(expected = EmailSettingsException.class)

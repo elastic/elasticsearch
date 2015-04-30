@@ -51,9 +51,13 @@ public class Accounts {
      *
      * @param name  The name of the requested account
      * @return      The account associated with the given name.
+     * @throws      EmailException if the name is null and the default account is null.
      */
-    public Account account(String name) {
+    public Account account(String name) throws EmailException {
         if (name == null) {
+            if (defaultAccountName == null) {
+                throw new EmailSettingsException("cannot find default email account as no accounts have been configured");
+            }
             name = defaultAccountName;
         }
         return accounts.get(name);

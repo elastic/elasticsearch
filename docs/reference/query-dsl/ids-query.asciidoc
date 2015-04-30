@@ -2,9 +2,7 @@
 == Ids Query
 
 Filters documents that only have the provided ids. Note, this query
-does not require the <<mapping-id-field,_id>>
-field to be indexed since it works using the
-<<mapping-uid-field,_uid>> field.
+uses the <<mapping-uid-field,_uid>> field.
 
 [source,js]
 --------------------------------------------------
@@ -17,4 +15,4 @@ field to be indexed since it works using the
 --------------------------------------------------
 
 The `type` is optional and can be omitted, and can also accept an array
-of values.
+of values. If no type is specified, all types defined in the index mapping are tried.

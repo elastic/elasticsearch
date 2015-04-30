@@ -12,12 +12,17 @@ import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
+import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
+import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.junit.Test;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
@@ -118,5 +123,41 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
             assertThat(parsedWatch.status().ackStatus().state(), equalTo(Watch.Status.AckStatus.State.AWAITS_EXECUTION));
         }
 
+    }
+
+    @Test
+    public void testDifferentAlternativeInputs() throws Exception {
+        ensureWatcherStarted();
+        WatchSourceBuilder watchBuilder = watchBuilder()
+                .trigger(schedule(cron("0 0 0 1 * ? 2099")))
+                .addAction("log", loggingAction("foobar"));
+
+        PutWatchResponse putWatchResponse = watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
+        assertThat(putWatchResponse.getVersion(), greaterThan(0L));
+        refresh();
+        assertThat(watcherClient().getWatch(new GetWatchRequest("_id")).actionGet().isFound(), equalTo(true));
+
+        Map<String, Object> map1 = new HashMap<>();
+        map1.put("foo", "bar");
+
+        Map<String, Object> map2 = new HashMap<>();
+        map2.put("foo", map1);
+
+        ManualExecutionContext.Builder ctxBuilder1 = ManualExecutionContext.builder(watchService().getWatch("_id"));
+        ctxBuilder1.simulateActions("_all");
+        ctxBuilder1.withInput(new SimpleInput.Result(new Payload.Simple(map1)));
+        ctxBuilder1.recordExecution(true);
+
+        WatchRecord watchRecord1 = executionService().execute(ctxBuilder1.build());
+
+        ManualExecutionContext.Builder ctxBuilder2 = ManualExecutionContext.builder(watchService().getWatch("_id"));
+        ctxBuilder2.simulateActions("_all");
+        ctxBuilder2.withInput(new SimpleInput.Result(new Payload.Simple(map2)));
+        ctxBuilder2.recordExecution(true);
+
+        WatchRecord watchRecord2 = executionService().execute(ctxBuilder2.build());
+
+        assertThat(watchRecord1.execution().inputResult().payload().data().get("foo").toString(), equalTo("bar"));
+        assertThat(watchRecord2.execution().inputResult().payload().data().get("foo"), instanceOf(Map.class));
     }
 }

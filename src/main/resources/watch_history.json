@@ -38,7 +38,13 @@
         },
         "watch_execution" : {
           "type" : "object",
-          "dynamic" : true
+          "dynamic" : true,
+          "properties" : {
+            "input_result" : {
+              "type" : "object",
+              "enabled" : false
+            }
+          }
         },
         "meta" : {
           "type" : "object",

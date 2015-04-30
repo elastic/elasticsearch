@@ -48,11 +48,11 @@ public class WrapperFilterParser implements FilterParser {
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext.index(), "[wrapper] filter malformed");
+            throw new QueryParsingException(parseContext, "[wrapper] filter malformed");
         }
         String fieldName = parser.currentName();
         if (!fieldName.equals("filter")) {
-            throw new QueryParsingException(parseContext.index(), "[wrapper] filter malformed");
+            throw new QueryParsingException(parseContext, "[wrapper] filter malformed");
         }
         parser.nextToken();
 

@@ -27,10 +27,12 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -41,9 +43,9 @@ public abstract class BucketsAggregator extends AggregatorBase {
     private final BigArrays bigArrays;
     private IntArray docCounts;
 
-    public BucketsAggregator(String name, AggregatorFactories factories,
-                             AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
-        super(name, factories, context, parent, metaData);
+    public BucketsAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
+            List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+        super(name, factories, context, parent, reducers, metaData);
         bigArrays = context.bigArrays();
         docCounts = bigArrays.newIntArray(1, true);
     }

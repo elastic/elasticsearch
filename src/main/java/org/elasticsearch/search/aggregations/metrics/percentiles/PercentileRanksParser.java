@@ -46,7 +46,7 @@ public class PercentileRanksParser extends AbstractPercentilesParser {
     @Override
     protected AggregatorFactory buildFactory(SearchContext context, String aggregationName, ValuesSourceConfig<Numeric> valuesSourceConfig, double[] keys, double compression, boolean keyed) {
         if (keys == null) {
-            throw new SearchParseException(context, "Missing token values in [" + aggregationName + "].");
+            throw new SearchParseException(context, "Missing token values in [" + aggregationName + "].", null);
         }
         return new PercentileRanksAggregator.Factory(aggregationName, valuesSourceConfig, keys, compression, keyed);
     }

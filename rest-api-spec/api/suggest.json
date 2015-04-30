@@ -33,10 +33,6 @@
         "routing": {
           "type" : "string",
           "description" : "Specific routing value"
-        },
-        "source": {
-          "type" : "string",
-          "description" : "The URL-encoded request definition (instead of using request body)"
         }
       }
     },

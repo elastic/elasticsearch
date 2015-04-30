@@ -90,14 +90,14 @@ public class TermsFilterParser implements FilterParser {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if  (fieldName != null) {
-                    throw new QueryParsingException(parseContext.index(), "[terms] filter does not support multiple fields");
+                    throw new QueryParsingException(parseContext, "[terms] filter does not support multiple fields");
                 }
                 fieldName = currentFieldName;
 
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     Object value = parser.objectBytes();
                     if (value == null) {
-                        throw new QueryParsingException(parseContext.index(), "No value specified for terms filter");
+                        throw new QueryParsingException(parseContext, "No value specified for terms filter");
                     }
                     terms.add(value);
                 }
@@ -118,18 +118,19 @@ public class TermsFilterParser implements FilterParser {
                         } else if ("routing".equals(currentFieldName)) {
                             lookupRouting = parser.textOrNull();
                         } else {
-                            throw new QueryParsingException(parseContext.index(), "[terms] filter does not support [" + currentFieldName + "] within lookup element");
+                            throw new QueryParsingException(parseContext, "[terms] filter does not support [" + currentFieldName
+                                    + "] within lookup element");
                         }
                     }
                 }
                 if (lookupType == null) {
-                    throw new QueryParsingException(parseContext.index(), "[terms] filter lookup element requires specifying the type");
+                    throw new QueryParsingException(parseContext, "[terms] filter lookup element requires specifying the type");
                 }
                 if (lookupId == null) {
-                    throw new QueryParsingException(parseContext.index(), "[terms] filter lookup element requires specifying the id");
+                    throw new QueryParsingException(parseContext, "[terms] filter lookup element requires specifying the id");
                 }
                 if (lookupPath == null) {
-                    throw new QueryParsingException(parseContext.index(), "[terms] filter lookup element requires specifying the path");
+                    throw new QueryParsingException(parseContext, "[terms] filter lookup element requires specifying the path");
                 }
             } else if (token.isValue()) {
                 if (EXECUTION_KEY.equals(currentFieldName)) {
@@ -141,13 +142,13 @@ public class TermsFilterParser implements FilterParser {
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new HashedBytesRef(parser.text());
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[terms] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[terms] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (fieldName == null) {
-            throw new QueryParsingException(parseContext.index(), "terms filter requires a field name, followed by array of terms");
+            throw new QueryParsingException(parseContext, "terms filter requires a field name, followed by array of terms");
         }
 
         FieldMapper<?> fieldMapper = null;

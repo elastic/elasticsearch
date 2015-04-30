@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -35,7 +36,7 @@ import java.util.Map;
 /**
  *
  */
-public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> {
+public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket, InternalIPv4Range> {
 
     public static final long MAX_IP = 4294967296l;
 
@@ -109,7 +110,7 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> {
         }
     }
 
-    private static class Factory extends InternalRange.Factory<InternalIPv4Range.Bucket, InternalIPv4Range> {
+    public static class Factory extends InternalRange.Factory<InternalIPv4Range.Bucket, InternalIPv4Range> {
 
         @Override
         public String type() {
@@ -117,20 +118,33 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> {
         }
 
         @Override
-        public InternalIPv4Range create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
-            return new InternalIPv4Range(name, ranges, keyed, metaData);
+        public InternalIPv4Range create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed,
+                List<Reducer> reducers, Map<String, Object> metaData) {
+            return new InternalIPv4Range(name, ranges, keyed, reducers, metaData);
+        }
+
+        @Override
+        public InternalIPv4Range create(List<Bucket> ranges, InternalIPv4Range prototype) {
+            return new InternalIPv4Range(prototype.name, ranges, prototype.keyed, prototype.reducers(), prototype.metaData);
         }
 
         @Override
         public Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
             return new Bucket(key, from, to, docCount, aggregations, keyed);
         }
+
+        @Override
+        public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
+            return new Bucket(prototype.getKey(), ((Number) prototype.getFrom()).doubleValue(), ((Number) prototype.getTo()).doubleValue(),
+                    prototype.getDocCount(), aggregations, prototype.getKeyed());
+        }
     }
 
     public InternalIPv4Range() {} // for serialization
 
-    public InternalIPv4Range(String name, List<InternalIPv4Range.Bucket> ranges, boolean keyed, Map<String, Object> metaData) {
-        super(name, ranges, ValueFormatter.IPv4, keyed, metaData);
+    public InternalIPv4Range(String name, List<InternalIPv4Range.Bucket> ranges, boolean keyed, List<Reducer> reducers,
+            Map<String, Object> metaData) {
+        super(name, ranges, ValueFormatter.IPv4, keyed, reducers, metaData);
     }
 
     @Override
@@ -139,7 +153,7 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> {
     }
 
     @Override
-    protected InternalRange.Factory<Bucket, ?> getFactory() {
+    public InternalRange.Factory<Bucket, InternalIPv4Range> getFactory() {
         return FACTORY;
     }
 }

@@ -265,22 +265,23 @@ public class GeohashCellFilter {
             }
 
             if (geohash == null) {
-                throw new QueryParsingException(parseContext.index(), "no geohash value provided to geohash_cell filter");
+                throw new QueryParsingException(parseContext, "no geohash value provided to geohash_cell filter");
             }
 
             MapperService.SmartNameFieldMappers smartMappers = parseContext.smartFieldMappers(fieldName);
             if (smartMappers == null || !smartMappers.hasMapper()) {
-                throw new QueryParsingException(parseContext.index(), "failed to find geo_point field [" + fieldName + "]");
+                throw new QueryParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
             }
 
             FieldMapper<?> mapper = smartMappers.mapper();
             if (!(mapper instanceof GeoPointFieldMapper)) {
-                throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
+                throw new QueryParsingException(parseContext, "field [" + fieldName + "] is not a geo_point field");
             }
 
             GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper) mapper);
             if (!geoMapper.isEnableGeohashPrefix()) {
-                throw new QueryParsingException(parseContext.index(), "can't execute geohash_cell on field [" + fieldName + "], geohash_prefix is not enabled");
+                throw new QueryParsingException(parseContext, "can't execute geohash_cell on field [" + fieldName
+                        + "], geohash_prefix is not enabled");
             }
 
             if(levels > 0) {

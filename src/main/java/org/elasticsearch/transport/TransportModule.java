@@ -19,17 +19,14 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
+import com.google.common.base.Preconditions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.local.LocalTransport;
 import org.elasticsearch.transport.netty.NettyTransport;
-
-import static org.elasticsearch.common.Preconditions.checkNotNull;
 
 /**
  *
@@ -78,15 +75,15 @@ public class TransportModule extends AbstractModule {
     }
 
     public void setTransportService(Class<? extends TransportService> transportService, String source) {
-        checkNotNull(transportService, "Configured transport service may not be null");
-        checkNotNull(source, "Plugin, that changes transport service may not be null");
+        Preconditions.checkNotNull(transportService, "Configured transport service may not be null");
+        Preconditions.checkNotNull(source, "Plugin, that changes transport service may not be null");
         this.configuredTransportService = transportService;
         this.configuredTransportServiceSource = source;
     }
 
     public void setTransport(Class<? extends Transport> transport, String source) {
-        checkNotNull(transport, "Configured transport may not be null");
-        checkNotNull(source, "Plugin, that changes transport may not be null");
+        Preconditions.checkNotNull(transport, "Configured transport may not be null");
+        Preconditions.checkNotNull(source, "Plugin, that changes transport may not be null");
         this.configuredTransport = transport;
         this.configuredTransportSource = source;
     }

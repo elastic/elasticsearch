@@ -87,7 +87,7 @@ public class HasParentQueryParser extends BaseQueryParserTemp {
                 } else if ("inner_hits".equals(currentFieldName)) {
                     innerHits = innerHitsQueryParserHelper.parse(parseContext);
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[has_parent] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[has_parent] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "parent_type".equals(currentFieldName) || "parentType".equals(currentFieldName)) {
@@ -111,15 +111,15 @@ public class HasParentQueryParser extends BaseQueryParserTemp {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[has_parent] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[has_parent] query does not support [" + currentFieldName + "]");
                 }
             }
         }
         if (!queryFound) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] query requires 'query' field");
+            throw new QueryParsingException(parseContext, "[has_parent] query requires 'query' field");
         }
         if (parentType == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] query requires 'parent_type' field");
+            throw new QueryParsingException(parseContext, "[has_parent] query requires 'parent_type' field");
         }
 
         Query innerQuery = iq.asQuery(parentType);
@@ -144,7 +144,8 @@ public class HasParentQueryParser extends BaseQueryParserTemp {
     static Query createParentQuery(Query innerQuery, String parentType, boolean score, QueryParseContext parseContext, Tuple<String, SubSearchContext> innerHits) {
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] query configured 'parent_type' [" + parentType + "] is not a valid type");
+            throw new QueryParsingException(parseContext, "[has_parent] query configured 'parent_type' [" + parentType
+                    + "] is not a valid type");
         }
 
         if (innerHits != null) {
@@ -168,7 +169,7 @@ public class HasParentQueryParser extends BaseQueryParserTemp {
             }
         }
         if (parentChildIndexFieldData == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] no _parent field configured");
+            throw new QueryParsingException(parseContext, "[has_parent] no _parent field configured");
         }
 
         Filter parentFilter = null;

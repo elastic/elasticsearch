@@ -19,14 +19,12 @@
 
 package org.elasticsearch.http;
 
+import com.google.common.base.Preconditions;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
-import org.elasticsearch.plugins.Plugin;
-
-import static org.elasticsearch.common.Preconditions.checkNotNull;
 
 /**
  *
@@ -60,8 +58,8 @@ public class HttpServerModule extends AbstractModule {
     }
 
     public void setHttpServerTransport(Class<? extends HttpServerTransport> httpServerTransport, String source) {
-        checkNotNull(httpServerTransport, "Configured http server transport may not be null");
-        checkNotNull(source, "Plugin, that changes transport may not be null");
+        Preconditions.checkNotNull(httpServerTransport, "Configured http server transport may not be null");
+        Preconditions.checkNotNull(source, "Plugin, that changes transport may not be null");
         this.configuredHttpServerTransport = httpServerTransport;
         this.configuredHttpServerTransportSource = source;
     }

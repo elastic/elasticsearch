@@ -23,10 +23,12 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -64,6 +66,10 @@ public abstract class AggregatorFactory {
         return this;
     }
 
+    public String name() {
+        return name;
+    }
+
     /**
      * Validates the state of this factory (makes sure the factory is properly configured)
      */
@@ -79,7 +85,8 @@ public abstract class AggregatorFactory {
         return parent;
     }
 
-    protected abstract Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException;
+    protected abstract Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
+            List<Reducer> reducers, Map<String, Object> metaData) throws IOException;
 
     /**
      * Creates the aggregator
@@ -92,7 +99,7 @@ public abstract class AggregatorFactory {
      * @return                      The created aggregator
      */
     public final Aggregator create(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
-        return createInternal(context, parent, collectsFromSingleBucket, this.metaData);
+        return createInternal(context, parent, collectsFromSingleBucket, this.factories.createReducers(), this.metaData);
     }
 
     public void doValidate() {
@@ -101,6 +108,8 @@ public abstract class AggregatorFactory {
     public void setMetaData(Map<String, Object> metaData) {
         this.metaData = metaData;
     }
+
+
 
     /**
      * Utility method. Given an {@link AggregatorFactory} that creates {@link Aggregator}s that only know how

@@ -89,21 +89,25 @@ public class RangeParser implements Aggregator.Parser {
                         ranges.add(new RangeAggregator.Range(key, from, fromAsStr, to, toAsStr));
                     }
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                            + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("keyed".equals(currentFieldName)) {
                     keyed = parser.booleanValue();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                            + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
+                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
+                        parser.getTokenLocation());
             }
         }
 
         if (ranges == null) {
-            throw new SearchParseException(context, "Missing [ranges] in ranges aggregator [" + aggregationName + "]");
+            throw new SearchParseException(context, "Missing [ranges] in ranges aggregator [" + aggregationName + "]",
+                    parser.getTokenLocation());
         }
 
         return new RangeAggregator.Factory(aggregationName, vsParser.config(), InternalRange.FACTORY, ranges, keyed);

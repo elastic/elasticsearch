@@ -75,13 +75,13 @@ public class TermsQueryParser extends BaseQueryParserTemp {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if  (fieldName != null) {
-                    throw new QueryParsingException(parseContext.index(), "[terms] query does not support multiple fields");
+                    throw new QueryParsingException(parseContext, "[terms] query does not support multiple fields");
                 }
                 fieldName = currentFieldName;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     Object value = parser.objectBytes();
                     if (value == null) {
-                        throw new QueryParsingException(parseContext.index(), "No value specified for terms query");
+                        throw new QueryParsingException(parseContext, "No value specified for terms query");
                     }
                     values.add(value);
                 }
@@ -97,15 +97,15 @@ public class TermsQueryParser extends BaseQueryParserTemp {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[terms] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[terms] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                throw new QueryParsingException(parseContext.index(), "[terms] query does not support [" + currentFieldName + "]");
+                throw new QueryParsingException(parseContext, "[terms] query does not support [" + currentFieldName + "]");
             }
         }
 
         if (fieldName == null) {
-            throw new QueryParsingException(parseContext.index(), "No field specified for terms query");
+            throw new QueryParsingException(parseContext, "No field specified for terms query");
         }
 
         FieldMapper mapper = null;

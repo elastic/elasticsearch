@@ -73,7 +73,7 @@ public class FilteredQueryParser extends BaseQueryParserTemp {
                     filterFound = true;
                     filter = parseContext.parseInnerFilter();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[filtered] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[filtered] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("strategy".equals(currentFieldName)) {
@@ -93,7 +93,7 @@ public class FilteredQueryParser extends BaseQueryParserTemp {
                     } else if ("leap_frog_filter_first".equals(value) || "leapFrogFilterFirst".equals(value)) {
                         filterStrategy = FilteredQuery.LEAP_FROG_FILTER_FIRST_STRATEGY;
                     } else {
-                        throw new QueryParsingException(parseContext.index(), "[filtered] strategy value not supported [" + value + "]");
+                        throw new QueryParsingException(parseContext, "[filtered] strategy value not supported [" + value + "]");
                     }
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
@@ -104,7 +104,7 @@ public class FilteredQueryParser extends BaseQueryParserTemp {
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new HashedBytesRef(parser.text());
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[filtered] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[filtered] query does not support [" + currentFieldName + "]");
                 }
             }
         }

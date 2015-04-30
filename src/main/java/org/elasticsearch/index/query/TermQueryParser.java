@@ -51,7 +51,7 @@ public class TermQueryParser extends BaseQueryParserTemp {
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext.index(), "[term] query malformed, no field");
+            throw new QueryParsingException(parseContext, "[term] query malformed, no field");
         }
         String fieldName = parser.currentName();
 
@@ -74,7 +74,7 @@ public class TermQueryParser extends BaseQueryParserTemp {
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     } else {
-                        throw new QueryParsingException(parseContext.index(), "[term] query does not support [" + currentFieldName + "]");
+                        throw new QueryParsingException(parseContext, "[term] query does not support [" + currentFieldName + "]");
                     }
                 }
             }
@@ -86,7 +86,7 @@ public class TermQueryParser extends BaseQueryParserTemp {
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext.index(), "No value specified for term query");
+            throw new QueryParsingException(parseContext, "No value specified for term query");
         }
 
         Query query = null;

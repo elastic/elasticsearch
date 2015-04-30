@@ -139,7 +139,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
     }
 
     public FieldNamesFieldMapper(String name, String indexName, float boost, FieldType fieldType, EnabledAttributeMapper enabledState, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, indexName, indexName, name), boost, fieldType, null, Lucene.KEYWORD_ANALYZER,
+        super(new Names(name, indexName, indexName, name), boost, fieldType, false, Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
         this.defaultFieldType = Defaults.FIELD_TYPE;
         this.pre13Index = Version.indexCreated(indexSettings).before(Version.V_1_3_0);
@@ -239,9 +239,6 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
                 for (String fieldName : extractFieldNames(path)) {
                     if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
                         document.add(new Field(names().indexName(), fieldName, fieldType));
-                    }
-                    if (hasDocValues()) {
-                        document.add(new SortedSetDocValuesField(names().indexName(), new BytesRef(fieldName)));
                     }
                 }
             }

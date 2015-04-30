@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
@@ -240,13 +241,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to analyze", e);
             } finally {
-                if (stream != null) {
-                    try {
-                        stream.close();
-                    } catch (IOException e) {
-                        // ignore
-                    }
-                }
+                IOUtils.closeWhileHandlingException(stream);
             }
         }
 

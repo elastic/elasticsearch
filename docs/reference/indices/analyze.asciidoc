@@ -18,7 +18,7 @@ curl -XGET 'localhost:9200/_analyze' -d '
 
 coming[2.0.0, body based parameters were added in 2.0.0]
 
-If text parameter is provided as array of string, it analyze as a multi-valued.
+If text parameter is provided as array of strings, it is analyzed as a multi-valued field.
 
 [source,js]
 --------------------------------------------------

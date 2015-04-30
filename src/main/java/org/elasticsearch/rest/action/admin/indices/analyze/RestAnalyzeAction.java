@@ -23,11 +23,10 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -108,7 +107,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
                             }
                             texts.add(parser.text());
                         }
-                        analyzeRequest.text(texts.toArray(new String[0]));
+                        analyzeRequest.text(texts.toArray(Strings.EMPTY_ARRAY));
                     } else if ("analyzer".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
                         analyzeRequest.analyzer(parser.text());
                     } else if ("field".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
@@ -123,7 +122,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
                             }
                             filters.add(parser.text());
                         }
-                        analyzeRequest.tokenFilters(filters.toArray(new String[0]));
+                        analyzeRequest.tokenFilters(filters.toArray(Strings.EMPTY_ARRAY));
                     } else if ("char_filters".equals(currentFieldName) && token == XContentParser.Token.START_ARRAY) {
                         List<String> charFilters = Lists.newArrayList();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -132,7 +131,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
                             }
                             charFilters.add(parser.text());
                         }
-                        analyzeRequest.tokenFilters(charFilters.toArray(new String[0]));
+                        analyzeRequest.tokenFilters(charFilters.toArray(Strings.EMPTY_ARRAY));
                     } else {
                         throw new ElasticsearchIllegalArgumentException("Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");
                     }

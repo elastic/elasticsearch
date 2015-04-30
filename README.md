@@ -13,15 +13,16 @@ bin/plugin install elasticsearch/elasticsearch-analysis-phonetic/2.5.0
 | elasticsearch |Phonetic Analysis Plugin|   Docs     |  
 |---------------|-----------------------|------------|
 | master        |  Build from source    | See below  |
-| es-1.x        |  Build from source    | [2.6.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-analysis-phonetic/tree/es-1.x/#version-260-snapshot-for-elasticsearch-1x)  |
-|    es-1.5              |     2.5.0         | [2.5.0](https://github.com/elastic/elasticsearch-analysis-phonetic/tree/v2.5.0/#version-250-for-elasticsearch-15)                  |
-|    es-1.4              |     2.4.2         | [2.4.2](https://github.com/elasticsearch/elasticsearch-analysis-phonetic/tree/v2.4.2/#version-242-for-elasticsearch-14)                  |
-| < 1.4.3       |     2.4.1             | [2.4.1](https://github.com/elasticsearch/elasticsearch-analysis-phonetic/tree/v2.4.1/#version-241-for-elasticsearch-14)                  |
-| es-1.3        |  2.3.0                | [2.3.0](https://github.com/elasticsearch/elasticsearch-analysis-phonetic/tree/v2.3.0/#phonetic-analysis-for-elasticsearch)  |
-| es-1.2        |  2.2.0                | [2.2.0](https://github.com/elasticsearch/elasticsearch-analysis-phonetic/tree/v2.2.0/#phonetic-analysis-for-elasticsearch)  |
-| es-1.1        |  2.1.0                | [2.1.0](https://github.com/elasticsearch/elasticsearch-analysis-phonetic/tree/v2.1.0/#phonetic-analysis-for-elasticsearch)  |
-| es-1.0        |  2.0.0                | [2.0.0](https://github.com/elasticsearch/elasticsearch-analysis-phonetic/tree/v2.0.0/#phonetic-analysis-for-elasticsearch)  |
-| es-0.90       |  1.8.0                | [1.8.0](https://github.com/elasticsearch/elasticsearch-analysis-phonetic/tree/v1.8.0/#phonetic-analysis-for-elasticsearch)  |
+| es-1.x        |  Build from source    | [2.6.0-SNAPSHOT](https://github.com/elastic/elasticsearch-analysis-phonetic/tree/es-1.x/#version-260-snapshot-for-elasticsearch-1x)  |
+| es-1.5        |  2.5.0                | [2.5.0](https://github.com/elastic/elasticsearch-analysis-phonetic/tree/v2.5.0/#version-250-for-elasticsearch-15)                  |
+| es-1.4        |  Build from source    | [2.4.3-SNAPSHOT](https://github.com/elastic/elasticsearch-analysis-phonetic/tree/es-1.4/#version-243-snapshot-for-elasticsearch-14)                  |
+| < 1.4.5       |  2.4.2                | [2.4.2](https://github.com/elastic/elasticsearch-analysis-phonetic/tree/v2.4.2/#version-242-for-elasticsearch-14)                  |
+| < 1.4.3       |  2.4.1                | [2.4.1](https://github.com/elastic/elasticsearch-analysis-phonetic/tree/v2.4.1/#version-241-for-elasticsearch-14)                  |
+| es-1.3        |  2.3.0                | [2.3.0](https://github.com/elastic/elasticsearch-analysis-phonetic/tree/v2.3.0/#phonetic-analysis-for-elasticsearch)  |
+| es-1.2        |  2.2.0                | [2.2.0](https://github.com/elastic/elasticsearch-analysis-phonetic/tree/v2.2.0/#phonetic-analysis-for-elasticsearch)  |
+| es-1.1        |  2.1.0                | [2.1.0](https://github.com/elastic/elasticsearch-analysis-phonetic/tree/v2.1.0/#phonetic-analysis-for-elasticsearch)  |
+| es-1.0        |  2.0.0                | [2.0.0](https://github.com/elastic/elasticsearch-analysis-phonetic/tree/v2.0.0/#phonetic-analysis-for-elasticsearch)  |
+| es-0.90       |  1.8.0                | [1.8.0](https://github.com/elastic/elasticsearch-analysis-phonetic/tree/v1.8.0/#phonetic-analysis-for-elasticsearch)  |
 
 To build a `SNAPSHOT` version, you need to build it with Maven:
 

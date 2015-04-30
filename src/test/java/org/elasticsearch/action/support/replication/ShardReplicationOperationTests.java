@@ -88,14 +88,12 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.*;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
@@ -472,7 +470,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
         internalRequest.concreteIndex(shardId.index().name());
         IndexShard indexShard = getIndexShard(shardId);
         TransportShardReplicationOperationAction.IndexShardReference indexShardAtomicReference = new TransportShardReplicationOperationAction.IndexShardReference();
-        indexShardAtomicReference.setReference(indexShard);
+        indexShardAtomicReference.setReference(indexShard.getOperationsCounter());
         assertIndexShardCounter(2);
         TransportShardReplicationOperationAction<Request, Request, Response>.ReplicationPhase replicationPhase =
                 action.new ReplicationPhase(shardIt, request,
@@ -528,16 +526,17 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
 
     @Test
     public void testIndexShardRefCounter() throws IOException {
-        IndexShard indexShard = createIndexShard(new ShardId("test", 0), clusterService);
-        assertThat(indexShard.getOperationCounter(), equalTo(1));
-        indexShard.incrementOperationCounter();
-        assertThat(indexShard.getOperationCounter(), equalTo(2));
-        indexShard.decrementOperationCounter();
-        assertThat(indexShard.getOperationCounter(), equalTo(1));
-        indexShard.incrementOperationCounter();
-        assertThat(indexShard.getOperationCounter(), equalTo(2));
-        indexShard.decrementOperationCounter();
-        assertThat(indexShard.getOperationCounter(), equalTo(1));
+        IndexShard.IndexShardOperationCounter indexShardOperationsCounter = createIndexShard(new ShardId("test", 0), clusterService).getOperationsCounter();
+
+        assertThat(indexShardOperationsCounter.getOperationCount(), equalTo(1));
+        indexShardOperationsCounter.incrementOperationCounter();
+        assertThat(indexShardOperationsCounter.getOperationCount(), equalTo(2));
+        indexShardOperationsCounter.decrementOperationCounter();
+        assertThat(indexShardOperationsCounter.getOperationCount(), equalTo(1));
+        indexShardOperationsCounter.incrementOperationCounter();
+        assertThat(indexShardOperationsCounter.getOperationCount(), equalTo(2));
+        indexShardOperationsCounter.decrementOperationCounter();
+        assertThat(indexShardOperationsCounter.getOperationCount(), equalTo(1));
     }
 
     @Test
@@ -572,7 +571,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             @Override
             public boolean apply(@Nullable Object input) {
                 if (testIndexShard != null) {
-                    return testIndexShard.getOperationCounter() == 2;
+                    return testIndexShard.getOperationsCounter().getOperationCount() == 2;
                 } else {
                     return false;
                 }
@@ -639,7 +638,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
             @Override
             public boolean apply(@Nullable Object input) {
                 if (testIndexShard != null) {
-                    return testIndexShard.getOperationCounter() == 2;
+                    return testIndexShard.getOperationsCounter().getOperationCount() == 2;
                 } else {
                     return false;
                 }
@@ -679,7 +678,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
     }
 
     private void assertIndexShardCounter(int expected) {
-        assertThat(testIndexShard.getOperationCounter(), equalTo(expected));
+        assertThat(testIndexShard.getOperationsCounter().getOperationCount(), equalTo(expected));
     }
 
     static class Request extends ShardReplicationOperationRequest<Request> {

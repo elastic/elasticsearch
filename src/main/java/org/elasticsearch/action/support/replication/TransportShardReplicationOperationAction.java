@@ -277,8 +277,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
             IndexShardReference indexShardReference = new IndexShardReference();
             try {
-                IndexShard indexShard = indicesService.indexServiceSafe(request.internalShardId.index().name()).shardSafe(request.internalShardId.id());
-                indexShardReference.setReference(indexShard);
+
+                indexShardReference.setReference(getIndexShardOperationsCounter(request.internalShardId));
                 shardOperationOnReplica(request.internalShardId, request);
             } catch (Throwable t) {
                 failReplicaIfNeeded(request.internalShardId.index().name(), request.internalShardId.id(), t);
@@ -546,8 +546,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
             final ReplicationPhase replicationPhase;
             try {
-                IndexShard indexShard = indicesService.indexServiceSafe(primary.shardId().index().getName()).shardSafe(primary.shardId().id());
-                indexShardReference.setReference(indexShard);
+                indexShardReference.setReference(getIndexShardOperationsCounter(primary.shardId()));
                 PrimaryOperationRequest por = new PrimaryOperationRequest(primary.id(), internalRequest.concreteIndex(), internalRequest.request());
                 Tuple<Response, ReplicaRequest> primaryResponse = shardOperationOnPrimary(observer.observedState(), por);
                 logger.trace("operation completed on primary [{}]", primary);
@@ -628,6 +627,10 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             retry(new UnavailableShardsException(shardId, message + " Timeout: [" + internalRequest.request().timeout() + "], request: " + internalRequest.request().toString()));
         }
 
+    }
+
+    private IndexShard.IndexShardOperationCounter getIndexShardOperationsCounter(ShardId shardId) {
+        return indicesService.indexServiceSafe(shardId.index().getName()).shardSafe(shardId.id()).getOperationsCounter();
     }
 
     private void failReplicaIfNeeded(String index, int shardId, Throwable t) {
@@ -985,19 +988,19 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     }
 
     static class IndexShardReference {
-        private final AtomicReference<IndexShard> ref = new AtomicReference();
+        private final AtomicReference<IndexShard.IndexShardOperationCounter> ref = new AtomicReference();
 
-        void setReference(IndexShard indexShard) {
-            indexShard.incrementOperationCounter();
+        void setReference(IndexShard.IndexShardOperationCounter indexShardOperationCounter) {
+            indexShardOperationCounter.incrementOperationCounter();
             assert ref.get() == null;
-            ref.set(indexShard);
+            ref.set(indexShardOperationCounter);
         }
 
         void removeReference() {
-            IndexShard shard = ref.get();
+            IndexShard.IndexShardOperationCounter indexShardOperationCounter = ref.get();
             ref.set(null);
-            if (shard != null) {
-                shard.decrementOperationCounter();
+            if (indexShardOperationCounter != null) {
+                indexShardOperationCounter.decrementOperationCounter();
             }
         }
     }

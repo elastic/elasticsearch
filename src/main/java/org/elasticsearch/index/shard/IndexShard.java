@@ -48,6 +48,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -205,6 +206,8 @@ public class IndexShard extends AbstractIndexShardComponent {
     public static final String INDEX_FLUSH_ON_CLOSE = "index.flush_on_close";
     private final ShardPath path;
 
+    private final IndexShardOperationCounter indexShardOperationCounter;
+
     @Inject
     public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, MergeSchedulerProvider mergeScheduler, Translog translog,
                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService,
@@ -213,7 +216,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                       ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService,
                       ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache,
                       @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, MergePolicyProvider mergePolicyProvider, EngineFactory factory,
-                      ClusterService clusterService, NodeEnvironment nodeEnv,  ShardPath path) {
+                      ClusterService clusterService, NodeEnvironment nodeEnv, ShardPath path) {
         super(shardId, indexSettingsService.getSettings());
         this.codecService = codecService;
         this.warmer = warmer;
@@ -263,6 +266,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
         this.checkIndexOnStartup = indexSettings.get("index.shard.check_on_startup", "false");
         this.engineConfig = newEngineConfig();
+        this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
     }
 
     public Store store() {
@@ -706,7 +710,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             logger.trace("optimize with {}", optimize);
         }
         engine().forceMerge(optimize.flush(), optimize.maxNumSegments(), optimize.onlyExpungeDeletes(),
-                            optimize.upgrade(), optimize.upgradeOnlyAncientSegments());
+                optimize.upgrade(), optimize.upgradeOnlyAncientSegments());
     }
 
     public SnapshotIndexCommit snapshotIndex() throws EngineException {
@@ -749,7 +753,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                     mergeScheduleFuture = null;
                 }
                 changeState(IndexShardState.CLOSED, reason);
-                decrementOperationCounter();
+                indexShardOperationCounter.decrementOperationCounter();
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
                 try {
@@ -1007,8 +1011,13 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
         MetaDataStateFormat.deleteMetaState(shardPath().getDataPath());
     }
+
     public ShardPath shardPath() {
         return path;
+    }
+
+    public IndexShardOperationCounter getOperationsCounter() {
+        return indexShardOperationCounter;
     }
 
     private class ApplyRefreshSettings implements IndexSettingsService.Listener {
@@ -1304,24 +1313,35 @@ public class IndexShard extends AbstractIndexShardComponent {
                 mapperAnalyzer, similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer);
     }
 
-    private final AbstractRefCounted counter = new AbstractRefCounted("in-flight-operations-counter") {
-        @Override
-        protected void closeInternal() {
-            logger.debug("operations counter reached 0, will not accept any further writes");
+    public static class IndexShardOperationCounter {
+        final private ESLogger logger;
+        private final ShardId shardId;
+
+        public IndexShardOperationCounter(ESLogger logger, ShardId shardId) {
+            this.logger = logger;
+            this.shardId = shardId;
+
         }
-    };
 
-    public void decrementOperationCounter() {
-        counter.decRef();
-    }
+        private final AbstractRefCounted counter = new AbstractRefCounted("in-flight-operations-counter") {
+            @Override
+            protected void closeInternal() {
+                logger.debug("operations counter reached 0, will not accept any further writes");
+            }
+        };
 
-    public void incrementOperationCounter() {
-        if (counter.tryIncRef() == false ) {
-            throw new IndexShardClosedException(shardId, "could not increment operation counter. shard is closed.");
+        public void decrementOperationCounter() {
+            counter.decRef();
         }
-    }
 
-    public int getOperationCounter() {
-        return counter.refCount();
+        public void incrementOperationCounter() {
+            if (counter.tryIncRef() == false) {
+                throw new IndexShardClosedException(shardId, "could not increment operation counter. shard is closed.");
+            }
+        }
+
+        public int getOperationCount() {
+            return counter.refCount();
+        }
     }
 }

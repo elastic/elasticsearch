@@ -18,7 +18,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.actions.ActionException;
 import org.elasticsearch.watcher.actions.email.service.*;
 import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
@@ -206,16 +205,24 @@ public class WebhookActionTests extends ElasticsearchTestCase {
         assertThat(parsedAction.action(), is(action));
     }
 
-    @Test(expected = ActionException.class)
+    @Test(expected = WebhookActionException.class)
+    @Repeat(iterations = 5)
     public void testParser_Failure() throws Exception {
+        XContentBuilder builder = jsonBuilder().startObject();
+        if (randomBoolean()) {
+            builder.field(HttpRequestTemplate.Parser.HOST_FIELD.getPreferredName(), TEST_HOST);
+        } else {
+            builder.field(HttpRequestTemplate.Parser.PORT_FIELD.getPreferredName(), TEST_PORT);
+        }
+        builder.endObject();
 
-        XContentBuilder builder = jsonBuilder().startObject().endObject();
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
         WebhookActionFactory actionParser = getParser(ExecuteScenario.Success.client());
         //This should fail since we are not supplying a url
         actionParser.parseExecutable("_watch", randomAsciiOfLength(5), parser);
+        fail("expected a WebhookActionException since we only provided either a host or a port but not both");
     }
 
     @Test @Repeat(iterations = 30)

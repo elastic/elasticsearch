@@ -255,7 +255,7 @@ public class HttpRequestTemplate implements ToXContent {
             if (builder.host == null) {
                 throw new ParseException("could not parse http request template. missing required [host] string field");
             }
-            if (builder.port < 0) {
+            if (builder.port <= 0) {
                 throw new ParseException("could not parse http request template. missing required [port] numeric field");
             }
 

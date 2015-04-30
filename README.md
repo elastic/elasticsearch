@@ -6,7 +6,7 @@ The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding 
 In order to install the plugin, simply run: 
 
 ```sh
-bin/plugin install elasticsearch/elasticsearch-analysis-icu/2.5.0
+bin/plugin install elasticsearch/elasticsearch-analysis-icu/2.4.3
 ```
 
 You need to install a version matching your Elasticsearch version:
@@ -16,7 +16,7 @@ You need to install a version matching your Elasticsearch version:
 | master        |  Build from source    | See below  |
 | es-1.x        |  Build from source    | [2.6.0-SNAPSHOT](https://github.com/elastic/elasticsearch-analysis-icu/tree/es-1.x/#version-260-snapshot-for-elasticsearch-1x)  |
 | es-1.5        |  2.5.0                | [2.5.0](https://github.com/elastic/elasticsearch-analysis-icu/tree/v2.5.0/#version-250-for-elasticsearch-15)                  |
-| es-1.4        |  Build from source    | [2.4.3-SNAPSHOT](https://github.com/elastic/elasticsearch-analysis-icu/tree/es-1.4/#version-243-snapshot-for-elasticsearch-14)                  |
+|    es-1.4              |     2.4.3         | [2.4.3](https://github.com/elasticsearch/elasticsearch-analysis-icu/tree/v2.4.3/#version-243-for-elasticsearch-14)                  |
 | < 1.4.5       |  2.4.2                | [2.4.2](https://github.com/elastic/elasticsearch-analysis-icu/tree/v2.4.2/#version-242-for-elasticsearch-14)                  |
 | < 1.4.3       |  2.4.1                | [2.4.1](https://github.com/elastic/elasticsearch-analysis-icu/tree/v2.4.1/#version-241-for-elasticsearch-14)                  |
 | es-1.3        |  2.3.0                | [2.3.0](https://github.com/elastic/elasticsearch-analysis-icu/tree/v2.3.0/#icu-analysis-for-elasticsearch)  |

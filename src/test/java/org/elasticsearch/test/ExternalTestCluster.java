@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -68,7 +69,7 @@ public final class ExternalTestCluster extends TestCluster {
         super(0);
         Settings clientSettings = ImmutableSettings.settingsBuilder()
                 .put("name", InternalTestCluster.TRANSPORT_CLIENT_PREFIX + EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
-                .put("config.ignore_system_properties", true) // prevents any settings to be replaced by system properties.
+                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // prevents any settings to be replaced by system properties.
                 .put("client.transport.ignore_cluster_name", true)
                 .put("node.mode", "network").build(); // we require network here!
 

@@ -46,6 +46,7 @@ import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.EnumSet;
@@ -129,7 +130,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             ImmutableSettings.Builder sb = ImmutableSettings.builder().put(entry.getValue());
             sb.put("node.name", settings.get("name") + "/" + entry.getKey());
             sb.put(TRIBE_NAME, entry.getKey());
-            sb.put("config.ignore_system_properties", true);
+            sb.put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true);
             if (sb.get("http.enabled") == null) {
                 sb.put("http.enabled", false);
             }

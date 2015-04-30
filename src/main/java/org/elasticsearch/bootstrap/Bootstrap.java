@@ -23,6 +23,7 @@ import com.google.common.base.Charsets;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.log4j.LogConfigurator;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -64,7 +66,14 @@ public class Bootstrap {
         initializeNatives(settings.getAsBoolean("bootstrap.mlockall", false),
                 settings.getAsBoolean("bootstrap.ctrlhandler", true));
 
-        NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(tuple.v1()).loadConfigSettings(false);
+        // We do not need to reload system properties here as we have already applied them in building the settings and
+        // reloading could cause multiple prompts to the user for values if a system property was specified with a prompt
+        // placeholder
+        Settings nodeSettings = ImmutableSettings.settingsBuilder()
+                .put(settings)
+                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
+                .build();
+        NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(nodeSettings).loadConfigSettings(false);
         node = nodeBuilder.build();
         if (addShutdownHook) {
             Runtime.getRuntime().addShutdownHook(new Thread() {
@@ -130,15 +139,16 @@ public class Bootstrap {
         }
     }
 
-    private static Tuple<Settings, Environment> initialSettings() {
-        return InternalSettingsPreparer.prepareSettings(EMPTY_SETTINGS, true);
+    private static Tuple<Settings, Environment> initialSettings(boolean foreground) {
+        Terminal terminal = foreground ? Terminal.DEFAULT : null;
+        return InternalSettingsPreparer.prepareSettings(EMPTY_SETTINGS, true, terminal);
     }
 
     /**
      * hook for JSVC
      */
     public void init(String[] args) throws Exception {
-        Tuple<Settings, Environment> tuple = initialSettings();
+        Tuple<Settings, Environment> tuple = initialSettings(false);
         setupLogging(tuple);
         setup(true, tuple);
     }
@@ -202,7 +212,7 @@ public class Bootstrap {
 
         Tuple<Settings, Environment> tuple = null;
         try {
-            tuple = initialSettings();
+            tuple = initialSettings(foreground);
             setupLogging(tuple);
         } catch (Exception e) {
             String errorMessage = buildErrorMessage("Setup", e);

@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.junit.AfterClass;
@@ -52,11 +53,10 @@ public class TribeUnitTests extends ElasticsearchTestCase {
 
     @BeforeClass
     public static void createTribes() {
-        tribe1 = NodeBuilder.nodeBuilder().settings(ImmutableSettings.builder().put("config.ignore_system_properties", true).put("http.enabled", false)
+        tribe1 = NodeBuilder.nodeBuilder().settings(ImmutableSettings.builder().put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true).put("http.enabled", false)
                 .put("node.mode", NODE_MODE).put("cluster.name", "tribe1").put("node.name", "tribe1_node")).node();
-        tribe2 = NodeBuilder.nodeBuilder().settings(ImmutableSettings.builder().put("config.ignore_system_properties", true).put("http.enabled", false)
+        tribe2 = NodeBuilder.nodeBuilder().settings(ImmutableSettings.builder().put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true).put("http.enabled", false)
                 .put("node.mode", NODE_MODE).put("cluster.name", "tribe2").put("node.name", "tribe2_node")).node();
-
     }
 
     @AfterClass
@@ -85,7 +85,7 @@ public class TribeUnitTests extends ElasticsearchTestCase {
     @Test
     public void testThatTribeClientsIgnoreGlobalConfig() throws Exception {
         Path pathConf = Paths.get(TribeUnitTests.class.getResource("elasticsearch.yml").toURI()).getParent();
-        Settings settings = ImmutableSettings.builder().put("config.ignore_system_properties", true).put("path.conf", pathConf).build();
+        Settings settings = ImmutableSettings.builder().put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true).put("path.conf", pathConf).build();
         assertTribeNodeSuccesfullyCreated(settings);
     }
 

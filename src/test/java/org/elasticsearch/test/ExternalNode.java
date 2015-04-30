@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.transport.TransportModule;
 
 import java.io.Closeable;
@@ -50,8 +51,8 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
  */
 final class ExternalNode implements Closeable {
 
-    public static final Settings REQUIRED_SETTINGS = ImmutableSettings.builder()
-            .put("config.ignore_system_properties", true)
+    public static final Settings REQUIRED_SETTINGS = settingsBuilder()
+            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
             .put(DiscoveryModule.DISCOVERY_TYPE_KEY, "zen")
             .put("node.mode", "network") // we need network mode for this
             .put("gateway.type", "local").build(); // we require local gateway to mimic upgrades of nodes
@@ -114,7 +115,7 @@ final class ExternalNode implements Closeable {
                 case DiscoveryModule.DISCOVERY_TYPE_KEY:
                 case "gateway.type":
                 case TransportModule.TRANSPORT_SERVICE_TYPE_KEY:
-                case "config.ignore_system_properties":
+                case InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING:
                     continue;
                 default:
                     externaNodeSettingsBuilder.put(entry.getKey(), entry.getValue());

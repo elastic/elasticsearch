@@ -1065,7 +1065,7 @@ public class ImmutableSettings implements Settings {
          * tries and resolve it against an environment variable ({@link System#getenv(String)}), and last, tries
          * and replace it with another setting already set on this builder.
          */
-        public Builder replacePropertyPlaceholders() {
+        public Builder replacePropertyPlaceholders(String... ignoredValues) {
             PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
             PropertyPlaceholder.PlaceholderResolver placeholderResolver = new PropertyPlaceholder.PlaceholderResolver() {
                 @Override
@@ -1095,7 +1095,19 @@ public class ImmutableSettings implements Settings {
                 }
             };
             for (Map.Entry<String, String> entry : Maps.newHashMap(map).entrySet()) {
-                String value = propertyPlaceholder.replacePlaceholders(entry.getValue(), placeholderResolver);
+                String possiblePlaceholder = entry.getValue();
+                boolean ignored = false;
+                for (String ignoredValue : ignoredValues) {
+                    if (ignoredValue.equals(possiblePlaceholder)) {
+                        ignored = true;
+                        break;
+                    }
+                }
+                if (ignored) {
+                    continue;
+                }
+
+                String value = propertyPlaceholder.replacePlaceholders(possiblePlaceholder, placeholderResolver);
                 // if the values exists and has length, we should maintain it  in the map
                 // otherwise, the replace process resolved into removing it
                 if (Strings.hasLength(value)) {

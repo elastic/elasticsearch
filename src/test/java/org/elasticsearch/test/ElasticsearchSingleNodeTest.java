@@ -42,6 +42,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.*;
@@ -136,8 +137,9 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
                 .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
             .put("http.enabled", false)
                 .put("index.store.type", localGateway ? "fs" : "ram")
-            .put("config.ignore_system_properties", true) // make sure we get what we set :)
-            .put("gateway.type", localGateway ? "local" : "none")).build();
+            .put("gateway.type", localGateway ? "local" : "none")
+            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // make sure we get what we set :)
+        ).build();
         build.start();
         assertThat(DiscoveryNode.localNode(build.settings()), is(true));
         return build;

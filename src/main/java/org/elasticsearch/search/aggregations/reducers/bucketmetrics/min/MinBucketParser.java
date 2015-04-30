@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.reducers.bucketmetrics;
+package org.elasticsearch.search.aggregations.reducers.bucketmetrics.min;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -33,12 +33,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MaxBucketParser implements Reducer.Parser {
+public class MinBucketParser implements Reducer.Parser {
     public static final ParseField FORMAT = new ParseField("format");
 
     @Override
     public String type() {
-        return MaxBucketReducer.TYPE.name();
+        return MinBucketReducer.TYPE.name();
     }
 
     @Override
@@ -91,7 +91,7 @@ public class MaxBucketParser implements Reducer.Parser {
             formatter = ValueFormat.Patternable.Number.format(format).formatter();
         }
 
-        return new MaxBucketReducer.Factory(reducerName, bucketsPaths, gapPolicy, formatter);
+        return new MinBucketReducer.Factory(reducerName, bucketsPaths, gapPolicy, formatter);
     }
 
 }

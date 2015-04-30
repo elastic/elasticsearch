@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.reducers.bucketmetrics;
+package org.elasticsearch.search.aggregations.reducers.bucketmetrics.max;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;

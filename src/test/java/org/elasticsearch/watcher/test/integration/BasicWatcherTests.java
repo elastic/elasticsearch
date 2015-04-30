@@ -339,7 +339,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
                     .get();
             fail("put watch should have failed");
         } catch (ScheduleTriggerException e) {
-            assertThat(e.getMessage(), equalTo("interval can't be lower than 1000 ms, but [-5000] was specified"));
+            assertThat(e.getMessage(), equalTo("interval can't be lower than 1000 ms, but [-5s] was specified"));
         }
 
         try {

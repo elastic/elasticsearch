@@ -25,7 +25,7 @@ public class IntervalSchedule implements Schedule {
 
     public IntervalSchedule(Interval interval) {
         if (interval.millis < 1000) {
-            throw new ScheduleTriggerException("interval can't be lower than 1000 ms, but [{}] was specified", interval.millis);
+            throw new ScheduleTriggerException("interval can't be lower than 1000 ms, but [{}] was specified", interval);
         }
         this.interval = interval;
     }

@@ -18,6 +18,7 @@ specifying the `tweet` type in the document itself:
 
 [float]
 ==== Index / Search Analyzers
+deprecated[1.6.0, "Use index level analyzer defaults"]
 
 The root object allows to define type mapping level analyzers for index
 and search that will be used with all different fields that do not

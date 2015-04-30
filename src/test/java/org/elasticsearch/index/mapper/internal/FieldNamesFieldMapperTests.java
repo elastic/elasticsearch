@@ -65,7 +65,7 @@ public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
 
     public void testFieldType() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_field_names").field("store", "yes").endObject()
+            .startObject("_field_names").endObject()
             .endObject().endObject().string();
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);

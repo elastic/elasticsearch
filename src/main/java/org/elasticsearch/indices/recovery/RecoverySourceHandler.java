@@ -169,8 +169,10 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
             // Generate a "diff" of all the identical, different, and missing
             // segment files on the target node, using the existing files on
             // the source node
-            final boolean recoverWithSyncId = recoverySourceMetadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID) != null &&
-                    recoverySourceMetadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID).equals(request.metadataSnapshot().getCommitUserData().get(Engine.SYNC_COMMIT_ID));
+            String recoverySourceSyncId = recoverySourceMetadata.getSyncId();
+            String recoveryTargetSyncId = request.metadataSnapshot().getSyncId();
+            final boolean recoverWithSyncId = recoverySourceSyncId != null &&
+                    recoverySourceSyncId.equals(recoveryTargetSyncId);
             if (recoverWithSyncId) {
                 for (StoreFileMetaData md : request.metadataSnapshot()) {
                     response.phase1ExistingFileNames.add(md.name());

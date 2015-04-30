@@ -237,7 +237,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         }
 
         public String syncId() {
-            return metadataSnapshot.getCommitUserData().get(Engine.SYNC_COMMIT_ID);
+            return metadataSnapshot.getSyncId();
         }
     }
 

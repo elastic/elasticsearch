@@ -47,6 +47,7 @@ import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -1028,6 +1029,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 }
             }
             return count;
+        }
+
+        public String getSyncId() {
+            return commitUserData.get(Engine.SYNC_COMMIT_ID);
         }
     }
 

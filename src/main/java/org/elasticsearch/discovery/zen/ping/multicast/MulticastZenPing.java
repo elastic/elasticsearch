@@ -65,6 +65,8 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
     private static final byte[] INTERNAL_HEADER = new byte[]{1, 9, 8, 4};
 
+    private static final int PING_SIZE_ESTIMATE = 150;
+
     private final String address;
     private final int port;
     private final String group;
@@ -249,7 +251,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
     private void sendPingRequest(int id) {
         try {
-            BytesStreamOutput bStream = new BytesStreamOutput();
+            BytesStreamOutput bStream = new BytesStreamOutput(PING_SIZE_ESTIMATE);
             StreamOutput out = new HandlesStreamOutput(bStream);
             out.writeBytes(INTERNAL_HEADER);
             // TODO: change to min_required version!

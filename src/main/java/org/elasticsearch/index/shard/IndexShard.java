@@ -1343,5 +1343,9 @@ public class IndexShard extends AbstractIndexShardComponent {
         public int getOperationCount() {
             return counter.refCount();
         }
+
+        public ShardId getShardId() {
+            return shardId;
+        }
     }
 }

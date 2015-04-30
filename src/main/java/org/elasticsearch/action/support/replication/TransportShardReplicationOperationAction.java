@@ -629,7 +629,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     }
 
-    private IndexShard.IndexShardOperationCounter getIndexShardOperationsCounter(ShardId shardId) {
+    protected IndexShard.IndexShardOperationCounter getIndexShardOperationsCounter(ShardId shardId) {
         return indicesService.indexServiceSafe(shardId.index().getName()).shardSafe(shardId.id()).getOperationsCounter();
     }
 

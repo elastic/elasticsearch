@@ -993,13 +993,12 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         void setReference(RefCounted indexShardOperationCounter) {
             indexShardOperationCounter.incRef();
-            assert ref.get() == null;
-            ref.set(indexShardOperationCounter);
+            RefCounted refCounted = ref.getAndSet(indexShardOperationCounter);
+            assert refCounted == null;
         }
 
         void removeReference() {
-            RefCounted indexShardOperationCounter = ref.get();
-            ref.set(null);
+            RefCounted indexShardOperationCounter = ref.getAndSet(null);
             if (indexShardOperationCounter != null) {
                 indexShardOperationCounter.decRef();
             }

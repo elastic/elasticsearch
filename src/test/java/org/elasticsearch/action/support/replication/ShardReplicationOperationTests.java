@@ -767,7 +767,7 @@ public class ShardReplicationOperationTests extends ElasticsearchTestCase {
     /*
     * Returns testIndexShard or initializes it if it was already created in this test run.
     * */
-    private IndexShard getIndexShard(ShardId shardId) {
+    private synchronized IndexShard getIndexShard(ShardId shardId) {
         try {
             if (testIndexShard == null) {
                 testIndexShard = createIndexShard(shardId, clusterService);

@@ -52,6 +52,8 @@ include::queries/range-query.asciidoc[]
 
 include::queries/regexp-query.asciidoc[]
 
+include::queries/span-containing-query.asciidoc[]
+
 include::queries/span-first-query.asciidoc[]
 
 include::queries/span-multi-term-query.asciidoc[]
@@ -63,6 +65,8 @@ include::queries/span-not-query.asciidoc[]
 include::queries/span-or-query.asciidoc[]
 
 include::queries/span-term-query.asciidoc[]
+
+include::queries/span-within-query.asciidoc[]
 
 include::queries/term-query.asciidoc[]
 

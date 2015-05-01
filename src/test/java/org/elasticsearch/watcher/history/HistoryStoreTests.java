@@ -32,6 +32,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.watcher.execution.Wid;
+import org.elasticsearch.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.watcher.support.TemplateUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -72,7 +73,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("_name");
         when(watch.condition()).thenReturn(new ExecutableAlwaysCondition(logger));
-        when(watch.input()).thenReturn(null);
+        when(watch.input()).thenReturn(new ExecutableNoneInput(logger));
         when(watch.metadata()).thenReturn(null);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC));
         Wid wid = new Wid("_name", 0, new DateTime(0, UTC));
@@ -92,7 +93,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("_name");
         when(watch.condition()).thenReturn(new ExecutableAlwaysCondition(logger));
-        when(watch.input()).thenReturn(null);
+        when(watch.input()).thenReturn(new ExecutableNoneInput(logger));
         when(watch.metadata()).thenReturn(null);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC));
         Wid wid = new Wid("_name", 0, new DateTime(0, UTC));

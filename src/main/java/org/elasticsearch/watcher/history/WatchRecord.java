@@ -135,6 +135,9 @@ public class WatchRecord implements ToXContent {
         builder.startObject(Parser.TRIGGER_EVENT_FIELD.getPreferredName())
                 .field(triggerEvent.type(), triggerEvent, params)
                 .endObject();
+        builder.startObject(Watch.Parser.INPUT_FIELD.getPreferredName())
+                .field(input.type(), input, params)
+                .endObject();
         builder.startObject(Watch.Parser.CONDITION_FIELD.getPreferredName())
                 .field(condition.type(), condition, params)
                 .endObject();
@@ -261,7 +264,7 @@ public class WatchRecord implements ToXContent {
                     } else if (TRIGGER_EVENT_FIELD.match(currentFieldName)) {
                         record.triggerEvent = triggerService.parseTriggerEvent(id, parser);
                     } else {
-                        throw new WatcherException("unable to parse watch record. unexpected field [" + currentFieldName + "]");
+                        throw new WatcherException("could not parse watch record [{}]. unexpected field [{}]", id, currentFieldName);
                     }
                 } else if (token.isValue()) {
                     if (WATCH_ID_FIELD.match(currentFieldName)) {
@@ -271,12 +274,18 @@ public class WatchRecord implements ToXContent {
                     } else if (STATE_FIELD.match(currentFieldName)) {
                         record.state = State.resolve(parser.text());
                     } else {
-                        throw new WatcherException("unable to parse watch record. unexpected field [" + currentFieldName + "]");
+                        throw new WatcherException("could not parse watch record [{}]. unexpected field [{}]", id, currentFieldName);
                     }
                 } else {
-                    throw new WatcherException("unable to parse watch record. unexpected token [" + token + "] for [" + currentFieldName + "]");
+                    throw new WatcherException("could not parse watch record [{}]. unexpected token [{}] for [{}]", id, token, currentFieldName);
                 }
             }
+
+            assert record.name() != null : "watch record [" + id +"] is missing watch_id";
+            assert record.triggerEvent() != null : "watch record [" + id +"] is missing trigger";
+            assert record.input() != null : "watch record [" + id +"] is missing input";
+            assert record.condition() != null : "watch record [" + id +"] is condition input";
+            assert record.state() != null : "watch record [" + id +"] is state input";
 
             return record;
         }

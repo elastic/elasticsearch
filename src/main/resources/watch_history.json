@@ -33,6 +33,10 @@
           "type" : "object",
           "dynamic" : true
         },
+        "input" : {
+          "type" : "object",
+          "dynamic" : true
+        },
         "watch_execution" : {
           "type" : "object",
           "dynamic" : true,

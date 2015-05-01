@@ -22,14 +22,14 @@ Download and install the Public Signing Key:
 
 [source,sh]
 --------------------------------------------------
-wget -qO - https://packages.elasticsearch.org/GPG-KEY-elasticsearch | sudo apt-key add -
+wget -qO - https://packages.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
 --------------------------------------------------
 
 Add the repository definition to your `/etc/apt/sources.list` file:
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb http://packages.elasticsearch.org/elasticsearch/{branch}/debian stable main" | sudo tee -a /etc/apt/sources.list
+echo "deb http://packages.elastic.co/elasticsearch/{branch}/debian stable main" | sudo tee -a /etc/apt/sources.list
 --------------------------------------------------
 
 [WARNING]
@@ -65,7 +65,7 @@ Download and install the public signing key:
 
 [source,sh]
 --------------------------------------------------
-rpm --import https://packages.elasticsearch.org/GPG-KEY-elasticsearch
+rpm --import https://packages.elastic.co/GPG-KEY-elasticsearch
 --------------------------------------------------
 
 Add the following in your `/etc/yum.repos.d/` directory
@@ -75,9 +75,9 @@ in a file with a `.repo` suffix, for example `elasticsearch.repo`
 --------------------------------------------------
 [elasticsearch-{branch}]
 name=Elasticsearch repository for {branch}.x packages
-baseurl=http://packages.elasticsearch.org/elasticsearch/{branch}/centos
+baseurl=http://packages.elastic.co/elasticsearch/{branch}/centos
 gpgcheck=1
-gpgkey=http://packages.elasticsearch.org/GPG-KEY-elasticsearch
+gpgkey=http://packages.elastic.co/GPG-KEY-elasticsearch
 enabled=1
 --------------------------------------------------
 

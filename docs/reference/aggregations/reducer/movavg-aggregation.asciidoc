@@ -35,15 +35,13 @@ A `moving_avg` aggregation looks like this in isolation:
 
 .`moving_avg` Parameters
 |===
-|Parameter Name |Description |Required |Default
-
-|`buckets_path` |The path to the metric that we wish to calculate a moving average for |Required |
+|Parameter Name |Description |Required |Default Value
+|`buckets_path` |Path to the metric of interest (see <<bucket-path-syntax, `buckets_path` Syntax>> for more details |Required |
 |`model` |The moving average weighting model that we wish to use |Optional |`simple`
 |`gap_policy` |Determines what should happen when a gap in the data is encountered. |Optional |`insert_zero`
 |`window` |The size of window to "slide" across the histogram. |Optional |`5`
 |`settings` |Model-specific settings, contents which differ depending on the model specified. |Optional |
 |===
-
 
 `moving_avg` aggregations must be embedded inside of a `histogram` or `date_histogram` aggregation.  They can be
 embedded like any other metric aggregation:
@@ -73,27 +71,9 @@ embedded like any other metric aggregation:
 
 Moving averages are built by first specifying a `histogram` or `date_histogram` over a field.  You can then optionally
 add normal metrics, such as a `sum`, inside of that histogram.  Finally, the `moving_avg` is embedded inside the histogram.
-The `buckets_path` parameter is then used to "point" at one of the sibling metrics inside of the histogram.
+The `buckets_path` parameter is then used to "point" at one of the sibling metrics inside of the histogram (see
+<<bucket-path-syntax>> for a description of the syntax for `buckets_path`.
 
-A moving average can also be calculated on the document count of each bucket, instead of a metric:
-
-[source,js]
---------------------------------------------------
-{
-    "my_date_histo":{
-        "date_histogram":{
-            "field":"timestamp",
-            "interval":"day"
-        },
-        "aggs":{
-            "the_movavg":{
-                "moving_avg":{ "buckets_path": "_count" } <1>
-            }
-        }
-    }
-}
---------------------------------------------------
-<1> By using `_count` instead of a metric name, we can calculate the moving average of document counts in the histogram
 
 ==== Models
 
@@ -250,7 +230,7 @@ image::images/reducers_movavg/double_0.2beta.png[]
 .Double Exponential moving average with window of size 100, alpha = 0.5, beta = 0.7
 image::images/reducers_movavg/double_0.7beta.png[]
 
-=== Prediction
+==== Prediction
 
 All the moving average model support a "prediction" mode, which will attempt to extrapolate into the future given the
 current smoothed, moving average.  Depending on the model and parameter, these predictions may or may not be accurate.

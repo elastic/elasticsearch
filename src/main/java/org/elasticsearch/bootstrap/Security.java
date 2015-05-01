@@ -21,9 +21,9 @@ package org.elasticsearch.bootstrap;
 
 import com.google.common.io.ByteStreams;
 
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.env.Environment;
 
 import java.io.*;
@@ -32,6 +32,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
+import java.security.PermissionCollection;
 import java.security.Policy;
 import java.security.URIParameter;
 
@@ -50,8 +51,8 @@ class Security {
      * Initializes securitymanager for the environment
      * Can only happen once!
      */
-    @SuppressForbidden(reason = "just debugging")
     static void configure(Environment environment) throws IOException {
+        ESLogger log = Loggers.getLogger(Security.class);
         // init lucene random seed. it will use /dev/urandom where available.
         StringHelper.randomId();
         InputStream config = Security.class.getResourceAsStream(POLICY_RESOURCE);
@@ -60,16 +61,23 @@ class Security {
         }
         Path newConfig = processTemplate(config, environment);
         System.setProperty("java.security.policy", newConfig.toString());
+        // retrieve the parsed policy we created: its useful if something goes wrong
+        Policy policy = null;
         try {
-            Policy policy = Policy.getInstance("JavaPolicy", new URIParameter(newConfig.toUri()));
-            System.out.println(policy.getPermissions(Security.class.getProtectionDomain()));
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException();
+            policy = Policy.getInstance("JavaPolicy", new URIParameter(newConfig.toUri()));
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new RuntimeException(impossible);
         }
+        PermissionCollection permissions = policy.getPermissions(Security.class.getProtectionDomain());
+        log.trace("generated permissions: {}", permissions);
+        
         System.setSecurityManager(new SecurityManager());
         try {
             // don't hide securityexception here, it means java.io.tmpdir is not accessible!
             Files.delete(newConfig);
+        } catch (SecurityException broken) {
+            log.error("unable to properly access temporary files, permissions: {}", permissions);
+            throw broken;
         } catch (IOException ignore) {
             // e.g. virus scanner on windows
         }

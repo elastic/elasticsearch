@@ -1,0 +1,48 @@
+---
+"Test Hijack api":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      catch: /not supported/
+      get:
+          index: ".watches"
+          type: "watch"
+          id: "foo"
+
+  - do:
+      catch: /not supported/
+      index:
+          index: ".watches"
+          type: "watch"
+          id: "foo"
+          body: {}
+
+  - do:
+      catch: /not supported/
+      delete:
+          index: ".watches"
+          type: "watch"
+          id: "foo"
+
+  - do:
+      catch: /not supported/
+      update:
+          index: ".watches"
+          type: "watch"
+          id: "foo"
+          body: {}
+
+  - do:
+      catch: /not supported/
+      bulk:
+          index: ".watches"
+          type: "watch"
+          body: {}
+
+  - do:
+      catch: /not supported/
+      bulk:
+          index: ".watches"
+          body: {}

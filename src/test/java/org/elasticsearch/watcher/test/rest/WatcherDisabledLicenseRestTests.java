@@ -54,6 +54,10 @@ public class WatcherDisabledLicenseRestTests extends WatcherRestTests {
             super.test();
             fail();
         } catch(AssertionError ae) {
+            if (ae.getMessage() == null || ae.getMessage().contains("not supported")){
+                //This was a test testing the "hijacked" methods
+                return;
+            }
             assertThat(ae.getMessage().contains("401 Unauthorized"), is(true));
             assertThat(ae.getMessage().contains(LicenseExpiredException.class.getSimpleName()), is(true));
         }

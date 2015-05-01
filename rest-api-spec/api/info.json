@@ -1,6 +1,6 @@
 {
   "info": {
-    "documentation": "http://www.elasticsearch.org/guide/",
+    "documentation": "This file is copied from es core because the REST test framework requires it",
     "methods": ["GET"],
     "url": {
       "path": "/",

@@ -1,6 +1,6 @@
 {
   "cluster.health": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/cluster-health.html",
+    "documentation": "This file is copied from es core because the REST test framework requires it",
     "methods": ["GET"],
     "url": {
       "path": "/_cluster/health",

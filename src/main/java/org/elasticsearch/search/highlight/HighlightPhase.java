@@ -19,10 +19,9 @@
 
 package org.elasticsearch.search.highlight;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
@@ -35,8 +34,8 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.google.common.collect.Maps.newHashMap;
 
@@ -76,12 +75,12 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
     public void hitExecute(SearchContext context, HitContext hitContext) {
         Map<String, HighlightField> highlightFields = newHashMap();
         for (SearchContextHighlight.Field field : context.highlight().fields()) {
-            List<String> fieldNamesToHighlight;
+            Set<String> fieldNamesToHighlight;
             if (Regex.isSimpleMatchPattern(field.field())) {
                 DocumentMapper documentMapper = context.mapperService().documentMapper(hitContext.hit().type());
-                fieldNamesToHighlight = documentMapper.mappers().simpleMatchToFullName(field.field());
+                fieldNamesToHighlight = ImmutableSet.copyOf(documentMapper.mappers().simpleMatchToFullName(field.field()));
             } else {
-                fieldNamesToHighlight = ImmutableList.of(field.field());
+                fieldNamesToHighlight = ImmutableSet.of(field.field());
             }
 
             if (context.highlight().forceSource(field)) {

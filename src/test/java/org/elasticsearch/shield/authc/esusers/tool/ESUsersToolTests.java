@@ -213,6 +213,52 @@ public class ESUsersToolTests extends CliToolTestCase {
         assertThat(status, is(CliTool.ExitStatus.CODE_ERROR));
     }
 
+
+    @Test
+    public void testUseradd_CustomRole() throws Exception {
+        Path usersFile = createTempFile();
+        Path userRolesFile = createTempFile();
+        Path rolesFile = writeFile("plugin_admin:\n" +
+                "  manage_plugin");
+        Settings settings = Settings.builder()
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", usersFile)
+                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
+                .put("shield.authz.store.files.roles", rolesFile)
+                .put("path.home", createTempDir())
+                .build();
+
+        final CaptureOutputTerminal terminal = new CaptureOutputTerminal();
+        ESUsersTool.Useradd cmd = new ESUsersTool.Useradd(terminal, "user1", SecuredStringTests.build("changeme"), "plugin_admin");
+
+        CliTool.ExitStatus status = execute(cmd, settings);
+        assertThat(status, is(CliTool.ExitStatus.OK));
+        assertThat(terminal.getTerminalOutput(), hasSize(0));
+    }
+
+    @Test
+    public void testUseradd_NonExistantRole() throws Exception {
+        Path usersFile = createTempFile();
+        Path userRolesFile = createTempFile();
+        Path rolesFile = writeFile("plugin_admin:\n" +
+                "  manage_plugin");
+        Settings settings = Settings.builder()
+                .put("shield.authc.realms.esusers.type", "esusers")
+                .put("shield.authc.realms.esusers.files.users", usersFile)
+                .put("shield.authc.realms.esusers.files.users_roles", userRolesFile)
+                .put("shield.authz.store.files.roles", rolesFile)
+                .put("path.home", createTempDir())
+                .build();
+
+        final CaptureOutputTerminal terminal = new CaptureOutputTerminal();
+        ESUsersTool.Useradd cmd = new ESUsersTool.Useradd(terminal, "user1", SecuredStringTests.build("changeme"), "plugin_admin_2");
+
+        CliTool.ExitStatus status = execute(cmd, settings);
+        assertThat(status, is(CliTool.ExitStatus.OK));
+        assertThat(terminal.getTerminalOutput(), hasSize(1));
+        assertThat(terminal.getTerminalOutput().get(0), containsString("[plugin_admin_2]"));
+    }
+
     @Test
     public void testUserdel_Parse() throws Exception {
         ESUsersTool tool = new ESUsersTool();

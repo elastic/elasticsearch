@@ -15,9 +15,7 @@ import org.junit.Test;
 import java.util.Iterator;
 
 import static org.elasticsearch.shield.authz.Privilege.Index.*;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -62,6 +60,13 @@ public class PermissionTests extends ElasticsearchTestCase {
             count++;
         }
         assertThat(count, is(equalTo(permission.indices().groups().length)));
+    }
+
+    @Test
+    public void buildEmptyRole() {
+        Permission.Global.Role.Builder permission = Permission.Global.Role.builder("some_role");
+        Permission.Global.Role role = permission.build();
+        assertThat(role, notNullValue());
     }
 
     // "baz_*foo", "/fool.*bar/"

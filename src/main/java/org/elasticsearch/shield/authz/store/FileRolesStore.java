@@ -100,11 +100,19 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
         return env.homeFile().resolve(location);
     }
 
-    public static ImmutableMap<String, Permission.Global.Role> parseFile(Path path, ESLogger logger) {
-        return parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger);
+    public static ImmutableSet<String> parseFileForRoleNames(Path path, ESLogger logger) {
+        ImmutableMap<String, Permission.Global.Role> roleMap = parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger, false);
+        if (roleMap == null) {
+            return ImmutableSet.<String>builder().build();
+        }
+        return roleMap.keySet();
     }
 
     public static ImmutableMap<String, Permission.Global.Role> parseFile(Path path, Set<Permission.Global.Role> reservedRoles, ESLogger logger) {
+        return parseFile(path, reservedRoles, logger, true);
+    }
+
+    public static ImmutableMap<String, Permission.Global.Role> parseFile(Path path, Set<Permission.Global.Role> reservedRoles, ESLogger logger, boolean resolvePermission) {
         if (logger == null) {
             logger = NoOpLogger.INSTANCE;
         }
@@ -121,7 +129,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
 
             List<String> roleSegments = roleSegments(path);
             for (String segment : roleSegments) {
-                Permission.Global.Role role = parseRole(segment, path, logger);
+                Permission.Global.Role role = parseRole(segment, path, logger, resolvePermission);
                 if (role != null) {
                     if (SystemRole.NAME.equals(role.name())) {
                         logger.warn("role [{}] is reserved to the system. the relevant role definition in the mapping file will be ignored", SystemRole.NAME);
@@ -146,7 +154,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
         return ImmutableMap.copyOf(roles);
     }
 
-    private static Permission.Global.Role parseRole(String segment, Path path, ESLogger logger) {
+    private static Permission.Global.Role parseRole(String segment, Path path, ESLogger logger, boolean resolvePermissions) {
         String roleName = null;
         try {
             XContentParser parser = YamlXContent.yamlXContent.createParser(segment);
@@ -160,7 +168,12 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                         logger.error("invalid role definition [{}] in roles file [{}]. invalid role name - {}. skipping role... ", roleName, path.toAbsolutePath(), validationError);
                         return null;
                     }
+
                     Permission.Global.Role.Builder permission = Permission.Global.Role.builder(roleName);
+                    if (resolvePermissions == false) {
+                        return permission.build();
+                    }
+
                     token = parser.nextToken();
                     if (token == XContentParser.Token.START_OBJECT) {
                         String currentFieldName = null;

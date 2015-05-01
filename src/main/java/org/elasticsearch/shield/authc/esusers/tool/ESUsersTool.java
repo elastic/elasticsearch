@@ -21,7 +21,6 @@ import org.elasticsearch.shield.authc.esusers.FileUserPasswdStore;
 import org.elasticsearch.shield.authc.esusers.FileUserRolesStore;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.shield.authz.Permission;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.shield.support.Validation;
 
@@ -430,7 +429,7 @@ public class ESUsersTool extends CliTool {
         @Override
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
             Settings esusersSettings = Realms.internalRealmSettings(settings, ESUsersRealm.TYPE);
-            ImmutableMap<String, Permission.Global.Role> knownRoles = loadRoles(terminal, settings, env);
+            ImmutableSet<String> knownRoles = loadRoleNames(terminal, settings, env);
             Path userRolesFilePath = FileUserRolesStore.resolveFile(esusersSettings, env);
             Map<String, String[]> userRoles = FileUserRolesStore.parseFile(userRolesFilePath, null);
             Path userFilePath = FileUserPasswdStore.resolveFile(esusersSettings, env);
@@ -444,7 +443,7 @@ public class ESUsersTool extends CliTool {
 
                 if (userRoles.containsKey(username)) {
                     String[] roles = userRoles.get(username);
-                    Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles.keySet());
+                    Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles);
                     String[] markedRoles = markUnknownRoles(roles, unknownRoles);
                     terminal.println("%-15s: %s", username, Joiner.on(",").useForNull("-").join(markedRoles));
                     if (!unknownRoles.isEmpty()) {
@@ -461,7 +460,7 @@ public class ESUsersTool extends CliTool {
                 boolean usersExist = false;
                 for (Map.Entry<String, String[]> entry : userRoles.entrySet()) {
                     String[] roles = entry.getValue();
-                    Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles.keySet());
+                    Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles);
                     String[] markedRoles = markUnknownRoles(roles, unknownRoles);
                     terminal.println("%-15s: %s", entry.getKey(), Joiner.on(",").join(markedRoles));
                     unknownRolesFound = unknownRolesFound || !unknownRoles.isEmpty();
@@ -492,10 +491,10 @@ public class ESUsersTool extends CliTool {
         }
     }
 
-    private static ImmutableMap<String, Permission.Global.Role> loadRoles(Terminal terminal, Settings settings, Environment env) {
+    private static ImmutableSet<String> loadRoleNames(Terminal terminal, Settings settings, Environment env) {
         Path rolesFile = FileRolesStore.resolveFile(settings, env);
         try {
-            return FileRolesStore.parseFile(rolesFile, null);
+            return FileRolesStore.parseFileForRoleNames(rolesFile, null);
         } catch (Throwable t) {
             // if for some reason, parsing fails (malformatted perhaps) we just warn
             terminal.println("Warning:  Could not parse [%s] for roles verification. Please revise and fix it. Nonetheless, the user will still be associated with all specified roles", rolesFile.toAbsolutePath());
@@ -519,11 +518,8 @@ public class ESUsersTool extends CliTool {
     }
 
     private static void verifyRoles(Terminal terminal, Settings settings, Environment env, String[] roles) {
-        ImmutableMap<String, Permission.Global.Role> knownRoles = loadRoles(terminal, settings, env);
-        if (knownRoles == null) {
-            return;
-        }
-        Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles.keySet());
+        ImmutableSet<String> knownRoles = loadRoleNames(terminal, settings, env);
+        Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles);
         if (!unknownRoles.isEmpty()) {
             Path rolesFile = FileRolesStore.resolveFile(settings, env);
             terminal.println("Warning: The following roles [%s] are unknown. Make sure to add them to the [%s] file. " +

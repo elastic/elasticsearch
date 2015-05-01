@@ -41,7 +41,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
     @Test
     public void testParseFile() throws Exception {
         Path path = getDataPath("roles.yml");
-        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, logger);
+        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger);
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(4));
 
@@ -107,7 +107,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
     @Test
     public void testDefaultRolesFile() throws Exception {
         Path path = getDataPath("default_roles.yml");
-        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, logger);
+        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger);
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(8));
 
@@ -187,7 +187,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
     public void testThatEmptyFileDoesNotResultInLoop() throws Exception {
         Path file = createTempFile();
         Files.write(file, ImmutableList.of("#"), Charsets.UTF_8);
-        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(file, logger);
+        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(file, Collections.<Permission.Global.Role>emptySet(), logger);
         assertThat(roles.keySet(), is(empty()));
     }
 
@@ -195,7 +195,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
     public void testThatInvalidRoleDefinitions() throws Exception {
         Path path = getDataPath("invalid_roles.yml");
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.ERROR);
-        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, logger);
+        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger);
         assertThat(roles.size(), is(1));
         assertThat(roles, hasKey("valid_role"));
         Permission.Global.Role role = roles.get("valid_role");
@@ -209,6 +209,19 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
         assertThat(entries.get(2).text, startsWith("invalid role definition [role2] in roles file [" + path.toAbsolutePath() + "]. could not resolve cluster privileges [blkjdlkd]"));
         assertThat(entries.get(3).text, startsWith("invalid role definition [role3] in roles file [" + path.toAbsolutePath() + "]. [indices] field value must be an array"));
         assertThat(entries.get(4).text, startsWith("invalid role definition [role4] in roles file [" + path.toAbsolutePath() + "]. could not resolve indices privileges [al;kjdlkj;lkj]"));
+    }
+
+    @Test
+    public void testThatRoleNamesDoesNotResolvePermissions() throws Exception {
+        Path path = getDataPath("invalid_roles.yml");
+        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.ERROR);
+        ImmutableSet<String> roleNames = FileRolesStore.parseFileForRoleNames(path, logger);
+        assertThat(roleNames.size(), is(5));
+        assertThat(roleNames, containsInAnyOrder("valid_role", "role1", "role2", "role3", "role4"));
+
+        List<CapturingLogger.Msg> entries = logger.output(CapturingLogger.Level.ERROR);
+        assertThat(entries, hasSize(1));
+        assertThat(entries.get(0).text, startsWith("invalid role definition [$dlk39] in roles file [" + path.toAbsolutePath() + "]. invalid role name"));
     }
 
     @Test

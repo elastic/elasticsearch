@@ -42,6 +42,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.*;
 
 public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
+    Settings backcompatSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
 
     public void testNoFormat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -85,12 +86,12 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.JSON));
     }
 
-    public void testJsonFormatCompressed() throws Exception {
+    public void testJsonFormatCompressedBackcompat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_source").field("format", "json").field("compress", true).endObject()
                 .endObject().endObject().string();
 
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapperParser parser = createIndex("test", backcompatSettings).mapperService().documentMapperParser();
         DocumentMapper documentMapper = parser.parse(mapping);
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field", "value")
@@ -122,8 +123,7 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
             assertTrue(e.getMessage().contains("unsupported parameters"));
         }
 
-        Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        DocumentMapper documentMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper documentMapper = createIndex("test", backcompatSettings).mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
             .startObject("path1").field("field1", "value1").endObject()
@@ -148,8 +148,7 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
             assertTrue(e.getMessage().contains("unsupported parameters"));
         }
 
-        Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        DocumentMapper documentMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper documentMapper = createIndex("test", backcompatSettings).mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
             .startObject("path1").field("field1", "value1").endObject()
@@ -162,12 +161,12 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(sourceAsMap.containsKey("path2"), equalTo(true));
     }
 
-    public void testDefaultMappingAndNoMapping() throws Exception {
+    public void testDefaultMappingAndNoMappingBackcompat() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
 
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapperParser parser = createIndex("test", backcompatSettings).mapperService().documentMapperParser();
         DocumentMapper mapper = parser.parse("my_type", null, defaultMapping);
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(false));
@@ -190,7 +189,7 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
         }
     }
 
-    public void testDefaultMappingAndWithMappingOverride() throws Exception {
+    public void testDefaultMappingAndWithMappingOverrideBackcompat() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
@@ -199,17 +198,17 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("_source").field("enabled", true).endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("my_type", mapping, defaultMapping);
+        DocumentMapper mapper = createIndex("test", backcompatSettings).mapperService().documentMapperParser().parse("my_type", mapping, defaultMapping);
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(true));
     }
 
-    public void testDefaultMappingAndNoMappingWithMapperService() throws Exception {
+    public void testDefaultMappingAndNoMappingWithMapperServiceBackcompat() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
 
-        MapperService mapperService = createIndex("test").mapperService();
+        MapperService mapperService = createIndex("test", backcompatSettings).mapperService();
         mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedString(defaultMapping), true);
 
         DocumentMapper mapper = mapperService.documentMapperWithAutoCreate("my_type").v1();
@@ -217,12 +216,12 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(mapper.sourceMapper().enabled(), equalTo(false));
     }
 
-    public void testDefaultMappingAndWithMappingOverrideWithMapperService() throws Exception {
+    public void testDefaultMappingAndWithMappingOverrideWithMapperServiceBackcompat() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
 
-        MapperService mapperService = createIndex("test").mapperService();
+        MapperService mapperService = createIndex("test", backcompatSettings).mapperService();
         mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedString(defaultMapping), true);
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("my_type")

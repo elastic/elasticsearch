@@ -393,11 +393,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                             .field("enabled", randomBoolean())
                             .endObject();
                 }
-                if (randomBoolean()) {
-                    mappings.startObject(SourceFieldMapper.NAME)
-                            .field("compress", randomBoolean())
-                            .endObject();
-                }
                 mappings.startArray("dynamic_templates")
                         .startObject()
                     .startObject("template-strings")

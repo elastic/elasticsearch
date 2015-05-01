@@ -272,6 +272,15 @@ to provide special features.  They now have limited configuration options.
 * `_field_names` configuration is limited to disabling the field.
 * `_size` configuration is limited to enabling the field.
 
+==== Source field limitations
+The `_source` field could previously be disabled dynamically. Since this field
+is a critical piece of many features like the Update API, it is no longer
+possible to disable.
+
+The options for `compress` and `compress_threshold` have also been removed.
+The source field is already compressed. To minimize the storage cost,
+set `index.codec: best_compression` in index settings.
+
 ==== Boolean fields
 
 Boolean fields used to have a string fielddata with `F` meaning `false` and `T`

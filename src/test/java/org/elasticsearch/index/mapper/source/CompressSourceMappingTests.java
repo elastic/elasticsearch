@@ -20,7 +20,11 @@
 package org.elasticsearch.index.mapper.source;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -33,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class CompressSourceMappingTests extends ElasticsearchSingleNodeTest {
+    Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
 
     @Test
     public void testCompressDisabled() throws Exception {
@@ -40,7 +45,7 @@ public class CompressSourceMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("_source").field("compress", false).endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper documentMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value1")
@@ -56,7 +61,7 @@ public class CompressSourceMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("_source").field("compress", true).endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper documentMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value1")
@@ -73,7 +78,7 @@ public class CompressSourceMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("_source").field("compress_threshold", "200b").endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper documentMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value1")

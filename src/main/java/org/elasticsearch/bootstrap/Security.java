@@ -20,8 +20,10 @@
 package org.elasticsearch.bootstrap;
 
 import com.google.common.io.ByteStreams;
+
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 
 import java.io.*;
@@ -29,6 +31,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.security.NoSuchAlgorithmException;
+import java.security.Policy;
+import java.security.URIParameter;
 
 /** 
  * Initializes securitymanager with necessary permissions.
@@ -45,6 +50,7 @@ class Security {
      * Initializes securitymanager for the environment
      * Can only happen once!
      */
+    @SuppressForbidden(reason = "just debugging")
     static void configure(Environment environment) throws IOException {
         // init lucene random seed. it will use /dev/urandom where available.
         StringHelper.randomId();
@@ -54,8 +60,19 @@ class Security {
         }
         Path newConfig = processTemplate(config, environment);
         System.setProperty("java.security.policy", newConfig.toString());
+        try {
+            Policy policy = Policy.getInstance("JavaPolicy", new URIParameter(newConfig.toUri()));
+            System.out.println(policy.getPermissions(Security.class.getProtectionDomain()));
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException();
+        }
         System.setSecurityManager(new SecurityManager());
-        IOUtils.deleteFilesIgnoringExceptions(newConfig); // TODO: maybe log something if it fails?
+        try {
+            // don't hide securityexception here, it means java.io.tmpdir is not accessible!
+            Files.delete(newConfig);
+        } catch (IOException ignore) {
+            // e.g. virus scanner on windows
+        }
     }
    
     // package-private for testing

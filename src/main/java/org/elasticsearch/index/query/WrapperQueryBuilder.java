@@ -18,20 +18,15 @@
  */
 
 package org.elasticsearch.index.query;
-/**
- * Created by IntelliJ IDEA.
- * User: cedric
- * Date: 12/07/11
- * Time: 11:30
- */
 
 import com.google.common.base.Charsets;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 /**
- * A Query builder which allows building a query thanks to a JSON string or binary data. This is useful when you want
+ * A Query builder which allows building a query given JSON string or binary data provided as input. This is useful when you want
  * to use the Java Builder API but still have JSON query strings at hand that you want to combine with other
  * query builders.
  * <p/>
@@ -51,7 +46,7 @@ public class WrapperQueryBuilder extends BaseQueryBuilder {
     private final int length;
 
     /**
-     * Builds a JSONQueryBuilder using the provided JSON query string.
+     * Creates a query builder given a query provided as a string
      */
     public WrapperQueryBuilder(String source) {
         this.source = source.getBytes(Charsets.UTF_8);
@@ -59,10 +54,22 @@ public class WrapperQueryBuilder extends BaseQueryBuilder {
         this.length = this.source.length;
     }
 
+    /**
+     * Creates a query builder given a query provided as a bytes array
+     */
     public WrapperQueryBuilder(byte[] source, int offset, int length) {
         this.source = source;
         this.offset = offset;
         this.length = length;
+    }
+
+    /**
+     * Creates a query builder given a query provided as a {@link BytesReference}
+     */
+    public WrapperQueryBuilder(BytesReference source) {
+        this.source = source.array();
+        this.offset = source.arrayOffset();
+        this.length = source.length();
     }
 
     @Override

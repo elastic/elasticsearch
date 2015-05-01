@@ -263,7 +263,7 @@ public abstract class QueryBuilders {
     /**
      * A query that acts similar to a query_string query, but won't throw
      * exceptions for any weird string syntax. See
-     * {@link org.apache.lucene.queryparser.XSimpleQueryParser} for the full
+     * {@link org.apache.lucene.queryparser.simple.SimpleQueryParser} for the full
      * supported syntax.
      */
     public static SimpleQueryStringBuilder simpleQueryStringQuery(String queryString) {
@@ -549,6 +549,13 @@ public abstract class QueryBuilders {
     /**
      * A Query builder which allows building a query thanks to a JSON string or binary data.
      */
+    public static WrapperQueryBuilder wrapperQuery(BytesReference source) {
+        return new WrapperQueryBuilder(source);
+    }
+
+    /**
+     * A Query builder which allows building a query thanks to a JSON string or binary data.
+     */
     public static WrapperQueryBuilder wrapperQuery(byte[] source, int offset, int length) {
         return new WrapperQueryBuilder(source, offset, length);
     }
@@ -767,15 +774,6 @@ public abstract class QueryBuilders {
 
     public static NotQueryBuilder notQuery(QueryBuilder filter) {
         return new NotQueryBuilder(filter);
-    }
-
-    /**
-     * Constructs a bytes filter to generate a filter from a {@link BytesReference} source
-     *
-     * @param source The filter source
-     */
-    public static BytesQueryBuilder bytesQuery(BytesReference source) {
-        return new BytesQueryBuilder(source);
     }
 
     /**

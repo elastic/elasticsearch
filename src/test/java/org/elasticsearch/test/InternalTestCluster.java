@@ -972,17 +972,20 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Ensures all operation counters on IndexShard instances is at 1 or 0.
-     *
-     * If this fails then either write operations are still in flight or the counter is not working correcty
+     * Wipes any data that a test can leave behind: indices, templates and repositories
      */
-    private void assertIndexShardCounter() {
+    public void wipe() {
+        assertShardIndexCounter();
+        super.wipe();
+    }
+
+    private void assertShardIndexCounter() {
         final Collection<NodeAndClient> nodesAndClients = nodes.values();
         for (NodeAndClient nodeAndClient : nodesAndClients) {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    assertThat(indexShard.getOperationsCounter().refCount(), anyOf(equalTo(1), equalTo(0)));
+                    assertThat(indexShard.getOperationsCounter().refCount(), anyOf(equalTo(1)));
                 }
             }
         }
@@ -1750,7 +1753,6 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public void assertAfterTest() throws IOException {
         super.assertAfterTest();
-        assertIndexShardCounter();
         for (NodeEnvironment env : this.getInstances(NodeEnvironment.class)) {
             Set<ShardId> shardIds = env.lockedShards();
             for (ShardId id : shardIds) {

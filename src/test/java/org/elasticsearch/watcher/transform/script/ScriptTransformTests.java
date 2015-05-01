@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.transform;
+package org.elasticsearch.watcher.transform.script;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableList;
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableSet;
@@ -23,6 +23,7 @@ import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.Variables;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.transform.script.ExecutableScriptTransform;
 import org.elasticsearch.watcher.transform.script.ScriptTransform;
 import org.elasticsearch.watcher.transform.script.ScriptTransformFactory;

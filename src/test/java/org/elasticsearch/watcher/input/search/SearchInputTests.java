@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.input.search;
 
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
@@ -76,24 +75,6 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         //Set path so ScriptService will pick up the test scripts
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put("path.conf", this.getResource("config").getPath()).build();
-    }
-
-
-
-    private IndexResponse indexTestDoc() {
-        createIndex("test-search-index");
-        ensureGreen("test-search-index");
-
-        IndexResponse response = client().index(
-                client().prepareIndex()
-                        .setId("test")
-                        .setIndex("test-search-index")
-                        .setType("test-search-type")
-                        .setSource("foo","bar")
-                        .setTimestamp(new DateTime(40000, UTC).toString()).request()).actionGet();
-        assertThat(response.isCreated(), is(true));
-        refresh();
-        return response;
     }
 
     @Test
@@ -314,7 +295,6 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
     }
 
     private SearchInput.Result executeSearchInput(SearchRequest request) throws IOException {
-
         createIndex("test-search-index");
         ensureGreen("test-search-index");
         SearchInput.Builder siBuilder = SearchInput.builder(request);

@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.transform.search;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.support.SearchRequestEquivalence;
@@ -73,29 +74,57 @@ public class SearchTransform implements Transform {
 
     public static class Result extends Transform.Result {
 
-        public Result(Payload payload) {
+        private final SearchRequest executedRequest;
+
+        public Result(SearchRequest executedRequest, Payload payload) {
             super(TYPE, payload);
+            this.executedRequest = executedRequest;
         }
 
         @Override
         protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
+            builder.field(Field.EXECUTED_REQUEST.getPreferredName());
+            WatcherUtils.writeSearchRequest(executedRequest, builder, params);
             return builder;
         }
 
         public static Result parse(String watchId, XContentParser parser) throws IOException {
-            XContentParser.Token token = parser.currentToken();
-            if (token != XContentParser.Token.START_OBJECT) {
-                throw new SearchTransformException("could not parse [{}] transform result for watch [{}]. expected an object, but found [{}] instead", TYPE, watchId, token);
+            SearchRequest executedRequest = null;
+            Payload payload = null;
+
+            String currentFieldName = null;
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (Field.EXECUTED_REQUEST.match(currentFieldName)) {
+                    try {
+                        executedRequest = WatcherUtils.readSearchRequest(parser, ExecutableSearchTransform.DEFAULT_SEARCH_TYPE);
+                    } catch (SearchRequestParseException srpe) {
+                        throw new SearchTransformException("could not parse [{}] transform result for watch [{}]. failed to parse [{}]", srpe, TYPE, watchId, currentFieldName);
+                    }
+                } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
+                    if (Field.PAYLOAD.match(currentFieldName)) {
+                        payload = new Payload.XContent(parser);
+                    } else {
+                        throw new SearchTransformException("could not parse [{}] transform result for watch [{}]. unexpected field [{}]", TYPE, watchId, currentFieldName);
+                    }
+                }
             }
-            token = parser.nextToken();
-            if (token != XContentParser.Token.FIELD_NAME || !Field.PAYLOAD.match(parser.currentName())) {
-                throw new SearchTransformException("could not parse [{}] transform result for watch [{}]. expected a [{}] field, but found [{}] instead", TYPE, watchId, Field.PAYLOAD.getPreferredName(), token);
+
+            if (payload == null) {
+                throw new SearchTransformException("could not parse [{}] transform result for watch [{}]. missing required [{}] field", TYPE, watchId, Field.PAYLOAD.getPreferredName());
             }
-            token = parser.nextToken();
-            if (token != XContentParser.Token.START_OBJECT) {
-                throw new SearchTransformException("could not parse [{}] transform result for watch [{}]. expected a [{}] field, but found [{}] instead", TYPE, watchId, Field.PAYLOAD.getPreferredName(), token);
+
+            if (executedRequest == null) {
+                throw new SearchTransformException("could not parse [{}] transform result for watch [{}]. missing required [{}] field", TYPE, watchId, Field.EXECUTED_REQUEST.getPreferredName());
             }
-            return new SearchTransform.Result(new Payload.XContent(parser));
+
+            return new SearchTransform.Result(executedRequest, payload);
+        }
+
+        public SearchRequest executedRequest() {
+            return executedRequest;
         }
     }
 
@@ -111,5 +140,9 @@ public class SearchTransform implements Transform {
         public SearchTransform build() {
             return new SearchTransform(request);
         }
+    }
+
+    public interface Field extends Transform.Field {
+        ParseField EXECUTED_REQUEST = new ParseField("executed_request");
     }
 }

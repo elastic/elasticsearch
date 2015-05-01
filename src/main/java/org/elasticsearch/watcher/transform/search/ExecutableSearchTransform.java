@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
@@ -45,15 +46,18 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
 
     @Override
     public SearchTransform.Result execute(WatchExecutionContext ctx, Payload payload) throws IOException {
-        SearchRequest req = createRequest(transform.request, ctx, payload);
+        SearchRequest req = WatcherUtils.createSearchRequestFromPrototype(transform.request, ctx, scriptService, payload);
         SearchResponse resp = client.search(req);
-        return new SearchTransform.Result(new Payload.XContent(resp));
+        return new SearchTransform.Result(req, new Payload.XContent(resp));
     }
 
     SearchRequest createRequest(SearchRequest requestPrototype, WatchExecutionContext ctx, Payload payload) throws IOException {
         SearchRequest request = new SearchRequest(requestPrototype)
                 .indicesOptions(requestPrototype.indicesOptions())
-                .indices(requestPrototype.indices());
+                .indices(requestPrototype.indices())
+                .searchType(requestPrototype.searchType());
+
+
         if (Strings.hasLength(requestPrototype.source())) {
             String requestSource = XContentHelper.convertToJson(requestPrototype.source(), false);
             ExecutableScript script = scriptService.executable("mustache", requestSource, ScriptService.ScriptType.INLINE, createCtxModel(ctx, payload));

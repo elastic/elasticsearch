@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.transform;
+package org.elasticsearch.watcher.transform.chain;
 
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -14,9 +14,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.transform.chain.ChainTransform;
-import org.elasticsearch.watcher.transform.chain.ChainTransformFactory;
-import org.elasticsearch.watcher.transform.chain.ExecutableChainTransform;
+import org.elasticsearch.watcher.transform.ExecutableTransform;
+import org.elasticsearch.watcher.transform.Transform;
+import org.elasticsearch.watcher.transform.TransformFactory;
+import org.elasticsearch.watcher.transform.TransformRegistry;
 import org.elasticsearch.watcher.watch.Payload;
 import org.junit.Test;
 
@@ -80,9 +81,9 @@ public class ChainTransformTests extends ElasticsearchTestCase {
         parser.nextToken();
         ExecutableChainTransform executable = transformParser.parseExecutable("_id", parser);
         assertThat(executable, notNullValue());
-        assertThat(executable.transform.getTransforms(), notNullValue());
-        assertThat(executable.transform.getTransforms(), hasSize(3));
-        for (int i = 0; i < executable.transform.getTransforms().size(); i++) {
+        assertThat(executable.transform().getTransforms(), notNullValue());
+        assertThat(executable.transform().getTransforms(), hasSize(3));
+        for (int i = 0; i < executable.transform().getTransforms().size(); i++) {
             assertThat(executable.executableTransforms().get(i), instanceOf(NamedExecutableTransform.class));
             assertThat(((NamedExecutableTransform) executable.executableTransforms().get(i)).transform().name, is("name" + (i + 1)));
         }

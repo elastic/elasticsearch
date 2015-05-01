@@ -10,14 +10,19 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.watcher.WatcherException;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.watch.Payload;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -56,6 +61,33 @@ public final class WatcherUtils {
             throw new WatcherException("failed to convert search response to script parameters", ioe);
         }
     }
+
+    public static SearchRequest createSearchRequestFromPrototype(SearchRequest requestPrototype, WatchExecutionContext ctx, ScriptServiceProxy scriptService, Payload payload) throws IOException {
+        SearchRequest request = new SearchRequest(requestPrototype)
+                .indicesOptions(requestPrototype.indicesOptions())
+                .searchType(requestPrototype.searchType())
+                .indices(requestPrototype.indices());
+
+        Map<String, Object> templateParams = Variables.createCtxModel(ctx, payload);
+        templateParams.putAll(requestPrototype.templateParams());
+
+        if (Strings.hasLength(requestPrototype.source())) {
+            String requestSource = XContentHelper.convertToJson(requestPrototype.source(), false);
+            ExecutableScript script = scriptService.executable("mustache", requestSource, ScriptService.ScriptType.INLINE, templateParams);
+            request.source((BytesReference) script.unwrap(script.run()), false);
+        } else if (Strings.hasLength(requestPrototype.templateSource())) {
+            String requestSource = XContentHelper.convertToJson(requestPrototype.templateSource(), false);
+            ExecutableScript script = scriptService.executable("mustache", requestSource, ScriptService.ScriptType.INLINE, templateParams);
+            request.source((BytesReference) script.unwrap(script.run()), false);
+        } else if (requestPrototype.templateName() != null) {
+            request.templateParams(templateParams);
+            request.templateName(requestPrototype.templateName());
+            request.templateType(requestPrototype.templateType());
+        }
+        // falling back to an empty body
+        return request;
+    }
+
 
     /**
      * Reads a new search request instance for the specified parser.

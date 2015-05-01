@@ -6,7 +6,7 @@ We also have repositories available for APT and YUM based distributions.
 We have split the major versions in separate urls to avoid accidental upgrades across major version.
 For all 0.90.x releases use 0.90 as version number, for 1.0.x use 1.0, for 1.1.x use 1.1 etc.
 
-We use the PGP key http://pgp.mit.edu/pks/lookup?op=vindex&search=0xD27D666CD88E42B4[D88E42B4], 
+We use the PGP key http://pgp.mit.edu/pks/lookup?op=vindex&search=0xD27D666CD88E42B4[D88E42B4],
 Elasticsearch Signing Key, with fingerprint
 
     4609 5ACC 8548 582C 1A26 99A9 D27D 666C D88E 42B4
@@ -20,14 +20,14 @@ Download and install the Public Signing Key
 
 [source,sh]
 --------------------------------------------------
-wget -qO - https://packages.elasticsearch.org/GPG-KEY-elasticsearch | sudo apt-key add -
+wget -qO - https://packages.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
 --------------------------------------------------
 
 Add the following to your /etc/apt/sources.list to enable the repository
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-deb http://packages.elasticsearch.org/elasticsearch/{branch}/debian stable main
+deb http://packages.elastic.co/elasticsearch/{branch}/debian stable main
 --------------------------------------------------
 
 Run apt-get update and the repository is ready for use. You can install it with :
@@ -51,7 +51,7 @@ Download and install the Public Signing Key
 
 [source,sh]
 --------------------------------------------------
-rpm --import https://packages.elasticsearch.org/GPG-KEY-elasticsearch
+rpm --import https://packages.elastic.co/GPG-KEY-elasticsearch
 --------------------------------------------------
 
 Add the following in your `/etc/yum.repos.d/` directory
@@ -61,9 +61,9 @@ in a file named (for example) `elasticsearch.repo`
 --------------------------------------------------
 [elasticsearch-{branch}]
 name=Elasticsearch repository for {branch}.x packages
-baseurl=http://packages.elasticsearch.org/elasticsearch/{branch}/centos
+baseurl=http://packages.elastic.co/elasticsearch/{branch}/centos
 gpgcheck=1
-gpgkey=http://packages.elasticsearch.org/GPG-KEY-elasticsearch
+gpgkey=http://packages.elastic.co/GPG-KEY-elasticsearch
 enabled=1
 --------------------------------------------------
 

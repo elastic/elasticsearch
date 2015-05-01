@@ -54,73 +54,73 @@ public class CheckFileCommandTests extends ElasticsearchTestCase {
 
     @Test
     public void testThatCommandLogsErrorMessageOnFail() throws Exception {
-        executeCommand(jimFsConfiguration, new PermissionCheckFileCommand(captureOutputTerminal, Mode.CHANGE));
+        executeCommand(jimFsConfiguration, new PermissionCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.CHANGE));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasItem(containsString("Please ensure that the user account running Elasticsearch has read access to this file")));
     }
 
     @Test
     public void testThatCommandLogsNothingWhenPermissionRemains() throws Exception {
-        executeCommand(jimFsConfiguration, new PermissionCheckFileCommand(captureOutputTerminal, Mode.KEEP));
+        executeCommand(jimFsConfiguration, new PermissionCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.KEEP));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
     @Test
     public void testThatCommandLogsNothingWhenDisabled() throws Exception {
-        executeCommand(jimFsConfiguration, new PermissionCheckFileCommand(captureOutputTerminal, Mode.DISABLED));
+        executeCommand(jimFsConfiguration, new PermissionCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
     @Test
     public void testThatCommandLogsNothingIfFilesystemDoesNotSupportPermissions() throws Exception {
-        executeCommand(jimFsConfigurationWithoutPermissions, new PermissionCheckFileCommand(captureOutputTerminal, Mode.DISABLED));
+        executeCommand(jimFsConfigurationWithoutPermissions, new PermissionCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
     @Test
     public void testThatCommandLogsOwnerChange() throws Exception {
-        executeCommand(jimFsConfiguration, new OwnerCheckFileCommand(captureOutputTerminal, Mode.CHANGE));
+        executeCommand(jimFsConfiguration, new OwnerCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.CHANGE));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasItem(allOf(containsString("Owner of file ["), containsString("] used to be ["), containsString("], but now is ["))));
     }
 
     @Test
     public void testThatCommandLogsNothingIfOwnerRemainsSame() throws Exception {
-        executeCommand(jimFsConfiguration, new OwnerCheckFileCommand(captureOutputTerminal, Mode.KEEP));
+        executeCommand(jimFsConfiguration, new OwnerCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.KEEP));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
     @Test
     public void testThatCommandLogsNothingIfOwnerIsDisabled() throws Exception {
-        executeCommand(jimFsConfiguration, new OwnerCheckFileCommand(captureOutputTerminal, Mode.DISABLED));
+        executeCommand(jimFsConfiguration, new OwnerCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
     @Test
     public void testThatCommandLogsNothingIfFileSystemDoesNotSupportOwners() throws Exception {
-        executeCommand(jimFsConfigurationWithoutPermissions, new OwnerCheckFileCommand(captureOutputTerminal, Mode.DISABLED));
+        executeCommand(jimFsConfigurationWithoutPermissions, new OwnerCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
     @Test
     public void testThatCommandLogsIfGroupChanges() throws Exception {
-        executeCommand(jimFsConfiguration, new GroupCheckFileCommand(captureOutputTerminal, Mode.CHANGE));
+        executeCommand(jimFsConfiguration, new GroupCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.CHANGE));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasItem(allOf(containsString("Group of file ["), containsString("] used to be ["), containsString("], but now is ["))));
     }
 
     @Test
     public void testThatCommandLogsNothingIfGroupRemainsSame() throws Exception {
-        executeCommand(jimFsConfiguration, new GroupCheckFileCommand(captureOutputTerminal, Mode.KEEP));
+        executeCommand(jimFsConfiguration, new GroupCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.KEEP));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
     @Test
     public void testThatCommandLogsNothingIfGroupIsDisabled() throws Exception {
-        executeCommand(jimFsConfiguration, new GroupCheckFileCommand(captureOutputTerminal, Mode.DISABLED));
+        executeCommand(jimFsConfiguration, new GroupCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
     @Test
     public void testThatCommandLogsNothingIfFileSystemDoesNotSupportGroups() throws Exception {
-        executeCommand(jimFsConfigurationWithoutPermissions, new GroupCheckFileCommand(captureOutputTerminal, Mode.DISABLED));
+        executeCommand(jimFsConfigurationWithoutPermissions, new GroupCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
@@ -130,7 +130,10 @@ public class CheckFileCommandTests extends ElasticsearchTestCase {
 
         try (FileSystem fs = Jimfs.newFileSystem(configuration)) {
             Path path = fs.getPath(randomAsciiOfLength(10));
-            new CreateFileCommand(captureOutputTerminal, path).execute(ImmutableSettings.EMPTY, new Environment(ImmutableSettings.EMPTY));
+            Settings settings = ImmutableSettings.builder()
+                    .put("path.home", createTempDir().toString())
+                    .build();
+            new CreateFileCommand(captureOutputTerminal, path).execute(settings, new Environment(settings));
             assertThat(Files.exists(path), is(true));
         }
 
@@ -145,7 +148,10 @@ public class CheckFileCommandTests extends ElasticsearchTestCase {
             Path path = fs.getPath(randomAsciiOfLength(10));
             Files.write(path, "anything".getBytes(Charsets.UTF_8));
 
-            new DeleteFileCommand(captureOutputTerminal, path).execute(ImmutableSettings.EMPTY, new Environment(ImmutableSettings.EMPTY));
+            Settings settings = ImmutableSettings.builder()
+                    .put("path.home", createTempDir().toString())
+                    .build();
+            new DeleteFileCommand(captureOutputTerminal, path).execute(settings, new Environment(settings));
             assertThat(Files.exists(path), is(false));
         }
 
@@ -163,16 +169,21 @@ public class CheckFileCommandTests extends ElasticsearchTestCase {
         protected final Mode mode;
         protected FileSystem fs;
         protected Path[] paths;
+        final Path baseDir;
 
-        public AbstractTestCheckFileCommand(Terminal terminal, Mode mode) throws IOException {
+        public AbstractTestCheckFileCommand(Path baseDir, Terminal terminal, Mode mode) throws IOException {
             super(terminal);
             this.mode = mode;
+            this.baseDir = baseDir;
         }
 
         public CliTool.ExitStatus execute(FileSystem fs) throws Exception {
             this.fs = fs;
             this.paths = new Path[] { writePath(fs, "p1", "anything"), writePath(fs, "p2", "anything"), writePath(fs, "p3", "anything") };
-            return super.execute(ImmutableSettings.EMPTY, new Environment(ImmutableSettings.EMPTY));
+            Settings settings = ImmutableSettings.settingsBuilder()
+                    .put("path.home", baseDir.toString())
+                    .build();
+            return super.execute(ImmutableSettings.EMPTY, new Environment(settings));
         }
 
         private Path writePath(FileSystem fs, String name, String content) throws IOException {
@@ -192,8 +203,8 @@ public class CheckFileCommandTests extends ElasticsearchTestCase {
      */
     class PermissionCheckFileCommand extends AbstractTestCheckFileCommand {
 
-        public PermissionCheckFileCommand(Terminal terminal, Mode mode) throws IOException {
-            super(terminal, mode);
+        public PermissionCheckFileCommand(Path baseDir, Terminal terminal, Mode mode) throws IOException {
+            super(baseDir, terminal, mode);
         }
 
         @Override
@@ -221,8 +232,8 @@ public class CheckFileCommandTests extends ElasticsearchTestCase {
      */
     class OwnerCheckFileCommand extends AbstractTestCheckFileCommand {
 
-        public OwnerCheckFileCommand(Terminal terminal, Mode mode) throws IOException {
-            super(terminal, mode);
+        public OwnerCheckFileCommand(Path baseDir, Terminal terminal, Mode mode) throws IOException {
+            super(baseDir, terminal, mode);
         }
 
         @Override
@@ -251,8 +262,8 @@ public class CheckFileCommandTests extends ElasticsearchTestCase {
      */
     class GroupCheckFileCommand extends AbstractTestCheckFileCommand {
 
-        public GroupCheckFileCommand(Terminal terminal, Mode mode) throws IOException {
-            super(terminal, mode);
+        public GroupCheckFileCommand(Path baseDir, Terminal terminal, Mode mode) throws IOException {
+            super(baseDir, terminal, mode);
         }
 
         @Override

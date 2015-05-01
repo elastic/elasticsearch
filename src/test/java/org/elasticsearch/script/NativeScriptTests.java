@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,8 +51,10 @@ public class NativeScriptTests extends ElasticsearchTestCase {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("script.native.my.type", MyNativeScriptFactory.class.getName())
                 .put("name", "testNativeScript")
+                .put("path.home", createTempDir())
                 .build();
         Injector injector = new ModulesBuilder().add(
+                new EnvironmentModule(new Environment(settings)),
                 new ThreadPoolModule(settings),
                 new SettingsModule(settings),
                 new ScriptModule(settings)).createInjector();
@@ -73,7 +76,7 @@ public class NativeScriptTests extends ElasticsearchTestCase {
             String scriptContext = randomFrom(ScriptContext.Standard.values()).getKey();
             builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + scriptContext, randomFrom(ScriptMode.values()));
         }
-        Settings settings = builder.build();
+        Settings settings = builder.put("path.home", createTempDir()).build();
         Environment environment = new Environment(settings);
         ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, null);
         Map<String, NativeScriptFactory> nativeScriptFactoryMap = new HashMap<>();

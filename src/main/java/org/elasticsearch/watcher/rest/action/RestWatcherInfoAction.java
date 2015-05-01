@@ -21,18 +21,15 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestWatcherInfoAction extends WatcherRestHandler {
 
-    private final WatcherClient watcherClient;
-
     @Inject
-    protected RestWatcherInfoAction(Settings settings, RestController controller, Client client, WatcherClient watcherClient) {
+    protected RestWatcherInfoAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
-        this.watcherClient = watcherClient;
         controller.registerHandler(GET, URI_BASE, this);
     }
 
     @Override
     protected void handleRequest(RestRequest request, RestChannel restChannel, WatcherClient client) throws Exception {
-        watcherClient.watcherStats(new WatcherStatsRequest(), new RestBuilderListener<WatcherStatsResponse>(restChannel) {
+        client.watcherStats(new WatcherStatsRequest(), new RestBuilderListener<WatcherStatsResponse>(restChannel) {
             @Override
             public RestResponse buildResponse(WatcherStatsResponse watcherStatsResponse, XContentBuilder builder) throws Exception {
                 builder.startObject();

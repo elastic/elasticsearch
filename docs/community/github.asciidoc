@@ -1,6 +1,0 @@
-[[github]]
-== GitHub
-
-GitHub is a place where a lot of development is done around
-*elasticsearch*, here is a simple search for
-https://github.com/search?q=elasticsearch&type=Repositories[repositories].

@@ -101,7 +101,8 @@ public class DisMaxQueryBuilder extends BaseQueryBuilder implements BoostableQue
         builder.endObject();
     }
 
-    final protected String parserName() {
+    @Override
+    protected String parserName() {
         return DisMaxQueryParser.NAME;
     }
 }

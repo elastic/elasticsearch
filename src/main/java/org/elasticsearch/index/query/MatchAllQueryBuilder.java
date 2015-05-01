@@ -62,10 +62,6 @@ public class MatchAllQueryBuilder extends BaseQueryBuilder implements Streamable
         builder.endObject();
     }
 
-    final protected String parserName() {
-        return MatchAllQueryParser.NAME;
-    }
-
     @Override
     public Query toQuery(QueryParseContext parseContext) {
         if (this.boost == 1.0f) {
@@ -102,5 +98,10 @@ public class MatchAllQueryBuilder extends BaseQueryBuilder implements Streamable
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeFloat(this.boost);
+    }
+
+    @Override
+    protected String parserName() {
+        return MatchAllQueryParser.NAME;
     }
 }

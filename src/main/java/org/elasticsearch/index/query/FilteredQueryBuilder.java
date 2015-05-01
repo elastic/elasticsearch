@@ -86,7 +86,8 @@ public class FilteredQueryBuilder extends BaseQueryBuilder implements BoostableQ
         builder.endObject();
     }
 
-    final protected String parserName() {
+    @Override
+    protected String parserName() {
         return FilteredQueryParser.NAME;
     }
 }

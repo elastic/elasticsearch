@@ -277,7 +277,8 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         builder.endObject();
     }
 
-    final protected String parserName() {
+    @Override
+    protected String parserName() {
         return MatchQueryParser.NAME;
     }
 }

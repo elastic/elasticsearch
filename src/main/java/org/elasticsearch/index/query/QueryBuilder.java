@@ -37,7 +37,7 @@ public interface QueryBuilder extends ToXContent {
     BytesReference buildAsBytes(XContentType contentType);
 
     /**
-     * Create a {@link Query} based on this QueryBuilder
+     * Converts this QueryBuilder to a lucene {@link Query}
      * @param parseContext additional information needed to construct the queries
      * @return the {@link Query}
      * @throws QueryParsingException

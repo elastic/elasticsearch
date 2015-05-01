@@ -96,7 +96,8 @@ public class PrefixQueryBuilder extends BaseQueryBuilder implements MultiTermQue
         builder.endObject();
     }
 
-    final protected String parserName() {
+    @Override
+    protected String parserName() {
         return PrefixQueryParser.NAME;
     }
 }

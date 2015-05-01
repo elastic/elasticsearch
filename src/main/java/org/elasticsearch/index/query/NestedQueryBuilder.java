@@ -113,7 +113,8 @@ public class NestedQueryBuilder extends BaseQueryBuilder implements BoostableQue
         builder.endObject();
     }
 
-    final protected String parserName() {
+    @Override
+    protected final String parserName() {
         return NestedQueryParser.NAME;
     }
 }

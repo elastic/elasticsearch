@@ -46,8 +46,8 @@ public interface QueryParser {
     Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException;
 
     /**
-     * Create a new QueryBuilder from the query as XContent stored int the
-     * parseContext
+     * Creates a new {@link QueryBuilder} from the query held by the {@link QueryParseContext}
+     * in {@link org.elasticsearch.common.xcontent.XContent} format
      *
      * @param parseContext
      *            the input parse context. The state on the parser contained in

@@ -128,7 +128,8 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
         builder.endObject();
     }
 
-    final protected String parserName() {
+    @Override
+    protected String parserName() {
         return FuzzyQueryParser.NAME;
     }
 }

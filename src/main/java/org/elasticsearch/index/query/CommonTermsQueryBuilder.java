@@ -201,7 +201,8 @@ public class CommonTermsQueryBuilder extends BaseQueryBuilder implements Boostab
         builder.endObject();
     }
 
-    final protected String parserName() {
+    @Override
+    protected String parserName() {
         return CommonTermsQueryParser.NAME;
     }
 }

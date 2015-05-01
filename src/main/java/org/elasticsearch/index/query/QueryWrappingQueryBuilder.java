@@ -25,8 +25,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * Temporary wrapper for keeping pre-parsed lucene query in a QueryBuilder field in nested queries.
- * Can be removed after query refactoring is done.
+ * QueryBuilder implementation that  holds a lucene query, which can be returned by {@link #toQuery(QueryParseContext)}.
+ * Doesn't support conversion to {@link org.elasticsearch.common.xcontent.XContent} via {@link #doXContent(XContentBuilder, Params)}.
+ * Will be removed once all queries support separate fromXContent and toQuery methods.
  */
 public class QueryWrappingQueryBuilder extends BaseQueryBuilder {
 
@@ -46,7 +47,8 @@ public class QueryWrappingQueryBuilder extends BaseQueryBuilder {
         return this.query;
     }
 
-    final protected String parserName() {
+    @Override
+    protected final String parserName() {
         // this should not be called since we overwrite BaseQueryBuilder#toQuery() in this class
         throw new UnsupportedOperationException();
     }

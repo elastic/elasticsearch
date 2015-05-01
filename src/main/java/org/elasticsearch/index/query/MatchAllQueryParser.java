@@ -41,6 +41,7 @@ public class MatchAllQueryParser extends BaseQueryParser {
         return new String[]{NAME, Strings.toCamelCase(NAME)};
     }
 
+    @Override
     public MatchAllQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         MatchAllQueryBuilder queryBuilder = new MatchAllQueryBuilder();
         XContentParser parser = parseContext.parser();

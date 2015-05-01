@@ -442,7 +442,8 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         builder.endObject();
     }
 
-    final protected String parserName() {
+    @Override
+    protected String parserName() {
         return MoreLikeThisQueryParser.NAME;
     }
 }

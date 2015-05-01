@@ -71,7 +71,8 @@ public class FieldMaskingSpanQueryBuilder extends BaseQueryBuilder implements Sp
         builder.endObject();
     }
 
-    final protected String parserName() {
+    @Override
+    protected String parserName() {
         return FieldMaskingSpanQueryParser.NAME;
     }
 }

@@ -69,12 +69,18 @@ public abstract class BaseQueryBuilder implements QueryBuilder {
         return builder;
     }
 
+    /**
+     * Temporary default implementation for toQuery that parses the query using its query parser
+     * Will be removed once all queries override toQuery with their own specific implementation.
+     */
     public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
         return parseContext.indexQueryParserService().queryParser(parserName()).parse(parseContext);
     }
 
     /**
-     * @return the name of the parser class the default toQuery() method delegates to
+     * Temporary method that allows to retrieve the parser for each query.
+     * Won't be needed anymore once all query builders properly implement {@link #toQuery(QueryParseContext)}
+     * @return the name of the parser class the default {@link #toQuery(QueryParseContext)} method delegates to
      */
     protected abstract String parserName();
 

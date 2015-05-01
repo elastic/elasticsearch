@@ -185,7 +185,8 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
         }
     }
 
-    final protected String parserName() {
+    @Override
+    protected String parserName() {
         return BoolQueryParser.NAME;
     }
 }

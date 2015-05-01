@@ -87,7 +87,8 @@ public class ConstantScoreQueryBuilder extends BaseQueryBuilder implements Boost
         builder.endObject();
     }
 
-    final protected String parserName() {
+    @Override
+    protected String parserName() {
         return ConstantScoreQueryParser.NAME;
     }
 }

@@ -85,7 +85,8 @@ public class IndicesQueryBuilder extends BaseQueryBuilder {
         builder.endObject();
     }
 
-    final protected String parserName() {
+    @Override
+    protected String parserName() {
         return IndicesQueryParser.NAME;
     }
 }

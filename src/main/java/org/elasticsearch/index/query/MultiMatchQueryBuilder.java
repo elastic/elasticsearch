@@ -405,7 +405,8 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
         builder.endObject();
     }
 
-    final protected String parserName() {
+    @Override
+    protected String parserName() {
         return MultiMatchQueryParser.NAME;
     }
 }

@@ -159,11 +159,11 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
     /**
      * Sets the boolean operator of the query parser used to parse the query string.
      * <p/>
-     * <p>In default mode ({@link FieldQueryBuilder.Operator#OR}) terms without any modifiers
+     * <p>In default mode ({@link Operator#OR}) terms without any modifiers
      * are considered optional: for example <code>capital of Hungary</code> is equal to
      * <code>capital OR of OR Hungary</code>.
      * <p/>
-     * <p>In {@link FieldQueryBuilder.Operator#AND} mode terms are considered to be in conjunction: the
+     * <p>In {@link Operator#AND} mode terms are considered to be in conjunction: the
      * above mentioned query is parsed as <code>capital AND of AND Hungary</code>
      */
     public QueryStringQueryBuilder defaultOperator(Operator defaultOperator) {
@@ -434,7 +434,8 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
         builder.endObject();
     }
 
-    final protected String parserName() {
+    @Override
+    protected String parserName() {
         return QueryStringQueryParser.NAME;
     }
 }

@@ -31,6 +31,7 @@ import java.io.IOException;
  */
 public abstract class BaseQueryParser implements QueryParser {
 
+    @Override
     public final Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         return fromXContent(parseContext).toQuery(parseContext);
     }

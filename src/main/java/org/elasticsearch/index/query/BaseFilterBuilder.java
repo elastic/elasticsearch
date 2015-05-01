@@ -70,8 +70,8 @@ public abstract class BaseFilterBuilder implements FilterBuilder {
 
     /**
      * Temporary default implementation for toFilter that parses the filter using its filter parser
-     * Will be removed once all filters override toFilter with their own specific implementation.
      */
+    //norelease to be removed once all filter builders override toFilter providing their own specific implementation.
     @Override
     public Filter toFilter(QueryParseContext parseContext) throws IOException {
         return parseContext.indexQueryParserService().filterParser(parserName()).parse(parseContext);
@@ -79,8 +79,8 @@ public abstract class BaseFilterBuilder implements FilterBuilder {
 
     /**
      * Temporary method that allows to retrieve the parser for each filter.
-     * Won't be needed anymore once all filter builders properly implement {@link #toFilter(QueryParseContext)}
      * @return the name of the parser class the default {@link #toFilter(QueryParseContext)} method delegates to
      */
+    //norelease to be removed once all filter builders override toFilter providing their own specific implementation.
     protected abstract String parserName();
 }

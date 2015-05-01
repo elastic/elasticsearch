@@ -27,8 +27,8 @@ import java.io.IOException;
  * This class with method impl is an intermediate step in the query parsers refactoring.
  * Provides a fromXContent default implementation for query parsers that don't have yet a
  * specific fromXContent implementation that returns a QueryBuilder.
- * To be removed once all filters are moved over to extend {@link BaseQueryParser}.
  */
+//norelease to be removed once all queries are moved over to extend BaseQueryParser
 public abstract class BaseQueryParserTemp implements QueryParser {
 
     @Override

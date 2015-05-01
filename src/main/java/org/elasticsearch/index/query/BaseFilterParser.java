@@ -24,11 +24,12 @@ import org.apache.lucene.search.Filter;
 import java.io.IOException;
 
 /**
- * Class used during the filter parsers refactoring.
+ * Class used during the filter parsers refactoring. Will be removed once we can parse search requests on the coordinating node.
  * All filter parsers that have a refactored "fromXContent" method can be changed to extend this instead of {@link BaseFilterParserTemp}.
  * Keeps old {@link FilterParser#parse(QueryParseContext)} method as a stub delegating to
  * {@link FilterParser#fromXContent(QueryParseContext)} and {@link FilterBuilder#toFilter(QueryParseContext)}}
  */
+//norelease needs to be removed once we parse search requests on the coordinating node, as the parse method is not needed anymore at that point.
 public abstract class BaseFilterParser implements FilterParser {
 
     @Override

@@ -42,6 +42,7 @@ public interface QueryParser {
      * Returns <tt>null</tt> if this query should be ignored in the context of
      * the DSL.
      */
+    //norelease can be removed in favour of fromXContent once search requests can be parsed on the coordinating node
     @Nullable
     Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException;
 

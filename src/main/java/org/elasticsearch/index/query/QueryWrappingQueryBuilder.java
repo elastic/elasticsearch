@@ -27,8 +27,8 @@ import java.io.IOException;
 /**
  * QueryBuilder implementation that  holds a lucene query, which can be returned by {@link #toQuery(QueryParseContext)}.
  * Doesn't support conversion to {@link org.elasticsearch.common.xcontent.XContent} via {@link #doXContent(XContentBuilder, Params)}.
- * Will be removed once all queries support separate fromXContent and toQuery methods.
  */
+//norelease to be removed once all queries support separate fromXContent and toQuery methods
 public class QueryWrappingQueryBuilder extends BaseQueryBuilder {
 
     private Query query;

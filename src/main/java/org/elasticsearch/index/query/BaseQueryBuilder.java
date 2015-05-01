@@ -71,17 +71,17 @@ public abstract class BaseQueryBuilder implements QueryBuilder {
 
     /**
      * Temporary default implementation for toQuery that parses the query using its query parser
-     * Will be removed once all queries override toQuery with their own specific implementation.
      */
+    //norelease to be removed once all query builders override toQuery providing their own specific implementation.
     public Query toQuery(QueryParseContext parseContext) throws QueryParsingException, IOException {
         return parseContext.indexQueryParserService().queryParser(parserName()).parse(parseContext);
     }
 
     /**
      * Temporary method that allows to retrieve the parser for each query.
-     * Won't be needed anymore once all query builders properly implement {@link #toQuery(QueryParseContext)}
      * @return the name of the parser class the default {@link #toQuery(QueryParseContext)} method delegates to
      */
+    //norelease to be removed once all query builders override toQuery providing their own specific implementation.
     protected abstract String parserName();
 
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;

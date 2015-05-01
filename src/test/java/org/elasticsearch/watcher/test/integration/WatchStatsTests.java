@@ -6,17 +6,17 @@
 package org.elasticsearch.watcher.test.integration;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.watcher.WatcherBuild;
 import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.WatcherVersion;
 import org.elasticsearch.watcher.client.WatcherClient;
+import org.elasticsearch.watcher.condition.ConditionBuilders;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsRequest;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
@@ -24,6 +24,10 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
+import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
+import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
+import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -57,9 +61,12 @@ public class WatchStatsTests extends AbstractWatcherIntegrationTests {
         assertThat(response.getWatchServiceState(), equalTo(WatcherService.State.STARTED));
 
         SearchRequest searchRequest = WatcherTestUtils.newInputSearchRequest("idx").source(searchSource().query(termQuery("field", "value")));
-        BytesReference watchSource = createWatchSource("* * * * * ? *", searchRequest, "ctx.payload.hits.total == 1");
         watcherClient().preparePutWatch("_name")
-                .setSource(watchSource)
+                .setSource(watchBuilder()
+                        .trigger(schedule(cron("* * * * * ? *")))
+                        .input(searchInput(searchRequest))
+                        .condition(ConditionBuilders.scriptCondition("ctx.payload.hits.total == 1"))
+                )
                 .get();
 
         if (timeWarped()) {

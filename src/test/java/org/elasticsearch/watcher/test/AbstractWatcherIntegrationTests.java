@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.test;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -16,15 +15,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.base.Charsets;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.netty.util.internal.SystemPropertyUtil;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.plugin.LicensePlugin;
@@ -38,6 +34,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.watcher.WatcherPlugin;
+import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.actions.email.service.Authentication;
 import org.elasticsearch.watcher.actions.email.service.Email;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
@@ -47,19 +44,14 @@ import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.license.LicenseService;
-import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.watcher.trigger.TriggerService;
-import org.elasticsearch.watcher.trigger.schedule.Schedule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleModule;
-import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
-import org.elasticsearch.watcher.trigger.schedule.Schedules;
 import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.WatcherService;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -70,7 +62,6 @@ import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.*;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
@@ -236,67 +227,6 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         }
         builder.setSource(source.buildAsBytes());
         return builder.get().getHits().getTotalHits();
-    }
-
-    protected BytesReference createWatchSource(String cron, SearchRequest conditionRequest, String conditionScript) throws IOException {
-        return createWatchSource(cron, conditionRequest, conditionScript, null);
-    }
-
-    protected BytesReference createWatchSource(Schedule schedule, SearchRequest conditionRequest, String conditionScript) throws IOException {
-        return createWatchSource(schedule, conditionRequest, conditionScript, null);
-    }
-
-    protected BytesReference createWatchSource(String cron, SearchRequest conditionRequest, String conditionScript, Map<String, Object> metadata) throws IOException {
-        return createWatchSource(Schedules.cron(cron), conditionRequest, conditionScript, metadata);
-    }
-
-    protected BytesReference createWatchSource(Schedule schedule, SearchRequest conditionRequest, String conditionScript, Map<String, Object> metadata) throws IOException {
-        ScheduleTrigger trigger = new ScheduleTrigger(schedule);
-        XContentBuilder builder = jsonBuilder();
-        builder.startObject();
-        {
-            builder.startObject("trigger")
-                    .field(trigger.type(), trigger)
-                    .endObject();
-
-            if (metadata != null) {
-                builder.field("meta", metadata);
-            }
-
-            builder.startObject("input");
-            {
-                builder.startObject("search");
-                builder.field("request");
-                WatcherUtils.writeSearchRequest(conditionRequest, builder, ToXContent.EMPTY_PARAMS);
-                builder.endObject();
-            }
-            builder.endObject();
-
-            builder.startObject("condition");
-            {
-                builder.startObject("script");
-                builder.field("script", conditionScript);
-                builder.endObject();
-            }
-            builder.endObject();
-
-
-            builder.startObject("actions");
-            {
-                builder.startObject("_action_id");
-                {
-                    builder.startObject("index")
-                            .field("index", "my-index")
-                            .field("doc_type", "trail")
-                            .endObject();
-                }
-                builder.endObject();
-            }
-            builder.endObject();
-        }
-        builder.endObject();
-
-        return builder.bytes();
     }
 
     protected <T> T getInstanceFromMaster(Class<T> type) {

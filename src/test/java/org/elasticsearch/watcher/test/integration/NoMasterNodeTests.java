@@ -11,7 +11,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.base.Predicate;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -24,6 +23,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatchSourceBuilders;
+import org.elasticsearch.watcher.condition.ConditionBuilders;
 import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
@@ -37,9 +37,12 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
+import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondition;
+import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -85,7 +88,10 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
         // Have a sample document in the index, the watch is going to evaluate
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
         SearchRequest searchRequest = WatcherTestUtils.newInputSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
-        BytesReference watchSource = createWatchSource("0/5 * * * * ? *", searchRequest, "ctx.payload.hits.total == 1");
+        WatchSourceBuilder watchSource = watchBuilder()
+                .trigger(schedule(cron("0/5 * * * * ? *")))
+                .input(searchInput(searchRequest))
+                .condition(ConditionBuilders.scriptCondition("ctx.payload.hits.total == 1"));
 
         // we first need to make sure the license is enabled, otherwise all APIs will be blocked
         ensureLicenseEnabled();
@@ -186,7 +192,10 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
         for (int i = 1; i <= numberOfWatches; i++) {
             String watchName = "watch" + i;
             SearchRequest searchRequest = WatcherTestUtils.newInputSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
-            BytesReference watchSource = createWatchSource("0/5 * * * * ? *", searchRequest, "ctx.payload.hits.total == 1");
+            WatchSourceBuilder watchSource = watchBuilder()
+                    .trigger(schedule(cron("0/5 * * * * ? *")))
+                    .input(searchInput(searchRequest))
+                    .condition(ConditionBuilders.scriptCondition("ctx.payload.hits.total == 1"));
             watcherClient().preparePutWatch(watchName).setSource(watchSource).get();
         }
         ensureGreen();

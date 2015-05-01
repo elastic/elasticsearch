@@ -18,6 +18,7 @@ import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatcherClient;
+import org.elasticsearch.watcher.condition.ConditionBuilders;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
@@ -405,7 +406,10 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         assertAcked(prepareCreate("events").addMapping("event", "_timestamp", "enabled=true", "level", "type=string"));
 
         watcherClient().preparePutWatch(watchName)
-                .setSource(createWatchSource(interval("5s"), request, "return ctx.payload.hits.total >= 3"))
+                .setSource(watchBuilder()
+                        .trigger(schedule(interval("5s")))
+                        .input(searchInput(request))
+                        .condition(ConditionBuilders.scriptCondition("return ctx.payload.hits.total >= 3")))
                 .get();
 
         logger.info("created watch [{}] at [{}]", watchName, DateTime.now());

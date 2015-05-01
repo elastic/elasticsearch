@@ -192,11 +192,10 @@ QueryBuilder qb = QueryBuilders.matchAllQuery();
 
 
 [[mlt]]
-=== More Like This (Field) Query (mlt and mlt_field)
+=== More Like This Query (mlt)
 
 See:
  * {ref}/query-dsl-mlt-query.html[More Like This Query]
- * {ref}/query-dsl-mlt-field-query.html[More Like This Field Query]
 
 [source,java]
 --------------------------------------------------
@@ -207,11 +206,6 @@ QueryBuilders.moreLikeThisQuery("name.first", "name.last")      // Fields
                 .maxQueryTerms(12);                             // Max num of Terms
                                                                 // in generated queries
 
-// mlt_field Query
-QueryBuilders.moreLikeThisFieldQuery("name.first")              // Only on single field
-                .likeText("text like this one")
-                .minTermFreq(1)
-                .maxQueryTerms(12);
 --------------------------------------------------
 
 

@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.watch;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.joda.time.PeriodType;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -49,6 +50,22 @@ public class WatchLockService extends AbstractComponent {
         return new Lock(name, watchLocks);
     }
 
+    public Lock tryAcquire(String name, TimeValue timeout) {
+        if (!running.get()) {
+            throw new ElasticsearchIllegalStateException("not started");
+        }
+        try {
+            if (!watchLocks.tryAcquire(name, timeout.millis(), TimeUnit.MILLISECONDS)) {
+                logger.warn("failed to acquire lock on watch [{}] (waited for [{}]). It is possible that for some reason this watch execution is stuck", name, timeout.format(PeriodType.seconds()));
+                return null;
+            }
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new AcquireException("could not acquire lock for watch [{}]", name);
+        }
+        return new Lock(name, watchLocks);
+    }
+
     public void start() {
         if (running.compareAndSet(false, true)) {
             // init
@@ -56,9 +73,9 @@ public class WatchLockService extends AbstractComponent {
     }
 
     /**
-     * @throws TimedOutException if we have waited longer than maxStopTimeout
+     * @throws TimeoutException if we have waited longer than maxStopTimeout
      */
-    public void stop() throws TimedOutException {
+    public void stop() throws TimeoutException {
         if (running.compareAndSet(true, false)) {
             // It can happen we have still ongoing operations and we wait those operations to finish to avoid
             // that watch service or any of its components end up in a illegal state after the state as been set to stopped.
@@ -72,7 +89,7 @@ public class WatchLockService extends AbstractComponent {
             while (watchLocks.hasLockedKeys()) {
                 TimeValue timeWaiting = new TimeValue(System.currentTimeMillis() - startWait);
                 if (timeWaiting.getSeconds() > maxStopTimeout.getSeconds()) {
-                    throw new TimedOutException("timed out waiting for watches to complete, after waiting for [{}]", timeWaiting);
+                    throw new TimeoutException("timed out waiting for watches to complete, after waiting for [{}]", timeWaiting);
                 }
                 try {
                     Thread.sleep(100);
@@ -102,14 +119,25 @@ public class WatchLockService extends AbstractComponent {
         }
     }
 
-    public static class TimedOutException extends WatcherException {
+    public static class TimeoutException extends WatcherException {
 
-        public TimedOutException(String msg, Throwable cause, Object... args) {
+        public TimeoutException(String msg, Throwable cause, Object... args) {
             super(msg, cause, args);
         }
 
-        public TimedOutException(String msg, Object... args) {
+        public TimeoutException(String msg, Object... args) {
             super(msg, args);
+        }
+    }
+
+    public static class AcquireException extends WatcherException {
+
+        public AcquireException(String msg, Object... args) {
+            super(msg, args);
+        }
+
+        public AcquireException(String msg, Throwable cause, Object... args) {
+            super(msg, cause, args);
         }
     }
 }

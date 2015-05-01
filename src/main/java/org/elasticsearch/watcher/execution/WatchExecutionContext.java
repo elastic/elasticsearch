@@ -15,7 +15,7 @@ import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchExecution;
+import org.elasticsearch.watcher.watch.WatchExecutionResult;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -128,7 +128,7 @@ public abstract class WatchExecutionContext {
         return new ExecutableActions.Results(actionsResults);
     }
 
-    public WatchExecution finish() {
-        return new WatchExecution(this);
+    public WatchExecutionResult finish() {
+        return new WatchExecutionResult(this);
     }
 }

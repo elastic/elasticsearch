@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -46,6 +47,37 @@ public class FairKeyedLock<T>  {
                 perNodeLock.lock();
                 threadLocal.set(perNodeLock);
                 return;
+            }
+        }
+    }
+
+    public boolean tryAcquire(T key, long timeout, TimeUnit timeUnit) throws InterruptedException {
+        while (true) {
+            if (threadLocal.get() != null) {
+                // if we are here, the thread already has the lock
+                throw new ElasticsearchIllegalStateException("Lock already acquired in Thread" + Thread.currentThread().getId()
+                        + " for key " + key);
+            }
+            KeyLock perNodeLock = map.get(key);
+            if (perNodeLock == null) {
+                KeyLock newLock = new KeyLock(true);
+                perNodeLock = map.putIfAbsent(key, newLock);
+                if (perNodeLock == null) {
+                    if (newLock.tryLock(timeout, timeUnit)) {
+                        threadLocal.set(newLock);
+                        return true;
+                    }
+                    return false;
+                }
+            }
+            assert perNodeLock != null;
+            int i = perNodeLock.count.get();
+            if (i > 0 && perNodeLock.count.compareAndSet(i, i + 1)) {
+                if (perNodeLock.tryLock(timeout, timeUnit)) {
+                    threadLocal.set(perNodeLock);
+                    return true;
+                }
+                return false;
             }
         }
     }

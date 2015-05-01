@@ -59,7 +59,7 @@ public class WatchLockServiceTests extends ElasticsearchTestCase {
         lockService.stop();
     }
 
-    @Test(expected = WatchLockService.TimedOutException.class)
+    @Test(expected = WatchLockService.TimeoutException.class)
     public void testLocking_stopTimeout(){
         final WatchLockService lockService = new WatchLockService(new TimeValue(1, TimeUnit.SECONDS));
         lockService.start();

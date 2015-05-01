@@ -12,7 +12,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.joda.time.PeriodType;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.trigger.TriggerService;
 import org.elasticsearch.watcher.watch.Watch;
@@ -20,7 +22,6 @@ import org.elasticsearch.watcher.watch.WatchLockService;
 import org.elasticsearch.watcher.watch.WatchStore;
 
 import java.io.IOException;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class WatcherService extends AbstractComponent {
@@ -68,7 +69,7 @@ public class WatcherService extends AbstractComponent {
             executionService.stop();
             try {
                 watchLockService.stop();
-            } catch (WatchLockService.TimedOutException we) {
+            } catch (WatchLockService.TimeoutException we) {
                 logger.warn("error stopping WatchLockService", we);
             }
             watchStore.stop();
@@ -77,13 +78,16 @@ public class WatcherService extends AbstractComponent {
         }
     }
 
-    public WatchStore.WatchDelete deleteWatch(String name) throws InterruptedException, ExecutionException {
+    public WatchStore.WatchDelete deleteWatch(String id, TimeValue timeout) {
         ensureStarted();
-        WatchLockService.Lock lock = watchLockService.acquire(name);
+        WatchLockService.Lock lock = watchLockService.tryAcquire(id, timeout);
+        if (lock == null) {
+            throw new TimeoutException("could not delete watch [{}] within [{}]... wait and try again. If this error continues to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
+        }
         try {
-            WatchStore.WatchDelete delete = watchStore.delete(name);
+            WatchStore.WatchDelete delete = watchStore.delete(id);
             if (delete.deleteResponse().isFound()) {
-                triggerService.remove(name);
+                triggerService.remove(id);
             }
             return delete;
         } finally {
@@ -91,9 +95,12 @@ public class WatcherService extends AbstractComponent {
         }
     }
 
-    public IndexResponse putWatch(String id, BytesReference watchSource) {
+    public IndexResponse putWatch(String id, BytesReference watchSource, TimeValue timeout) {
         ensureStarted();
-        WatchLockService.Lock lock = watchLockService.acquire(id);
+        WatchLockService.Lock lock = watchLockService.tryAcquire(id, timeout);
+        if (lock == null) {
+            throw new TimeoutException("could not put watch [{}] within [{}]... wait and try again. If this error continues to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
+        }
         try {
             Watch watch = watchParser.parseWithSecrets(id, false, watchSource);
             WatchStore.WatchPut result = watchStore.put(watch);
@@ -123,13 +130,16 @@ public class WatcherService extends AbstractComponent {
     /**
      * Acks the watch if needed
      */
-    public Watch.Status ackWatch(String name) {
+    public Watch.Status ackWatch(String id, TimeValue timeout) {
         ensureStarted();
-        WatchLockService.Lock lock = watchLockService.acquire(name);
+        WatchLockService.Lock lock = watchLockService.tryAcquire(id, timeout);
+        if (lock == null) {
+            throw new TimeoutException("could not ack watch [{}] within [{}]... wait and try again. If this error continues to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
+        }
         try {
-            Watch watch = watchStore.get(name);
+            Watch watch = watchStore.get(id);
             if (watch == null) {
-                throw new WatcherException("watch [" + name + "] does not exist");
+                throw new WatcherException("watch [{}] does not exist", id);
             }
             if (watch.ack()) {
                 try {
@@ -158,7 +168,7 @@ public class WatcherService extends AbstractComponent {
     /**
      * Encapsulates the state of the watcher plugin.
      */
-    public static enum State {
+    public enum State {
 
         /**
          * The watcher plugin is not running and not functional.
@@ -203,6 +213,13 @@ public class WatcherService extends AbstractComponent {
                 default:
                     throw new WatcherException("unknown watch service state id [" + id + "]");
             }
+        }
+    }
+
+    public static class TimeoutException extends WatcherException {
+
+        public TimeoutException(String msg, Object... args) {
+            super(msg, args);
         }
     }
 }

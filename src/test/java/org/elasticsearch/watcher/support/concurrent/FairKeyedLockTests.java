@@ -14,7 +14,9 @@ import org.junit.Test;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -83,6 +85,37 @@ public class FairKeyedLockTests extends ElasticsearchTestCase{
         connectionLock.acquire(name);
         connectionLock.acquire(name);
     }
+
+    @Test
+    public void testTryAquire() throws InterruptedException {
+        final FairKeyedLock<String> connectionLock = randomBoolean() ? new FairKeyedLock.GlobalLockable<String>() : new FairKeyedLock<String>();
+        final String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
+        connectionLock.acquire(name);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<String> failure = new AtomicReference<>();
+        Thread other = new Thread() {
+            @Override
+            public void run() {
+                try {
+                    if (connectionLock.tryAcquire(name, 2, TimeUnit.SECONDS)) {
+                        failure.set("expected to fail acquiring of the lock due to timeout");
+                    }
+                    latch.countDown();
+                } catch (InterruptedException e) {
+                    latch.countDown();
+                }
+            }
+        };
+        other.start();
+        if (!latch.await(5, TimeUnit.SECONDS)) {
+            fail("waiting too long for lock acquire");
+        }
+        String failureMessage = failure.get();
+        if(failureMessage != null) {
+            fail(failureMessage);
+        }
+    }
+
 
     @Test(expected = ElasticsearchIllegalStateException.class)
     public void checkCannotReleaseUnacquiredLock() throws InterruptedException {

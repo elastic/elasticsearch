@@ -26,7 +26,7 @@ import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchExecution;
+import org.elasticsearch.watcher.watch.WatchExecutionResult;
 import org.junit.Test;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
@@ -70,7 +70,7 @@ public class WatchRecordTests extends AbstractWatcherIntegrationTests {
         ctx.onThrottleResult(Throttler.NO_THROTTLE.throttle(ctx));
         ctx.onInputResult(inputResult);
         ctx.onConditionResult(conditionResult);
-        watchRecord.seal(new WatchExecution(ctx));
+        watchRecord.seal(new WatchExecutionResult(ctx));
 
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         watchRecord.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
@@ -99,7 +99,7 @@ public class WatchRecordTests extends AbstractWatcherIntegrationTests {
         ctx.onThrottleResult(Throttler.NO_THROTTLE.throttle(ctx));
         ctx.onInputResult(inputResult);
         ctx.onConditionResult(conditionResult);
-        watchRecord.seal(new WatchExecution(ctx));
+        watchRecord.seal(new WatchExecutionResult(ctx));
 
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         watchRecord.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);

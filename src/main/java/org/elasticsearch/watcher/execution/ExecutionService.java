@@ -26,7 +26,7 @@ import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchExecution;
+import org.elasticsearch.watcher.watch.WatchExecutionResult;
 import org.elasticsearch.watcher.watch.WatchLockService;
 import org.elasticsearch.watcher.watch.WatchStore;
 
@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
+
 /**
  */
 public class ExecutionService extends AbstractComponent {
@@ -212,8 +213,8 @@ public class ExecutionService extends AbstractComponent {
 
         WatchLockService.Lock lock = watchLockService.acquire(ctx.watch().id());
         try {
-            WatchExecution execution = executeInner(ctx);
-            watchRecord.seal(execution);
+            WatchExecutionResult result = executeInner(ctx);
+            watchRecord.seal(result);
         } finally {
             lock.release();
         }
@@ -244,9 +245,8 @@ public class ExecutionService extends AbstractComponent {
         }
     }
 
-    WatchExecution executeInner(WatchExecutionContext ctx) throws IOException {
+    WatchExecutionResult executeInner(WatchExecutionContext ctx) throws IOException {
         Watch watch = ctx.watch();
-
         Input.Result inputResult = ctx.inputResult();
         if (inputResult == null) {
             inputResult = watch.input().execute(ctx);
@@ -287,7 +287,7 @@ public class ExecutionService extends AbstractComponent {
         for (WatchRecord record : records) {
             Watch watch = watchStore.get(record.name());
             if (watch == null) {
-                String message = "unable to find watch for record [" + record. name()+ "]/[" + record.id() + "], perhaps it has been deleted, ignoring...";
+                String message = "unable to find watch for record [" + record.name() + "]/[" + record.id() + "], perhaps it has been deleted, ignoring...";
                 record.update(WatchRecord.State.DELETED_WHILE_QUEUED, message);
                 historyStore.update(record);
             } else {
@@ -321,8 +321,8 @@ public class ExecutionService extends AbstractComponent {
             try {
                 watchRecord.update(WatchRecord.State.CHECKING, null);
                 logger.debug("checking watch [{}]", watchRecord.name());
-                WatchExecution execution = executeInner(ctx);
-                watchRecord.seal(execution);
+                WatchExecutionResult result = executeInner(ctx);
+                watchRecord.seal(result);
                 if (ctx.recordExecution()) {
                     historyStore.update(watchRecord);
                 }
@@ -347,6 +347,5 @@ public class ExecutionService extends AbstractComponent {
                 logger.trace("finished [{}]/[{}]", ctx.watch().id(), ctx.id());
             }
         }
-
     }
 }

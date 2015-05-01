@@ -33,6 +33,7 @@ public class RestAckWatchAction extends WatcherRestHandler {
     @Override
     protected void handleRequest(RestRequest request, RestChannel restChannel, WatcherClient client) throws Exception {
         AckWatchRequest ackWatchRequest = new AckWatchRequest(request.param("id"));
+        ackWatchRequest.masterNodeTimeout(request.paramAsTime("master_timeout", ackWatchRequest.masterNodeTimeout()));
         client.ackWatch(ackWatchRequest, new RestBuilderListener<AckWatchResponse>(restChannel) {
             @Override
             public RestResponse buildResponse(AckWatchResponse response, XContentBuilder builder) throws Exception {

@@ -9,6 +9,7 @@ package org.elasticsearch.watcher.transport.actions.put;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,11 +24,14 @@ import java.io.IOException;
  */
 public class PutWatchRequest extends MasterNodeOperationRequest<PutWatchRequest> {
 
+    private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
+
     private String id;
     private BytesReference source;
     private boolean sourceUnsafe;
 
     PutWatchRequest() {
+        this(null, null, false);
     }
 
     public PutWatchRequest(String id, WatchSourceBuilder source) {
@@ -38,6 +42,7 @@ public class PutWatchRequest extends MasterNodeOperationRequest<PutWatchRequest>
         this.id = id;
         this.source = source;
         this.sourceUnsafe = sourceUnsafe;
+        masterNodeTimeout(DEFAULT_TIMEOUT);
     }
 
     /**

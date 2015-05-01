@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
@@ -19,14 +20,18 @@ import java.io.IOException;
  */
 public class DeleteWatchRequest extends MasterNodeOperationRequest<DeleteWatchRequest> {
 
+    private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
+
     private String id;
     private long version = Versions.MATCH_ANY;
 
     public DeleteWatchRequest() {
+        this(null);
     }
 
     public DeleteWatchRequest(String id) {
         this.id = id;
+        masterNodeTimeout(DEFAULT_TIMEOUT);
     }
 
     /**

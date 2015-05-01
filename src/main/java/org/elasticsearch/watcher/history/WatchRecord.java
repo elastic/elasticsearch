@@ -28,7 +28,7 @@ import org.elasticsearch.watcher.transform.TransformRegistry;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.TriggerService;
 import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchExecution;
+import org.elasticsearch.watcher.watch.WatchExecutionResult;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -43,7 +43,7 @@ public class WatchRecord implements ToXContent {
     private ExecutableInput input;
     private Condition condition;
     private State state;
-    private WatchExecution execution;
+    private WatchExecutionResult execution;
 
     private @Nullable String message;
     private @Nullable Map<String,Object> metadata;
@@ -105,7 +105,7 @@ public class WatchRecord implements ToXContent {
         this.version = version;
     }
 
-    public WatchExecution execution() {
+    public WatchExecutionResult execution() {
         return execution;
     }
 
@@ -114,7 +114,7 @@ public class WatchRecord implements ToXContent {
         this.message = message;
     }
 
-    public void seal(WatchExecution execution) {
+    public void seal(WatchExecutionResult execution) {
         assert sealed.compareAndSet(false, true) : "sealing a watch record should only be done once";
         this.execution = execution;
         if (!execution.conditionResult().met()) {
@@ -257,7 +257,7 @@ public class WatchRecord implements ToXContent {
                     } else if (METADATA_FIELD.match(currentFieldName)) {
                         record.metadata = parser.map();
                     } else if (WATCH_EXECUTION_FIELD.match(currentFieldName)) {
-                        record.execution = WatchExecution.Parser.parse(record.id, parser, conditionRegistry, actionRegistry, inputRegistry, transformRegistry);
+                        record.execution = WatchExecutionResult.Parser.parse(record.id, parser, conditionRegistry, actionRegistry, inputRegistry, transformRegistry);
                     } else if (TRIGGER_EVENT_FIELD.match(currentFieldName)) {
                         record.triggerEvent = triggerService.parseTriggerEvent(id, parser);
                     } else {

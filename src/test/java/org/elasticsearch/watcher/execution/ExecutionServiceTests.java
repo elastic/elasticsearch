@@ -95,11 +95,11 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
 
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event);
-        WatchExecution watchExecution = executionService.executeInner(context);
-        assertThat(watchExecution.conditionResult(), sameInstance(conditionResult));
-        assertThat(watchExecution.transformResult(), sameInstance(transformResult));
-        assertThat(watchExecution.throttleResult(), sameInstance(throttleResult));
-        assertThat(watchExecution.actionsResults().get("_id"), sameInstance(watchActionResult));
+        WatchExecutionResult executionResult = executionService.executeInner(context);
+        assertThat(executionResult.conditionResult(), sameInstance(conditionResult));
+        assertThat(executionResult.transformResult(), sameInstance(transformResult));
+        assertThat(executionResult.throttleResult(), sameInstance(throttleResult));
+        assertThat(executionResult.actionsResults().get("_id"), sameInstance(watchActionResult));
 
         verify(condition, times(1)).execute(any(WatchExecutionContext.class));
         verify(throttler, times(1)).throttle(any(WatchExecutionContext.class));
@@ -141,12 +141,12 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
 
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event);
-        WatchExecution watchExecution = executionService.executeInner(context);
-        assertThat(watchExecution.inputResult(), sameInstance(inputResult));
-        assertThat(watchExecution.conditionResult(), sameInstance(conditionResult));
-        assertThat(watchExecution.throttleResult(), sameInstance(throttleResult));
-        assertThat(watchExecution.actionsResults().count(), is(0));
-        assertThat(watchExecution.transformResult(), nullValue());
+        WatchExecutionResult executionResult = executionService.executeInner(context);
+        assertThat(executionResult.inputResult(), sameInstance(inputResult));
+        assertThat(executionResult.conditionResult(), sameInstance(conditionResult));
+        assertThat(executionResult.throttleResult(), sameInstance(throttleResult));
+        assertThat(executionResult.actionsResults().count(), is(0));
+        assertThat(executionResult.transformResult(), nullValue());
 
         verify(condition, times(1)).execute(any(WatchExecutionContext.class));
         verify(throttler, times(1)).throttle(any(WatchExecutionContext.class));
@@ -187,12 +187,12 @@ public class ExecutionServiceTests extends ElasticsearchTestCase {
 
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event);
-        WatchExecution watchExecution = executionService.executeInner(context);
-        assertThat(watchExecution.inputResult(), sameInstance(inputResult));
-        assertThat(watchExecution.conditionResult(), sameInstance(conditionResult));
-        assertThat(watchExecution.throttleResult(), nullValue());
-        assertThat(watchExecution.transformResult(), nullValue());
-        assertThat(watchExecution.actionsResults().count(), is(0));
+        WatchExecutionResult executionResult = executionService.executeInner(context);
+        assertThat(executionResult.inputResult(), sameInstance(inputResult));
+        assertThat(executionResult.conditionResult(), sameInstance(conditionResult));
+        assertThat(executionResult.throttleResult(), nullValue());
+        assertThat(executionResult.transformResult(), nullValue());
+        assertThat(executionResult.actionsResults().count(), is(0));
 
         verify(condition, times(1)).execute(any(WatchExecutionContext.class));
         verify(throttler, never()).throttle(any(WatchExecutionContext.class));

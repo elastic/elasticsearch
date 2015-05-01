@@ -42,10 +42,7 @@ import org.elasticsearch.watcher.watch.Watch;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -169,7 +166,7 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
     @Test
     public void testParser() throws Exception {
         String[] indices = rarely() ? null : randomBoolean() ? new String[] { "idx" } : new String[] { "idx1", "idx2" };
-        SearchType searchType = randomBoolean() ? null : randomFrom(SearchType.values());
+        SearchType searchType = getRandomSupportedSearchType();
         String templateName = randomBoolean() ? null : "template1";
         ScriptService.ScriptType templateType = templateName != null && randomBoolean() ? randomFrom(ScriptService.ScriptType.values()) : null;
         XContentBuilder builder = jsonBuilder().startObject();
@@ -225,6 +222,27 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
         assertThat(executable.transform().getRequest().source().toBytes(), equalTo(source.toBytes()));
     }
 
+    @Test(expected = SearchTransformException.class)
+    public void testParser_ScanNotSupported() throws Exception {
+        SearchRequest request = client().prepareSearch()
+                .setSearchType(SearchType.SCAN)
+                .request()
+                .source(searchSource()
+                        .query(filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
+
+        XContentBuilder builder = jsonBuilder().value(new SearchTransform(request));
+        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        parser.nextToken();
+
+        SearchTransformFactory factory = new SearchTransformFactory(ImmutableSettings.EMPTY,
+                scriptService(),
+                ClientProxy.of(client()));
+
+        factory.parseTransform("_id", parser);
+        fail("expected a SearchTransformException as search type SCAN should not be supported");
+    }
+
+
     @Test
     public void testSearch_InlineTemplate() throws Exception {
         final String templateQuery = "{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
@@ -249,7 +267,6 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
                 .setTemplateParams(params)
                 .setTemplateType(scriptType)
                 .request();
-
 
         SearchTransform.Result executedResult = executeSearchTransform(request);
 
@@ -310,7 +327,7 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(
                 filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))
         );
-        SearchType searchType = randomFrom(SearchType.values());
+        SearchType searchType = getRandomSupportedSearchType();
         SearchRequest request = client()
                 .prepareSearch()
                 .setSearchType(searchType)

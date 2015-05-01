@@ -39,10 +39,7 @@ import org.elasticsearch.watcher.watch.Watch;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -51,6 +48,7 @@ import static org.elasticsearch.index.query.FilterBuilders.rangeFilter;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -178,13 +176,13 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         executeSearchInput(request).executedRequest();
     }
 
-
     @Test
     public void testDifferentSearchType() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(
                 filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))
         );
-        SearchType searchType = randomFrom(SearchType.values());
+        SearchType searchType = getRandomSupportedSearchType();
+
         SearchRequest request = client()
                 .prepareSearch()
                 .setSearchType(searchType)
@@ -235,6 +233,26 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
 
         SearchInput searchInput = factory.parseInput("_id", parser);
         assertEquals(SearchInput.TYPE, searchInput.type());
+    }
+
+    @Test(expected = SearchInputException.class)
+    public void testParser_ScanNotSupported() throws Exception {
+        SearchRequest request = client().prepareSearch()
+                .setSearchType(SearchType.SCAN)
+                .request()
+                .source(searchSource()
+                        .query(filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
+
+        XContentBuilder builder = jsonBuilder().value(new SearchInput(request, null));
+        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        parser.nextToken();
+
+        SearchInputFactory factory = new SearchInputFactory(ImmutableSettings.EMPTY,
+                ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class)),
+                ClientProxy.of(client()));
+
+        factory.parseInput("_id", parser);
+        fail("expected a SearchInputException as search type SCAN should not be supported");
     }
 
     @Test(expected = SearchInputException.class)

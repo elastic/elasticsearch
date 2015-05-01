@@ -30,6 +30,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.support.WatcherDateUtils.formatDate;
 import static org.elasticsearch.watcher.support.WatcherUtils.DEFAULT_INDICES_OPTIONS;
 import static org.elasticsearch.watcher.support.WatcherUtils.flattenModel;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -96,7 +97,7 @@ public class WatcherUtilsTests extends ElasticsearchTestCase {
         }
 
         expectedRequest.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), WatcherUtils.DEFAULT_INDICES_OPTIONS));
-        expectedRequest.searchType(randomFrom(SearchType.values()));
+        expectedRequest.searchType(getRandomSupportedSearchType());
 
         SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()).size(11);
         XContentBuilder searchSourceJsonBuilder = jsonBuilder();
@@ -173,7 +174,7 @@ public class WatcherUtilsTests extends ElasticsearchTestCase {
 
         SearchType searchType = SearchType.DEFAULT;
         if (randomBoolean()) {
-            searchType = randomFrom(SearchType.values());
+            searchType = getRandomSupportedSearchType();
             builder.field("search_type", randomBoolean() ? searchType.name() : searchType.name().toLowerCase(Locale.ROOT));
         }
 

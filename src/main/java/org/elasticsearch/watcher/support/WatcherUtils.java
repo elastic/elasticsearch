@@ -208,6 +208,9 @@ public final class WatcherUtils {
                     searchRequest.types(Strings.delimitedListToStringArray(typesStr, ",", " \t"));
                 } else if (SEARCH_TYPE_FIELD.match(currentFieldName)) {
                     searchType = SearchType.fromString(parser.text().toLowerCase(Locale.ROOT));
+                    if (searchType == SearchType.SCAN){
+                        throw new SearchRequestParseException("could not read search request. value [" + searchType.name() + "] is not supported for field [" + SEARCH_TYPE_FIELD.getPreferredName() + "]" );
+                    }
                 } else {
                     throw new SearchRequestParseException("could not read search request. unexpected string field [" + currentFieldName + "]");
                 }

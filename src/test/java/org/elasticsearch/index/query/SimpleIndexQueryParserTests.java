@@ -51,12 +51,14 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
+import org.apache.lucene.search.spans.SpanContainingQuery;
 import org.apache.lucene.search.spans.SpanFirstQuery;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanNotQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.search.spans.SpanWithinQuery;
 import org.apache.lucene.spatial.prefix.IntersectsPrefixTreeFilter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -131,11 +133,13 @@ import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.regexpQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanContainingQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanFirstQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanNearQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanNotQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanOrQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanWithinQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
@@ -1432,6 +1436,50 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         // since age is automatically registered in data, we encode it as numeric
         assertThat(((SpanTermQuery) spanNotQuery.getInclude()).getTerm(), equalTo(new Term("age", longToPrefixCoded(34, 0))));
         assertThat(((SpanTermQuery) spanNotQuery.getExclude()).getTerm(), equalTo(new Term("age", longToPrefixCoded(35, 0))));
+    }
+
+    @Test
+    public void testSpanWithinQueryBuilder() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        Query expectedQuery = new SpanWithinQuery(new SpanTermQuery(new Term("age", longToPrefixCoded(34, 0))),
+                                                  new SpanTermQuery(new Term("age", longToPrefixCoded(35, 0))));
+        Query actualQuery = queryParser.parse(spanWithinQuery()
+                                              .big(spanTermQuery("age", 34))
+                                              .little(spanTermQuery("age", 35)))
+                                              .query();
+        assertEquals(expectedQuery, actualQuery);
+    }
+
+    @Test
+    public void testSpanWithinQueryParser() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        Query expectedQuery = new SpanWithinQuery(new SpanTermQuery(new Term("age", longToPrefixCoded(34, 0))),
+                                                  new SpanTermQuery(new Term("age", longToPrefixCoded(35, 0))));
+        String queryText = copyToStringFromClasspath("/org/elasticsearch/index/query/spanWithin.json");
+        Query actualQuery = queryParser.parse(queryText).query();
+        assertEquals(expectedQuery, actualQuery);
+    }
+
+    @Test
+    public void testSpanContainingQueryBuilder() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        Query expectedQuery = new SpanContainingQuery(new SpanTermQuery(new Term("age", longToPrefixCoded(34, 0))),
+                                                      new SpanTermQuery(new Term("age", longToPrefixCoded(35, 0))));
+        Query actualQuery = queryParser.parse(spanContainingQuery()
+                                              .big(spanTermQuery("age", 34))
+                                              .little(spanTermQuery("age", 35)))
+                                              .query();
+        assertEquals(expectedQuery, actualQuery);
+    }
+
+    @Test
+    public void testSpanContainingQueryParser() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        Query expectedQuery = new SpanContainingQuery(new SpanTermQuery(new Term("age", longToPrefixCoded(34, 0))),
+                                                      new SpanTermQuery(new Term("age", longToPrefixCoded(35, 0))));
+        String queryText = copyToStringFromClasspath("/org/elasticsearch/index/query/spanContaining.json");
+        Query actualQuery = queryParser.parse(queryText).query();
+        assertEquals(expectedQuery, actualQuery);
     }
 
     @Test

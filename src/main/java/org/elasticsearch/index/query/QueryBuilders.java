@@ -318,6 +318,16 @@ public abstract class QueryBuilders {
         return new SpanOrQueryBuilder();
     }
 
+    /** Creates a new {@code span_within} builder. */
+    public static SpanWithinQueryBuilder spanWithinQuery() {
+        return new SpanWithinQueryBuilder();
+    }
+
+    /** Creates a new {@code span_containing} builder. */
+    public static SpanContainingQueryBuilder spanContainingQuery() {
+        return new SpanContainingQueryBuilder();
+    }
+
     /**
      * Creates a {@link SpanQueryBuilder} which allows having a sub query
      * which implements {@link MultiTermQueryBuilder}. This is useful for

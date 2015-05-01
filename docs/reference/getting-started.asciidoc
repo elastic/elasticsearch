@@ -89,7 +89,7 @@ The number of shards and replicas can be defined per index at the time the index
 
 By default, each index in Elasticsearch is allocated 5 primary shards and 1 replica which means that if you have at least two nodes in your cluster, your index will have 5 primary shards and another 5 replica shards (1 complete replica) for a total of 10 shards per index.
 
-NOTE: Each Elasticsearch shard is a Lucene index.  There is a maximum number of documents you can have in a single Lucene index.  As of https://issues.apache.org/jira/browse/LUCENE-5843[`LUCENE-5843`], the limit is `2,147,483,519` (= Integer.MAX_VALUE - 128) documents.  
+NOTE: Each Elasticsearch shard is a Lucene index.  There is a maximum number of documents you can have in a single Lucene index.  As of https://issues.apache.org/jira/browse/LUCENE-5843[`LUCENE-5843`], the limit is `2,147,483,519` (= Integer.MAX_VALUE - 128) documents.
 You can monitor shard sizes using the <<cat-shards,`_cat/shards`>> api.
 
 With that out of the way, let's get started with the fun part...
@@ -104,13 +104,13 @@ java -version
 echo $JAVA_HOME
 --------------------------------------------------
 
-Once we have Java set up, we can then download and run Elasticsearch. The binaries are available from http://www.elasticsearch.org/download[`www.elasticsearch.org/download`] along with all the releases that have been made in the past. For each release, you have a choice among a `zip` or `tar` archive, or a `DEB` or `RPM` package. For simplicity, let's use the tar file.
+Once we have Java set up, we can then download and run Elasticsearch. The binaries are available from http://www.elastic.co/downloads[`www.elastic.co/downloads`] along with all the releases that have been made in the past. For each release, you have a choice among a `zip` or `tar` archive, or a `DEB` or `RPM` package. For simplicity, let's use the tar file.
 
 Let's download the Elasticsearch {version} tar as follows (Windows users should download the zip package):
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-curl -L -O https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-{version}.tar.gz
+curl -L -O https://download.elastic.co/elasticsearch/elasticsearch/elasticsearch-{version}.tar.gz
 --------------------------------------------------
 
 Then extract it as follows (Windows users should unzip the zip package):
@@ -868,7 +868,7 @@ In the previous section, we skipped over a little detail called the document sco
 All queries in Elasticsearch trigger computation of the relevance scores. In cases where we do not need the relevance scores, Elasticsearch provides another query capability in the form of <<query-dsl-filters,filters>. Filters are similar in concept to queries except that they are optimized for much faster execution speeds for two primary reasons:
 
 * Filters do not score so they are faster to execute than queries
-* Filters can be http://www.elasticsearch.org/blog/all-about-elasticsearch-filter-bitsets/[cached in memory] allowing repeated search executions to be significantly faster than queries
+* Filters can be http://www.elastic.co/blog/all-about-elasticsearch-filter-bitsets/[cached in memory] allowing repeated search executions to be significantly faster than queries
 
 To understand filters, let's first introduce the <<query-dsl-filtered-query,`filtered` query>>, which allows you to combine a query (like `match_all`, `match`, `bool`, etc.) together with a filter. As an example, let's introduce the <<query-dsl-range-filter,`range` filter>>, which allows us to filter documents by a range of values. This is generally used for numeric or date filtering.
 

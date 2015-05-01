@@ -81,6 +81,7 @@ public class WatchStore extends AbstractComponent {
             } catch (Exception e) {
                 logger.debug("failed to load watches for watch index [{}]", e, INDEX);
                 watches.clear();
+                throw e;
             }
         } else {
             templateUtils.ensureIndexTemplateIsLoaded(state, INDEX_TEMPLATE);
@@ -221,9 +222,8 @@ public class WatchStore extends AbstractComponent {
                             watch.status().version(hit.version());
                             watches.put(name, watch);
                             count++;
-                        } catch (WatcherException we) {
-                            logger.error("while loading watches, failed to parse [{}]", we, name);
-                            throw we;
+                        } catch (Exception e) {
+                            logger.error("couldn't load watch [{}], ignoring it...", e, name);
                         }
                     }
                     response = client.searchScroll(response.getScrollId(), scrollTimeout);

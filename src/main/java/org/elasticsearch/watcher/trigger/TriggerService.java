@@ -10,7 +10,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.WatcherSettingsException;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -78,16 +77,18 @@ public class TriggerService extends AbstractComponent {
         assert token == XContentParser.Token.START_OBJECT;
         token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new WatcherSettingsException("could not parse trigger for [" + jobName + "]. expected trigger type string field, but found [" + token + "]");
+            throw new TriggerException("could not parse trigger for [{}]. expected trigger type string field, but found [{}]", jobName, token);
         }
         String type = parser.text();
         token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new WatcherSettingsException("could not parse trigger [" + type + "] for [" + jobName + "]. expected trigger an object as the trigger body, but found [" + token + "]");
+            throw new TriggerException("could not parse trigger [{}] for [{}]. expected trigger an object as the trigger body, but found [{}]", type, jobName, token);
         }
         Trigger trigger = parseTrigger(jobName, type, parser);
         token = parser.nextToken();
-        assert token == XContentParser.Token.END_OBJECT;
+        if (token != XContentParser.Token.END_OBJECT) {
+            throw new TriggerException("could not parse trigger [{}] for [{}]. expected [END_OBJECT] token, but found [{}]", type, jobName, token);
+        }
         return trigger;
     }
 
@@ -107,17 +108,21 @@ public class TriggerService extends AbstractComponent {
         String type = parser.text();
         token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new WatcherSettingsException("could not parse trigger event [" + type + "] for [" + historyRecordId + "]. expected trigger an object as the trigger body, but found [" + token + "]");
+            throw new TriggerException("could not parse trigger event [" + type + "] for [" + historyRecordId + "]. expected trigger an object as the trigger body, but found [" + token + "]");
         }
         TriggerEvent trigger = parseTriggerEvent(historyRecordId, type, parser);
         token = parser.nextToken();
-        assert token == XContentParser.Token.END_OBJECT;
+        if (token != XContentParser.Token.END_OBJECT) {
+            throw new TriggerException("could not parse trigger [{}] for [{}]. expected [END_OBJECT] token, but found [{}]", type, historyRecordId, token);
+        }
         return trigger;
     }
 
     public TriggerEvent parseTriggerEvent(String context, String type, XContentParser parser) throws IOException {
         TriggerEngine engine = engines.get(type);
-        assert engine != null;
+        if (engine == null) {
+            throw new TriggerException("Unknown trigger type [{}]", type);
+        }
         return engine.parseTriggerEvent(context, parser);
     }
 

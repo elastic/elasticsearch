@@ -61,6 +61,151 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
     }
 
     @Test
+    public void testLoadMalformedWatch() throws Exception {
+        // valid watch
+        client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id0")
+                .setSource(jsonBuilder().startObject()
+                            .startObject(Watch.Parser.TRIGGER_FIELD.getPreferredName())
+                                .startObject("schedule")
+                                    .field("interval", "1s")
+                                .endObject()
+                            .endObject()
+                            .startObject(Watch.Parser.ACTIONS_FIELD.getPreferredName())
+                            .endObject()
+                        .endObject())
+                .get();
+
+        // no actions field:
+        client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id1")
+                .setSource(jsonBuilder().startObject()
+                        .startObject(Watch.Parser.TRIGGER_FIELD.getPreferredName())
+                            .startObject("schedule")
+                                .field("interval", "1s")
+                            .endObject()
+                        .endObject()
+                        .endObject())
+                .get();
+
+        // invalid interval
+        client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id2")
+                .setSource(jsonBuilder().startObject()
+                        .startObject(Watch.Parser.TRIGGER_FIELD.getPreferredName())
+                            .startObject("schedule")
+                                .field("interval", true)
+                            .endObject()
+                        .endObject()
+                        .startObject(Watch.Parser.ACTIONS_FIELD.getPreferredName())
+                        .endObject()
+                        .endObject())
+                .get();
+
+        // illegal top level field
+        client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id3")
+                .setSource(jsonBuilder().startObject()
+                        .startObject(Watch.Parser.TRIGGER_FIELD.getPreferredName())
+                            .startObject("schedule")
+                                .field("interval", "1s")
+                            .endObject()
+                            .startObject("illegal_field").endObject()
+                        .endObject()
+                        .startObject(Watch.Parser.ACTIONS_FIELD.getPreferredName()).endObject()
+                        .endObject())
+                .get();
+
+        stopWatcher();
+        startWatcher();
+
+        WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
+        assertThat(response.getWatchServiceState(), equalTo(WatcherService.State.STARTED));
+        // Only the valid watch should been loaded
+        assertThat(response.getWatchesCount(), equalTo(1l));
+        assertThat(watcherClient().prepareGetWatch("_id0").get().getId(), Matchers.equalTo("_id0"));
+    }
+
+    @Test
+    public void testLoadMalformedWatchRecord() throws Exception {
+        client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id")
+                .setSource(jsonBuilder().startObject()
+                        .startObject(Watch.Parser.TRIGGER_FIELD.getPreferredName())
+                            .startObject("schedule")
+                                .field("cron", "0/5 * * * * ? 2050")
+                            .endObject()
+                        .endObject()
+                        .startObject(Watch.Parser.ACTIONS_FIELD.getPreferredName())
+                        .endObject()
+                        .endObject())
+                .get();
+
+        // valid watch record:
+        DateTime now = DateTime.now(UTC);
+        Wid wid = new Wid("_id", 1, now);
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
+        Condition condition = new AlwaysCondition();
+        String index = HistoryStore.getHistoryIndexNameForTime(now);
+        client().prepareIndex(index, HistoryStore.DOC_TYPE, wid.value())
+                .setSource(jsonBuilder().startObject()
+                        .field(WatchRecord.Parser.WATCH_ID_FIELD.getPreferredName(), wid.watchId())
+                        .startObject(WatchRecord.Parser.TRIGGER_EVENT_FIELD.getPreferredName())
+                            .field(event.type(), event)
+                        .endObject()
+                        .startObject(Watch.Parser.CONDITION_FIELD.getPreferredName())
+                            .field(condition.type(), condition)
+                        .endObject()
+                        .field(WatchRecord.Parser.STATE_FIELD.getPreferredName(), WatchRecord.State.AWAITS_EXECUTION)
+                        .endObject())
+                .setConsistencyLevel(WriteConsistencyLevel.ALL)
+                .setRefresh(true)
+                .get();
+
+        // unknown condition:
+        wid = new Wid("_id", 2, now);
+        client().prepareIndex(index, HistoryStore.DOC_TYPE, wid.value())
+                .setSource(jsonBuilder().startObject()
+                        .field(WatchRecord.Parser.WATCH_ID_FIELD.getPreferredName(), wid.watchId())
+                        .startObject(WatchRecord.Parser.TRIGGER_EVENT_FIELD.getPreferredName())
+                            .field(event.type(), event)
+                        .endObject()
+                        .startObject(Watch.Parser.CONDITION_FIELD.getPreferredName())
+                            .startObject("unknown").endObject()
+                        .endObject()
+                        .field(WatchRecord.Parser.STATE_FIELD.getPreferredName(), WatchRecord.State.AWAITS_EXECUTION)
+                        .endObject())
+                .setConsistencyLevel(WriteConsistencyLevel.ALL)
+                .setRefresh(true)
+                .get();
+
+        // unknown trigger:
+        wid = new Wid("_id", 2, now);
+        client().prepareIndex(index, HistoryStore.DOC_TYPE, wid.value())
+                .setSource(jsonBuilder().startObject()
+                        .field(WatchRecord.Parser.WATCH_ID_FIELD.getPreferredName(), wid.watchId())
+                        .startObject(WatchRecord.Parser.TRIGGER_EVENT_FIELD.getPreferredName())
+                            .startObject("unknown").endObject()
+                        .endObject()
+                        .startObject(Watch.Parser.CONDITION_FIELD.getPreferredName())
+                            .field(condition.type(), condition)
+                        .endObject()
+                        .field(WatchRecord.Parser.STATE_FIELD.getPreferredName(), WatchRecord.State.AWAITS_EXECUTION)
+                        .endObject())
+                .setConsistencyLevel(WriteConsistencyLevel.ALL)
+                .setRefresh(true)
+                .get();
+
+        stopWatcher();
+        startWatcher();
+
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
+                assertThat(response.getWatchServiceState(), equalTo(WatcherService.State.STARTED));
+                assertThat(response.getWatchesCount(), equalTo(1l));
+                assertThat(response.getWatchExecutionQueueMaxSize(), equalTo(1l));
+            }
+        });
+    }
+
+    @Test
     public void testDeletedWhileQueued() throws Exception {
         DateTime now = DateTime.now(UTC);
         Wid wid = new Wid("_id", 1, now);

@@ -80,17 +80,6 @@ public class HunspellServiceTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testCustomizeLocaleDirectory() throws Exception {
-        Settings settings = ImmutableSettings.settingsBuilder()
-                .put(HUNSPELL_LOCATION, getDataPath("/indices/analyze/conf_dir/hunspell"))
-                .build();
-
-        internalCluster().startNode(settings);
-        Dictionary dictionary = internalCluster().getInstance(HunspellService.class).getDictionary("en_US");
-        assertThat(dictionary, notNullValue());
-    }
-
-    @Test
     public void testDicWithNoAff() throws Exception {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("path.conf", getDataPath("/indices/analyze/no_aff_conf_dir"))

@@ -34,11 +34,15 @@ import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
+import java.nio.file.Path;
+
 public class AnalysisTestsHelper {
 
-    public static AnalysisService createAnalysisServiceFromClassPath(String resource) {
+    public static AnalysisService createAnalysisServiceFromClassPath(Path baseDir, String resource) {
         Settings settings = ImmutableSettings.settingsBuilder()
-                .loadFromClasspath(resource).build();
+                .loadFromClasspath(resource)
+                .put("path.home", baseDir.toString())
+                .build();
 
         return createAnalysisServiceFromSettings(settings);
     }

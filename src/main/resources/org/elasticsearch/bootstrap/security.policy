@@ -31,8 +31,9 @@ grant {
   permission java.io.FilePermission "${java.io.tmpdir}${/}-", "read,write,delete";
 
   // paths used for running tests
-  // project base directory
-  permission java.io.FilePermission "${project.basedir}${/}target${/}-", "read";
+  // compiled classes
+  permission java.io.FilePermission "${project.basedir}${/}target${/}classes${/}-", "read";
+  permission java.io.FilePermission "${project.basedir}${/}target${/}test-classes${/}-", "read";
   // read permission for lib sigar
   permission java.io.FilePermission "${project.basedir}${/}lib/sigar{/}-", "read";
   // mvn custom ./m2/repository for dependency jars

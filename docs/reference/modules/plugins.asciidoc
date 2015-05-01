@@ -20,7 +20,7 @@ organization in GitHub, starting with `elasticsearch-`.
 
 Starting from 0.90.2, installing plugins typically take the form of
 `plugin --install <org>/<user/component>/<version>`. The plugins will be
-automatically downloaded in this case from `download.elasticsearch.org`,
+automatically downloaded in this case from `download.elastic.co`,
 and in case they don't exist there, from maven (central and sonatype).
 
 Note that when the plugin is located in maven central or sonatype

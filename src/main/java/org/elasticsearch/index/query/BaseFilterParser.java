@@ -19,30 +19,20 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.apache.lucene.search.Filter;
 
 import java.io.IOException;
 
 /**
- * A filter that simply wraps a query.
- *
- *
+ * Class used during the filter parsers refactoring.
+ * All filter parsers that have a refactored "fromXContent" method can be changed to extend this instead of {@link BaseFilterParserTemp}.
+ * Keeps old {@link FilterParser#parse(QueryParseContext)} method as a stub delegating to
+ * {@link FilterParser#fromXContent(QueryParseContext)} and {@link FilterBuilder#toFilter(QueryParseContext)}}
  */
-public class MatchAllFilterBuilder extends BaseFilterBuilder {
-
-    /**
-     * A filter that simply matches all docs.
-     */
-    public MatchAllFilterBuilder() {
-    }
+public abstract class BaseFilterParser implements FilterParser {
 
     @Override
-    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(MatchAllFilterParser.NAME).endObject();
-    }
-
-    @Override
-    protected String parserName() {
-        return MatchAllFilterParser.NAME;
+    public final Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        return fromXContent(parseContext).toFilter(parseContext);
     }
 }

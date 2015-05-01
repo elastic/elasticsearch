@@ -35,7 +35,7 @@ import java.io.IOException;
 /**
  *
  */
-public class TermFilterParser implements FilterParser {
+public class TermFilterParser extends BaseFilterParserTemp {
 
     public static final String NAME = "term";
 

@@ -88,4 +88,9 @@ public class PrefixFilterBuilder extends BaseFilterBuilder {
         }
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return PrefixFilterParser.NAME;
+    }
 }

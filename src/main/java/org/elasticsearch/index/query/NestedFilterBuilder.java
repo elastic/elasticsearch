@@ -114,4 +114,9 @@ public class NestedFilterBuilder extends BaseFilterBuilder {
         }
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return NestedFilterParser.NAME;
+    }
 }

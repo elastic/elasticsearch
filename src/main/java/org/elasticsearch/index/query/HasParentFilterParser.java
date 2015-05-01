@@ -36,7 +36,7 @@ import static org.elasticsearch.index.query.HasParentQueryParser.createParentQue
 /**
  *
  */
-public class HasParentFilterParser implements FilterParser {
+public class HasParentFilterParser extends BaseFilterParserTemp {
 
     public static final String NAME = "has_parent";
 

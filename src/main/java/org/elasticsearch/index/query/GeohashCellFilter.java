@@ -193,9 +193,14 @@ public class GeohashCellFilter {
 
             builder.endObject();
         }
+
+        @Override
+        protected String parserName() {
+            return NAME;
+        }
     }
 
-    public static class Parser implements FilterParser {
+    public static class Parser extends BaseFilterParserTemp {
 
         @Inject
         public Parser() {

@@ -37,4 +37,9 @@ public class TypeFilterBuilder extends BaseFilterBuilder {
         builder.field("value", type);
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return TypeFilterParser.NAME;
+    }
 }

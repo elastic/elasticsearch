@@ -44,7 +44,7 @@ import java.util.List;
 /**
  *
  */
-public class TermsFilterParser implements FilterParser {
+public class TermsFilterParser extends BaseFilterParserTemp {
 
     public static final String NAME = "terms";
     private Client client;

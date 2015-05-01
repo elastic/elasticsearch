@@ -19,37 +19,37 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.*;
+import org.apache.lucene.search.Filter;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 /**
- * FilterBuilder that constructs filters from {@link org.elasticsearch.common.bytes.BytesReference}
- * source
+ * FilterBuilder implementation that  holds a lucene filter, which can be returned by {@link #toFilter(QueryParseContext)}.
+ * Doesn't support conversion to {@link org.elasticsearch.common.xcontent.XContent} via {@link #doXContent(XContentBuilder, Params)}.
+ * Will be removed once all filters support separate fromXContent and toFilter methods.
  */
-public class BytesFilterBuilder extends BaseFilterBuilder {
+public class FilterWrappingFilterBuilder extends BaseFilterBuilder {
 
-    private final BytesReference source;
+    private final Filter filter;
 
-    public BytesFilterBuilder(BytesReference source) {
-        this.source = source;
-
+    public FilterWrappingFilterBuilder(Filter filter) {
+        this.filter = filter;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
-            // unwrap the first layer of json dictionary
-            parser.nextToken();
-            parser.nextToken();
-            builder.copyCurrentStructure(parser);
-        }
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Filter toFilter(QueryParseContext parseContext) throws IOException {
+        return this.filter;
     }
 
     @Override
     protected String parserName() {
-        //TODO this class is going to be removed, will disappear once we get #10919 in
+        // this should not be called since we overwrite BaseFilterBuilder#toFilter() in this class
         throw new UnsupportedOperationException();
     }
 }

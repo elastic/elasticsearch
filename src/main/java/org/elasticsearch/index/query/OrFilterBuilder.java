@@ -90,4 +90,9 @@ public class OrFilterBuilder extends BaseFilterBuilder {
         }
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return OrFilterParser.NAME;
+    }
 }

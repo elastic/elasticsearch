@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class LimitFilterParser implements FilterParser {
+public class LimitFilterParser extends BaseFilterParserTemp {
 
     public static final String NAME = "limit";
 

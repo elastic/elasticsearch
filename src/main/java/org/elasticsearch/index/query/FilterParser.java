@@ -45,4 +45,18 @@ public interface FilterParser {
      */
     @Nullable
     Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException;
+
+    /**
+     * Creates a new {@link FilterBuilder} from the filter held by the {@link QueryParseContext}
+     * in {@link org.elasticsearch.common.xcontent.XContent} format
+     *
+     * @param parseContext
+     *            the input parse context. The state on the parser contained in
+     *            this context will be changed as a side effect of this method
+     *            call
+     * @return the new FilterBuilder
+     * @throws IOException
+     * @throws QueryParsingException
+     */
+    FilterBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException;
 }

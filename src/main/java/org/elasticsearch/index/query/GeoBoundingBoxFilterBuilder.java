@@ -197,4 +197,9 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
 
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return GeoBoundingBoxFilterParser.NAME;
+    }
 }

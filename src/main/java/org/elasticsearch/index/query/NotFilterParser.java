@@ -30,7 +30,7 @@ import java.io.IOException;
 /**
  *
  */
-public class NotFilterParser implements FilterParser {
+public class NotFilterParser extends BaseFilterParserTemp {
 
     public static final String NAME = "not";
 

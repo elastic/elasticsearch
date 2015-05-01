@@ -42,4 +42,9 @@ public class LimitFilterBuilder extends BaseFilterBuilder {
         builder.field("value", limit);
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return LimitFilterParser.NAME;
+    }
 }

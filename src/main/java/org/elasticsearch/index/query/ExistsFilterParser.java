@@ -38,7 +38,7 @@ import java.util.List;
 /**
  *
  */
-public class ExistsFilterParser implements FilterParser {
+public class ExistsFilterParser extends BaseFilterParserTemp {
 
     public static final String NAME = "exists";
 

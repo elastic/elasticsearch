@@ -31,7 +31,7 @@ import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 
 import java.io.IOException;
 
-public class TypeFilterParser implements FilterParser {
+public class TypeFilterParser extends BaseFilterParserTemp {
 
     public static final String NAME = "type";
 

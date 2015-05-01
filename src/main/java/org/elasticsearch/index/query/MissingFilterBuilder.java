@@ -81,4 +81,9 @@ public class MissingFilterBuilder extends BaseFilterBuilder {
         }
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return MissingFilterParser.NAME;
+    }
 }

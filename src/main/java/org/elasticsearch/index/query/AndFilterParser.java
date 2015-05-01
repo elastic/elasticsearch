@@ -36,7 +36,7 @@ import static com.google.common.collect.Lists.newArrayList;
 /**
  *
  */
-public class AndFilterParser implements FilterParser {
+public class AndFilterParser extends BaseFilterParserTemp {
 
     public static final String NAME = "and";
 

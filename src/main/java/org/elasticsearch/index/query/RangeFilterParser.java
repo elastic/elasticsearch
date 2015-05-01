@@ -40,7 +40,7 @@ import java.io.IOException;
 /**
  *
  */
-public class RangeFilterParser implements FilterParser {
+public class RangeFilterParser extends BaseFilterParserTemp {
 
     public static final String NAME = "range";
 

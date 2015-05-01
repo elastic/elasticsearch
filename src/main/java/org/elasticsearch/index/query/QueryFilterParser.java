@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  *
  */
-public class QueryFilterParser implements FilterParser {
+public class QueryFilterParser extends BaseFilterParserTemp {
 
     public static final String NAME = "query";
 

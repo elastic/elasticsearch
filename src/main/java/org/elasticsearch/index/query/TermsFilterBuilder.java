@@ -168,4 +168,9 @@ public class TermsFilterBuilder extends BaseFilterBuilder {
 
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return TermsFilterParser.NAME;
+    }
 }

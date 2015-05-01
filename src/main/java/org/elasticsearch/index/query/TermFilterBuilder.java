@@ -136,4 +136,9 @@ public class TermFilterBuilder extends BaseFilterBuilder {
         }
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return TermFilterParser.NAME;
+    }
 }

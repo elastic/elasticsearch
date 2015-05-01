@@ -409,4 +409,9 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
 
         builder.endObject();
     }
+
+    @Override
+    protected String parserName() {
+        return RangeFilterParser.NAME;
+    }
 }

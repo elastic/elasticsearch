@@ -36,7 +36,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-public class IdsFilterParser implements FilterParser {
+public class IdsFilterParser extends BaseFilterParserTemp {
 
     public static final String NAME = "ids";
 

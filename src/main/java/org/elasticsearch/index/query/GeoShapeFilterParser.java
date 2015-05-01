@@ -61,7 +61,7 @@ import java.io.IOException;
  * }
  * </pre>
  */
-public class GeoShapeFilterParser implements FilterParser {
+public class GeoShapeFilterParser extends BaseFilterParserTemp {
 
     public static final String NAME = "geo_shape";
 

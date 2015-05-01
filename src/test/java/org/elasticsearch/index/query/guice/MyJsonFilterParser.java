@@ -25,9 +25,7 @@ import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.query.FilterParser;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
@@ -56,6 +54,12 @@ public class MyJsonFilterParser extends AbstractIndexComponent implements Filter
     @Override
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         return null;
+    }
+
+    @Override
+    public FilterBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        Filter filter = parse(parseContext);
+        return new FilterWrappingFilterBuilder(filter);
     }
 
     public Settings settings() {

@@ -30,7 +30,7 @@ import java.io.IOException;
 /**
  *
  */
-public class MatchAllFilterParser implements FilterParser {
+public class MatchAllFilterParser extends BaseFilterParserTemp {
 
     public static final String NAME = "match_all";
 

@@ -53,7 +53,8 @@ class Security {
      */
     static void configure(Environment environment) throws IOException {
         ESLogger log = Loggers.getLogger(Security.class);
-        log.info("java.io.tmpdir: {}", System.getProperty("java.io.tmpdir"));
+        //String prop = System.getProperty("java.io.tmpdir");
+        //log.trace("java.io.tmpdir {}", prop);
         // init lucene random seed. it will use /dev/urandom where available.
         StringHelper.randomId();
         InputStream config = Security.class.getResourceAsStream(POLICY_RESOURCE);
@@ -71,14 +72,12 @@ class Security {
         }
         PermissionCollection permissions = policy.getPermissions(Security.class.getProtectionDomain());
         log.trace("generated permissions: {}", permissions);
-        log.info("java.io.tmpdir: {}", System.getProperty("java.io.tmpdir"));
 
         System.setSecurityManager(new SecurityManager());
         try {
             // don't hide securityexception here, it means java.io.tmpdir is not accessible!
             Files.delete(newConfig);
         } catch (SecurityException broken) {
-            log.info("java.io.tmpdir: {}", System.getProperty("java.io.tmpdir"));
             log.error("unable to properly access temporary files, permissions: {}", permissions);
             throw broken;
         } catch (IOException ignore) {

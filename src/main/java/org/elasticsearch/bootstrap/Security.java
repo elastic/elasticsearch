@@ -53,6 +53,7 @@ class Security {
      */
     static void configure(Environment environment) throws IOException {
         ESLogger log = Loggers.getLogger(Security.class);
+        log.info("java.io.tmpdir: {}", System.getProperty("java.io.tmpdir"));
         // init lucene random seed. it will use /dev/urandom where available.
         StringHelper.randomId();
         InputStream config = Security.class.getResourceAsStream(POLICY_RESOURCE);

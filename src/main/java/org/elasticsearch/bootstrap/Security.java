@@ -31,10 +31,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.security.NoSuchAlgorithmException;
-import java.security.PermissionCollection;
-import java.security.Policy;
-import java.security.URIParameter;
 
 /** 
  * Initializes securitymanager with necessary permissions.
@@ -53,8 +49,6 @@ class Security {
      */
     static void configure(Environment environment) throws IOException {
         ESLogger log = Loggers.getLogger(Security.class);
-        //String prop = System.getProperty("java.io.tmpdir");
-        //log.trace("java.io.tmpdir {}", prop);
         // init lucene random seed. it will use /dev/urandom where available.
         StringHelper.randomId();
         InputStream config = Security.class.getResourceAsStream(POLICY_RESOURCE);
@@ -63,22 +57,12 @@ class Security {
         }
         Path newConfig = processTemplate(config, environment);
         System.setProperty("java.security.policy", newConfig.toString());
-        // retrieve the parsed policy we created: its useful if something goes wrong
-        Policy policy = null;
-        try {
-            policy = Policy.getInstance("JavaPolicy", new URIParameter(newConfig.toUri()));
-        } catch (NoSuchAlgorithmException impossible) {
-            throw new RuntimeException(impossible);
-        }
-        PermissionCollection permissions = policy.getPermissions(Security.class.getProtectionDomain());
-        log.trace("generated permissions: {}", permissions);
-
         System.setSecurityManager(new SecurityManager());
         try {
             // don't hide securityexception here, it means java.io.tmpdir is not accessible!
             Files.delete(newConfig);
         } catch (SecurityException broken) {
-            log.error("unable to properly access temporary files, permissions: {}", permissions);
+            log.error("unable to properly access temporary files, run with -Djava.security.debug=policy for more information");
             throw broken;
         } catch (IOException ignore) {
             // e.g. virus scanner on windows
@@ -108,6 +92,11 @@ class Security {
                 addPath(writer, environment.configFile(), "read,readlink,write,delete");
                 addPath(writer, environment.logsFile(), "read,readlink,write,delete");
                 addPath(writer, environment.pluginsFile(), "read,readlink,write,delete");
+
+                // generate explicit perms for actual temp dir:
+                // (in case there is java.io.tmpdir sheistiness on windows)
+                addPath(writer, processed.getParent(), "read,readlink,write,delete");
+
                 for (Path path : environment.dataFiles()) {
                     addPath(writer, path, "read,readlink,write,delete");
                 }

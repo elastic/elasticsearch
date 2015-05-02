@@ -86,7 +86,6 @@ grant {
 
   // needed for testing access rules etc
   permission java.lang.RuntimePermission "createSecurityManager";
-  permission java.security.SecurityPermission "createPolicy.JavaPolicy";
 
   // reflection hacks:
   // needed for Striped64 (what is this doing), also enables unmap hack

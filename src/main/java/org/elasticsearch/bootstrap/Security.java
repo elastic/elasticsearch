@@ -71,12 +71,14 @@ class Security {
         }
         PermissionCollection permissions = policy.getPermissions(Security.class.getProtectionDomain());
         log.trace("generated permissions: {}", permissions);
-        
+        log.info("java.io.tmpdir: {}", System.getProperty("java.io.tmpdir"));
+
         System.setSecurityManager(new SecurityManager());
         try {
             // don't hide securityexception here, it means java.io.tmpdir is not accessible!
             Files.delete(newConfig);
         } catch (SecurityException broken) {
+            log.info("java.io.tmpdir: {}", System.getProperty("java.io.tmpdir"));
             log.error("unable to properly access temporary files, permissions: {}", permissions);
             throw broken;
         } catch (IOException ignore) {

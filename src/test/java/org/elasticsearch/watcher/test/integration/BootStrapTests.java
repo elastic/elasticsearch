@@ -194,15 +194,9 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
         stopWatcher();
         startWatcher();
 
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
-                assertThat(response.getWatchServiceState(), equalTo(WatcherService.State.STARTED));
-                assertThat(response.getWatchesCount(), equalTo(1l));
-                assertThat(response.getWatchExecutionQueueMaxSize(), equalTo(1l));
-            }
-        });
+        WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
+        assertThat(response.getWatchServiceState(), equalTo(WatcherService.State.STARTED));
+        assertThat(response.getWatchesCount(), equalTo(1l));
     }
 
     @Test

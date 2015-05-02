@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.watch;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
@@ -26,6 +27,7 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.support.TemplateUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.junit.Before;
@@ -124,7 +126,11 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         ClusterState cs = csBuilder.build();
 
         assertThat(watchStore.validate(cs), is(true));
-        watchStore.start(cs);
+        try {
+            watchStore.start(cs);
+        } catch (WatcherException e) {
+            assertThat(e.getMessage(), equalTo("not all required shards have been refreshed"));
+        }
         verifyZeroInteractions(templateUtils);
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
         verify(clientProxy, never()).search(any(SearchRequest.class));
@@ -160,7 +166,11 @@ public class WatchStoreTests extends ElasticsearchTestCase {
 
         ClusterState cs = csBuilder.build();
         assertThat(watchStore.validate(cs), is(true));
-        watchStore.start(cs);
+        try {
+            watchStore.start(cs);
+        } catch (ElasticsearchException e) {
+            assertThat(e.getMessage(), equalTo("Partial response while loading watches"));
+        }
         verifyZeroInteractions(templateUtils);
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
         verify(clientProxy, times(1)).search(any(SearchRequest.class));

@@ -66,6 +66,10 @@
                     "tokenizer":"standard",
                     "char_filter":["my_mapping"]
                 },
+                "custom6":{
+                    "tokenizer":"standard",
+                    "position_offset_gap": 256
+                },
                 "czechAnalyzerWithStemmer":{
                     "tokenizer":"standard",
                     "filter":["standard", "lowercase", "stop", "czech_stem"]

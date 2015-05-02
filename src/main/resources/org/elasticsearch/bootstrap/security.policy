@@ -28,7 +28,6 @@ grant {
 
   // temporary files
   permission java.io.FilePermission "${java.io.tmpdir}", "read,write";
-  permission java.io.FilePermission "${java.io.tmpdir}-", "read,write,delete";
   permission java.io.FilePermission "${java.io.tmpdir}${/}-", "read,write,delete";
 
   // paths used for running tests

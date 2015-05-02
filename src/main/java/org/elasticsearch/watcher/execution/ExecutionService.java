@@ -239,8 +239,8 @@ public class ExecutionService extends AbstractComponent {
         try {
             executor.execute(new WatchExecutionTask(ctx, watchRecord));
         } catch (EsRejectedExecutionException e) {
-            logger.debug("failed to execute triggered watch [{}]", watchRecord.name());
-            watchRecord.update(WatchRecord.State.FAILED, "failed to run triggered watch [" + watchRecord.name() + "] due to thread pool capacity");
+            logger.debug("failed to execute triggered watch [{}]", watchRecord.watchId());
+            watchRecord.update(WatchRecord.State.FAILED, "failed to run triggered watch [" + watchRecord.watchId() + "] due to thread pool capacity");
             historyStore.update(watchRecord);
         }
     }
@@ -285,9 +285,9 @@ public class ExecutionService extends AbstractComponent {
         assert records != null;
         int counter = 0;
         for (WatchRecord record : records) {
-            Watch watch = watchStore.get(record.name());
+            Watch watch = watchStore.get(record.watchId());
             if (watch == null) {
-                String message = "unable to find watch for record [" + record.name() + "]/[" + record.id() + "], perhaps it has been deleted, ignoring...";
+                String message = "unable to find watch for record [" + record.watchId() + "]/[" + record.id() + "], perhaps it has been deleted, ignoring...";
                 record.update(WatchRecord.State.DELETED_WHILE_QUEUED, message);
                 historyStore.update(record);
             } else {
@@ -320,7 +320,7 @@ public class ExecutionService extends AbstractComponent {
             WatchLockService.Lock lock = watchLockService.acquire(ctx.watch().id());
             try {
                 watchRecord.update(WatchRecord.State.CHECKING, null);
-                logger.debug("checking watch [{}]", watchRecord.name());
+                logger.debug("checking watch [{}]", watchRecord.watchId());
                 WatchExecutionResult result = executeInner(ctx);
                 watchRecord.seal(result);
                 if (ctx.recordExecution()) {
@@ -330,14 +330,14 @@ public class ExecutionService extends AbstractComponent {
             } catch (Exception e) {
                 if (started()) {
                     String detailedMessage = ExceptionsHelper.detailedMessage(e);
-                    logger.warn("failed to execute watch [{}]/[{}], failure [{}]", watchRecord.name(), ctx.id(), detailedMessage);
+                    logger.warn("failed to execute watch [{}]/[{}], failure [{}]", watchRecord.watchId(), ctx.id(), detailedMessage);
                     try {
                         watchRecord.update(WatchRecord.State.FAILED, detailedMessage);
                         if (ctx.recordExecution()) {
                             historyStore.update(watchRecord);
                         }
                     } catch (Exception e2) {
-                        logger.error("failed to update watch record [{}]/[{}], failure [{}], original failure [{}]", watchRecord.name(), ctx.id(), ExceptionsHelper.detailedMessage(e2), detailedMessage);
+                        logger.error("failed to update watch record [{}]/[{}], failure [{}], original failure [{}]", watchRecord.watchId(), ctx.id(), ExceptionsHelper.detailedMessage(e2), detailedMessage);
                     }
                 } else {
                     logger.debug("failed to execute watch [{}] after shutdown", e, watchRecord);

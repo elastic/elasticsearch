@@ -84,8 +84,8 @@ public class Template implements ToXContent {
 
     public static Template parse(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        if (token == XContentParser.Token.VALUE_STRING) {
-            return new Template(parser.text());
+        if (token.isValue()) {
+            return new Template(String.valueOf(parser.objectText()));
         }
         if (token != XContentParser.Token.START_OBJECT) {
             throw new ParseException("expected a string value or an object, but found [" + token + "] instead");

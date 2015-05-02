@@ -106,7 +106,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
         assertThat(result.payload().data(), equalTo(MapBuilder.<String, Object>newMapBuilder().put("key", "value").map()));
     }
 
-    @Test //@Repeat(iterations = 20)
+    @Test @Repeat(iterations = 20)
     public void testParser() throws Exception {
         final HttpMethod httpMethod = rarely() ? null : randomFrom(HttpMethod.values());
         Scheme scheme = randomFrom(Scheme.HTTP, Scheme.HTTPS, null);

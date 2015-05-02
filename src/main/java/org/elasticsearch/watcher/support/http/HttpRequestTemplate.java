@@ -7,12 +7,12 @@ package org.elasticsearch.watcher.support.http;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.netty.handler.codec.http.HttpHeaders;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.support.http.auth.HttpAuth;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
@@ -38,10 +38,11 @@ public class HttpRequestTemplate implements ToXContent {
     private final ImmutableMap<String, Template> headers;
     private final HttpAuth auth;
     private final Template body;
+    private final XContentType xContentType;
 
     public HttpRequestTemplate(String host, int port, @Nullable Scheme scheme, @Nullable HttpMethod method, @Nullable Template path,
                                Map<String, Template> params, Map<String, Template> headers, HttpAuth auth,
-                               Template body) {
+                               Template body, XContentType xContentType) {
         this.host = host;
         this.port = port;
         this.scheme = scheme != null ? scheme :Scheme.HTTP;
@@ -51,6 +52,7 @@ public class HttpRequestTemplate implements ToXContent {
         this.headers = headers != null ? ImmutableMap.copyOf(headers) : ImmutableMap.<String, Template>of();
         this.auth = auth;
         this.body = body;
+        this.xContentType = xContentType;
     }
 
     public Scheme scheme() {
@@ -103,8 +105,14 @@ public class HttpRequestTemplate implements ToXContent {
             }
             request.setParams(mapBuilder.map());
         }
-        if (headers != null && !headers.isEmpty()) {
+        if ((headers == null || headers.isEmpty()) && xContentType != null) {
+            request.setHeaders(ImmutableMap.of(HttpHeaders.Names.CONTENT_TYPE, xContentType.restContentType()));
+        } else if (headers != null && !headers.isEmpty()) {
             MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
+            if (xContentType != null) {
+                // putting the content type first, so it can be overridden by custom headers
+                mapBuilder.put(HttpHeaders.Names.CONTENT_TYPE, xContentType.restContentType());
+            }
             for (Map.Entry<String, Template> entry : headers.entrySet()) {
                 mapBuilder.put(entry.getKey(), engine.render(entry.getValue(), model));
             }
@@ -148,7 +156,11 @@ public class HttpRequestTemplate implements ToXContent {
                     .endObject();
         }
         if (body != null) {
-            builder.field(Parser.BODY_FIELD.getPreferredName(), body, params);
+            if (xContentType != null) {
+                builder.rawField(Parser.XBODY_FIELD.getPreferredName(), new BytesArray(body.getTemplate()));
+            } else {
+                builder.field(Parser.BODY_FIELD.getPreferredName(), body, params);
+            }
         }
         return builder.endObject();
     }
@@ -161,20 +173,21 @@ public class HttpRequestTemplate implements ToXContent {
         HttpRequestTemplate that = (HttpRequestTemplate) o;
 
         if (port != that.port) return false;
-        if (auth != null ? !auth.equals(that.auth) : that.auth != null) return false;
-        if (body != null ? !body.equals(that.body) : that.body != null) return false;
-        if (headers != null ? !headers.equals(that.headers) : that.headers != null) return false;
+        if (scheme != that.scheme) return false;
         if (host != null ? !host.equals(that.host) : that.host != null) return false;
         if (method != that.method) return false;
-        if (params != null ? !params.equals(that.params) : that.params != null) return false;
         if (path != null ? !path.equals(that.path) : that.path != null) return false;
-
-        return true;
+        if (params != null ? !params.equals(that.params) : that.params != null) return false;
+        if (headers != null ? !headers.equals(that.headers) : that.headers != null) return false;
+        if (auth != null ? !auth.equals(that.auth) : that.auth != null) return false;
+        if (body != null ? !body.equals(that.body) : that.body != null) return false;
+        return xContentType == that.xContentType;
     }
 
     @Override
     public int hashCode() {
-        int result = host != null ? host.hashCode() : 0;
+        int result = scheme != null ? scheme.hashCode() : 0;
+        result = 31 * result + (host != null ? host.hashCode() : 0);
         result = 31 * result + port;
         result = 31 * result + (method != null ? method.hashCode() : 0);
         result = 31 * result + (path != null ? path.hashCode() : 0);
@@ -182,6 +195,7 @@ public class HttpRequestTemplate implements ToXContent {
         result = 31 * result + (headers != null ? headers.hashCode() : 0);
         result = 31 * result + (auth != null ? auth.hashCode() : 0);
         result = 31 * result + (body != null ? body.hashCode() : 0);
+        result = 31 * result + (xContentType != null ? xContentType.hashCode() : 0);
         return result;
     }
 
@@ -200,6 +214,7 @@ public class HttpRequestTemplate implements ToXContent {
         public static final ParseField HEADERS_FIELD = new ParseField("headers");
         public static final ParseField AUTH_FIELD = new ParseField("auth");
         public static final ParseField BODY_FIELD = new ParseField("body");
+        public static final ParseField XBODY_FIELD = new ParseField("xbody");
 
         private final HttpAuthRegistry httpAuthRegistry;
 
@@ -211,6 +226,8 @@ public class HttpRequestTemplate implements ToXContent {
         public HttpRequestTemplate parse(XContentParser parser) throws IOException {
             assert parser.currentToken() == XContentParser.Token.START_OBJECT;
 
+            boolean seenBody = false;
+            boolean seenXBody = false;
             Builder builder = new Builder();
             XContentParser.Token token;
             String currentFieldName = null;
@@ -224,12 +241,24 @@ public class HttpRequestTemplate implements ToXContent {
                 } else if (PARAMS_FIELD.match(currentFieldName)) {
                     builder.putParams(parseFieldTemplates(currentFieldName, parser));
                 } else if (BODY_FIELD.match(currentFieldName)) {
+                    if (seenXBody) {
+                        throw new ParseException("could not parse http request template. both [{}] and [{}] are set, only one of the two is allowed", XBODY_FIELD.getPreferredName(), BODY_FIELD.getPreferredName());
+                    }
+                    seenBody = true;
                     builder.body(parseFieldTemplate(currentFieldName, parser));
+                } else if (XBODY_FIELD.match(currentFieldName)) {
+                    if (seenBody) {
+                        throw new ParseException("could not parse http request template. both [{}] and [{}] are set, only one of the two is allowed", XBODY_FIELD.getPreferredName(), BODY_FIELD.getPreferredName());
+                    }
+                    seenXBody = true;
+                    XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
+                    XContentHelper.copyCurrentStructure(contentBuilder.generator(), parser);
+                    builder.body(contentBuilder);
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (AUTH_FIELD.match(currentFieldName)) {
                         builder.auth(httpAuthRegistry.parse(parser));
                     }  else {
-                        throw new ParseException("could not parse http request template. unexpected object field [" + currentFieldName + "]");
+                        throw new ParseException("could not parse http request template. unexpected object field [{}]", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if (SCHEME_FIELD.match(currentFieldName)) {
@@ -239,24 +268,24 @@ public class HttpRequestTemplate implements ToXContent {
                     } else if (HOST_FIELD.match(currentFieldName)) {
                         builder.host = parser.text();
                     } else {
-                        throw new ParseException("could not parse http request template. unexpected string field [" + currentFieldName + "]");
+                        throw new ParseException("could not parse http request template. unexpected string field [{}]", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
                     if (PORT_FIELD.match(currentFieldName)) {
                         builder.port = parser.intValue();
                     } else {
-                        throw new ParseException("could not parse http request template. unexpected numeric field [" + currentFieldName + "]");
+                        throw new ParseException("could not parse http request template. unexpected numeric field [{}]", currentFieldName);
                     }
                 } else {
-                    throw new ParseException("could not parse http request template. unexpected token [" + token + "] for field [" + currentFieldName + "]");
+                    throw new ParseException("could not parse http request template. unexpected token [{}] for field [{}]", token, currentFieldName);
                 }
             }
 
             if (builder.host == null) {
-                throw new ParseException("could not parse http request template. missing required [host] string field");
+                throw new ParseException("could not parse http request template. missing required [{}] string field", HOST_FIELD.getPreferredName());
             }
             if (builder.port <= 0) {
-                throw new ParseException("could not parse http request template. missing required [port] numeric field");
+                throw new ParseException("could not parse http request template. missing required [{}] numeric field", PORT_FIELD.getPreferredName());
             }
 
             return builder.build();
@@ -266,7 +295,7 @@ public class HttpRequestTemplate implements ToXContent {
             try {
                 return Template.parse(parser);
             } catch (Template.ParseException pe) {
-                throw new ParseException("could not parse http request template. could not parse value for  [" + field + "] field", pe);
+                throw new ParseException("could not parse http request template. could not parse value for [{}] field", pe, field);
             }
         }
 
@@ -289,12 +318,12 @@ public class HttpRequestTemplate implements ToXContent {
 
     public static class ParseException extends WatcherException {
 
-        public ParseException(String msg) {
-            super(msg);
+        public ParseException(String msg, Object... args) {
+            super(msg, args);
         }
 
-        public ParseException(String msg, Throwable cause) {
-            super(msg, cause);
+        public ParseException(String msg, Throwable cause, Object... args) {
+            super(msg, cause, args);
         }
     }
 
@@ -309,6 +338,7 @@ public class HttpRequestTemplate implements ToXContent {
         private final ImmutableMap.Builder<String, Template> headers = ImmutableMap.builder();
         private HttpAuth auth;
         private Template body;
+        private XContentType xContentType;
 
         private Builder() {
         }
@@ -363,11 +393,20 @@ public class HttpRequestTemplate implements ToXContent {
         }
 
         public Builder body(String body) {
-            return body(new Template(body));
+            return body(body, null);
         }
 
         public Builder body(Template body) {
+            return body(body, null);
+        }
+
+        public Builder body(String body, XContentType xContentType) {
+            return body(new Template(body), xContentType);
+        }
+
+        public Builder body(Template body, XContentType xContentType) {
             this.body = body;
+            this.xContentType = xContentType;
             return this;
         }
 
@@ -380,11 +419,11 @@ public class HttpRequestTemplate implements ToXContent {
         }
 
         public Builder body(XContentBuilder content) {
-            return body(content.bytes().toUtf8());
+            return body(content.bytes().toUtf8(), content.contentType());
         }
 
         public HttpRequestTemplate build() {
-            return new HttpRequestTemplate(host, port, scheme, method, path, params.build(), headers.build(), auth, body);
+            return new HttpRequestTemplate(host, port, scheme, method, path, params.build(), headers.build(), auth, body, xContentType);
         }
     }
 

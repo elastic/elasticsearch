@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class WatchRecord implements ToXContent {
 
     private Wid id;
-    private String name;
+    private String watchId;
     private TriggerEvent triggerEvent;
     private ExecutableInput input;
     private Condition condition;
@@ -58,7 +58,7 @@ public class WatchRecord implements ToXContent {
 
     public WatchRecord(Wid id, Watch watch, TriggerEvent triggerEvent) {
         this.id = id;
-        this.name = watch.id();
+        this.watchId = watch.id();
         this.triggerEvent = triggerEvent;
         this.condition = watch.condition().condition();
         this.input = watch.input();
@@ -75,8 +75,8 @@ public class WatchRecord implements ToXContent {
         return triggerEvent;
     }
 
-    public String name() {
-        return name;
+    public String watchId() {
+        return watchId;
     }
 
     public ExecutableInput input() { return input; }
@@ -131,7 +131,7 @@ public class WatchRecord implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Parser.WATCH_ID_FIELD.getPreferredName(), name);
+        builder.field(Parser.WATCH_ID_FIELD.getPreferredName(), watchId);
         builder.startObject(Parser.TRIGGER_EVENT_FIELD.getPreferredName())
                 .field(triggerEvent.type(), triggerEvent, params)
                 .endObject();
@@ -268,7 +268,7 @@ public class WatchRecord implements ToXContent {
                     }
                 } else if (token.isValue()) {
                     if (WATCH_ID_FIELD.match(currentFieldName)) {
-                        record.name = parser.text();
+                        record.watchId = parser.text();
                     } else if (MESSAGE_FIELD.match(currentFieldName)) {
                         record.message = parser.textOrNull();
                     } else if (STATE_FIELD.match(currentFieldName)) {
@@ -281,7 +281,7 @@ public class WatchRecord implements ToXContent {
                 }
             }
 
-            assert record.name() != null : "watch record [" + id +"] is missing watch_id";
+            assert record.id() != null : "watch record [" + id +"] is missing watch_id";
             assert record.triggerEvent() != null : "watch record [" + id +"] is missing trigger";
             assert record.input() != null : "watch record [" + id +"] is missing input";
             assert record.condition() != null : "watch record [" + id +"] is condition input";

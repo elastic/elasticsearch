@@ -581,26 +581,26 @@ public interface IndicesAdminClient extends ElasticsearchClient<IndicesAdminClie
     AnalyzeRequestBuilder prepareAnalyze(@Nullable String index, String text);
 
     /**
+     * Analyze text.
+     *
+     * @param text The text to analyze
+     */
+    AnalyzeRequestBuilder prepareAnalyze(String text);
+
+    /**
      * Analyze texts under the provided index.
      *
      * @param index The index name
      * @param text  The array of text to analyze
      */
-    AnalyzeRequestBuilder prepareAnalyze(@Nullable String index, String... text);
+    AnalyzeRequestBuilder prepareAnalyzeWithIndexAndMultiValued(@Nullable String index, String... text);
 
     /**
      * Analyze texts.
      *
      * @param text The array of text to analyze
      */
-    AnalyzeRequestBuilder prepareAnalyze(String... text);
-
-    /**
-     * Analyze text.
-     *
-     * @param text The text to analyze
-     */
-    AnalyzeRequestBuilder prepareAnalyze(String text);
+    AnalyzeRequestBuilder prepareAnalyzeWithMultiValued(String... text);
 
     /**
      * Puts an index template.

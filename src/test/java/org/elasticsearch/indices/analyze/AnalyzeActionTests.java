@@ -282,7 +282,7 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
 
         String[] texts = new String[]{"THIS IS A TEST", "THE SECOND TEXT"};
 
-        final AnalyzeRequestBuilder requestBuilder = client().admin().indices().prepareAnalyze(texts);
+        final AnalyzeRequestBuilder requestBuilder = client().admin().indices().prepareAnalyzeWithMultiValued(texts);
         requestBuilder.setIndex(indexOrAlias());
         requestBuilder.setField("simple");
         AnalyzeResponse analyzeResponse = requestBuilder.get();

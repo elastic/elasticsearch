@@ -13,11 +13,6 @@
         }
       },
       "params": {
-        "pretty": {
-          "type": "boolean",
-          "description": "Pretty the output",
-          "default": false
-        }
       }
     },
     "body": {

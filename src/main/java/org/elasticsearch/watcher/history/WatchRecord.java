@@ -213,7 +213,7 @@ public class WatchRecord implements ToXContent {
         public static final ParseField TRIGGER_EVENT_FIELD = new ParseField("trigger_event");
         public static final ParseField MESSAGE_FIELD = new ParseField("message");
         public static final ParseField STATE_FIELD = new ParseField("state");
-        public static final ParseField METADATA_FIELD = new ParseField("meta");
+        public static final ParseField METADATA_FIELD = new ParseField("metadata");
         public static final ParseField WATCH_EXECUTION_FIELD = new ParseField("watch_execution");
 
         private final ConditionRegistry conditionRegistry;

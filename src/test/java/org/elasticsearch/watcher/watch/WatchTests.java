@@ -125,7 +125,7 @@ public class WatchTests extends ElasticsearchTestCase {
     public void testParser_SelfGenerated() throws Exception {
 
         TransformRegistry transformRegistry = transformRegistry();
-
+        boolean includeStatus = randomBoolean();
         Schedule schedule = randomSchedule();
         Trigger trigger = new ScheduleTrigger(schedule);
         ScheduleRegistry scheduleRegistry = registry(schedule);
@@ -156,7 +156,7 @@ public class WatchTests extends ElasticsearchTestCase {
         logger.info(bytes.toUtf8());
         Watch.Parser watchParser = new Watch.Parser(settings, mock(LicenseService.class), conditionRegistry, triggerService, transformRegistry, actionRegistry, inputRegistry, SystemClock.INSTANCE, secretService);
 
-        boolean includeStatus = randomBoolean();
+
         Watch parsedWatch = watchParser.parse("_name", includeStatus, bytes);
 
         if (includeStatus) {

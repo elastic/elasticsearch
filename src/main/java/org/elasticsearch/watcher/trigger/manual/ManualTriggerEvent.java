@@ -64,7 +64,7 @@ public class ManualTriggerEvent extends TriggerEvent {
                     } else {
                         throw new ParseException("could not parse trigger event for [" + context + "]. unknown string value field [" + currentFieldName + "]");
                     }
-                } if (token == XContentParser.Token.START_OBJECT) {
+                } else if (token == XContentParser.Token.START_OBJECT) {
                     if (TRIGGER_DATA_FIELD.match(currentFieldName)) {
                         triggerData = parser.map();
                     } else {

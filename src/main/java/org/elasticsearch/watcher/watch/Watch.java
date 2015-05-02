@@ -195,7 +195,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         public static final ParseField CONDITION_FIELD = new ParseField("condition");
         public static final ParseField ACTIONS_FIELD = new ParseField("actions");
         public static final ParseField TRANSFORM_FIELD = new ParseField("transform");
-        public static final ParseField META_FIELD = new ParseField("meta");
+        public static final ParseField META_FIELD = new ParseField("metadata");
         public static final ParseField STATUS_FIELD = new ParseField("status");
         public static final ParseField THROTTLE_PERIOD_FIELD = new ParseField("throttle_period");
 
@@ -304,8 +304,11 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                         transform = transformRegistry.parse(id, parser);
                     } else if (META_FIELD.match(currentFieldName)) {
                         metatdata = parser.map();
-                    } else if (STATUS_FIELD.match(currentFieldName) && includeStatus) {
-                        status = Status.parse(parser);
+                    } else if (STATUS_FIELD.match(currentFieldName)) {
+                        Status parsedStatus= Status.parse(parser);
+                        if (includeStatus) {
+                            status = parsedStatus;
+                        }
                     } else if (THROTTLE_PERIOD_FIELD.match(currentFieldName)) {
                         if (token == XContentParser.Token.VALUE_STRING) {
                             throttlePeriod = TimeValue.parseTimeValue(parser.text(), null);
@@ -314,6 +317,8 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                         } else {
                             throw new WatcherSettingsException("could not parse watch [" + id + "] throttle period. could not parse token [" + token + "] as time value (must either be string or number)");
                         }
+                    } else {
+                        throw new WatcherSettingsException("could not parse watch [" + id + "]. unexpected field [" + currentFieldName + "]");
                     }
                 }
             }

@@ -47,7 +47,7 @@
             }
           }
         },
-        "meta" : {
+        "metadata" : {
           "type" : "object",
           "dynamic": true
         }

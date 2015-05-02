@@ -47,7 +47,7 @@
           "enabled" : false,
           "dynamic" : true
         },
-        "meta" : {
+        "metadata" : {
           "type" : "object",
           "dynamic": true
         }

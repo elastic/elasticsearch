@@ -26,8 +26,8 @@ import org.elasticsearch.threadpool.ThreadPool;
  */
 public class PlainListenableActionFuture<T> extends AbstractListenableActionFuture<T, T> {
 
-    public PlainListenableActionFuture(boolean listenerThreaded, ThreadPool threadPool) {
-        super(listenerThreaded, threadPool);
+    public PlainListenableActionFuture(ThreadPool threadPool) {
+        super(threadPool);
     }
 
     @Override

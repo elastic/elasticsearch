@@ -19,12 +19,10 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -49,21 +47,11 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
     public final ActionFuture<Response> execute(Request request) {
         PlainActionFuture<Response> future = newFuture();
-        // since we don't have a listener, and we release a possible lock with the future
-        // there is no need to execute it under a listener thread
-        request.listenerThreaded(false);
         execute(request, future);
         return future;
     }
 
     public final void execute(Request request, ActionListener<Response> listener) {
-        if (forceThreadedListener()) {
-            request.listenerThreaded(true);
-        }
-        if (request.listenerThreaded()) {
-            listener = new ThreadedActionListener<>(threadPool, listener, logger);
-        }
-
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             listener.onFailure(validationException);
@@ -83,68 +71,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         }
     }
 
-    protected boolean forceThreadedListener() {
-        return false;
-    }
-
     protected abstract void doExecute(Request request, ActionListener<Response> listener);
-
-    static final class ThreadedActionListener<Response> implements ActionListener<Response> {
-
-        private final ThreadPool threadPool;
-
-        private final ActionListener<Response> listener;
-
-        private final ESLogger logger;
-
-        ThreadedActionListener(ThreadPool threadPool, ActionListener<Response> listener, ESLogger logger) {
-            this.threadPool = threadPool;
-            this.listener = listener;
-            this.logger = logger;
-        }
-
-        @Override
-        public void onResponse(final Response response) {
-            try {
-                threadPool.executor(ThreadPool.Names.LISTENER).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            listener.onResponse(response);
-                        } catch (Throwable e) {
-                            listener.onFailure(e);
-                        }
-                    }
-                });
-            } catch (EsRejectedExecutionException ex) {
-                logger.debug("Can not run threaded action, execution rejected [{}] running on current thread", listener);
-                /* we don't care if that takes long since we are shutting down. But if we not respond somebody could wait
-                 * for the response on the listener side which could be a remote machine so make sure we push it out there.*/
-                try {
-                    listener.onResponse(response);
-                } catch (Throwable e) {
-                    listener.onFailure(e);
-                }
-            }
-        }
-        
-        @Override
-        public void onFailure(final Throwable e) {
-            try {
-                threadPool.executor(ThreadPool.Names.LISTENER).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        listener.onFailure(e);
-                    }
-                });
-            } catch (EsRejectedExecutionException ex) {
-                logger.debug("Can not run threaded action, execution rejected for listener [{}] running on current thread", listener);
-                /* we don't care if that takes long since we are shutting down (or queue capacity). But if we not respond somebody could wait
-                 * for the response on the listener side which could be a remote machine so make sure we push it out there.*/
-                listener.onFailure(e);
-            }
-        }
-    }
 
     private static class RequestFilterChain<Request extends ActionRequest, Response extends ActionResponse> implements ActionFilterChain {
 

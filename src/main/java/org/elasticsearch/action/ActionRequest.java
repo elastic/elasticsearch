@@ -30,8 +30,6 @@ import java.io.IOException;
  */
 public abstract class ActionRequest<T extends ActionRequest> extends TransportRequest {
 
-    private boolean listenerThreaded = false;
-
     protected ActionRequest() {
         super();
     }
@@ -41,25 +39,6 @@ public abstract class ActionRequest<T extends ActionRequest> extends TransportRe
         // this does not set the listenerThreaded API, if needed, its up to the caller to set it
         // since most times, we actually want it to not be threaded...
         //this.listenerThreaded = request.listenerThreaded();
-    }
-
-    /**
-     * Should the response listener be executed on a thread or not.
-     * <p/>
-     * <p>When not executing on a thread, it will either be executed on the calling thread, or
-     * on an expensive, IO based, thread.
-     */
-    public final boolean listenerThreaded() {
-        return this.listenerThreaded;
-    }
-
-    /**
-     * Sets if the response listener be executed on a thread or not.
-     */
-    @SuppressWarnings("unchecked")
-    public final T listenerThreaded(boolean listenerThreaded) {
-        this.listenerThreaded = listenerThreaded;
-        return (T) this;
     }
 
     public abstract ActionRequestValidationException validate();

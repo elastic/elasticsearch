@@ -42,7 +42,6 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
-        putRequest.listenerThreaded(false);
         putRequest.template(request.param("template", putRequest.template()));
         putRequest.order(request.paramAsInt("order", putRequest.order()));
         putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));

@@ -50,8 +50,6 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         MoreLikeThisRequest mltRequest = moreLikeThisRequest(request.param("index")).type(request.param("type")).id(request.param("id"));
         mltRequest.routing(request.param("routing"));
-
-        mltRequest.listenerThreaded(false);
         //TODO the ParseField class that encapsulates the supported names used for an attribute
         //needs some work if it is to be used in a REST context like this too
         // See the MoreLikeThisQueryParser constants that hold the valid syntax

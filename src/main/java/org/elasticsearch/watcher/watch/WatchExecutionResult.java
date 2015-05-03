@@ -82,12 +82,7 @@ public class WatchExecutionResult implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-
-        if (builder.humanReadable()) {
-            builder.field(Parser.EXECUTION_TIME_FIELD.getPreferredName(), WatcherDateUtils.formatDate(executionTime));
-        } else {
-            builder.field(Parser.EXECUTION_TIME_FIELD.getPreferredName(), executionTime.getMillis());
-        }
+        WatcherDateUtils.writeDate(Parser.EXECUTION_TIME_FIELD.getPreferredName(), builder, executionTime);
         if (inputResult != null) {
             builder.startObject(Parser.INPUT_RESULT_FIELD.getPreferredName())
                     .field(inputResult.type(), inputResult, params)
@@ -142,23 +137,17 @@ public class WatchExecutionResult implements ToXContent {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
+                } else if (EXECUTION_TIME_FIELD.match(currentFieldName)) {
+                    try {
+                        executionTime = WatcherDateUtils.parseDate(currentFieldName, parser, UTC);
+                    } catch (WatcherDateUtils.ParseException pe) {
+                        throw new WatcherException("unable to parse watch execution [{}]. failed to parse date field [{}]", pe, wid, currentFieldName);
+                    }
                 } else if (token.isValue()) {
                     if (THROTTLE_REASON.match(currentFieldName)) {
                         throttleReason = parser.text();
                     } else if (THROTTLED.match(currentFieldName)) {
                         throttled = parser.booleanValue();
-                    } else if (EXECUTION_TIME_FIELD.match(currentFieldName)) {
-                        if (token == XContentParser.Token.VALUE_STRING) {
-                            try {
-                                executionTime = WatcherDateUtils.parseDate(parser.text());
-                            } catch (IllegalArgumentException iae) {
-                                throw new WatcherException("unable to parse watch execution [{}]. failed to parse date field [{}]", iae, wid, currentFieldName);
-                            }
-                        } else if (token == XContentParser.Token.VALUE_NUMBER){
-                            executionTime = new DateTime(parser.longValue(), UTC);
-                        } else {
-                            throw new WatcherException("unable to parse watch execution [{}]. failed to parse date field [{}]. expected either a string or a numeric value", wid, currentFieldName);
-                        }
                     } else {
                         throw new WatcherException("unable to parse watch execution [{}]. unexpected field [{}]", wid, currentFieldName);
                     }

@@ -22,8 +22,6 @@ import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
  */
 public class ManualTriggerEvent extends TriggerEvent {
 
-    private final static ParseField TRIGGER_DATA_FIELD = new ParseField("trigger_data");
-
     private final Map<String, Object> triggerData;
 
     public ManualTriggerEvent(DateTime triggeredTime, Map<String, Object> triggerData) {
@@ -43,10 +41,10 @@ public class ManualTriggerEvent extends TriggerEvent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
-                .field(TRIGGERED_TIME_FIELD.getPreferredName(), WatcherDateUtils.formatDate(triggeredTime))
-                .field(TRIGGER_DATA_FIELD.getPreferredName(), triggerData)
-                .endObject();
+        builder.startObject();
+        WatcherDateUtils.writeDate(Field.TRIGGERED_TIME.getPreferredName(), builder, triggeredTime);
+        builder.field(Field.TRIGGER_DATA.getPreferredName(), triggerData);
+        return builder.endObject();
     }
 
     public static ManualTriggerEvent parse(String context, XContentParser parser) throws IOException {
@@ -57,22 +55,20 @@ public class ManualTriggerEvent extends TriggerEvent {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else {
-                if (token == XContentParser.Token.VALUE_STRING) {
-                    if (TRIGGERED_TIME_FIELD.match(currentFieldName)) {
-                        triggeredTime = WatcherDateUtils.parseDate(parser.text(), UTC);
-                    } else {
-                        throw new ParseException("could not parse trigger event for [" + context + "]. unknown string value field [" + currentFieldName + "]");
-                    }
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (TRIGGER_DATA_FIELD.match(currentFieldName)) {
-                        triggerData = parser.map();
-                    } else {
-                        throw new ParseException("could not parse trigger event for [" + context + "]. unknown object value field [" + currentFieldName + "]");
-                    }
-                } else {
-                    throw new ParseException("could not parse trigger event for [" + context + "]. unexpected token [" + token + "]");
+            } else if (Field.TRIGGERED_TIME.match(currentFieldName)) {
+                try {
+                    triggeredTime = WatcherDateUtils.parseDate(currentFieldName, parser, UTC);
+                } catch (WatcherDateUtils.ParseException pe) {
+                    throw new ParseException("could not parse [{}] trigger event for [{}]. failed to parse date field [{}]", pe, ManualTriggerEngine.TYPE, context, currentFieldName);
                 }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (Field.TRIGGER_DATA.match(currentFieldName)) {
+                    triggerData = parser.map();
+                } else {
+                    throw new ParseException("could not parse trigger event for [{}]. unexpected object value field [{}]", context, currentFieldName);
+                }
+            } else {
+                throw new ParseException("could not parse trigger event for [{}]. unexpected token [{}]", context, token);
             }
         }
 
@@ -83,13 +79,17 @@ public class ManualTriggerEvent extends TriggerEvent {
 
     public static class ParseException extends WatcherException {
 
-        public ParseException(String msg) {
-            super(msg);
+        public ParseException(String msg, Object... args) {
+            super(msg, args);
         }
 
-        public ParseException(String msg, Throwable cause) {
-            super(msg, cause);
+        public ParseException(String msg, Throwable cause, Object... args) {
+            super(msg, cause, args);
         }
+    }
+
+    interface Field extends TriggerEvent.Field {
+        ParseField TRIGGER_DATA = new ParseField("trigger_data");
     }
 
 }

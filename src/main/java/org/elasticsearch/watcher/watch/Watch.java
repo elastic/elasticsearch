@@ -21,7 +21,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherException;
-import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.watcher.actions.ActionRegistry;
 import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.condition.ConditionRegistry;
@@ -31,9 +30,10 @@ import org.elasticsearch.watcher.input.ExecutableInput;
 import org.elasticsearch.watcher.input.InputRegistry;
 import org.elasticsearch.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.support.WatcherDateUtils;
 import org.elasticsearch.watcher.support.clock.Clock;
-import org.elasticsearch.watcher.support.secret.SensitiveXContentParser;
 import org.elasticsearch.watcher.support.secret.SecretService;
+import org.elasticsearch.watcher.support.secret.SensitiveXContentParser;
 import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.throttle.WatchThrottler;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
@@ -248,7 +248,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
          * This method is only called once - when the user adds a new watch. From that moment on, all representations
          * of the watch in the system will be use secrets for sensitive data.
          *
-         * @see org.elasticsearch.watcher.WatcherService#putWatch(String, BytesReference)
+         * @see org.elasticsearch.watcher.WatcherService#putWatch(String, BytesReference, TimeValue)
          */
         public Watch parseWithSecrets(String id, boolean includeStatus, BytesReference source) {
             return parse(id, includeStatus, true, source);
@@ -305,7 +305,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                     } else if (META_FIELD.match(currentFieldName)) {
                         metatdata = parser.map();
                     } else if (STATUS_FIELD.match(currentFieldName)) {
-                        Status parsedStatus= Status.parse(parser);
+                        Status parsedStatus= Status.parse(id, parser);
                         if (includeStatus) {
                             status = parsedStatus;
                         }
@@ -315,18 +315,18 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                         } else if (token == XContentParser.Token.VALUE_NUMBER) {
                             throttlePeriod = TimeValue.timeValueMillis(parser.longValue());
                         } else {
-                            throw new WatcherSettingsException("could not parse watch [" + id + "] throttle period. could not parse token [" + token + "] as time value (must either be string or number)");
+                            throw new WatcherException("could not parse watch [{}] throttle period. could not parse token [{}] as time value (must either be string or number)", id, token);
                         }
                     } else {
-                        throw new WatcherSettingsException("could not parse watch [" + id + "]. unexpected field [" + currentFieldName + "]");
+                        throw new WatcherException("could not parse watch [{}]. unexpected field [{}]", id, currentFieldName);
                     }
                 }
             }
             if (trigger == null) {
-                throw new WatcherSettingsException("could not parse watch [" + id + "]. missing watch trigger");
+                throw new WatcherException("could not parse watch [{}]. missing required field [{}]", id, TRIGGER_FIELD.getPreferredName());
             }
             if (actions == null) {
-                throw new WatcherSettingsException("could not parse watch [" + id + "]. missing watch actions");
+                throw new WatcherException("could not parse watch [{}]. missing required field [{}]", id, ACTIONS_FIELD.getPreferredName());
             }
 
             return new Watch(id, clock, licenseService, trigger, input, condition, transform, actions, metatdata, throttlePeriod, status);
@@ -574,7 +574,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             return builder.endObject();
         }
 
-        public static Status parse(XContentParser parser) throws IOException {
+        public static Status parse(String id, XContentParser parser) throws IOException {
 
             DateTime lastChecked = null;
             DateTime lastMetCondition = null;
@@ -588,64 +588,76 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (LAST_CHECKED_FIELD.match(currentFieldName)) {
-                    if (token.isValue()) {
-                        lastChecked = parseDate(currentFieldName, token, parser, UTC);
-                    } else {
-                        throw new WatcherException("expecting field [" + currentFieldName + "] to hold a date value, found [" + token + "] instead");
+                    try {
+                        lastChecked = WatcherDateUtils.parseDate(currentFieldName, parser, UTC);
+                    } catch (WatcherDateUtils.ParseException pe) {
+                        throw new WatcherException("could not parse watch [{}]. failed to parse date field [{}]", pe, id, currentFieldName);
                     }
                 } else if (LAST_MET_CONDITION_FIELD.match(currentFieldName)) {
-                    if (token.isValue()) {
-                        lastMetCondition = parseDate(currentFieldName, token, parser, UTC);
-                    } else {
-                        throw new WatcherException("expecting field [" + currentFieldName + "] to hold a date value, found [" + token + "] instead");
+                    try {
+                        lastMetCondition = WatcherDateUtils.parseDate(currentFieldName, parser, UTC);
+                    } catch (WatcherDateUtils.ParseException pe) {
+                        throw new WatcherException("could not parse watch [{}]. failed to parse date field [{}]", pe, id, currentFieldName);
                     }
                 } else if (LAST_EXECUTED_FIELD.match(currentFieldName)) {
-                    if (token.isValue()) {
-                        lastExecuted = parseDate(currentFieldName, token, parser, UTC);
-                    } else {
-                        throw new WatcherException("expecting field [" + currentFieldName + "] to hold a date value, found [" + token + "] instead");
+                    try {
+                        lastExecuted = WatcherDateUtils.parseDate(currentFieldName, parser, UTC);
+                    } catch (WatcherDateUtils.ParseException pe) {
+                        throw new WatcherException("could not parse watch [{}]. failed to parse date field [{}]", pe, id, currentFieldName);
                     }
                 } else if (LAST_THROTTLED_FIELD.match(currentFieldName)) {
+                    String context = currentFieldName;
                     if (token == XContentParser.Token.START_OBJECT) {
                         DateTime timestamp = null;
                         String reason = null;
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();
-                            } else if (token.isValue()) {
-                                if (TIMESTAMP_FIELD.match(currentFieldName)) {
-                                    timestamp = parseDate(currentFieldName, token, parser, UTC);
-                                } else if (REASON_FIELD.match(currentFieldName)) {
+                            } else if (TIMESTAMP_FIELD.match(currentFieldName)) {
+                                try {
+                                    timestamp = WatcherDateUtils.parseDate(currentFieldName, parser, UTC);
+                                } catch (WatcherDateUtils.ParseException pe) {
+                                    throw new WatcherException("could not parse watch [{}]. failed to parse date field [{}.{}].", pe, id, context, currentFieldName);
+                                }
+                            } else if (token == XContentParser.Token.VALUE_STRING) {
+                                if (REASON_FIELD.match(currentFieldName)) {
                                     reason = parser.text();
                                 } else {
-                                    throw new WatcherException("unknown field [" + currentFieldName + "] in watch status throttle entry");
+                                    throw new WatcherException("could not parse watch [{}]. unexpected string field [{}.{}]", id, context, currentFieldName);
                                 }
+                            } else {
+                                throw new WatcherException("could not parse watch [{}]. unexpected token [{}] under [{}]", id, token, context);
                             }
                         }
                         lastThrottle = new Throttle(timestamp, reason);
                     } else {
-                        throw new WatcherException("expecting field [" + currentFieldName + "] to be an object, found [" + token + "] instead");
+                        throw new WatcherException("could not parse watch [{}]. unexpected token [{}] under [{}]", id, token, context);
                     }
                 } else if (ACK_FIELD.match(currentFieldName)) {
+                    String context = currentFieldName;
                     if (token == XContentParser.Token.START_OBJECT) {
                         AckStatus.State state = null;
                         DateTime timestamp = null;
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();
-                            } else if (token.isValue()) {
-                                if (TIMESTAMP_FIELD.match(currentFieldName)) {
-                                    timestamp = parseDate(currentFieldName, token, parser, UTC);
-                                } else if (STATE_FIELD.match(currentFieldName)) {
+                            } else if (TIMESTAMP_FIELD.match(currentFieldName)) {
+                                try {
+                                    timestamp = WatcherDateUtils.parseDate(currentFieldName, parser, UTC);
+                                } catch (WatcherDateUtils.ParseException pe) {
+                                    throw new WatcherException("could not parse watch [{}]. failed to parse date field [{}.{}]", pe, id, context, currentFieldName);
+                                }
+                            } else if (token == XContentParser.Token.VALUE_STRING) {
+                                if (STATE_FIELD.match(currentFieldName)) {
                                     state = AckStatus.State.valueOf(parser.text().toUpperCase(Locale.ROOT));
                                 } else {
-                                    throw new WatcherException("unknown field [" + currentFieldName + "] in watch status throttle entry");
+                                    throw new WatcherException("could not parse watch [{}]. unexpected string field [{}.{}]", id, context, currentFieldName);
                                 }
                             }
                         }
                         ackStatus = new AckStatus(state, timestamp);
                     } else {
-                        throw new WatcherException("expecting field [" + currentFieldName + "] to be an object, found [" + token + "] instead");
+                        throw new WatcherException("could not parse watch [{}]. unexpected token [{}] under [{}] field", id, token, context);
                     }
                 }
             }
@@ -656,7 +668,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
 
         public static class AckStatus {
 
-            public static enum State {
+            public enum State {
                 AWAITS_EXECUTION,
                 ACKABLE,
                 ACKED

@@ -10,9 +10,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.DateTimeZone;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.watcher.WatcherSettingsException;
+import org.elasticsearch.watcher.WatcherException;
 
 import java.io.IOException;
 
@@ -39,7 +40,8 @@ public class WatcherDateUtils {
         return dateTimeFormatter.printer().print(date);
     }
 
-    public static DateTime parseDate(String fieldName, XContentParser.Token token, XContentParser parser, DateTimeZone timeZone) throws IOException {
+    public static DateTime parseDate(String fieldName, XContentParser parser, DateTimeZone timeZone) throws IOException {
+        XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_NUMBER) {
             return new DateTime(parser.longValue(), timeZone);
         }
@@ -49,8 +51,11 @@ public class WatcherDateUtils {
         if (token == XContentParser.Token.VALUE_NULL) {
             return null;
         }
-        throw new WatcherSettingsException("could not parse date/time. expected [" + fieldName +
-                    "] to be either a number or a string but was [" + token + "] instead");
+        throw new ParseException("could not parse date/time. expected date field [{}] to be either a number or a string but found [{}] instead", fieldName, token);
+    }
+
+    public static XContentBuilder writeDate(String fieldName, XContentBuilder builder, DateTime date) throws IOException {
+        return builder.field(fieldName, formatDate(date));
     }
 
     public static void writeDate(StreamOutput out, DateTime date) throws IOException {
@@ -72,5 +77,11 @@ public class WatcherDateUtils {
 
     public static DateTime readOptionalDate(StreamInput in, DateTimeZone timeZone) throws IOException {
         return in.readBoolean() ? new DateTime(in.readLong(), timeZone) : null;
+    }
+
+    public static class ParseException extends WatcherException {
+        public ParseException(String msg, Object... args) {
+            super(msg, args);
+        }
     }
 }

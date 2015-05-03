@@ -22,8 +22,6 @@ import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
  */
 public class ScheduleTriggerEvent extends TriggerEvent {
 
-    public static final ParseField SCHEDULED_TIME_FIELD = new ParseField("scheduled_time");
-
     private final DateTime scheduledTime;
 
     public ScheduleTriggerEvent(DateTime triggeredTime, DateTime scheduledTime) {
@@ -33,7 +31,7 @@ public class ScheduleTriggerEvent extends TriggerEvent {
     public ScheduleTriggerEvent(String jobName, DateTime triggeredTime, DateTime scheduledTime) {
         super(jobName, triggeredTime);
         this.scheduledTime = scheduledTime;
-        data.put(SCHEDULED_TIME_FIELD.getPreferredName(), scheduledTime);
+        data.put(Field.SCHEDULED_TIME.getPreferredName(), scheduledTime);
     }
 
     @Override
@@ -47,10 +45,10 @@ public class ScheduleTriggerEvent extends TriggerEvent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
-                .field(TRIGGERED_TIME_FIELD.getPreferredName(), WatcherDateUtils.formatDate(triggeredTime))
-                .field(SCHEDULED_TIME_FIELD.getPreferredName(), WatcherDateUtils.formatDate(scheduledTime))
-                .endObject();
+        builder.startObject();
+        WatcherDateUtils.writeDate(Field.TRIGGERED_TIME.getPreferredName(), builder, triggeredTime);
+        WatcherDateUtils.writeDate(Field.SCHEDULED_TIME.getPreferredName(), builder, scheduledTime);
+        return builder.endObject();
     }
 
     public static ScheduleTriggerEvent parse(String context, XContentParser parser) throws IOException {
@@ -58,22 +56,24 @@ public class ScheduleTriggerEvent extends TriggerEvent {
         DateTime scheduledTime = null;
 
         String currentFieldName = null;
-        XContentParser.Token token = null;
+        XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else {
-                if (token == XContentParser.Token.VALUE_STRING) {
-                    if (TRIGGERED_TIME_FIELD.match(currentFieldName)) {
-                        triggeredTime = WatcherDateUtils.parseDate(parser.text(), UTC);
-                    } else if (SCHEDULED_TIME_FIELD.match(currentFieldName)) {
-                        scheduledTime = WatcherDateUtils.parseDate(parser.text(), UTC);
-                    } else {
-                        throw new ParseException("could not parse trigger event for [" + context + "]. unknown string value field [" + currentFieldName + "]");
-                    }
-                } else {
-                    throw new ParseException("could not parse trigger event for [" + context + "]. unexpected token [" + token + "]");
+            } else if (Field.TRIGGERED_TIME.match(currentFieldName)) {
+                try {
+                    triggeredTime = WatcherDateUtils.parseDate(currentFieldName, parser, UTC);
+                } catch (WatcherDateUtils.ParseException pe) {
+                    throw new ParseException("could not parse [{}] trigger event for [{}]. failed to parse date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, currentFieldName);
                 }
+            }  else if (Field.SCHEDULED_TIME.match(currentFieldName)) {
+                try {
+                    scheduledTime = WatcherDateUtils.parseDate(currentFieldName, parser, UTC);
+                } catch (WatcherDateUtils.ParseException pe) {
+                    throw new ParseException("could not parse [{}] trigger event for [{}]. failed to parse date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, currentFieldName);
+                }
+            }else {
+                throw new ParseException("could not parse trigger event for [{}]. unexpected token [{}]", context, token);
             }
         }
 
@@ -84,12 +84,16 @@ public class ScheduleTriggerEvent extends TriggerEvent {
 
     public static class ParseException extends WatcherException {
 
-        public ParseException(String msg) {
-            super(msg);
+        public ParseException(String msg, Object... args) {
+            super(msg, args);
         }
 
-        public ParseException(String msg, Throwable cause) {
-            super(msg, cause);
+        public ParseException(String msg, Throwable cause, Object... args) {
+            super(msg, cause, args);
         }
+    }
+
+    interface Field extends TriggerEvent.Field {
+        ParseField SCHEDULED_TIME = new ParseField("scheduled_time");
     }
 }

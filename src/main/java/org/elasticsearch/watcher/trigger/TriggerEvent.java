@@ -17,8 +17,6 @@ import java.util.Map;
  */
 public abstract class TriggerEvent implements ToXContent {
 
-    public static final ParseField TRIGGERED_TIME_FIELD = new ParseField("triggered_time");
-
     private final String jobName;
     protected final DateTime triggeredTime;
     protected final Map<String, Object> data;
@@ -27,7 +25,7 @@ public abstract class TriggerEvent implements ToXContent {
         this.jobName = jobName;
         this.triggeredTime = triggeredTime;
         this.data = new HashMap<>();
-        data.put(TRIGGERED_TIME_FIELD.getPreferredName(), triggeredTime);
+        data.put(Field.TRIGGERED_TIME.getPreferredName(), triggeredTime);
     }
 
     public String jobName() {
@@ -42,6 +40,10 @@ public abstract class TriggerEvent implements ToXContent {
 
     public final Map<String, Object> data() {
         return data;
+    }
+
+    protected interface Field {
+        ParseField TRIGGERED_TIME = new ParseField("triggered_time");
     }
 
 }

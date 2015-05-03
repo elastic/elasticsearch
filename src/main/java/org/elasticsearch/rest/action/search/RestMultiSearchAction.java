@@ -56,7 +56,6 @@ public class RestMultiSearchAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
-        multiSearchRequest.listenerThreaded(false);
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] types = Strings.splitStringByCommaToArray(request.param("type"));

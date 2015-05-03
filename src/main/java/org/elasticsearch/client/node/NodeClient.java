@@ -21,6 +21,8 @@ package org.elasticsearch.client.node;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.*;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
@@ -28,6 +30,8 @@ import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -38,6 +42,7 @@ import java.util.Map;
  */
 public class NodeClient extends AbstractClient {
 
+    private final ESLogger logger;
     private final Settings settings;
     private final ThreadPool threadPool;
 
@@ -46,9 +51,11 @@ public class NodeClient extends AbstractClient {
     private final ImmutableMap<ClientAction, TransportAction> actions;
 
     private final Headers headers;
+    private final ThreadedActionListener.Wrapper threadedWrapper;
 
     @Inject
     public NodeClient(Settings settings, ThreadPool threadPool, NodeAdminClient admin, Map<GenericAction, TransportAction> actions, Headers headers) {
+        this.logger = Loggers.getLogger(getClass(), settings);
         this.settings = settings;
         this.threadPool = threadPool;
         this.admin = admin;
@@ -60,6 +67,7 @@ public class NodeClient extends AbstractClient {
             }
         }
         this.actions = actionsBuilder.immutableMap();
+        this.threadedWrapper = new ThreadedActionListener.Wrapper(logger, settings, threadPool);
     }
 
     @Override
@@ -84,16 +92,17 @@ public class NodeClient extends AbstractClient {
 
     @SuppressWarnings("unchecked")
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, Client> action, Request request) {
-        headers.applyTo(request);
-        TransportAction<Request, Response> transportAction = actions.get((ClientAction)action);
-        return transportAction.execute(request);
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> ActionFuture<Response> execute(final Action<Request, Response, RequestBuilder, Client> action, final Request request) {
+        PlainActionFuture<Response> actionFuture = PlainActionFuture.newFuture();
+        execute(action, request, actionFuture);
+        return actionFuture;
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> void execute(Action<Request, Response, RequestBuilder, Client> action, Request request, ActionListener<Response> listener) {
         headers.applyTo(request);
+        listener = threadedWrapper.wrap(listener);
         TransportAction<Request, Response> transportAction = actions.get((ClientAction)action);
         transportAction.execute(request, listener);
     }

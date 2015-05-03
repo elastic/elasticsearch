@@ -22,6 +22,7 @@ package org.elasticsearch.client.transport.support;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
@@ -30,6 +31,8 @@ import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -41,21 +44,20 @@ import java.util.Map;
  */
 public class InternalTransportClient extends AbstractClient {
 
+    private final ESLogger logger;
     private final Settings settings;
     private final ThreadPool threadPool;
-
     private final TransportClientNodesService nodesService;
-
     private final InternalTransportAdminClient adminClient;
-
     private final ImmutableMap<Action, TransportActionNodeProxy> actions;
-
     private final Headers headers;
+    private final ThreadedActionListener.Wrapper threadedWrapper;
 
     @Inject
     public InternalTransportClient(Settings settings, ThreadPool threadPool, TransportService transportService,
                                    TransportClientNodesService nodesService, InternalTransportAdminClient adminClient,
                                    Map<String, GenericAction> actions, Headers headers) {
+        this.logger = Loggers.getLogger(getClass(), settings);
         this.settings = settings;
         this.threadPool = threadPool;
         this.nodesService = nodesService;
@@ -68,6 +70,7 @@ public class InternalTransportClient extends AbstractClient {
             }
         }
         this.actions = actionsBuilder.immutableMap();
+        this.threadedWrapper = new ThreadedActionListener.Wrapper(logger, settings, threadPool);
     }
 
     @Override
@@ -102,6 +105,7 @@ public class InternalTransportClient extends AbstractClient {
     @Override
     public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> void execute(final Action<Request, Response, RequestBuilder, Client> action, final Request request, ActionListener<Response> listener) {
         headers.applyTo(request);
+        listener = threadedWrapper.wrap(listener);
         final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<Response>() {
             @Override

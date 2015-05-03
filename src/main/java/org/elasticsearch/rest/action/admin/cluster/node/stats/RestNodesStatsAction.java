@@ -60,7 +60,6 @@ public class RestNodesStatsAction extends BaseRestHandler {
         Set<String> metrics = Strings.splitStringByCommaToSet(request.param("metric", "_all"));
 
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(nodesIds);
-        nodesStatsRequest.listenerThreaded(false);
 
         if (metrics.size() == 1 && metrics.contains("_all")) {
             nodesStatsRequest.all();

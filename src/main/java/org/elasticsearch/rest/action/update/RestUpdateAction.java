@@ -55,7 +55,6 @@ public class RestUpdateAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
         UpdateRequest updateRequest = new UpdateRequest(request.param("index"), request.param("type"), request.param("id"));
-        updateRequest.listenerThreaded(false);
         updateRequest.routing(request.param("routing"));
         updateRequest.parent(request.param("parent"));
         updateRequest.timeout(request.paramAsTime("timeout", updateRequest.timeout()));

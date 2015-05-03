@@ -81,8 +81,6 @@ public class RestNodesInfoAction extends BaseRestHandler {
         }
 
         final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(nodeIds);
-        nodesInfoRequest.listenerThreaded(false);
-
         // shortcut, dont do checks if only all is specified
         if (metrics.size() == 1 && metrics.contains("_all")) {
             nodesInfoRequest.all();

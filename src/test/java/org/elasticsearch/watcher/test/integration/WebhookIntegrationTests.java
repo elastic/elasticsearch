@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.test.integration;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.QueueDispatcher;
@@ -44,7 +45,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTests {
 
     @Before
     public void startWebservice() throws Exception {
-        for (webPort = 9200; webPort < 9300; webPort++) {
+        for (webPort = 9250; webPort < 9300; webPort++) {
             try {
                 webServer = new MockWebServer();
                 QueueDispatcher dispatcher = new QueueDispatcher();
@@ -64,7 +65,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTests {
         webServer.shutdown();
     }
 
-    @Test
+    @Test @Repeat(iterations = 20)
     public void testWebhook() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webPort)

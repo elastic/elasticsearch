@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.actions.email.service;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -250,7 +249,11 @@ public class EmailTemplate implements ToXContent {
         }
 
         public Builder replyTo(String... replyTo) {
-            return replyTo(new Template(Strings.arrayToCommaDelimitedString(replyTo)));
+            Template[] templates = new Template[replyTo.length];
+            for (int i = 0; i < templates.length; i++) {
+                templates[i] = new Template(replyTo[i]);
+            }
+            return replyTo(templates);
         }
 
         public Builder replyTo(Template... replyTo) {

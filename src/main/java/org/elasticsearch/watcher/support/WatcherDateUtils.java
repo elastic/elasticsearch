@@ -26,9 +26,13 @@ public class WatcherDateUtils {
     private WatcherDateUtils() {
     }
 
+    public static DateTime parseDate(String dateAsText) {
+        return parseDate(dateAsText, null);
+    }
+
     public static DateTime parseDate(String format, DateTimeZone timeZone) {
         DateTime dateTime = dateTimeFormatter.parser().parseDateTime(format);
-        return dateTime.toDateTime(timeZone);
+        return timeZone != null ? dateTime.toDateTime(timeZone) : dateTime;
     }
 
     public static String formatDate(DateTime date) {

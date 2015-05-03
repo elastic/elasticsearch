@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.watch;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -20,17 +21,21 @@ import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputRegistry;
+import org.elasticsearch.watcher.support.WatcherDateUtils;
 import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.transform.TransformRegistry;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
+
 /**
 *
 */
 public class WatchExecutionResult implements ToXContent {
 
+    private final DateTime executionTime;
     private final Input.Result inputResult;
     private final Condition.Result conditionResult;
     private final Throttler.Result throttleResult;
@@ -38,15 +43,20 @@ public class WatchExecutionResult implements ToXContent {
     private final ExecutableActions.Results actionsResults;
 
     public WatchExecutionResult(WatchExecutionContext context) {
-        this(context.inputResult(), context.conditionResult(), context.throttleResult(), context.transformResult(), context.actionsResults());
+        this(context.executionTime(), context.inputResult(), context.conditionResult(), context.throttleResult(), context.transformResult(), context.actionsResults());
     }
 
-    WatchExecutionResult(Input.Result inputResult, Condition.Result conditionResult, Throttler.Result throttleResult, @Nullable Transform.Result transformResult, ExecutableActions.Results actionsResults) {
+    WatchExecutionResult(DateTime executionTime, Input.Result inputResult, Condition.Result conditionResult, Throttler.Result throttleResult, @Nullable Transform.Result transformResult, ExecutableActions.Results actionsResults) {
+        this.executionTime = executionTime;
         this.inputResult = inputResult;
         this.conditionResult = conditionResult;
         this.throttleResult = throttleResult;
         this.transformResult = transformResult;
         this.actionsResults = actionsResults;
+    }
+
+    public DateTime executionTime() {
+        return executionTime;
     }
 
     public Input.Result inputResult() {
@@ -72,6 +82,12 @@ public class WatchExecutionResult implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+
+        if (builder.humanReadable()) {
+            builder.field(Parser.EXECUTION_TIME_FIELD.getPreferredName(), WatcherDateUtils.formatDate(executionTime));
+        } else {
+            builder.field(Parser.EXECUTION_TIME_FIELD.getPreferredName(), executionTime.getMillis());
+        }
         if (inputResult != null) {
             builder.startObject(Parser.INPUT_RESULT_FIELD.getPreferredName())
                     .field(inputResult.type(), inputResult, params)
@@ -104,6 +120,7 @@ public class WatchExecutionResult implements ToXContent {
 
     public static class Parser {
 
+        public static final ParseField EXECUTION_TIME_FIELD = new ParseField("execution_time");
         public static final ParseField INPUT_RESULT_FIELD = new ParseField("input_result");
         public static final ParseField CONDITION_RESULT_FIELD = new ParseField("condition_result");
         public static final ParseField ACTIONS_RESULTS = new ParseField("actions_results");
@@ -112,6 +129,7 @@ public class WatchExecutionResult implements ToXContent {
 
         public static WatchExecutionResult parse(Wid wid, XContentParser parser, ConditionRegistry conditionRegistry, ActionRegistry actionRegistry,
                                            InputRegistry inputRegistry, TransformRegistry transformRegistry) throws IOException {
+            DateTime executionTime = null;
             boolean throttled = false;
             String throttleReason = null;
             ExecutableActions.Results actionResults = null;
@@ -129,8 +147,20 @@ public class WatchExecutionResult implements ToXContent {
                         throttleReason = parser.text();
                     } else if (THROTTLED.match(currentFieldName)) {
                         throttled = parser.booleanValue();
+                    } else if (EXECUTION_TIME_FIELD.match(currentFieldName)) {
+                        if (token == XContentParser.Token.VALUE_STRING) {
+                            try {
+                                executionTime = WatcherDateUtils.parseDate(parser.text());
+                            } catch (IllegalArgumentException iae) {
+                                throw new WatcherException("unable to parse watch execution [{}]. failed to parse date field [{}]", iae, wid, currentFieldName);
+                            }
+                        } else if (token == XContentParser.Token.VALUE_NUMBER){
+                            executionTime = new DateTime(parser.longValue(), UTC);
+                        } else {
+                            throw new WatcherException("unable to parse watch execution [{}]. failed to parse date field [{}]. expected either a string or a numeric value", wid, currentFieldName);
+                        }
                     } else {
-                        throw new WatcherException("unable to parse watch execution. unexpected field [" + currentFieldName + "]");
+                        throw new WatcherException("unable to parse watch execution [{}]. unexpected field [{}]", wid, currentFieldName);
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (INPUT_RESULT_FIELD.match(currentFieldName)) {
@@ -149,8 +179,11 @@ public class WatchExecutionResult implements ToXContent {
                 }
             }
 
+            if (executionTime == null) {
+                throw new WatcherException("unable to parse watch execution [{}]. missing required date field [{}]", wid, EXECUTION_TIME_FIELD.getPreferredName());
+            }
             Throttler.Result throttleResult = throttled ? Throttler.Result.throttle(throttleReason) : Throttler.Result.NO;
-            return new WatchExecutionResult(inputResult, conditionResult, throttleResult, transformResult, actionResults);
+            return new WatchExecutionResult(executionTime, inputResult, conditionResult, throttleResult, transformResult, actionResults);
 
         }
     }

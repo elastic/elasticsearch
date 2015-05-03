@@ -370,6 +370,29 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         });
     }
 
+    protected void assertWatchWithMinimumActionsCount(final String watchName, final WatchRecord.State recordState, final long recordCount) throws Exception {
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                ClusterState state = client().admin().cluster().prepareState().get().getState();
+                String[] watchHistoryIndices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), HistoryStore.INDEX_PREFIX + "*");
+                assertThat(watchHistoryIndices, not(emptyArray()));
+                for (String index : watchHistoryIndices) {
+                    IndexRoutingTable routingTable = state.getRoutingTable().index(index);
+                    assertThat(routingTable, notNullValue());
+                    assertThat(routingTable.allPrimaryShardsActive(), is(true));
+                }
+
+                refresh();
+                SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
+                        .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                        .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", recordState.id())))
+                        .get();
+                assertThat("could not find executed watch record", searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(recordCount));
+            }
+        });
+    }
+
     protected void ensureWatcherStarted() throws Exception {
         ensureWatcherStarted(true);
     }

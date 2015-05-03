@@ -57,7 +57,7 @@ public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegration
 
         // the action should fail as no email server is available
         assertWatchWithMinimumActionsCount("_id", WatchRecord.State.EXECUTED, 1);
-
+        refresh();
         GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings().get();
         assertThat(mappingsResponse, notNullValue());
         assertThat(mappingsResponse.getMappings().isEmpty(), is(false));

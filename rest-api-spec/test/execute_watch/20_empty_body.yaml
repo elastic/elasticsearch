@@ -13,34 +13,12 @@
             "schedule" : { "cron" : "0 0/1 * * * ?" }
             },
             "input" : {
-              "search" : {
-                "request" : {
-                  "body" : {
-                    "query" : {
-                      "filtered": {
-                        "query": {
-                          "match": {
-                            "response": 404
-                          }
-                        },
-                        "filter": {
-                          "range": {
-                            "@timestamp" : {
-                              "from": "{{ctx.trigger.scheduled_time}}||-5m",
-                              "to": "{{ctx.trigger.triggered_time}}"
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
+              "simple" : {
+                "count" : 1
               }
             },
             "condition" : {
-              "script" : {
-                "script" : "ctx.payload.hits.total > 1"
-              }
+              "script" : "ctx.payload.count == 1"
             },
             "actions" : {
               "Logging" : {
@@ -58,7 +36,7 @@
         body: null
 
   - match: { "watch_id": "my_logging_watch" }
-  - match: { "watch_execution.condition_result.always": {} }
+  - match: { "watch_execution.condition_result.script.met": true }
   - match: { "state": "executed" }
   - match: { "watch_execution.actions_results.Logging.logging.success" : true }
   - match: { "watch_execution.actions_results.Logging.logging.logged_text" : "foobar" }

@@ -6,6 +6,8 @@
 package org.elasticsearch.watcher.execution;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
@@ -14,6 +16,7 @@ import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
@@ -23,6 +26,7 @@ import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
@@ -159,5 +163,46 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
 
         assertThat(watchRecord1.execution().inputResult().payload().data().get("foo").toString(), equalTo("bar"));
         assertThat(watchRecord2.execution().inputResult().payload().data().get("foo"), instanceOf(Map.class));
+    }
+
+    @Test
+    public void testExecutionRequestDefaults() throws Exception {
+        ensureWatcherStarted();
+        WatchRecord.Parser watchRecordParser = internalTestCluster().getInstance(WatchRecord.Parser.class);
+
+        WatchSourceBuilder watchBuilder = watchBuilder()
+                .trigger(schedule(cron("0 0 0 1 * ? 2099")))
+                .input(simpleInput("foo", "bar"))
+                .condition(neverCondition())
+                .throttlePeriod(new TimeValue(1, TimeUnit.HOURS))
+                .addAction("log", loggingAction("foobar"));
+        watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
+
+        Wid wid = new Wid("_watchId",1,new DateTime());
+        ExecuteWatchResponse executeWatchResponse = watcherClient().prepareExecuteWatch().setId("_id").get();
+        WatchRecord watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getWatchRecordSource());
+
+        assertThat(watchRecord.state(), equalTo(WatchRecord.State.EXECUTION_NOT_NEEDED));
+        assertThat(watchRecord.execution().inputResult().payload().data().get("foo").toString(), equalTo("bar"));
+
+        watchBuilder = watchBuilder()
+                .trigger(schedule(cron("0 0 0 1 * ? 2099")))
+                .input(simpleInput("foo", "bar"))
+                .condition(alwaysCondition())
+                .throttlePeriod(new TimeValue(1, TimeUnit.HOURS))
+                .addAction("log", loggingAction("foobar"));
+        watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
+
+        executeWatchResponse = watcherClient().prepareExecuteWatch().setId("_id").setRecordExecution(true).get();
+        watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getWatchRecordSource());
+
+        assertThat(watchRecord.state(), equalTo(WatchRecord.State.EXECUTED));
+        assertThat(watchRecord.execution().inputResult().payload().data().get("foo").toString(), equalTo("bar"));
+        assertThat(watchRecord.execution().actionsResults().get("log"), not(instanceOf(LoggingAction.Result.Simulated.class)));
+
+        executeWatchResponse = watcherClient().prepareExecuteWatch().setId("_id").get();
+        watchRecord = watchRecordParser.parse(wid.value(), 1, executeWatchResponse.getWatchRecordSource());
+
+        assertThat(watchRecord.state(), equalTo(WatchRecord.State.THROTTLED));
     }
 }

@@ -22,7 +22,7 @@ import java.util.Set;
 public class ExecuteWatchRequest extends MasterNodeOperationRequest<ExecuteWatchRequest> {
 
     private String id;
-    private boolean ignoreCondition = true;
+    private boolean ignoreCondition = false;
     private boolean ignoreThrottle = false;
     private boolean recordExecution = false;
     private Map<String, Object> alternativeInput = null;

@@ -8,9 +8,7 @@ package org.elasticsearch.watcher.test.integration;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.hppc.cursors.ObjectCursor;
 import org.elasticsearch.common.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
@@ -70,6 +68,7 @@ public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegration
             MappingMetaData metadata = metadatas.value.get("watch_record");
             assertThat(metadata, notNullValue());
             Map<String, Object> source = metadata.getSourceAsMap();
+            logger.info("metadata : [{}]", metadata.source().toString());
             assertThat(extractValue("properties.trigger_event.properties.schedule.properties.scheduled_time.type", source), is((Object) "date"));
             assertThat(extractValue("properties.trigger_event.properties.schedule.properties.triggered_time.type", source), is((Object) "date"));
             assertThat(extractValue("properties.watch_execution.properties.execution_time.type", source), is((Object) "date"));

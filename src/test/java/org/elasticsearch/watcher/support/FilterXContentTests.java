@@ -48,7 +48,6 @@ public class FilterXContentTests extends ElasticsearchTestCase {
                 added = keys.add("key" + randomInt(7));
             } while (!added);
         }
-        System.out.println(keys);
 
         Map<String, Object> filteredData = XContentFilterKeysUtils.filterMapOrdered(keys, parser);
         assertThat(filteredData.size(), equalTo(numKeys));

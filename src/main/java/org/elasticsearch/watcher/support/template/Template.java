@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  *
@@ -30,10 +29,10 @@ public class Template implements ToXContent {
     private final @Nullable Map<String, Object> params;
 
     public Template(String template) {
-        this(template, ScriptType.INLINE, ImmutableMap.<String, Object>of());
+        this(template, null, null);
     }
 
-    public Template(String template, ScriptType type, Map<String, Object> params) {
+    public Template(String template, @Nullable ScriptType type, @Nullable Map<String, Object> params) {
         this.template = template;
         this.type = type;
         this.params = params;
@@ -55,20 +54,25 @@ public class Template implements ToXContent {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        Template template = (Template) o;
-        return Objects.equals(this.template, template.template) &&
-                Objects.equals(type, template.type) &&
-                Objects.equals(params, template.params);
+
+        Template template1 = (Template) o;
+
+        if (!template.equals(template1.template)) return false;
+        if (type != template1.type) return false;
+        return !(params != null ? !params.equals(template1.params) : template1.params != null);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(template, type, params);
+        int result = template.hashCode();
+        result = 31 * result + (type != null ? type.hashCode() : 0);
+        result = 31 * result + (params != null ? params.hashCode() : 0);
+        return result;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (type == null && params == null) {
+        if (type == null && this.params == null) {
             return builder.value(template);
         }
         builder.startObject();
@@ -88,7 +92,7 @@ public class Template implements ToXContent {
             return new Template(String.valueOf(parser.objectText()));
         }
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ParseException("expected a string value or an object, but found [" + token + "] instead");
+            throw new ParseException("expected a string value or an object, but found [{}]instead", token);
         }
 
         String template = null;
@@ -138,7 +142,7 @@ public class Template implements ToXContent {
 
         private final String template;
         private ScriptType type;
-        private HashMap<String, Object> params = new HashMap<>();
+        private HashMap<String, Object> params;
 
         private Builder(String template) {
             this.template = template;
@@ -150,17 +154,22 @@ public class Template implements ToXContent {
         }
 
         public Builder putParams(Map<String, Object> params) {
+            if (params == null) {
+                params = new HashMap<>();
+            }
             this.params.putAll(params);
             return this;
         }
 
         public Builder putParam(String key, Object value) {
+            if (params == null) {
+                params = new HashMap<>();
+            }
             params.put(key, value);
             return this;
         }
 
         public Template build() {
-            type = type != null ? type : ScriptType.INLINE;
             return new Template(template, type, params);
         }
     }

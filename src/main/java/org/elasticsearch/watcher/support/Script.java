@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.watcher.support;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,16 +33,16 @@ public class Script implements ToXContent {
     public static final ParseField PARAMS_FIELD = new ParseField("params");
 
     private final String script;
-    private final ScriptService.ScriptType type;
-    private final String lang;
-    private final Map<String, Object> params;
+    private final @Nullable ScriptService.ScriptType type;
+    private final @Nullable String lang;
+    private final @Nullable Map<String, Object> params;
 
     public Script(String script) {
-        this(script, DEFAULT_TYPE, DEFAULT_LANG, Collections.<String, Object>emptyMap());
+        this(script, null, null, null);
     }
 
     public Script(String script, ScriptService.ScriptType type, String lang) {
-        this(script, type, lang, Collections.<String, Object>emptyMap());
+        this(script, type, lang, null);
     }
 
     public Script(String script, ScriptService.ScriptType type, String lang, Map<String, Object> params) {
@@ -55,15 +57,15 @@ public class Script implements ToXContent {
     }
 
     public ScriptService.ScriptType type() {
-        return type;
+        return type != null ? type : ScriptService.ScriptType.INLINE;
     }
 
     public String lang() {
-        return lang;
+        return lang != null ? lang : DEFAULT_LANG;
     }
 
     public Map<String, Object> params() {
-        return params;
+        return params != null ? params : ImmutableMap.<String, Object>of();
     }
 
     @Override
@@ -73,50 +75,53 @@ public class Script implements ToXContent {
 
         Script script1 = (Script) o;
 
-        if (!lang.equals(script1.lang)) return false;
-        if (!params.equals(script1.params)) return false;
         if (!script.equals(script1.script)) return false;
         if (type != script1.type) return false;
-
-        return true;
+        if (lang != null ? !lang.equals(script1.lang) : script1.lang != null) return false;
+        return !(params != null ? !params.equals(script1.params) : script1.params != null);
     }
 
     @Override
     public int hashCode() {
         int result = script.hashCode();
-        result = 31 * result + type.hashCode();
-        result = 31 * result + lang.hashCode();
-        result = 31 * result + params.hashCode();
+        result = 31 * result + (type != null ? type.hashCode() : 0);
+        result = 31 * result + (lang != null ? lang.hashCode() : 0);
+        result = 31 * result + (params != null ? params.hashCode() : 0);
         return result;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
-                .field(SCRIPT_FIELD.getPreferredName(), script)
-                .field(TYPE_FIELD.getPreferredName(), type.name().toLowerCase(Locale.ROOT))
-                .field(LANG_FIELD.getPreferredName(), lang)
-                .field(PARAMS_FIELD.getPreferredName(), this.params)
-                .endObject();
+        if (type == null && lang == null && params == null) {
+            return builder.value(script);
+        }
+        builder.startObject();
+        builder.field(SCRIPT_FIELD.getPreferredName(), script);
+        if (type != null) {
+            builder.field(TYPE_FIELD.getPreferredName(), type.name().toLowerCase(Locale.ROOT));
+        }
+        if (lang != null) {
+            builder.field(LANG_FIELD.getPreferredName(), lang);
+        }
+        if (this.params != null) {
+            builder.field(PARAMS_FIELD.getPreferredName(), this.params);
+        }
+        return builder.endObject();
     }
 
     public static Script parse(XContentParser parser) throws IOException {
-        return parse(parser, ScriptService.DEFAULT_LANG);
-    }
-
-    public static Script parse(XContentParser parser, String defaultLang) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_STRING) {
             return new Script(parser.text());
         }
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ParseException("expected a string value or an object, but found [" + token + "] instead");
+            throw new ParseException("expected a string value or an object, but found [{}] instead", token);
         }
 
         String script = null;
-        ScriptService.ScriptType type = ScriptService.ScriptType.INLINE;
-        String lang = defaultLang;
-        Map<String, Object> params = Collections.emptyMap();
+        ScriptService.ScriptType type = null;
+        String lang = null;
+        Map<String, Object> params = null;
 
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -126,7 +131,7 @@ public class Script implements ToXContent {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     script = parser.text();
                 } else {
-                    throw new ParseException("expected a string value for field [" + currentFieldName + "], but found [" + token + "]");
+                    throw new ParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
                 }
             } else if (TYPE_FIELD.match(currentFieldName)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
@@ -134,39 +139,39 @@ public class Script implements ToXContent {
                     try {
                         type = ScriptService.ScriptType.valueOf(value.toUpperCase(Locale.ROOT));
                     } catch (IllegalArgumentException iae) {
-                        throw new ParseException("unknown script type [" + value + "]");
+                        throw new ParseException("unknown script type [{}]", value);
                     }
                 }
             } else if (LANG_FIELD.match(currentFieldName)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     lang = parser.text();
                 } else {
-                    throw new ParseException("expected a string value for field [" + currentFieldName + "], but found [" + token + "]");
+                    throw new ParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
                 }
             } else if (PARAMS_FIELD.match(currentFieldName)) {
                 if (token == XContentParser.Token.START_OBJECT) {
                     params = parser.map();
                 } else {
-                    throw new ParseException("expected an object for field [" + currentFieldName + "], but found [" + token + "]");
+                    throw new ParseException("expected an object for field [{}], but found [{}]", currentFieldName, token);
                 }
             } else {
-                throw new ParseException("unexpected field [" + currentFieldName + "]");
+                throw new ParseException("unexpected field [{}]", currentFieldName);
             }
         }
         if (script == null) {
-            throw new ParseException("missing required string field [" + currentFieldName + "]");
+            throw new ParseException("missing required string field [{}]", SCRIPT_FIELD.getPreferredName());
         }
         return new Script(script, type, lang, params);
     }
 
     public static class ParseException extends WatcherException {
 
-        public ParseException(String msg) {
-            super(msg);
+        public ParseException(String msg, Object... args) {
+            super(msg, args);
         }
 
-        public ParseException(String msg, Throwable cause) {
-            super(msg, cause);
+        public ParseException(String msg, Throwable cause, Object... args) {
+            super(msg, cause, args);
         }
     }
 }

@@ -144,7 +144,7 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
         ExecutableScriptTransform transform = new ScriptTransformFactory(ImmutableSettings.EMPTY, service).parseExecutable("_id", parser);
-        assertThat(transform.transform().getScript(), equalTo(new Script("_script", ScriptService.ScriptType.INLINE, ScriptService.DEFAULT_LANG, ImmutableMap.<String, Object>of())));
+        assertThat(transform.transform().getScript(), equalTo(new Script("_script")));
     }
 
 

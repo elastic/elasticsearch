@@ -64,9 +64,9 @@ And here is a sample response:
 `search_type`::
 
     The type of the search operation to perform. Can be
-    `dfs_query_then_fetch`, `query_then_fetch`, 'count',
-    or 'scan'. Defaults to `query_then_fetch`. See
-    <<search-request-search-type,_Search Type_>> for more.
+    `dfs_query_then_fetch`, `query_then_fetch`, or 'scan'.
+    Defaults to `query_then_fetch`.
+    See <<search-request-search-type,_Search Type_>> for more.
 
 `query_cache`::
 

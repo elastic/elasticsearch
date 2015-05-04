@@ -30,6 +30,7 @@ import org.elasticsearch.common.inject.spi.Message;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.jna.Kernel32Library;
 import org.elasticsearch.common.jna.Natives;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.log4j.LogConfigurator;
@@ -55,11 +56,33 @@ import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_
  */
 public class Bootstrap {
 
-    private Node node;
+    private static volatile Bootstrap INSTANCE;
 
-    private static volatile Thread keepAliveThread;
-    private static volatile CountDownLatch keepAliveLatch;
-    private static Bootstrap bootstrap;
+    private Node node;
+    private final CountDownLatch keepAliveLatch = new CountDownLatch(1);
+    private final Thread keepAliveThread;
+
+    /** creates a new instance */
+    Bootstrap() {
+        keepAliveThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    keepAliveLatch.await();
+                } catch (InterruptedException e) {
+                    // bail out
+                }
+            }
+        }, "elasticsearch[keepAlive/" + Version.CURRENT + "]");
+        keepAliveThread.setDaemon(false);
+        // keep this thread alive (non daemon thread) until we shutdown
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                keepAliveLatch.countDown();
+            }
+        });
+    }
     
     /** initialize native resources */
     public static void initializeNatives(boolean mlockAll, boolean ctrlHandler) {
@@ -77,7 +100,7 @@ public class Bootstrap {
                         ESLogger logger = Loggers.getLogger(Bootstrap.class);
                         logger.info("running graceful exit on windows");
 
-                        System.exit(0);
+                        Bootstrap.INSTANCE.stop();
                         return true;
                     }
                     return false;
@@ -148,47 +171,22 @@ public class Bootstrap {
         return InternalSettingsPreparer.prepareSettings(EMPTY_SETTINGS, true);
     }
 
-    /**
-     * hook for JSVC
-     */
-    public void init(String[] args) throws Exception {
-        Tuple<Settings, Environment> tuple = initialSettings();
-        Settings settings = tuple.v1();
-        Environment environment = tuple.v2();
-        setupLogging(settings, environment);
-        setup(true, settings, environment);
-    }
-
-    /**
-     * hook for JSVC
-     */
-    public void start() {
+    private void start() {
         node.start();
+        keepAliveThread.start();
     }
 
-    /**
-     * hook for JSVC
-     */
-    public void stop() {
-       destroy();
-    }
-
-
-    /**
-     * hook for JSVC
-     */
-    public void destroy() {
-        node.close();
-    }
-
-    public static void close(String[] args) {
-        bootstrap.destroy();
-        keepAliveLatch.countDown();
+    private void stop() {
+        try {
+            Releasables.close(node);
+        } finally {
+            keepAliveLatch.countDown();
+        }
     }
 
     public static void main(String[] args) {
         System.setProperty("es.logger.prefix", "");
-        bootstrap = new Bootstrap();
+        INSTANCE = new Bootstrap();
         final String pidFile = System.getProperty("es.pidfile", System.getProperty("es-pidfile"));
 
         if (pidFile != null) {
@@ -240,40 +238,18 @@ public class Bootstrap {
             // fail if using broken version
             JVMCheck.check();
 
-            keepAliveLatch = new CountDownLatch(1);
-            // keep this thread alive (non daemon thread) until we shutdown
-            Runtime.getRuntime().addShutdownHook(new Thread() {
-                @Override
-                public void run() {
-                    keepAliveLatch.countDown();
-                }
-            });
-
-            bootstrap.setup(true, settings, environment);
+            INSTANCE.setup(true, settings, environment);
 
             stage = "Startup";
-            bootstrap.start();
+            INSTANCE.start();
 
             if (!foreground) {
                 closeSysError();
             }
-
-            keepAliveThread = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        keepAliveLatch.await();
-                    } catch (InterruptedException e) {
-                        // bail out
-                    }
-                }
-            }, "elasticsearch[keepAlive/" + Version.CURRENT + "]");
-            keepAliveThread.setDaemon(false);
-            keepAliveThread.start();
         } catch (Throwable e) {
             ESLogger logger = Loggers.getLogger(Bootstrap.class);
-            if (bootstrap.node != null) {
-                logger = Loggers.getLogger(Bootstrap.class, bootstrap.node.settings().get("name"));
+            if (INSTANCE.node != null) {
+                logger = Loggers.getLogger(Bootstrap.class, INSTANCE.node.settings().get("name"));
             }
             String errorMessage = buildErrorMessage(stage, e);
             if (foreground) {

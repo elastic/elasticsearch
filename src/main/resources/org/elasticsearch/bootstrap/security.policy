@@ -63,9 +63,6 @@ grant {
   // needed by ImmutableSettings
   permission java.lang.RuntimePermission "getenv.*";
 
-  // needed by BootStrap, etc
-  permission java.lang.RuntimePermission "exitVM.*";
-
   // needed by PluginManager
   permission java.lang.RuntimePermission "setFactory";
 

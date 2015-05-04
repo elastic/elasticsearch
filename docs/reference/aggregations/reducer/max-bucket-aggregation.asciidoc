@@ -5,6 +5,26 @@ A sibling reducer aggregation which identifies the bucket(s) with the maximum va
 and outputs both the value and the key(s) of the bucket(s). The specified metric must be numeric and the sibling aggregation must 
 be a multi-bucket aggregation.
 
+==== Syntax
+
+A `max_bucket` aggregation looks like this in isolation:
+
+[source,js]
+--------------------------------------------------
+{
+    "max_bucket": {
+        "buckets_path": "the_sum"
+    }
+}
+--------------------------------------------------
+
+.`max_bucket` Parameters
+|===
+|Parameter Name |Description |Required |Default Value
+|`buckets_path` |The path to the buckets we wish to find the maximum for (see <<bucket-path-syntax>> for more
+ details |Required |
+|===
+
 The following snippet calculates the maximum of the total monthly `sales`:
 
 [source,js]
@@ -32,7 +52,6 @@ The following snippet calculates the maximum of the total monthly `sales`:
     }
 }
 --------------------------------------------------
-
 <1> `bucket_paths` instructs this max_bucket aggregation that we want the maximum value of the `sales` aggregation in the 
 `sales_per_month` date histogram.
 

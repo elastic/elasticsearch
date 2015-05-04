@@ -25,7 +25,6 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -133,7 +132,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
         String aggName = path.get(0);
         InternalAggregation aggregation = get(aggName);
         if (aggregation == null) {
-            throw new ElasticsearchIllegalArgumentException("Cannot find an aggregation named [" + aggName + "]");
+            throw new IllegalArgumentException("Cannot find an aggregation named [" + aggName + "]");
         }
         return aggregation.getProperty(path.subList(1, path.size()));
     }

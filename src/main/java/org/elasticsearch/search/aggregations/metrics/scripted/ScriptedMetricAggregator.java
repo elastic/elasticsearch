@@ -22,16 +22,19 @@ package org.elasticsearch.search.aggregations.metrics.scripted;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.*;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -57,8 +60,9 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
 
     protected ScriptedMetricAggregator(String name, String scriptLang, ScriptType initScriptType, String initScript,
             ScriptType mapScriptType, String mapScript, ScriptType combineScriptType, String combineScript, ScriptType reduceScriptType,
-            String reduceScript, Map<String, Object> params, Map<String, Object> reduceParams, AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, metaData);
+            String reduceScript, Map<String, Object> params, Map<String, Object> reduceParams, AggregationContext context,
+            Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, reducers, metaData);
         this.scriptLang = scriptLang;
         this.reduceScriptType = reduceScriptType;
         if (params == null) {
@@ -74,11 +78,11 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         }
         ScriptService scriptService = context.searchContext().scriptService();
         if (initScript != null) {
-            scriptService.executable(scriptLang, initScript, initScriptType, ScriptContext.Standard.AGGS, this.params).run();
+            scriptService.executable(new Script(scriptLang, initScript, initScriptType, this.params), ScriptContext.Standard.AGGS).run();
         }
-        this.mapScript = scriptService.search(context.searchContext().lookup(), scriptLang, mapScript, mapScriptType, ScriptContext.Standard.AGGS, this.params);
+        this.mapScript = scriptService.search(context.searchContext().lookup(), new Script(scriptLang, mapScript, mapScriptType, this.params), ScriptContext.Standard.AGGS);
         if (combineScript != null) {
-            this.combineScript = scriptService.executable(scriptLang, combineScript, combineScriptType, ScriptContext.Standard.AGGS, this.params);
+            this.combineScript = scriptService.executable(new Script(scriptLang, combineScript, combineScriptType, this.params), ScriptContext.Standard.AGGS);
         } else {
             this.combineScript = null;
         }
@@ -112,12 +116,13 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         } else {
             aggregation = params.get("_agg");
         }
-        return new InternalScriptedMetric(name, aggregation, scriptLang, reduceScriptType, reduceScript, reduceParams, metaData());
+        return new InternalScriptedMetric(name, aggregation, scriptLang, reduceScriptType, reduceScript, reduceParams, reducers(),
+                metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalScriptedMetric(name, null, scriptLang, reduceScriptType, reduceScript, reduceParams, metaData());
+        return new InternalScriptedMetric(name, null, scriptLang, reduceScriptType, reduceScript, reduceParams, reducers(), metaData());
     }
 
     public static class Factory extends AggregatorFactory {
@@ -151,7 +156,8 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
+                List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
             if (collectsFromSingleBucket == false) {
                 return asMultiBucketAggregator(this, context, parent);
             }
@@ -164,7 +170,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
                 reduceParams = deepCopyParams(this.reduceParams, context.searchContext());
             }
             return new ScriptedMetricAggregator(name, scriptLang, initScriptType, initScript, mapScriptType, mapScript, combineScriptType,
-                    combineScript, reduceScriptType, reduceScript, params, reduceParams, context, parent, metaData);
+                    combineScript, reduceScriptType, reduceScript, params, reduceParams, context, parent, reducers, metaData);
         }
         
         @SuppressWarnings({ "unchecked" })
@@ -190,7 +196,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
                 clone = original;
             } else {
                 throw new SearchParseException(context, "Can only clone primitives, String, ArrayList, and HashMap. Found: "
-                        + original.getClass().getCanonicalName());
+                        + original.getClass().getCanonicalName(), null);
             }
             return clone;
         }

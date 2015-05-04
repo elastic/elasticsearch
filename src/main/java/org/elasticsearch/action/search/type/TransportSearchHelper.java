@@ -23,8 +23,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchType;
@@ -62,7 +60,7 @@ public abstract class TransportSearchHelper {
         } else if (searchType == SearchType.SCAN) {
             return buildScrollId(ParsedScrollId.SCAN, searchPhaseResults, attributes);
         } else {
-            throw new ElasticsearchIllegalStateException("search_type [" + searchType + "] not supported");
+            throw new IllegalStateException("search_type [" + searchType + "] not supported");
         }
     }
 
@@ -91,18 +89,18 @@ public abstract class TransportSearchHelper {
             byte[] decode = Base64.decode(scrollId, Base64.URL_SAFE);
             spare.copyUTF8Bytes(decode, 0, decode.length);
         } catch (Exception e) {
-            throw new ElasticsearchIllegalArgumentException("Failed to decode scrollId", e);
+            throw new IllegalArgumentException("Failed to decode scrollId", e);
         }
         String[] elements = Strings.splitStringToArray(spare.get(), ';');
         if (elements.length < 2) {
-            throw new ElasticsearchIllegalArgumentException("Malformed scrollId [" + scrollId + "]");
+            throw new IllegalArgumentException("Malformed scrollId [" + scrollId + "]");
         }
 
         int index = 0;
         String type = elements[index++];
         int contextSize = Integer.parseInt(elements[index++]);
         if (elements.length < contextSize + 2) {
-            throw new ElasticsearchIllegalArgumentException("Malformed scrollId [" + scrollId + "]");
+            throw new IllegalArgumentException("Malformed scrollId [" + scrollId + "]");
         }
 
         @SuppressWarnings({"unchecked"}) Tuple<String, Long>[] context = new Tuple[contextSize];
@@ -110,7 +108,7 @@ public abstract class TransportSearchHelper {
             String element = elements[index++];
             int sep = element.indexOf(':');
             if (sep == -1) {
-                throw new ElasticsearchIllegalArgumentException("Malformed scrollId [" + scrollId + "]");
+                throw new IllegalArgumentException("Malformed scrollId [" + scrollId + "]");
             }
             context[i] = new Tuple<>(element.substring(sep + 1), Long.parseLong(element.substring(0, sep)));
         }

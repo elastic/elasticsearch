@@ -19,9 +19,11 @@
 
 package org.elasticsearch.common.lucene.search;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
@@ -37,8 +39,6 @@ public abstract class ResolvableFilter extends Filter {
      */
     public abstract Filter resolve();
 
-
-
     @Override
     public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
         Filter resolvedFilter = resolve();
@@ -47,5 +47,14 @@ public abstract class ResolvableFilter extends Filter {
         } else {
             return null;
         }
+    }
+
+    @Override
+    public Query rewrite(IndexReader reader) throws IOException {
+        final Filter resolved = resolve();
+        if (resolved != null) {
+            return resolved;
+        }
+        return super.rewrite(reader);
     }
 }

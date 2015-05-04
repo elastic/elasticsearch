@@ -26,7 +26,6 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -37,7 +36,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RootMapper;
@@ -110,7 +109,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             if (parserContext.indexVersionCreated().before(Version.V_1_3_0)) {
-                throw new ElasticsearchIllegalArgumentException("type="+CONTENT_TYPE+" is not supported on indices created before version 1.3.0. Is your cluster running multiple datanode versions?");
+                throw new IllegalArgumentException("type="+CONTENT_TYPE+" is not supported on indices created before version 1.3.0. Is your cluster running multiple datanode versions?");
             }
             
             FieldNamesFieldMapper.Builder builder = fieldNames();
@@ -140,7 +139,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
     }
 
     public FieldNamesFieldMapper(String name, String indexName, float boost, FieldType fieldType, EnabledAttributeMapper enabledState, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, indexName, indexName, name), boost, fieldType, null, Lucene.KEYWORD_ANALYZER,
+        super(new Names(name, indexName, indexName, name), boost, fieldType, false, Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
         this.defaultFieldType = Defaults.FIELD_TYPE;
         this.pre13Index = Version.indexCreated(indexSettings).before(Version.V_1_3_0);
@@ -241,9 +240,6 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
                     if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
                         document.add(new Field(names().indexName(), fieldName, fieldType));
                     }
-                    if (hasDocValues()) {
-                        document.add(new SortedSetDocValuesField(names().indexName(), new BytesRef(fieldName)));
-                    }
                 }
             }
         }
@@ -278,9 +274,9 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         FieldNamesFieldMapper fieldNamesMapperMergeWith = (FieldNamesFieldMapper)mergeWith;
-        if (!mergeContext.mergeFlags().simulate()) {
+        if (!mergeResult.simulate()) {
             if (fieldNamesMapperMergeWith.enabledState != enabledState && !fieldNamesMapperMergeWith.enabledState.unset()) {
                 this.enabledState = fieldNamesMapperMergeWith.enabledState;
             }

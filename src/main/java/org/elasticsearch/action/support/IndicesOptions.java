@@ -18,13 +18,16 @@
  */
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.common.Strings;
+
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
+import java.util.Map;
+
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
 
 /**
  * Controls how to deal with unavailable concrete indices (closed or missing), how wildcard expressions are expanded
@@ -117,7 +120,7 @@ public class IndicesOptions {
         //we just receive the old corresponding value with the new flag set to true (default)
         byte id = in.readByte();
         if (id >= VALUES.length) {
-            throw new ElasticsearchIllegalArgumentException("No valid missing index type id: " + id);
+            throw new IllegalArgumentException("No valid missing index type id: " + id);
         }
         return VALUES[id];
     }
@@ -136,20 +139,33 @@ public class IndicesOptions {
     }
 
     public static IndicesOptions fromRequest(RestRequest request, IndicesOptions defaultSettings) {
-        String sWildcards = request.param("expand_wildcards");
-        String sIgnoreUnavailable = request.param("ignore_unavailable");
-        String sAllowNoIndices = request.param("allow_no_indices");
-        if (sWildcards == null && sIgnoreUnavailable == null && sAllowNoIndices == null) {
+        return fromParameters(
+                request.param("expand_wildcards"),
+                request.param("ignore_unavailable"),
+                request.param("allow_no_indices"),
+                defaultSettings);
+    }
+
+    public static IndicesOptions fromMap(Map<String, Object> map, IndicesOptions defaultSettings) {
+        return fromParameters(
+                map.containsKey("expand_wildcards") ? map.get("expand_wildcards") : map.get("expandWildcards"),
+                map.containsKey("ignore_unavailable") ? map.get("ignore_unavailable") : map.get("ignoreUnavailable"),
+                map.containsKey("allow_no_indices") ? map.get("allow_no_indices") : map.get("allowNoIndices"),
+                defaultSettings);
+    }
+
+    public static IndicesOptions fromParameters(Object wildcardsString, Object ignoreUnavailableString, Object allowNoIndicesString, IndicesOptions defaultSettings) {
+        if (wildcardsString == null && ignoreUnavailableString == null && allowNoIndicesString == null) {
             return defaultSettings;
         }
 
         boolean expandWildcardsOpen = false;
         boolean expandWildcardsClosed = false;
-        if (sWildcards == null) {
+        if (wildcardsString == null) {
             expandWildcardsOpen = defaultSettings.expandWildcardsOpen();
             expandWildcardsClosed = defaultSettings.expandWildcardsClosed();
         } else {
-            String[] wildcards = Strings.splitStringByCommaToArray(sWildcards);
+            String[] wildcards = nodeStringArrayValue(wildcardsString);
             for (String wildcard : wildcards) {
                 if ("open".equals(wildcard)) {
                     expandWildcardsOpen = true;
@@ -162,15 +178,15 @@ public class IndicesOptions {
                     expandWildcardsOpen = true;
                     expandWildcardsClosed = true;
                 } else {
-                    throw new ElasticsearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
+                    throw new IllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
                 }
             }
         }
 
         //note that allowAliasesToMultipleIndices is not exposed, always true (only for internal use)
         return fromOptions(
-                toBool(sIgnoreUnavailable, defaultSettings.ignoreUnavailable()),
-                toBool(sAllowNoIndices, defaultSettings.allowNoIndices()),
+                nodeBooleanValue(ignoreUnavailableString, defaultSettings.ignoreUnavailable()),
+                nodeBooleanValue(allowNoIndicesString, defaultSettings.allowNoIndices()),
                 expandWildcardsOpen,
                 expandWildcardsClosed,
                 defaultSettings.allowAliasesToMultipleIndices(),
@@ -245,10 +261,16 @@ public class IndicesOptions {
         return id;
     }
 
-    private static boolean toBool(String sValue, boolean defaultValue) {
-        if (sValue == null) {
-            return defaultValue;
-        }
-        return !(sValue.equals("false") || sValue.equals("0") || sValue.equals("off"));
+    @Override
+    public String toString() {
+        return "IndicesOptions[" +
+                "id=" + id +
+                ", ignore_unavailable=" + ignoreUnavailable() +
+                ", allow_no_indices=" + allowNoIndices() +
+                ", expand_wildcards_open=" + expandWildcardsOpen() +
+                ", expand_wildcards_closed=" + expandWildcardsClosed() +
+                ", allow_alisases_to_multiple_indices=" + allowAliasesToMultipleIndices() +
+                ", forbid_closed_indices=" + forbidClosedIndices() +
+                ']';
     }
 }

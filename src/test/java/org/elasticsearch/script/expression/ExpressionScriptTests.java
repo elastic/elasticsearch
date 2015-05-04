@@ -64,6 +64,15 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         ensureGreen("test");
         client().prepareIndex("test", "doc", "1").setSource("foo", 4).setRefresh(true).get();
+        SearchResponse rsp = buildRequest("doc['foo'] + 1").get();
+        assertEquals(1, rsp.getHits().getTotalHits());
+        assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue());
+    }
+
+    public void testBasicUsingDotValue() throws Exception {
+        createIndex("test");
+        ensureGreen("test");
+        client().prepareIndex("test", "doc", "1").setSource("foo", 4).setRefresh(true).get();
         SearchResponse rsp = buildRequest("doc['foo'].value + 1").get();
         assertEquals(1, rsp.getHits().getTotalHits());
         assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue());
@@ -89,13 +98,56 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
         assertEquals("2", hits.getAt(2).getId());
     }
 
+    public void testDateMethods() throws Exception {
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "date0", "type=date", "date1", "type=date"));
+        ensureGreen("test");
+        indexRandom(true,
+                client().prepareIndex("test", "doc", "1").setSource("date0", "2015-04-28T04:02:07Z", "date1", "1985-09-01T23:11:01Z"),
+                client().prepareIndex("test", "doc", "2").setSource("date0", "2013-12-25T11:56:45Z", "date1", "1983-10-13T23:15:00Z"));
+        SearchResponse rsp = buildRequest("doc['date0'].getSeconds() - doc['date0'].getMinutes()").get();
+        assertEquals(2, rsp.getHits().getTotalHits());
+        SearchHits hits = rsp.getHits();
+        assertEquals(5.0, hits.getAt(0).field("foo").getValue());
+        assertEquals(-11.0, hits.getAt(1).field("foo").getValue());
+        rsp = buildRequest("doc['date0'].getHourOfDay() + doc['date1'].getDayOfMonth()").get();
+        assertEquals(2, rsp.getHits().getTotalHits());
+        hits = rsp.getHits();
+        assertEquals(5.0, hits.getAt(0).field("foo").getValue());
+        assertEquals(24.0, hits.getAt(1).field("foo").getValue());
+        rsp = buildRequest("doc['date1'].getMonth() + 1").get();
+        assertEquals(2, rsp.getHits().getTotalHits());
+        hits = rsp.getHits();
+        assertEquals(9.0, hits.getAt(0).field("foo").getValue());
+        assertEquals(10.0, hits.getAt(1).field("foo").getValue());
+        rsp = buildRequest("doc['date1'].getYear()").get();
+        assertEquals(2, rsp.getHits().getTotalHits());
+        hits = rsp.getHits();
+        assertEquals(1985.0, hits.getAt(0).field("foo").getValue());
+        assertEquals(1983.0, hits.getAt(1).field("foo").getValue());
+    }
+
+    public void testInvalidDateMethodCall() throws Exception {
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "double", "type=double"));
+        ensureGreen("test");
+        indexRandom(true, client().prepareIndex("test", "doc", "1").setSource("double", "178000000.0"));
+        try {
+            buildRequest("doc['double'].getYear()").get();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.toString() + "should have contained IllegalArgumentException",
+                    e.toString().contains("IllegalArgumentException"), equalTo(true));
+            assertThat(e.toString() + "should have contained can only be used with a date field type",
+                    e.toString().contains("can only be used with a date field type"), equalTo(true));
+        }
+    }
+
     public void testSparseField() throws Exception {
         ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "x", "type=long", "y", "type=long"));
         ensureGreen("test");
         indexRandom(true,
                 client().prepareIndex("test", "doc", "1").setSource("x", 4),
                 client().prepareIndex("test", "doc", "2").setSource("y", 2));
-        SearchResponse rsp = buildRequest("doc['x'].value + 1").get();
+        SearchResponse rsp = buildRequest("doc['x'] + 1").get();
         ElasticsearchAssertions.assertSearchResponse(rsp);
         SearchHits hits = rsp.getHits();
         assertEquals(2, rsp.getHits().getTotalHits());
@@ -108,13 +160,13 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
         ensureGreen("test");
         client().prepareIndex("test", "doc", "1").setSource("x", 4).setRefresh(true).get();
         try {
-            buildRequest("doc['bogus'].value").get();
+            buildRequest("doc['bogus']").get();
             fail("Expected missing field to cause failure");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained ExpressionScriptCompilationException",
-                    ExceptionsHelper.detailedMessage(e).contains("ExpressionScriptCompilationException"), equalTo(true));
-            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained missing field error",
-                    ExceptionsHelper.detailedMessage(e).contains("does not exist in mappings"), equalTo(true));
+            assertThat(e.toString() + "should have contained ExpressionScriptCompilationException",
+                    e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
+            assertThat(e.toString() + "should have contained missing field error",
+                    e.toString().contains("does not exist in mappings"), equalTo(true));
         }
     }
 
@@ -126,7 +178,7 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
                     client().prepareIndex("test", "doc", "2").setSource("x", 3),
                     client().prepareIndex("test", "doc", "3").setSource("x", 5));
         // a = int, b = double, c = long
-        String script = "doc['x'].value * a + b + ((c + doc['x'].value) > 5000000009 ? 1 : 0)";
+        String script = "doc['x'] * a + b + ((c + doc['x']) > 5000000009 ? 1 : 0)";
         SearchResponse rsp = buildRequest(script, "a", 2, "b", 3.5, "c", 5000000000L).get();
         SearchHits hits = rsp.getHits();
         assertEquals(3, hits.getTotalHits());
@@ -141,10 +193,10 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
             buildRequest("garbage%@#%@").get();
             fail("Expected expression compilation failure");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained ExpressionScriptCompilationException",
-                       ExceptionsHelper.detailedMessage(e).contains("ExpressionScriptCompilationException"), equalTo(true));
-            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained compilation failure",
-                       ExceptionsHelper.detailedMessage(e).contains("Failed to parse expression"), equalTo(true));
+            assertThat(e.toString() + "should have contained ExpressionScriptCompilationException",
+                       e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
+            assertThat(e.toString() + "should have contained compilation failure",
+                       e.toString().contains("Failed to parse expression"), equalTo(true));
         }
     }
 
@@ -154,23 +206,23 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
             buildRequest("a", "a", "astring").get();
             fail("Expected string parameter to cause failure");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained ExpressionScriptCompilationException",
-                       ExceptionsHelper.detailedMessage(e).contains("ExpressionScriptCompilationException"), equalTo(true));
-            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained non-numeric parameter error",
-                       ExceptionsHelper.detailedMessage(e).contains("must be a numeric type"), equalTo(true));
+            assertThat(e.toString() + "should have contained ExpressionScriptCompilationException",
+                       e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
+            assertThat(e.toString() + "should have contained non-numeric parameter error",
+                       e.toString().contains("must be a numeric type"), equalTo(true));
         }
     }
 
     public void testNonNumericField() {
         client().prepareIndex("test", "doc", "1").setSource("text", "this is not a number").setRefresh(true).get();
         try {
-            buildRequest("doc['text'].value").get();
+            buildRequest("doc['text']").get();
             fail("Expected text field to cause execution failure");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained ExpressionScriptCompilationException",
-                       ExceptionsHelper.detailedMessage(e).contains("ExpressionScriptCompilationException"), equalTo(true));
-            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained non-numeric field error",
-                       ExceptionsHelper.detailedMessage(e).contains("must be numeric"), equalTo(true));
+            assertThat(e.toString() + "should have contained ExpressionScriptCompilationException",
+                       e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
+            assertThat(e.toString() + "should have contained non-numeric field error",
+                       e.toString().contains("must be numeric"), equalTo(true));
         }
     }
 
@@ -180,10 +232,10 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
             buildRequest("bogus").get();
             fail("Expected bogus variable to cause execution failure");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained ExpressionScriptCompilationException",
-                       ExceptionsHelper.detailedMessage(e).contains("ExpressionScriptCompilationException"), equalTo(true));
-            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained unknown variable error",
-                       ExceptionsHelper.detailedMessage(e).contains("Unknown variable"), equalTo(true));
+            assertThat(e.toString() + "should have contained ExpressionScriptCompilationException",
+                       e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
+            assertThat(e.toString() + "should have contained unknown variable error",
+                       e.toString().contains("Unknown variable"), equalTo(true));
         }
     }
 
@@ -193,10 +245,10 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
             buildRequest("doc").get();
             fail("Expected doc variable without field to cause execution failure");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained ExpressionScriptCompilationException",
-                    ExceptionsHelper.detailedMessage(e).contains("ExpressionScriptCompilationException"), equalTo(true));
-            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained a missing specific field error",
-                    ExceptionsHelper.detailedMessage(e).contains("must be used with a specific field"), equalTo(true));
+            assertThat(e.toString() + "should have contained ExpressionScriptCompilationException",
+                    e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
+            assertThat(e.toString() + "should have contained a missing specific field error",
+                    e.toString().contains("must be used with a specific field"), equalTo(true));
         }
     }
 
@@ -206,10 +258,10 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
             buildRequest("doc['foo'].bogus").get();
             fail("Expected bogus field member to cause execution failure");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained ExpressionScriptCompilationException",
-                    ExceptionsHelper.detailedMessage(e).contains("ExpressionScriptCompilationException"), equalTo(true));
-            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained field member error",
-                    ExceptionsHelper.detailedMessage(e).contains("Invalid member for field"), equalTo(true));
+            assertThat(e.toString() + "should have contained ExpressionScriptCompilationException",
+                    e.toString().contains("ExpressionScriptCompilationException"), equalTo(true));
+            assertThat(e.toString() + "should have contained member variable [value] or member methods may be accessed",
+                    e.toString().contains("member variable [value] or member methods may be accessed"), equalTo(true));
         }
     }
 
@@ -260,7 +312,7 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
             assertThat(rsp.getShardFailures().length, greaterThan(0)); // at least the shards containing the docs should have failed
             message = rsp.getShardFailures()[0].reason();
         } catch (SearchPhaseExecutionException e) {
-            message = ExceptionsHelper.detailedMessage(e);
+            message = e.toString();
         }
         assertThat(message + "should have contained ExpressionScriptExecutionException",
                    message.contains("ExpressionScriptExecutionException"), equalTo(true));

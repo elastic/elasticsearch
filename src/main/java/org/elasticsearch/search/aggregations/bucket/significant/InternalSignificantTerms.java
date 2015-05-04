@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,12 +39,13 @@ import java.util.Map;
 /**
  *
  */
-public abstract class InternalSignificantTerms extends InternalMultiBucketAggregation implements SignificantTerms, ToXContent, Streamable {
+public abstract class InternalSignificantTerms<A extends InternalSignificantTerms, B extends InternalSignificantTerms.Bucket> extends
+        InternalMultiBucketAggregation<A, B> implements SignificantTerms, ToXContent, Streamable {
 
     protected SignificanceHeuristic significanceHeuristic;
     protected int requiredSize;
     protected long minDocCount;
-    protected List<Bucket> buckets;
+    protected List<? extends Bucket> buckets;
     protected Map<String, Bucket> bucketMap;
     protected long subsetSize;
     protected long supersetSize;
@@ -122,8 +124,10 @@ public abstract class InternalSignificantTerms extends InternalMultiBucketAggreg
         }
     }
 
-    protected InternalSignificantTerms(long subsetSize, long supersetSize, String name, int requiredSize, long minDocCount, SignificanceHeuristic significanceHeuristic, List<Bucket> buckets, Map<String, Object> metaData) {
-        super(name, metaData);
+    protected InternalSignificantTerms(long subsetSize, long supersetSize, String name, int requiredSize, long minDocCount,
+            SignificanceHeuristic significanceHeuristic, List<? extends Bucket> buckets, List<Reducer> reducers,
+            Map<String, Object> metaData) {
+        super(name, reducers, metaData);
         this.requiredSize = requiredSize;
         this.minDocCount = minDocCount;
         this.buckets = buckets;
@@ -156,20 +160,20 @@ public abstract class InternalSignificantTerms extends InternalMultiBucketAggreg
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
 
         long globalSubsetSize = 0;
         long globalSupersetSize = 0;
         // Compute the overall result set size and the corpus size using the
         // top-level Aggregations from each shard
         for (InternalAggregation aggregation : aggregations) {
-            InternalSignificantTerms terms = (InternalSignificantTerms) aggregation;
+            InternalSignificantTerms<A, B> terms = (InternalSignificantTerms<A, B>) aggregation;
             globalSubsetSize += terms.subsetSize;
             globalSupersetSize += terms.supersetSize;
         }
         Map<String, List<InternalSignificantTerms.Bucket>> buckets = new HashMap<>();
         for (InternalAggregation aggregation : aggregations) {
-            InternalSignificantTerms terms = (InternalSignificantTerms) aggregation;
+            InternalSignificantTerms<A, B> terms = (InternalSignificantTerms<A, B>) aggregation;
             for (Bucket bucket : terms.buckets) {
                 List<Bucket> existingBuckets = buckets.get(bucket.getKey());
                 if (existingBuckets == null) {
@@ -197,9 +201,10 @@ public abstract class InternalSignificantTerms extends InternalMultiBucketAggreg
         for (int i = ordered.size() - 1; i >= 0; i--) {
             list[i] = (Bucket) ordered.pop();
         }
-        return newAggregation(globalSubsetSize, globalSupersetSize, Arrays.asList(list));
+        return create(globalSubsetSize, globalSupersetSize, Arrays.asList(list), this);
     }
 
-    abstract InternalSignificantTerms newAggregation(long subsetSize, long supersetSize, List<Bucket> buckets);
+    protected abstract A create(long subsetSize, long supersetSize, List<InternalSignificantTerms.Bucket> buckets,
+            InternalSignificantTerms prototype);
 
 }

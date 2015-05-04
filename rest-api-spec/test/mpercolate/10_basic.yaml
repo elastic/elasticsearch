@@ -37,5 +37,5 @@
               foo: bar
 
   - match:  { responses.0.total:     1  }
-  - match:  { responses.1.error: "IndexMissingException[[percolator_index1] missing]"  }
+  - match:  { responses.1.error: "/IndexMissingException.no.such.index./"  }
   - match:  { responses.2.total:     1  }

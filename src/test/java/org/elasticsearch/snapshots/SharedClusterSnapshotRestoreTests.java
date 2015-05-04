@@ -52,11 +52,10 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.support.AbstractIndexStore;
+import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.nio.channels.SeekableByteChannel;
@@ -1486,8 +1485,8 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
         // Update settings to make sure that relocation is slow so we can start snapshot before relocation is finished
         assertAcked(client.admin().indices().prepareUpdateSettings("test-idx").setSettings(ImmutableSettings.builder()
-                        .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "all")
-                        .put(AbstractIndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, 100)
+                        .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "all")
+                        .put(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, 100)
         ));
 
         logger.info("--> start relocations");
@@ -1502,7 +1501,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
         // Update settings to back to normal
         assertAcked(client.admin().indices().prepareUpdateSettings("test-idx").setSettings(ImmutableSettings.builder()
-                        .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "node")
+                        .put(IndexStore.INDEX_STORE_THROTTLE_TYPE, "node")
         ));
 
         logger.info("--> wait for snapshot to complete");
@@ -1636,6 +1635,17 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setIgnoreIndexSettings("index.analysis.*")
                 .setIndexSettings(newIncorrectIndexSettings)
                 .setWaitForCompletion(true), SnapshotRestoreException.class);
+
+        logger.info("--> try restoring while changing the number of replicas to a negative number - should fail");
+        Settings newIncorrectReplicasIndexSettings = ImmutableSettings.builder()
+            .put(newIndexSettings)
+            .put(SETTING_NUMBER_OF_REPLICAS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), randomIntBetween(-10, -1))
+            .build();
+        assertThrows(client.admin().cluster()
+            .prepareRestoreSnapshot("test-repo", "test-snap")
+            .setIgnoreIndexSettings("index.analysis.*")
+            .setIndexSettings(newIncorrectReplicasIndexSettings)
+            .setWaitForCompletion(true), IllegalArgumentException.class);
 
         logger.info("--> restore index with correct settings from the snapshot");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster()

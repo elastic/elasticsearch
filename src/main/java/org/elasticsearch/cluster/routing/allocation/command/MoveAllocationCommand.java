@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
@@ -147,7 +146,7 @@ public class MoveAllocationCommand implements AllocationCommand {
     }
 
     @Override
-    public RerouteExplanation execute(RoutingAllocation allocation, boolean explain) throws ElasticsearchException {
+    public RerouteExplanation execute(RoutingAllocation allocation, boolean explain) {
         DiscoveryNode fromDiscoNode = allocation.nodes().resolveNode(fromNode);
         DiscoveryNode toDiscoNode = allocation.nodes().resolveNode(toNode);
         Decision decision = null;
@@ -165,7 +164,7 @@ public class MoveAllocationCommand implements AllocationCommand {
                     return new RerouteExplanation(this, allocation.decision(Decision.NO, "move_allocation_command",
                             "shard " + shardId + " has not been started"));
                 }
-                throw new ElasticsearchIllegalArgumentException("[move_allocation] can't move " + shardId +
+                throw new IllegalArgumentException("[move_allocation] can't move " + shardId +
                         ", shard is not started (state = " + shardRouting.state() + "]");
             }
 
@@ -175,7 +174,7 @@ public class MoveAllocationCommand implements AllocationCommand {
                 if (explain) {
                     return new RerouteExplanation(this, decision);
                 }
-                throw new ElasticsearchIllegalArgumentException("[move_allocation] can't move " + shardId + ", from " + fromDiscoNode + ", to " + toDiscoNode + ", since its not allowed, reason: " + decision);
+                throw new IllegalArgumentException("[move_allocation] can't move " + shardId + ", from " + fromDiscoNode + ", to " + toDiscoNode + ", since its not allowed, reason: " + decision);
             }
             if (decision.type() == Decision.Type.THROTTLE) {
                 // its being throttled, maybe have a flag to take it into account and fail? for now, just do it since the "user" wants it...
@@ -193,7 +192,7 @@ public class MoveAllocationCommand implements AllocationCommand {
                 return new RerouteExplanation(this, allocation.decision(Decision.NO,
                         "move_allocation_command", "shard " + shardId + " not found"));
             }
-            throw new ElasticsearchIllegalArgumentException("[move_allocation] can't move " + shardId + ", failed to find it on node " + fromDiscoNode);
+            throw new IllegalArgumentException("[move_allocation] can't move " + shardId + ", failed to find it on node " + fromDiscoNode);
         }
         return new RerouteExplanation(this, decision);
     }

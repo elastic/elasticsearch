@@ -16,22 +16,3 @@ a filter. Can be placed within queries that accept a filter.
 }
 --------------------------------------------------
 
-[float]
-==== Caching
-
-The result of the filter is cached by default if there is evidence of reuse.
-The `_cache` can be set to `true` in order to cache it. Here is an example:
-
-[source,js]
---------------------------------------------------
-{
-    "constant_score" : {
-        "filter" : {
-            "prefix" : { 
-                "user" : "ki",
-                "_cache" : true
-            }
-        }
-    }
-}
---------------------------------------------------

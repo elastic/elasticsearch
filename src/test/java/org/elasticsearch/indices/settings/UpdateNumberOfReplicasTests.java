@@ -22,7 +22,9 @@ package org.elasticsearch.indices.settings;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -35,6 +37,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
+@ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 2)
 public class UpdateNumberOfReplicasTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -262,5 +265,21 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchIntegrationTest {
         assertThat(clusterHealth.getIndices().get("test").getActivePrimaryShards(), equalTo(numShards.numPrimaries));
         assertThat(clusterHealth.getIndices().get("test").getNumberOfReplicas(), equalTo(3));
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 4));
+    }
+
+    @Test
+    public void testUpdateWithInvalidNumberOfReplicas() {
+        createIndex("test");
+        try {
+            client().admin().indices().prepareUpdateSettings("test")
+                .setSettings(ImmutableSettings.settingsBuilder()
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(-10, -1))
+                )
+                .execute().actionGet();
+            fail("should have thrown an exception about the replica shard count");
+        } catch (IllegalArgumentException e) {
+            assertThat("message contains error about shard count: " + e.getMessage(),
+                e.getMessage().contains("the value of the setting index.number_of_replicas must be a non negative integer"), equalTo(true));
+        }
     }
 }

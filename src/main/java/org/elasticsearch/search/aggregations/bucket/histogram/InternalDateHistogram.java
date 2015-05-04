@@ -19,15 +19,12 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.EmptyBucketInfo;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-
-import java.util.List;
-import java.util.Map;
 
 /**
  *
@@ -74,14 +71,20 @@ public class InternalDateHistogram {
         }
 
         @Override
-        public InternalHistogram create(String name, List<InternalDateHistogram.Bucket> buckets, InternalOrder order,
-                                            long minDocCount, EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
-            return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, this, metaData);
+        public InternalDateHistogram.Bucket createBucket(InternalAggregations aggregations, InternalDateHistogram.Bucket prototype) {
+            return new Bucket(prototype.key, prototype.docCount, aggregations, prototype.getKeyed(), prototype.formatter, this);
         }
 
         @Override
-        public InternalDateHistogram.Bucket createBucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
-            return new Bucket(key, docCount, aggregations, keyed, formatter, this);
+        public InternalDateHistogram.Bucket createBucket(Object key, long docCount, InternalAggregations aggregations, boolean keyed,
+                @Nullable ValueFormatter formatter) {
+            if (key instanceof Number) {
+                return new Bucket(((Number) key).longValue(), docCount, aggregations, keyed, formatter, this);
+            } else if (key instanceof DateTime) {
+                return new Bucket(((DateTime) key).getMillis(), docCount, aggregations, keyed, formatter, this);
+            } else {
+                throw new AggregationExecutionException("Expected key of type Number or DateTime but got [" + key + "]");
+            }
         }
 
         @Override

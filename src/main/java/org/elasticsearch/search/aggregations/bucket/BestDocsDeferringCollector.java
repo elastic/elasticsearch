@@ -27,7 +27,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
@@ -122,10 +121,10 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector {
     @Override
     public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {
         if (!finished) {
-            throw new ElasticsearchIllegalStateException("Cannot replay yet, collection is not finished: postCollect() has not been called");
+            throw new IllegalStateException("Cannot replay yet, collection is not finished: postCollect() has not been called");
         }
         if (selectedBuckets.length > 1) {
-            throw new ElasticsearchIllegalStateException("Collection only supported on a single bucket");
+            throw new IllegalStateException("Collection only supported on a single bucket");
         }
 
         deferred.preCollection();

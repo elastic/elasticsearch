@@ -36,8 +36,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.*;
@@ -82,7 +82,7 @@ public class RecoverySource extends AbstractComponent {
 
         this.recoverySettings = recoverySettings;
 
-        transportService.registerHandler(Actions.START_RECOVERY, new StartRecoveryTransportRequestHandler());
+        transportService.registerRequestHandler(Actions.START_RECOVERY, StartRecoveryRequest.class, ThreadPool.Names.GENERIC, new StartRecoveryTransportRequestHandler());
     }
 
     private RecoveryResponse recover(final StartRecoveryRequest request) {
@@ -129,18 +129,7 @@ public class RecoverySource extends AbstractComponent {
         return handler.getResponse();
     }
 
-    class StartRecoveryTransportRequestHandler extends BaseTransportRequestHandler<StartRecoveryRequest> {
-
-        @Override
-        public StartRecoveryRequest newInstance() {
-            return new StartRecoveryRequest();
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.GENERIC;
-        }
-
+    class StartRecoveryTransportRequestHandler implements TransportRequestHandler<StartRecoveryRequest> {
         @Override
         public void messageReceived(final StartRecoveryRequest request, final TransportChannel channel) throws Exception {
             RecoveryResponse response = recover(request);

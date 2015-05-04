@@ -20,8 +20,8 @@ package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
@@ -29,6 +29,8 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.reducers.SiblingReducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
@@ -74,7 +76,8 @@ public class AggregationPhase implements SearchPhase {
             List<Aggregator> collectors = new ArrayList<>();
             Aggregator[] aggregators;
             try {
-                aggregators = context.aggregations().factories().createTopLevelAggregators(aggregationContext);
+                AggregatorFactories factories = context.aggregations().factories();
+                aggregators = factories.createTopLevelAggregators(aggregationContext);
                 for (int i = 0; i < aggregators.length; i++) {
                     if (aggregators[i] instanceof GlobalAggregator == false) {
                         collectors.add(aggregators[i]);
@@ -93,7 +96,7 @@ public class AggregationPhase implements SearchPhase {
     }
 
     @Override
-    public void execute(SearchContext context) throws ElasticsearchException {
+    public void execute(SearchContext context) {
         if (context.aggregations() == null) {
             context.queryResult().aggregations(null);
             return;
@@ -116,9 +119,12 @@ public class AggregationPhase implements SearchPhase {
         if (!globals.isEmpty()) {
             BucketCollector globalsCollector = BucketCollector.wrap(globals);
             Query query = Queries.newMatchAllQuery();
-            Filter searchFilter = context.searchFilter(context.types());
+            Query searchFilter = context.searchFilter(context.types());
             if (searchFilter != null) {
-                query = new FilteredQuery(query, searchFilter);
+                BooleanQuery filtered = new BooleanQuery();
+                filtered.add(query, Occur.MUST);
+                filtered.add(searchFilter, Occur.FILTER);
+                query = filtered;
             }
             try {
                 globalsCollector.preCollection();
@@ -138,6 +144,21 @@ public class AggregationPhase implements SearchPhase {
             }
         }
         context.queryResult().aggregations(new InternalAggregations(aggregations));
+        try {
+            List<Reducer> reducers = context.aggregations().factories().createReducers();
+            List<SiblingReducer> siblingReducers = new ArrayList<>(reducers.size());
+            for (Reducer reducer : reducers) {
+                if (reducer instanceof SiblingReducer) {
+                    siblingReducers.add((SiblingReducer) reducer);
+                } else {
+                    throw new AggregationExecutionException("Invalid reducer named [" + reducer.name() + "] of type ["
+                            + reducer.type().name() + "]. Only sibling reducers are allowed at the top level");
+                }
+            }
+            context.queryResult().reducers(siblingReducers);
+        } catch (IOException e) {
+            throw new AggregationExecutionException("Failed to build top level reducers", e);
+        }
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);

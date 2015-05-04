@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -42,27 +43,22 @@ import org.elasticsearch.transport.*;
 /**
  * A base class for operations that needs to be performed on the master node.
  */
-public abstract class TransportMasterNodeOperationAction<Request extends MasterNodeOperationRequest, Response extends ActionResponse> extends TransportAction<Request, Response> {
+public abstract class TransportMasterNodeOperationAction<Request extends MasterNodeOperationRequest, Response extends ActionResponse> extends HandledTransportAction<Request, Response> {
 
     protected final TransportService transportService;
-
     protected final ClusterService clusterService;
 
     final String executor;
 
-    protected TransportMasterNodeOperationAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, actionName, threadPool, actionFilters);
+    protected TransportMasterNodeOperationAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
+                                                 Class<Request> request) {
+        super(settings, actionName, threadPool, transportService, actionFilters, request);
         this.transportService = transportService;
         this.clusterService = clusterService;
-
         this.executor = executor();
-
-        transportService.registerHandler(actionName, new TransportHandler());
     }
 
     protected abstract String executor();
-
-    protected abstract Request newRequest();
 
     protected abstract Response newResponse();
 
@@ -220,44 +216,6 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                         );
                     } else {
                         listener.onFailure(exp);
-                    }
-                }
-            });
-        }
-    }
-
-    private class TransportHandler extends BaseTransportRequestHandler<Request> {
-
-        @Override
-        public Request newInstance() {
-            return newRequest();
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
-        @Override
-        public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
-            // we just send back a response, no need to fork a listener
-            request.listenerThreaded(false);
-            execute(request, new ActionListener<Response>() {
-                @Override
-                public void onResponse(Response response) {
-                    try {
-                        channel.sendResponse(response);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send response", e1);
                     }
                 }
             });

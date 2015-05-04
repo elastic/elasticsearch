@@ -19,7 +19,6 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 /**
  * Represents the state that a snapshot can be in
@@ -99,7 +98,7 @@ public enum SnapshotState {
             case 3:
                 return PARTIAL;
             default:
-                throw new ElasticsearchIllegalArgumentException("No snapshot state for value [" + value + "]");
+                throw new IllegalArgumentException("No snapshot state for value [" + value + "]");
         }
     }
 }

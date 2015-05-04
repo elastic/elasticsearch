@@ -32,7 +32,7 @@
 
     <properties>
         <lucene.version>5.2.0</lucene.version>
-        <lucene.snapshot.revision>1675100</lucene.snapshot.revision>
+        <lucene.snapshot.revision>1677039</lucene.snapshot.revision>
         <lucene.maven.version>5.2.0-snapshot-${lucene.snapshot.revision}</lucene.maven.version>
         <testframework.version>2.1.14</testframework.version>
         <tests.jvms>auto</tests.jvms>
@@ -47,6 +47,7 @@
         <tests.heap.size>512m</tests.heap.size>
         <tests.heapdump.path>${basedir}/logs/</tests.heapdump.path>
         <tests.topn>5</tests.topn>
+        <jvm.executable>${java.home}${file.separator}bin${file.separator}java</jvm.executable>
         <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
 
         <!-- Properties used for building RPM & DEB packages (see common/packaging.properties) -->
@@ -56,11 +57,11 @@
         <packaging.elasticsearch.data.dir>/var/lib/elasticsearch</packaging.elasticsearch.data.dir>
         <packaging.elasticsearch.user>elasticsearch</packaging.elasticsearch.user>
         <packaging.elasticsearch.group>elasticsearch</packaging.elasticsearch.group>
-        <packaging.elasticsearch.work.dir>/tmp/elasticsearch</packaging.elasticsearch.work.dir>
         <packaging.elasticsearch.log.dir>/var/log/elasticsearch</packaging.elasticsearch.log.dir>
         <packaging.elasticsearch.plugins.dir>${packaging.elasticsearch.home.dir}/plugins</packaging.elasticsearch.plugins.dir>
         <packaging.elasticsearch.pid.dir>/var/run/elasticsearch</packaging.elasticsearch.pid.dir>
-
+        <deb.sign>false</deb.sign>
+        <deb.sign.method>dpkg-sig</deb.sign.method>
     </properties>
 
     <repositories>
@@ -72,7 +73,7 @@
         <repository>
             <id>lucene-snapshots</id>
             <name>Lucene Snapshots</name>
-            <url>https://download.elastic.co/lucenesnapshots/${lucene.snapshot.revision}</url>
+            <url>http://download.elastic.co/lucenesnapshots/${lucene.snapshot.revision}</url>
         </repository>
     </repositories>
 
@@ -266,6 +267,12 @@
             <artifactId>jackson-dataformat-yaml</artifactId>
             <version>2.5.1</version>
             <scope>compile</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.core</groupId>
+                    <artifactId>jackson-databind</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
@@ -437,15 +444,15 @@
             <version>1.4.0</version>
             <executions>
               <execution>
-                <phase>exec</phase>
                 <goals>
                   <goal>exec</goal>
                 </goals>
               </execution>
             </executions>
             <configuration>
-              <executable>java</executable>
+              <executable>${jvm.executable}</executable>
               <arguments>
+                <argument>-Des.security.manager.enabled=false</argument>
                 <argument>-classpath</argument>
                 <classpath/>
                 <argument>org.elasticsearch.bootstrap.Bootstrap</argument>
@@ -516,6 +523,7 @@
                             <goal>junit4</goal>
                         </goals>
                         <configuration>
+                            <jvm>${jvm.executable}</jvm>
                             <heartbeat>10</heartbeat>
                             <jvmOutputAction>pipe,warn</jvmOutputAction>
                             <leaveTemporary>true</leaveTemporary>
@@ -628,7 +636,7 @@
                                 <tests.compatibility>${tests.compatibility}</tests.compatibility>
                                 <java.awt.headless>true</java.awt.headless>
                                 <!-- security manager / test.policy -->
-                                <java.security.policy>${basedir}/dev-tools/tests.policy</java.security.policy>
+                                <java.security.policy>${basedir}/src/main/resources/org/elasticsearch/bootstrap/security.policy</java.security.policy>
                             </systemProperties>
                         </configuration>
                     </execution>
@@ -1080,6 +1088,11 @@
                             <goal>jdeb</goal>
                         </goals>
                         <configuration>
+                            <signPackage>${deb.sign}</signPackage>
+                            <keyring>${gpg.keyring}</keyring>
+                            <key>${gpg.key}</key>
+                            <passphrase>${gpg.passphrase}</passphrase>
+                            <signMethod>${deb.sign.method}</signMethod>
                             <dataSet>
                                 <!-- Add bin directory -->
                                 <data>
@@ -1208,7 +1221,6 @@
                                     <paths>
                                         <path>${packaging.elasticsearch.data.dir}</path>
                                         <path>${packaging.elasticsearch.log.dir}</path>
-                                        <path>${packaging.elasticsearch.work.dir}</path>
                                         <path>${packaging.elasticsearch.plugins.dir}</path>
                                         <path>${packaging.elasticsearch.pid.dir}</path>
                                     </paths>
@@ -1245,6 +1257,11 @@
                     <defaultDirmode>755</defaultDirmode>
                     <defaultUsername>root</defaultUsername>
                     <defaultGroupname>root</defaultGroupname>
+                    <keyname>${gpg.key}</keyname>
+                    <keypath>${gpg.keyring}</keypath>
+                    <keyPassphrase>
+                        <passphrase>${gpg.passphrase}</passphrase>
+                    </keyPassphrase>
                     <mappings>
                         <!-- Add bin directory -->
                         <mapping>
@@ -1402,12 +1419,6 @@
                         </mapping>
                         <mapping>
                             <directory>${packaging.elasticsearch.log.dir}</directory>
-                            <filemode>755</filemode>
-                            <username>${packaging.elasticsearch.user}</username>
-                            <groupname>${packaging.elasticsearch.group}</groupname>
-                        </mapping>
-                        <mapping>
-                            <directory>${packaging.elasticsearch.work.dir}</directory>
                             <filemode>755</filemode>
                             <username>${packaging.elasticsearch.user}</username>
                             <groupname>${packaging.elasticsearch.group}</groupname>
@@ -1621,7 +1632,7 @@
                                         </goals>
                                     </pluginExecutionFilter>
                                     <action>
-                                        <execute/>
+                                        <ignore/>
                                     </action>
                                 </pluginExecution>
                                 <pluginExecution>

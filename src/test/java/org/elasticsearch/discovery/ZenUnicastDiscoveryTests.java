@@ -28,6 +28,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -81,8 +82,9 @@ public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
     // can't be satisfied.
     public void testMinimumMasterNodes() throws Exception {
         int currentNumNodes = randomIntBetween(3, 5);
-        int currentNumOfUnicastHosts = randomIntBetween(1, currentNumNodes);
-        final Settings settings = ImmutableSettings.settingsBuilder().put("discovery.zen.minimum_master_nodes", currentNumNodes / 2 + 1).build();
+        final int min_master_nodes = currentNumNodes / 2 + 1;
+        int currentNumOfUnicastHosts = randomIntBetween(min_master_nodes, currentNumNodes);
+        final Settings settings = ImmutableSettings.settingsBuilder().put("discovery.zen.minimum_master_nodes", min_master_nodes).build();
         discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(currentNumNodes, currentNumOfUnicastHosts, settings);
 
         List<String> nodes = internalCluster().startNodesAsync(currentNumNodes).get();

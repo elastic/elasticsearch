@@ -32,6 +32,7 @@ import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectInputStream;
 import java.util.*;
 
 /**
@@ -411,6 +412,8 @@ public abstract class StreamInput extends InputStream {
                 return readFloatArray();
             case 20:
                 return readDoubleArray();
+            case 21:
+                return readBytesRef();
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
@@ -470,6 +473,15 @@ public abstract class StreamInput extends InputStream {
             return streamable;
         } else {
             return null;
+        }
+    }
+
+    public <T extends Throwable> T readThrowable() throws IOException {
+        try {
+            ObjectInputStream oin = new ObjectInputStream(this);
+            return (T) oin.readObject();
+        } catch (ClassNotFoundException e) {
+            throw new IOException("failed to deserialize exception", e);
         }
     }
 }

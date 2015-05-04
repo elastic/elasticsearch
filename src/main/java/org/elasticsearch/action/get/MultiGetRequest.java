@@ -20,7 +20,6 @@
 package org.elasticsearch.action.get;
 
 import com.google.common.collect.Iterators;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -376,7 +375,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchIllegalArgumentException("docs array element should include an object");
+                throw new IllegalArgumentException("docs array element should include an object");
             }
             String index = defaultIndex;
             String type = defaultType;
@@ -395,7 +394,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
                 } else if (token.isValue()) {
                     if ("_index".equals(currentFieldName)) {
                         if (!allowExplicitIndex) {
-                            throw new ElasticsearchIllegalArgumentException("explicit index in multi get is not allowed");
+                            throw new IllegalArgumentException("explicit index in multi get is not allowed");
                         }
                         index = parser.text();
                     } else if ("_type".equals(currentFieldName)) {
@@ -486,7 +485,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (!token.isValue()) {
-                throw new ElasticsearchIllegalArgumentException("ids array element should only contain ids");
+                throw new IllegalArgumentException("ids array element should only contain ids");
             }
             items.add(new Item(defaultIndex, defaultType, parser.text()).fields(defaultFields).fetchSourceContext(defaultFetchSource).routing(defaultRouting));
         }

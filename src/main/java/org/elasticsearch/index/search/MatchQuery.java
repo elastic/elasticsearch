@@ -25,8 +25,6 @@ import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.util.QueryBuilder;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -156,7 +154,7 @@ public class MatchQuery {
         } else {
             analyzer = parseContext.mapperService().analysisService().analyzer(this.analyzer);
             if (analyzer == null) {
-                throw new ElasticsearchIllegalArgumentException("No analyzer found for [" + this.analyzer + "]");
+                throw new IllegalArgumentException("No analyzer found for [" + this.analyzer + "]");
             }
         }
         return analyzer;
@@ -204,7 +202,7 @@ public class MatchQuery {
                 query = builder.createPhrasePrefixQuery(field, value.toString(), phraseSlop, maxExpansions);
                 break;
             default:
-                throw new ElasticsearchIllegalStateException("No type found for [" + type + "]");
+                throw new IllegalStateException("No type found for [" + type + "]");
         }
 
         if (query == null) {

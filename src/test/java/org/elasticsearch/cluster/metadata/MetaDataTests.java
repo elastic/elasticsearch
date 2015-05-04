@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.Sets;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetaData.State;
@@ -426,14 +425,14 @@ public class MetaDataTests extends ElasticsearchTestCase {
         try {
             md.concreteIndices(IndicesOptions.strictSingleIndexNoExpandForbidClosed(), "foofoobar");
             fail();
-        } catch(ElasticsearchIllegalArgumentException e) {
+        } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("Alias [foofoobar] has more than one indices associated with it"));
         }
 
         try {
             md.concreteIndices(IndicesOptions.strictSingleIndexNoExpandForbidClosed(), "foo", "foofoobar");
             fail();
-        } catch(ElasticsearchIllegalArgumentException e) {
+        } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("Alias [foofoobar] has more than one indices associated with it"));
         }
 
@@ -441,7 +440,8 @@ public class MetaDataTests extends ElasticsearchTestCase {
             md.concreteIndices(IndicesOptions.strictSingleIndexNoExpandForbidClosed(), "foofoo-closed", "foofoobar");
             fail();
         } catch(IndexClosedException e) {
-            assertThat(e.getMessage(), containsString("[foofoo-closed] closed"));
+            assertThat(e.getMessage(), equalTo("closed"));
+            assertEquals(e.index().getName(), "foofoo-closed");
         }
 
         String[] results = md.concreteIndices(IndicesOptions.strictSingleIndexNoExpandForbidClosed(), "foo", "barbaz");
@@ -655,7 +655,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
             try {
                 metadata.concreteIndices(indicesOptions, allIndices);
                 fail("no wildcard expansion and null or empty list argument should trigger ElasticsearchIllegalArgumentException");
-            } catch (ElasticsearchIllegalArgumentException e) {
+            } catch (IllegalArgumentException e) {
                 // expected
             }
         } else {

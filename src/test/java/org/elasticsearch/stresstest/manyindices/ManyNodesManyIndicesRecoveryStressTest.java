@@ -72,7 +72,9 @@ public class ManyNodesManyIndicesRecoveryStressTest {
         }
 
         System.out.println("--> Initiating shutdown");
-        client.admin().cluster().prepareNodesShutdown().setExit(false).execute().actionGet();
+        for (Node node : nodes) {
+            node.close();
+        }
 
         System.out.println("--> Waiting for all nodes to be closed...");
         while (true) {

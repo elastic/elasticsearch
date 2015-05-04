@@ -24,7 +24,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryWrapperFilter;
-import org.apache.lucene.search.TermRangeFilter;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.HashedBytesRef;
@@ -71,13 +70,13 @@ public class ExistsFilterParser implements FilterParser {
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[exists] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[exists] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (fieldPattern == null) {
-            throw new QueryParsingException(parseContext.index(), "exists must be provided with a [field]");
+            throw new QueryParsingException(parseContext, "exists must be provided with a [field]");
         }
 
         return newFilter(parseContext, fieldPattern, filterName);
@@ -122,11 +121,7 @@ public class ExistsFilterParser implements FilterParser {
             boolFilter.add(filter, BooleanClause.Occur.SHOULD);
         }
 
-        Filter filter = Queries.wrap(boolFilter);
-        // we always cache this one, really does not change... (exists)
-        // its ok to cache under the fieldName cacheKey, since its per segment and the mapping applies to this data on this segment...
-        filter = parseContext.cacheFilter(filter, new HashedBytesRef("$exists$" + fieldPattern), parseContext.autoFilterCachePolicy());
-
+        Filter filter = new QueryWrapperFilter(boolFilter);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

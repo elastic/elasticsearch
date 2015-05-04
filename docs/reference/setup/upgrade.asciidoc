@@ -69,7 +69,7 @@ $ curl -XPUT 'http://localhost:9200/_cluster/settings' -d '{
 [float]
 ==== 1.0 and later
 
-To back up a running 1.0 or later system, it is simplest to use the snapshot feature.  Complete instructions for backup and restore with snapshots are available http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/modules-snapshots.html[here].
+To back up a running 1.0 or later system, it is simplest to use the snapshot feature.  See the complete instructions for <<modules-snapshots,backup and restore with snapshots>>.
 
 [float]
 [[rolling-upgrades]]
@@ -94,14 +94,9 @@ This syntax applies to Elasticsearch 1.0 and later:
 
 * Shut down a single node within the cluster.
 
-[source,sh]
---------------------------------------------
-curl -XPOST 'http://localhost:9200/_cluster/nodes/_local/_shutdown'
---------------------------------------------
-
 * Confirm that all shards are correctly reallocated to the remaining running nodes.
 
-* Upgrade the stopped node.  To upgrade using a zip or compressed tarball from elasticsearch.org:
+* Upgrade the stopped node.  To upgrade using a zip or compressed tarball from elastic.co:
 ** Extract the zip or tarball to a new directory, usually in the same volume as the current Elasticsearch installation.  Do not overwrite the existing installation, as the downloaded archive will contain a default elasticsearch.yml file and will overwrite your existing configuration.
 ** Copy the configuration files from the old Elasticsearch installation's config directory to the new Elasticsearch installation's config directory.  Move data files from the old Elasticsesarch installation's data directory if necessary.  If data files are not located within the tarball's extraction directory, they will not have to be moved.
 ** The simplest solution for moving from one version to another is to have a symbolic link for 'elasticsearch' that points to the currently running version.  This link can be easily updated and will provide a stable access point to the most recent version.  Update this symbolic link if it is being used.
@@ -149,11 +144,6 @@ This syntax is from versions prior to 1.0:
 --------------------------------------------------
 
 * Stop all Elasticsearch services on all nodes in the cluster.
-[source,sh]
-------------------------------------------------------
-	curl -XPOST 'http://localhost:9200/_shutdown'
-------------------------------------------------------
-
 * On the first node to be upgraded, extract the archive or install the new package as described above in the Rolling Upgrades section.  Repeat for all nodes.
 
 * After upgrading Elasticsearch on all nodes is complete, the cluster can be started by starting each node individually.

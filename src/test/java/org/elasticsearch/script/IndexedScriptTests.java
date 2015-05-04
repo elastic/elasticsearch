@@ -158,20 +158,20 @@ public class IndexedScriptTests extends ElasticsearchIntegrationTest {
             fail("update script should have been rejected");
         } catch(Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));
-            assertThat(ExceptionsHelper.detailedMessage(e), containsString("scripts of type [indexed], operation [update] and lang [expression] are disabled"));
+            assertThat(e.getCause().toString(), containsString("scripts of type [indexed], operation [update] and lang [expression] are disabled"));
         }
         try {
             String query = "{ \"script_fields\" : { \"test1\" : { \"script_id\" : \"script1\", \"lang\":\"expression\" }}}";
             client().prepareSearch().setSource(query).setIndices("test").setTypes("scriptTest").get();
             fail("search script should have been rejected");
         } catch(Exception e) {
-            assertThat(e.getMessage(), containsString("scripts of type [indexed], operation [search] and lang [expression] are disabled"));
+            assertThat(e.toString(), containsString("scripts of type [indexed], operation [search] and lang [expression] are disabled"));
         }
         try {
             String source = "{\"aggs\": {\"test\": { \"terms\" : { \"script_id\":\"script1\", \"script_lang\":\"expression\" } } } }";
             client().prepareSearch("test").setSource(source).get();
         } catch(Exception e) {
-            assertThat(e.getMessage(), containsString("scripts of type [indexed], operation [aggs] and lang [expression] are disabled"));
+            assertThat(e.toString(), containsString("scripts of type [indexed], operation [aggs] and lang [expression] are disabled"));
         }
     }
 }

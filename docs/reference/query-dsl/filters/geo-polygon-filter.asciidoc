@@ -116,11 +116,3 @@ The filter *requires* the
 <<mapping-geo-point-type,geo_point>> type to be
 set on the relevant field.
 
-[float]
-==== Caching
-
-The result of the filter is not cached by default. The `_cache` can be
-set to `true` to cache the *result* of the filter. This is handy when
-the same points parameters are used on several (many) other queries.
-Note, the process of caching the first execution is higher when caching
-(since it needs to satisfy different queries).

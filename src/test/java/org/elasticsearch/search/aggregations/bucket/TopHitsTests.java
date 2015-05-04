@@ -520,7 +520,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                     ).get();
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("No mapping found for [xyz] in order to sort on"));
+            assertThat(e.toString(), containsString("No mapping found for [xyz] in order to sort on"));
         }
     }
 
@@ -553,7 +553,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                     .get();
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
+            assertThat(e.toString(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
         }
     }
 
@@ -813,7 +813,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
         // Can't explain nested hit with the main query, since both are in a different scopes, also the nested doc may not even have matched with the main query
         // If top_hits would have a query option then we can explain that query
         Explanation explanation = searchHit.explanation();
-        assertThat(explanation.toString(), containsString("Not a match"));
+        assertFalse(explanation.isMatch());
 
         // Returns the version of the root document. Nested docs don't have a separate version
         long version = searchHit.version();

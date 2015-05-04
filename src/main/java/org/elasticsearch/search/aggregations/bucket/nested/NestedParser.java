@@ -49,18 +49,21 @@ public class NestedParser implements Aggregator.Parser {
                 if ("path".equals(currentFieldName)) {
                     path = parser.text();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
+                            + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
+                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
+                        parser.getTokenLocation());
             }
         }
 
         if (path == null) {
             // "field" doesn't exist, so we fall back to the context of the ancestors
-            throw new SearchParseException(context, "Missing [path] field for nested aggregation [" + aggregationName + "]");
+            throw new SearchParseException(context, "Missing [path] field for nested aggregation [" + aggregationName + "]",
+                    parser.getTokenLocation());
         }
 
-        return new NestedAggregator.Factory(aggregationName, path, context.queryParserService().autoFilterCachePolicy());
+        return new NestedAggregator.Factory(aggregationName, path);
     }
 }

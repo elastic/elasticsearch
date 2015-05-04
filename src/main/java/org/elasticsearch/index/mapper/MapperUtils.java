@@ -24,26 +24,14 @@ import org.elasticsearch.index.mapper.object.ObjectMapper;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.List;
 
 public enum MapperUtils {
     ;
 
-    /**
-     * Parse the given {@code context} with the given {@code mapper} and apply
-     * the potential mapping update in-place. This method is useful when
-     * composing mapping updates.
-     */
-    public static <M extends Mapper> M parseAndMergeUpdate(M mapper, ParseContext context) throws IOException {
-        final Mapper update = mapper.parse(context);
-        if (update != null) {
-            merge(mapper, update);
-        }
-        return mapper;
-    }
 
-    private static MergeContext newStrictMergeContext() {
-        return new MergeContext(new DocumentMapper.MergeFlags().simulate(false)) {
+
+    private static MergeResult newStrictMergeContext() {
+        return new MergeResult(false) {
 
             @Override
             public boolean hasConflicts() {
@@ -61,7 +49,7 @@ public enum MapperUtils {
             }
 
             @Override
-            public void addFieldMappers(List<FieldMapper<?>> fieldMappers) {
+            public void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
                 // no-op
             }
 

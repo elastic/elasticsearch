@@ -125,17 +125,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
     @Test
     public void testHelloWorld() {
-        serviceA.registerHandler("sayHello", new BaseTransportRequestHandler<StringMessageRequest>() {
-            @Override
-            public StringMessageRequest newInstance() {
-                return new StringMessageRequest();
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
-
+        serviceA.registerRequestHandler("sayHello", StringMessageRequest.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) {
                 assertThat("moshe", equalTo(request.message));
@@ -221,17 +211,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
             serviceA.disconnectFromNode(nodeA);
         }
         final AtomicReference<Exception> exception = new AtomicReference<>();
-        serviceA.registerHandler("localNode", new BaseTransportRequestHandler<StringMessageRequest>() {
-            @Override
-            public StringMessageRequest newInstance() {
-                return new StringMessageRequest();
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
-
+        serviceA.registerRequestHandler("localNode", StringMessageRequest.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) {
                 try {
@@ -273,17 +253,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
     @Test
     public void testVoidMessageCompressed() {
-        serviceA.registerHandler("sayHello", new BaseTransportRequestHandler<TransportRequest.Empty>() {
-            @Override
-            public TransportRequest.Empty newInstance() {
-                return TransportRequest.Empty.INSTANCE;
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
-
+        serviceA.registerRequestHandler("sayHello", TransportRequest.Empty.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<TransportRequest.Empty>() {
             @Override
             public void messageReceived(TransportRequest.Empty request, TransportChannel channel) {
                 try {
@@ -330,17 +300,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
     @Test
     public void testHelloWorldCompressed() {
-        serviceA.registerHandler("sayHello", new BaseTransportRequestHandler<StringMessageRequest>() {
-            @Override
-            public StringMessageRequest newInstance() {
-                return new StringMessageRequest();
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
-
+        serviceA.registerRequestHandler("sayHello", StringMessageRequest.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) {
                 assertThat("moshe", equalTo(request.message));
@@ -389,17 +349,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
     @Test
     public void testErrorMessage() {
-        serviceA.registerHandler("sayHelloException", new BaseTransportRequestHandler<StringMessageRequest>() {
-            @Override
-            public StringMessageRequest newInstance() {
-                return new StringMessageRequest();
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
-
+        serviceA.registerRequestHandler("sayHelloException", StringMessageRequest.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) throws Exception {
                 assertThat("moshe", equalTo(request.message));
@@ -463,20 +413,9 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
     public void testNotifyOnShutdown() throws Exception {
         final CountDownLatch latch2 = new CountDownLatch(1);
 
-        serviceA.registerHandler("foobar", new BaseTransportRequestHandler<StringMessageRequest>() {
-            @Override
-            public StringMessageRequest newInstance() {
-                return new StringMessageRequest();
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
-
+        serviceA.registerRequestHandler("foobar", StringMessageRequest.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) {
-
                 try {
                     latch2.await();
                     logger.info("Stop ServiceB now");
@@ -500,17 +439,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
     @Test
     public void testTimeoutSendExceptionWithNeverSendingBackResponse() throws Exception {
-        serviceA.registerHandler("sayHelloTimeoutNoResponse", new BaseTransportRequestHandler<StringMessageRequest>() {
-            @Override
-            public StringMessageRequest newInstance() {
-                return new StringMessageRequest();
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
-
+        serviceA.registerRequestHandler("sayHelloTimeoutNoResponse", StringMessageRequest.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) {
                 assertThat("moshe", equalTo(request.message));
@@ -559,17 +488,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
     @Test
     public void testTimeoutSendExceptionWithDelayedResponse() throws Exception {
-        serviceA.registerHandler("sayHelloTimeoutDelayedResponse", new BaseTransportRequestHandler<StringMessageRequest>() {
-            @Override
-            public StringMessageRequest newInstance() {
-                return new StringMessageRequest();
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
-
+        serviceA.registerRequestHandler("sayHelloTimeoutDelayedResponse", StringMessageRequest.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) {
                 TimeValue sleep = TimeValue.parseTimeValue(request.message, null);
@@ -658,29 +577,14 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
     @Test
     @TestLogging(value = "test. transport.tracer:TRACE")
     public void testTracerLog() throws InterruptedException {
-        TransportRequestHandler handler = new BaseTransportRequestHandler<StringMessageRequest>() {
-            @Override
-            public StringMessageRequest newInstance() {
-                return new StringMessageRequest("");
-            }
-
+        TransportRequestHandler handler = new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) throws Exception {
                 channel.sendResponse(new StringMessageResponse(""));
             }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.SAME;
-            }
         };
 
-        TransportRequestHandler handlerWithError = new BaseTransportRequestHandler<StringMessageRequest>() {
-            @Override
-            public StringMessageRequest newInstance() {
-                return new StringMessageRequest("");
-            }
-
+        TransportRequestHandler handlerWithError = new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) throws Exception {
                 if (request.timeout() > 0) {
@@ -688,11 +592,6 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
                 }
                 channel.sendResponse(new RuntimeException(""));
 
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.SAME;
             }
         };
 
@@ -720,10 +619,10 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
             }
         };
 
-        serviceA.registerHandler("test", handler);
-        serviceA.registerHandler("testError", handlerWithError);
-        serviceB.registerHandler("test", handler);
-        serviceB.registerHandler("testError", handlerWithError);
+        serviceA.registerRequestHandler("test", StringMessageRequest.class, ThreadPool.Names.SAME, handler);
+        serviceA.registerRequestHandler("testError", StringMessageRequest.class, ThreadPool.Names.SAME, handlerWithError);
+        serviceB.registerRequestHandler("test", StringMessageRequest.class, ThreadPool.Names.SAME, handler);
+        serviceB.registerRequestHandler("testError", StringMessageRequest.class, ThreadPool.Names.SAME, handlerWithError);
 
         final Tracer tracer = new Tracer();
         serviceA.addTracer(tracer);
@@ -983,12 +882,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
     @Test
     public void testVersion_from0to1() throws Exception {
-        serviceB.registerHandler("/version", new BaseTransportRequestHandler<Version1Request>() {
-            @Override
-            public Version1Request newInstance() {
-                return new Version1Request();
-            }
-
+        serviceB.registerRequestHandler("/version", Version1Request.class, ThreadPool.Names.SAME, new TransportRequestHandler<Version1Request>() {
             @Override
             public void messageReceived(Version1Request request, TransportChannel channel) throws Exception {
                 assertThat(request.value1, equalTo(1));
@@ -997,11 +891,6 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
                 response.value1 = 1;
                 response.value2 = 2;
                 channel.sendResponse(response);
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.SAME;
             }
         });
 
@@ -1035,23 +924,13 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
     @Test
     public void testVersion_from1to0() throws Exception {
-        serviceA.registerHandler("/version", new BaseTransportRequestHandler<Version0Request>() {
-            @Override
-            public Version0Request newInstance() {
-                return new Version0Request();
-            }
-
+        serviceA.registerRequestHandler("/version", Version0Request.class, ThreadPool.Names.SAME, new TransportRequestHandler<Version0Request>() {
             @Override
             public void messageReceived(Version0Request request, TransportChannel channel) throws Exception {
                 assertThat(request.value1, equalTo(1));
                 Version0Response response = new Version0Response();
                 response.value1 = 1;
                 channel.sendResponse(response);
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.SAME;
             }
         });
 
@@ -1088,12 +967,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
     @Test
     public void testVersion_from1to1() throws Exception {
-        serviceB.registerHandler("/version", new BaseTransportRequestHandler<Version1Request>() {
-            @Override
-            public Version1Request newInstance() {
-                return new Version1Request();
-            }
-
+        serviceB.registerRequestHandler("/version", Version1Request.class, ThreadPool.Names.SAME, new TransportRequestHandler<Version1Request>() {
             @Override
             public void messageReceived(Version1Request request, TransportChannel channel) throws Exception {
                 assertThat(request.value1, equalTo(1));
@@ -1102,11 +976,6 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
                 response.value1 = 1;
                 response.value2 = 2;
                 channel.sendResponse(response);
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.SAME;
             }
         });
 
@@ -1143,23 +1012,13 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
     @Test
     public void testVersion_from0to0() throws Exception {
-        serviceA.registerHandler("/version", new BaseTransportRequestHandler<Version0Request>() {
-            @Override
-            public Version0Request newInstance() {
-                return new Version0Request();
-            }
-
+        serviceA.registerRequestHandler("/version", Version0Request.class, ThreadPool.Names.SAME, new TransportRequestHandler<Version0Request>() {
             @Override
             public void messageReceived(Version0Request request, TransportChannel channel) throws Exception {
                 assertThat(request.value1, equalTo(1));
                 Version0Response response = new Version0Response();
                 response.value1 = 1;
                 channel.sendResponse(response);
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.SAME;
             }
         });
 
@@ -1193,17 +1052,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
     @Test
     public void testMockFailToSendNoConnectRule() {
-        serviceA.registerHandler("sayHello", new BaseTransportRequestHandler<StringMessageRequest>() {
-            @Override
-            public StringMessageRequest newInstance() {
-                return new StringMessageRequest();
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
-
+        serviceA.registerRequestHandler("sayHello", StringMessageRequest.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) throws Exception {
                 assertThat("moshe", equalTo(request.message));
@@ -1262,17 +1111,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
     @Test
     public void testMockUnresponsiveRule() {
-        serviceA.registerHandler("sayHello", new BaseTransportRequestHandler<StringMessageRequest>() {
-            @Override
-            public StringMessageRequest newInstance() {
-                return new StringMessageRequest();
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.GENERIC;
-            }
-
+        serviceA.registerRequestHandler("sayHello", StringMessageRequest.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) throws Exception {
                 assertThat("moshe", equalTo(request.message));
@@ -1335,27 +1174,12 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
         final CountDownLatch latch = new CountDownLatch(2);
         final AtomicReference<TransportAddress> addressA = new AtomicReference<>();
         final AtomicReference<TransportAddress> addressB = new AtomicReference<>();
-        serviceB.registerHandler("action1", new TransportRequestHandler<TestRequest>() {
-            @Override
-            public TestRequest newInstance() {
-                return new TestRequest();
-            }
-
+        serviceB.registerRequestHandler("action1", TestRequest.class, ThreadPool.Names.SAME, new TransportRequestHandler<TestRequest>() {
             @Override
             public void messageReceived(TestRequest request, TransportChannel channel) throws Exception {
                 addressA.set(request.remoteAddress());
                 channel.sendResponse(new TestResponse());
                 latch.countDown();
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.SAME;
-            }
-
-            @Override
-            public boolean isForceExecution() {
-                return false;
             }
         });
         serviceA.sendRequest(nodeB, "action1", new TestRequest(), new TransportResponseHandler<TestResponse>() {

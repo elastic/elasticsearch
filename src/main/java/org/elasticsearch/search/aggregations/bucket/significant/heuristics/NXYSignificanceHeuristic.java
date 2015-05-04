@@ -21,7 +21,6 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -124,13 +123,13 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
         checkFrequencyValidity(subsetFreq, subsetSize, supersetFreq, supersetSize, scoreFunctionName);
         if (backgroundIsSuperset) {
             if (subsetFreq > supersetFreq) {
-                throw new ElasticsearchIllegalArgumentException("subsetFreq > supersetFreq" + SCORE_ERROR_MESSAGE);
+                throw new IllegalArgumentException("subsetFreq > supersetFreq" + SCORE_ERROR_MESSAGE);
             }
             if (subsetSize > supersetSize) {
-                throw new ElasticsearchIllegalArgumentException("subsetSize > supersetSize" + SCORE_ERROR_MESSAGE);
+                throw new IllegalArgumentException("subsetSize > supersetSize" + SCORE_ERROR_MESSAGE);
             }
             if (supersetFreq - subsetFreq > supersetSize - subsetSize) {
-                throw new ElasticsearchIllegalArgumentException("supersetFreq - subsetFreq > supersetSize - subsetSize" + SCORE_ERROR_MESSAGE);
+                throw new IllegalArgumentException("supersetFreq - subsetFreq > supersetSize - subsetSize" + SCORE_ERROR_MESSAGE);
             }
         }
     }

@@ -22,9 +22,8 @@ package org.elasticsearch.index.search.geo;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
 /**
@@ -33,7 +32,7 @@ public class IndexedGeoBoundingBoxFilter {
 
     public static Filter create(GeoPoint topLeft, GeoPoint bottomRight, GeoPointFieldMapper fieldMapper) {
         if (!fieldMapper.isEnableLatLon()) {
-            throw new ElasticsearchIllegalArgumentException("lat/lon is not enabled (indexed) for field [" + fieldMapper.name() + "], can't use indexed filter on it");
+            throw new IllegalArgumentException("lat/lon is not enabled (indexed) for field [" + fieldMapper.name() + "], can't use indexed filter on it");
         }
         //checks to see if bounding box crosses 180 degrees
         if (topLeft.lon() > bottomRight.lon()) {
@@ -49,13 +48,13 @@ public class IndexedGeoBoundingBoxFilter {
         filter.add(fieldMapper.lonMapper().rangeFilter(null, bottomRight.lon(), true, true), Occur.SHOULD);
         filter.add(fieldMapper.lonMapper().rangeFilter(topLeft.lon(), null, true, true), Occur.SHOULD);
         filter.add(fieldMapper.latMapper().rangeFilter(bottomRight.lat(), topLeft.lat(), true, true), Occur.MUST);
-        return Queries.wrap(filter);
+        return new QueryWrapperFilter(filter);
     }
 
     private static Filter eastGeoBoundingBoxFilter(GeoPoint topLeft, GeoPoint bottomRight, GeoPointFieldMapper fieldMapper) {
         BooleanQuery filter = new BooleanQuery();
         filter.add(fieldMapper.lonMapper().rangeFilter(topLeft.lon(), bottomRight.lon(), true, true), Occur.MUST);
         filter.add(fieldMapper.latMapper().rangeFilter(bottomRight.lat(), topLeft.lat(), true, true), Occur.MUST);
-        return Queries.wrap(filter);
+        return new QueryWrapperFilter(filter);
     }
 }

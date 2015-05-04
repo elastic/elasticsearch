@@ -38,7 +38,6 @@ import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -69,7 +68,6 @@ public class TestSearchContext extends SearchContext {
     final PageCacheRecycler pageCacheRecycler;
     final BigArrays bigArrays;
     final IndexService indexService;
-    final FilterCache filterCache;
     final IndexFieldDataService indexFieldDataService;
     final BitsetFilterCache fixedBitSetFilterCache;
     final ThreadPool threadPool;
@@ -84,7 +82,6 @@ public class TestSearchContext extends SearchContext {
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.indexService = indexService;
-        this.filterCache = indexService.cache().filter();
         this.indexFieldDataService = indexService.fieldData();
         this.fixedBitSetFilterCache = indexService.bitsetFilterCache();
         this.threadPool = threadPool;
@@ -94,7 +91,6 @@ public class TestSearchContext extends SearchContext {
         this.pageCacheRecycler = null;
         this.bigArrays = null;
         this.indexService = null;
-        this.filterCache = null;
         this.indexFieldDataService = null;
         this.threadPool = null;
         this.fixedBitSetFilterCache = null;
@@ -311,11 +307,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public BigArrays bigArrays() {
         return bigArrays;
-    }
-
-    @Override
-    public FilterCache filterCache() {
-        return filterCache;
     }
 
     @Override
@@ -590,7 +581,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void doClose() throws ElasticsearchException {
+    public void doClose() {
     }
 
     @Override

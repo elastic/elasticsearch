@@ -29,8 +29,6 @@ import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -109,7 +107,7 @@ public class TransportClient extends AbstractClient {
      * Constructs a new transport client with settings loaded either from the classpath or the file system (the
      * <tt>elasticsearch.(yml|json)</tt> files optionally prefixed with <tt>config/</tt>).
      */
-    public TransportClient() throws ElasticsearchException {
+    public TransportClient() {
         this(ImmutableSettings.Builder.EMPTY_SETTINGS, true);
     }
 
@@ -138,7 +136,7 @@ public class TransportClient extends AbstractClient {
      * @param loadConfigSettings <tt>true</tt> if settings should be loaded from the classpath/file system.
      * @throws org.elasticsearch.ElasticsearchException
      */
-    public TransportClient(Settings.Builder settings, boolean loadConfigSettings) throws ElasticsearchException {
+    public TransportClient(Settings.Builder settings, boolean loadConfigSettings) {
         this(settings.build(), loadConfigSettings);
     }
 
@@ -151,7 +149,7 @@ public class TransportClient extends AbstractClient {
      * @param loadConfigSettings <tt>true</tt> if settings should be loaded from the classpath/file system.
      * @throws org.elasticsearch.ElasticsearchException
      */
-    public TransportClient(Settings pSettings, boolean loadConfigSettings) throws ElasticsearchException {
+    public TransportClient(Settings pSettings, boolean loadConfigSettings) {
         Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(pSettings, loadConfigSettings);
         Settings settings = settingsBuilder()
                 .put(NettyTransport.PING_SCHEDULE, "5s") // enable by default the transport schedule ping interval
@@ -350,16 +348,6 @@ public class TransportClient extends AbstractClient {
     @Override
     public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
         internalClient.bulk(request, listener);
-    }
-
-    @Override
-    public ActionFuture<DeleteByQueryResponse> deleteByQuery(DeleteByQueryRequest request) {
-        return internalClient.deleteByQuery(request);
-    }
-
-    @Override
-    public void deleteByQuery(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener) {
-        internalClient.deleteByQuery(request, listener);
     }
 
     @Override

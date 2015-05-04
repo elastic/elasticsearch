@@ -23,8 +23,9 @@ import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.reducers.ReducerBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -55,8 +57,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A search source builder allowing to easily build search source. Simple construction
- * using {@link org.elasticsearch.search.builder.SearchSourceBuilder#searchSource()}.
+ * A search source builder allowing to easily build search source. Simple
+ * construction using
+ * {@link org.elasticsearch.search.builder.SearchSourceBuilder#searchSource()}.
  *
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
@@ -109,7 +112,6 @@ public class SearchSourceBuilder implements ToXContent {
     private List<AbstractAggregationBuilder> aggregations;
     private BytesReference aggregationsBinary;
 
-
     private HighlightBuilder highlightBuilder;
 
     private SuggestBuilder suggestBuilder;
@@ -122,7 +124,6 @@ public class SearchSourceBuilder implements ToXContent {
     private ObjectFloatOpenHashMap<String> indexBoost = null;
 
     private String[] stats;
-
 
     /**
      * Constructs a new search source builder.
@@ -190,8 +191,9 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
-     * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
-     * (not aggregations). This filter is always executed as last filtering mechanism.
+     * Sets a filter that will be executed after the query has been executed and
+     * only has affect on the search hits (not aggregations). This filter is
+     * always executed as last filtering mechanism.
      */
     public SearchSourceBuilder postFilter(FilterBuilder postFilter) {
         this.postFilterBuilder = postFilter;
@@ -276,8 +278,8 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
-     * Should each {@link org.elasticsearch.search.SearchHit} be returned with an
-     * explanation of the hit (ranking).
+     * Should each {@link org.elasticsearch.search.SearchHit} be returned with
+     * an explanation of the hit (ranking).
      */
     public SearchSourceBuilder explain(Boolean explain) {
         this.explain = explain;
@@ -285,8 +287,8 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
-     * Should each {@link org.elasticsearch.search.SearchHit} be returned with a version
-     * associated with it.
+     * Should each {@link org.elasticsearch.search.SearchHit} be returned with a
+     * version associated with it.
      */
     public SearchSourceBuilder version(Boolean version) {
         this.version = version;
@@ -310,21 +312,24 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
-     * An optional terminate_after to terminate the search after
-     * collecting <code>terminateAfter</code> documents
+     * An optional terminate_after to terminate the search after collecting
+     * <code>terminateAfter</code> documents
      */
     public  SearchSourceBuilder terminateAfter(int terminateAfter) {
         if (terminateAfter <= 0) {
-            throw new ElasticsearchIllegalArgumentException("terminateAfter must be > 0");
+            throw new IllegalArgumentException("terminateAfter must be > 0");
         }
         this.terminateAfter = terminateAfter;
         return this;
     }
+
     /**
      * Adds a sort against the given field name and the sort ordering.
      *
-     * @param name  The name of the field
-     * @param order The sort ordering
+     * @param name
+     *            The name of the field
+     * @param order
+     *            The sort ordering
      */
     public SearchSourceBuilder sort(String name, SortOrder order) {
         return sort(SortBuilders.fieldSort(name).order(order));
@@ -333,7 +338,8 @@ public class SearchSourceBuilder implements ToXContent {
     /**
      * Add a sort against the given field name.
      *
-     * @param name The name of the field to sort by
+     * @param name
+     *            The name of the field to sort by
      */
     public SearchSourceBuilder sort(String name) {
         return sort(SortBuilders.fieldSort(name));
@@ -351,8 +357,8 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
-     * Applies when sorting, and controls if scores will be tracked as well. Defaults to
-     * <tt>false</tt>.
+     * Applies when sorting, and controls if scores will be tracked as well.
+     * Defaults to <tt>false</tt>.
      */
     public SearchSourceBuilder trackScores(boolean trackScores) {
         this.trackScores = trackScores;
@@ -401,6 +407,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     /**
      * Set the rescore window size for rescores that don't specify their window.
+     * 
      * @param defaultRescoreWindowSize
      * @return
      */
@@ -465,7 +472,8 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
-     * Indicates whether the response should contain the stored _source for every hit
+     * Indicates whether the response should contain the stored _source for
+     * every hit
      *
      * @param fetch
      * @return
@@ -480,22 +488,33 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
-     * Indicate that _source should be returned with every hit, with an "include" and/or "exclude" set which can include simple wildcard
+     * Indicate that _source should be returned with every hit, with an
+     * "include" and/or "exclude" set which can include simple wildcard
      * elements.
      *
-     * @param include An optional include (optionally wildcarded) pattern to filter the returned _source
-     * @param exclude An optional exclude (optionally wildcarded) pattern to filter the returned _source
+     * @param include
+     *            An optional include (optionally wildcarded) pattern to filter
+     *            the returned _source
+     * @param exclude
+     *            An optional exclude (optionally wildcarded) pattern to filter
+     *            the returned _source
      */
     public SearchSourceBuilder fetchSource(@Nullable String include, @Nullable String exclude) {
-        return fetchSource(include == null ? Strings.EMPTY_ARRAY : new String[]{include}, exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude});
+        return fetchSource(include == null ? Strings.EMPTY_ARRAY : new String[] { include }, exclude == null ? Strings.EMPTY_ARRAY
+                : new String[] { exclude });
     }
 
     /**
-     * Indicate that _source should be returned with every hit, with an "include" and/or "exclude" set which can include simple wildcard
+     * Indicate that _source should be returned with every hit, with an
+     * "include" and/or "exclude" set which can include simple wildcard
      * elements.
      *
-     * @param includes An optional list of include (optionally wildcarded) pattern to filter the returned _source
-     * @param excludes An optional list of exclude (optionally wildcarded) pattern to filter the returned _source
+     * @param includes
+     *            An optional list of include (optionally wildcarded) pattern to
+     *            filter the returned _source
+     * @param excludes
+     *            An optional list of exclude (optionally wildcarded) pattern to
+     *            filter the returned _source
      */
     public SearchSourceBuilder fetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
         fetchSourceContext = new FetchSourceContext(includes, excludes);
@@ -511,7 +530,8 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
-     * Sets no fields to be loaded, resulting in only id and type to be returned per field.
+     * Sets no fields to be loaded, resulting in only id and type to be returned
+     * per field.
      */
     public SearchSourceBuilder noFields() {
         this.fieldNames = ImmutableList.of();
@@ -519,8 +539,8 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
-     * Sets the fields to load and return as part of the search request. If none are specified,
-     * the source of the document will be returned.
+     * Sets the fields to load and return as part of the search request. If none
+     * are specified, the source of the document will be returned.
      */
     public SearchSourceBuilder fields(List<String> fields) {
         this.fieldNames = fields;
@@ -528,8 +548,8 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
-     * Adds the fields to load and return as part of the search request. If none are specified,
-     * the source of the document will be returned.
+     * Adds the fields to load and return as part of the search request. If none
+     * are specified, the source of the document will be returned.
      */
     public SearchSourceBuilder fields(String... fields) {
         if (fieldNames == null) {
@@ -542,8 +562,9 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
-     * Adds a field to load and return (note, it must be stored) as part of the search request.
-     * If none are specified, the source of the document will be return.
+     * Adds a field to load and return (note, it must be stored) as part of the
+     * search request. If none are specified, the source of the document will be
+     * return.
      */
     public SearchSourceBuilder field(String name) {
         if (fieldNames == null) {
@@ -554,7 +575,8 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
-     * Adds a field to load from the field data cache and return as part of the search request.
+     * Adds a field to load from the field data cache and return as part of the
+     * search request.
      */
     public SearchSourceBuilder fieldDataField(String name) {
         if (fieldDataFields == null) {
@@ -567,8 +589,10 @@ public class SearchSourceBuilder implements ToXContent {
     /**
      * Adds a script field under the given name with the provided script.
      *
-     * @param name   The name of the field
-     * @param script The script
+     * @param name
+     *            The name of the field
+     * @param script
+     *            The script
      */
     public SearchSourceBuilder scriptField(String name, String script) {
         return scriptField(name, null, script, null);
@@ -577,9 +601,12 @@ public class SearchSourceBuilder implements ToXContent {
     /**
      * Adds a script field.
      *
-     * @param name   The name of the field
-     * @param script The script to execute
-     * @param params The script parameters
+     * @param name
+     *            The name of the field
+     * @param script
+     *            The script to execute
+     * @param params
+     *            The script parameters
      */
     public SearchSourceBuilder scriptField(String name, String script, Map<String, Object> params) {
         return scriptField(name, null, script, params);
@@ -588,10 +615,14 @@ public class SearchSourceBuilder implements ToXContent {
     /**
      * Adds a script field.
      *
-     * @param name   The name of the field
-     * @param lang   The language of the script
-     * @param script The script to execute
-     * @param params The script parameters (can be <tt>null</tt>)
+     * @param name
+     *            The name of the field
+     * @param lang
+     *            The language of the script
+     * @param script
+     *            The script to execute
+     * @param params
+     *            The script parameters (can be <tt>null</tt>)
      */
     public SearchSourceBuilder scriptField(String name, String lang, String script, Map<String, Object> params) {
         if (scriptFields == null) {
@@ -602,10 +633,13 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
-     * Sets the boost a specific index will receive when the query is executeed against it.
+     * Sets the boost a specific index will receive when the query is executeed
+     * against it.
      *
-     * @param index      The index to apply the boost against
-     * @param indexBoost The boost to apply to the index
+     * @param index
+     *            The index to apply the boost against
+     * @param indexBoost
+     *            The boost to apply to the index
      */
     public SearchSourceBuilder indexBoost(String index, float indexBoost) {
         if (this.indexBoost == null) {
@@ -630,7 +664,7 @@ public class SearchSourceBuilder implements ToXContent {
             toXContent(builder, ToXContent.EMPTY_PARAMS);
             return builder.string();
         } catch (Exception e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
+            return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
         }
     }
 
@@ -648,7 +682,6 @@ public class SearchSourceBuilder implements ToXContent {
         }
     }
 
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -657,7 +690,7 @@ public class SearchSourceBuilder implements ToXContent {
         return builder;
     }
 
-    public void innerToXContent(XContentBuilder builder, Params params) throws IOException{
+    public void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (from != -1) {
             builder.field("from", from);
         }
@@ -883,36 +916,6 @@ public class SearchSourceBuilder implements ToXContent {
 
         public Map<String, Object> params() {
             return params;
-        }
-    }
-
-    private static class PartialField {
-        private final String name;
-        private final String[] includes;
-        private final String[] excludes;
-
-        private PartialField(String name, String[] includes, String[] excludes) {
-            this.name = name;
-            this.includes = includes;
-            this.excludes = excludes;
-        }
-
-        private PartialField(String name, String include, String exclude) {
-            this.name = name;
-            this.includes = include == null ? null : new String[]{include};
-            this.excludes = exclude == null ? null : new String[]{exclude};
-        }
-
-        public String name() {
-            return name;
-        }
-
-        public String[] includes() {
-            return includes;
-        }
-
-        public String[] excludes() {
-            return excludes;
         }
     }
 }

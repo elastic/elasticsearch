@@ -20,6 +20,8 @@
 package org.elasticsearch.river;
 
 import com.google.common.base.Predicate;
+
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
@@ -29,15 +31,16 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.river.dummy.DummyRiverModule;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
+@AwaitsFix(bugUrl="occasionally fails apparently due to synchronous mappings updates")
 public class RiverTests extends ElasticsearchIntegrationTest {
 
     @Test

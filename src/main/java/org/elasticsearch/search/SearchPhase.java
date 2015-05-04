@@ -36,5 +36,5 @@ public interface SearchPhase {
      */
     void preProcess(SearchContext context);
 
-    void execute(SearchContext context) throws ElasticsearchException;
+    void execute(SearchContext context);
 }

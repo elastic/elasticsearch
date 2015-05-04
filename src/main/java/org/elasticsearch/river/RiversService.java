@@ -88,11 +88,11 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         ImmutableSet<RiverName> indices = ImmutableSet.copyOf(this.rivers.keySet());
         final CountDownLatch latch = new CountDownLatch(indices.size());
         for (final RiverName riverName : indices) {
@@ -117,10 +117,10 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
     }
 
-    public synchronized void createRiver(RiverName riverName, Map<String, Object> settings) throws ElasticsearchException {
+    public synchronized void createRiver(RiverName riverName, Map<String, Object> settings) {
         if (riversInjectors.containsKey(riverName)) {
             logger.warn("ignoring river [{}][{}] creation, already exists", riverName.type(), riverName.name());
             return;
@@ -182,7 +182,7 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
         }
     }
 
-    public synchronized void closeRiver(RiverName riverName) throws ElasticsearchException {
+    public synchronized void closeRiver(RiverName riverName) {
         Injector riverInjector;
         River river;
         synchronized (this) {

@@ -51,7 +51,7 @@ public class BulkItemResponse implements Streamable {
             this.index = index;
             this.type = type;
             this.id = id;
-            this.message = ExceptionsHelper.detailedMessage(t);
+            this.message = t.toString();
             this.status = ExceptionsHelper.status(t);
         }
 

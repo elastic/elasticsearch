@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.global;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -28,9 +27,11 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -38,8 +39,9 @@ import java.util.Map;
  */
 public class GlobalAggregator extends SingleBucketAggregator {
 
-    public GlobalAggregator(String name, AggregatorFactories subFactories, AggregationContext aggregationContext, Map<String, Object> metaData) throws IOException {
-        super(name, subFactories, aggregationContext, null, metaData);
+    public GlobalAggregator(String name, AggregatorFactories subFactories, AggregationContext aggregationContext, List<Reducer> reducers,
+            Map<String, Object> metaData) throws IOException {
+        super(name, subFactories, aggregationContext, null, reducers, metaData);
     }
 
     @Override
@@ -57,7 +59,8 @@ public class GlobalAggregator extends SingleBucketAggregator {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0 : "global aggregator can only be a top level aggregator";
-        return new InternalGlobal(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metaData());
+        return new InternalGlobal(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), reducers(),
+                metaData());
     }
 
     @Override
@@ -72,15 +75,16 @@ public class GlobalAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
+                List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
             if (parent != null) {
                 throw new AggregationExecutionException("Aggregation [" + parent.name() + "] cannot have a global " +
                         "sub-aggregation [" + name + "]. Global aggregations can only be defined as top level aggregations");
             }
             if (collectsFromSingleBucket == false) {
-                throw new ElasticsearchIllegalStateException();
+                throw new IllegalStateException();
             }
-            return new GlobalAggregator(name, factories, context, metaData);
+            return new GlobalAggregator(name, factories, context, reducers, metaData);
         }
 
     }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -29,8 +28,8 @@ import org.elasticsearch.common.xcontent.XContentType;
  */
 public interface FilterBuilder extends ToXContent {
 
-    BytesReference buildAsBytes() throws ElasticsearchException;
+    BytesReference buildAsBytes();
 
-    BytesReference buildAsBytes(XContentType contentType) throws ElasticsearchException;
+    BytesReference buildAsBytes(XContentType contentType);
 
 }

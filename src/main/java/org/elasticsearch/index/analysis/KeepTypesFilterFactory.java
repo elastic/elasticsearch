@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.TypeTokenFilter;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -56,7 +55,7 @@ public class KeepTypesFilterFactory extends AbstractTokenFilterFactory {
 
         final String[] arrayKeepTypes = settings.getAsArray(KEEP_TYPES_KEY, null);
         if ((arrayKeepTypes == null)) {
-            throw new ElasticsearchIllegalArgumentException("keep_types requires `" + KEEP_TYPES_KEY + "` to be configured");
+            throw new IllegalArgumentException("keep_types requires `" + KEEP_TYPES_KEY + "` to be configured");
         }
 
         this.keepTypes = new HashSet<>(Arrays.asList(arrayKeepTypes));

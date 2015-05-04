@@ -192,8 +192,6 @@ verify_package_installation() {
     assert_file "/var/lib/elasticsearch" d elasticsearch 755
     # Log dir
     assert_file "/var/log/elasticsearch" d elasticsearch 755
-    # Work dir
-    assert_file "/tmp/elasticsearch" d elasticsearch 755
     # Plugins dir
     assert_file "/usr/share/elasticsearch/plugins" d elasticsearch 755
     # PID dir

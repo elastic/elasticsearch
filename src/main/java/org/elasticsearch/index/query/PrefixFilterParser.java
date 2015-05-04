@@ -22,11 +22,9 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.PrefixQuery;
-import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -52,8 +50,6 @@ public class PrefixFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
-        HashedBytesRef cacheKey = null;
         String fieldName = null;
         Object value = null;
 
@@ -66,10 +62,6 @@ public class PrefixFilterParser implements FilterParser {
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
-                } else if ("_cache".equals(currentFieldName)) {
-                    cache = parseContext.parseFilterCachePolicy();
-                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new HashedBytesRef(parser.text());
                 } else {
                     fieldName = currentFieldName;
                     value = parser.objectBytes();
@@ -78,7 +70,7 @@ public class PrefixFilterParser implements FilterParser {
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext.index(), "No value specified for prefix filter");
+            throw new QueryParsingException(parseContext, "No value specified for prefix filter");
         }
 
         Filter filter = null;
@@ -88,12 +80,9 @@ public class PrefixFilterParser implements FilterParser {
             filter = smartNameFieldMappers.mapper().prefixFilter(value, parseContext);
         }
         if (filter == null) {
-            filter = Queries.wrap(new PrefixQuery(new Term(fieldName, BytesRefs.toBytesRef(value))));
+            filter = new QueryWrapperFilter(new PrefixQuery(new Term(fieldName, BytesRefs.toBytesRef(value))));
         }
 
-        if (cache != null) {
-            filter = parseContext.cacheFilter(filter, cacheKey, cache);
-        }
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

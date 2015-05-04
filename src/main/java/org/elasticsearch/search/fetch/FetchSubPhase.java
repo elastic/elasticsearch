@@ -22,8 +22,6 @@ import com.google.common.collect.Maps;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -42,14 +40,12 @@ public interface FetchSubPhase {
         private LeafReaderContext readerContext;
         private int docId;
         private Map<String, Object> cache;
-        private IndexSearcher atomicIndexSearcher;
 
         public void reset(InternalSearchHit hit, LeafReaderContext context, int docId, IndexReader topLevelReader) {
             this.hit = hit;
             this.readerContext = context;
             this.docId = docId;
             this.topLevelReader = topLevelReader;
-            this.atomicIndexSearcher = null;
         }
 
         public InternalSearchHit hit() {
@@ -62,15 +58,6 @@ public interface FetchSubPhase {
 
         public LeafReaderContext readerContext() {
             return readerContext;
-        }
-
-        public IndexSearcher searcher() {
-            if (atomicIndexSearcher == null) {
-                // Use the reader directly otherwise the IndexSearcher assertion will trip because it expects a top level
-                // reader context.
-                atomicIndexSearcher = new IndexSearcher(readerContext.reader());
-            }
-            return atomicIndexSearcher;
         }
 
         public int docId() {
@@ -116,9 +103,9 @@ public interface FetchSubPhase {
     /**
      * Executes the hit level phase, with a reader and doc id (note, its a low level reader, and the matching doc).
      */
-    void hitExecute(SearchContext context, HitContext hitContext) throws ElasticsearchException;
+    void hitExecute(SearchContext context, HitContext hitContext);
 
     boolean hitsExecutionNeeded(SearchContext context);
 
-    void hitsExecute(SearchContext context, InternalSearchHit[] hits) throws ElasticsearchException;
+    void hitsExecute(SearchContext context, InternalSearchHit[] hits);
 }

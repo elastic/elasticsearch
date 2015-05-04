@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -331,6 +332,9 @@ public class TypeParsers {
                     type = typeNode.toString();
                 } else {
                     throw new MapperParsingException("No type specified for property [" + multiFieldName + "]");
+                }
+                if (type.equals(ObjectMapper.CONTENT_TYPE) || type.equals(ObjectMapper.NESTED_CONTENT_TYPE)) {
+                    throw new MapperParsingException("Type [" + type + "] cannot be used in multi field");
                 }
 
                 Mapper.TypeParser typeParser = parserContext.typeParser(type);

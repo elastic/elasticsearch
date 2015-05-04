@@ -99,4 +99,25 @@ public class RepositoryMetaData {
         out.writeString(type);
         ImmutableSettings.writeSettingsToStream(settings, out);
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        RepositoryMetaData that = (RepositoryMetaData) o;
+
+        if (!name.equals(that.name)) return false;
+        if (!type.equals(that.type)) return false;
+        return settings.equals(that.settings);
+
+    }
+
+    @Override
+    public int hashCode() {
+        int result = name.hashCode();
+        result = 31 * result + type.hashCode();
+        result = 31 * result + settings.hashCode();
+        return result;
+    }
 }

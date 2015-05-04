@@ -51,9 +51,7 @@ You have to enable caching explicitly in order to have the
                     "flags" : "INTERSECTION|COMPLEMENT|EMPTY",
 		    "max_determinized_states": 20000
                 },
-                "_name":"test",
-                "_cache" : true,
-                "_cache_key" : "key"
+                "_name":"test"
             }
         }
     }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics.geobounds;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 
 import java.io.IOException;
 import java.util.List;
@@ -56,8 +56,9 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
     }
     
     InternalGeoBounds(String name, double top, double bottom, double posLeft, double posRight,
-            double negLeft, double negRight, boolean wrapLongitude, Map<String, Object> metaData) {
-        super(name, metaData);
+            double negLeft, double negRight, boolean wrapLongitude,
+            List<Reducer> reducers, Map<String, Object> metaData) {
+        super(name, reducers, metaData);
         this.top = top;
         this.bottom = bottom;
         this.posLeft = posLeft;
@@ -73,7 +74,7 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
     }
     
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double top = Double.NEGATIVE_INFINITY;
         double bottom = Double.POSITIVE_INFINITY;
         double posLeft = Double.POSITIVE_INFINITY;
@@ -103,7 +104,7 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
                 negRight = bounds.negRight;
             }
         }
-        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, getMetaData());
+        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, reducers(), getMetaData());
     }
 
     @Override
@@ -123,7 +124,7 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
             case "right":
                 return boundingBox.bottomRight.lon();
             default:
-                throw new ElasticsearchIllegalArgumentException("Found unknown path element [" + bBoxSide + "] in [" + getName() + "]");
+                throw new IllegalArgumentException("Found unknown path element [" + bBoxSide + "] in [" + getName() + "]");
             }
         } else if (path.size() == 2) {
             BoundingBox boundingBox = resolveBoundingBox();
@@ -137,7 +138,7 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
                 cornerPoint = boundingBox.bottomRight;
                 break;
             default:
-                throw new ElasticsearchIllegalArgumentException("Found unknown path element [" + cornerString + "] in [" + getName() + "]");
+                throw new IllegalArgumentException("Found unknown path element [" + cornerString + "] in [" + getName() + "]");
             }
             String latLonString = path.get(1);
             switch (latLonString) {
@@ -146,10 +147,10 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
             case "lon":
                 return cornerPoint.lon();
             default:
-                throw new ElasticsearchIllegalArgumentException("Found unknown path element [" + latLonString + "] in [" + getName() + "]");
+                throw new IllegalArgumentException("Found unknown path element [" + latLonString + "] in [" + getName() + "]");
             }
         } else {
-            throw new ElasticsearchIllegalArgumentException("path not supported for [" + getName() + "]: " + path);
+            throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
     }
 

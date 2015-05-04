@@ -18,11 +18,10 @@
  */
 package org.elasticsearch.common.unit;
 
+import com.google.common.base.Preconditions;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -111,7 +110,7 @@ public final class Fuzziness implements ToXContent {
                 }
 
             default:
-                throw new ElasticsearchIllegalArgumentException("Can't parse fuzziness on token: [" + token + "]");
+                throw new IllegalArgumentException("Can't parse fuzziness on token: [" + token + "]");
         }
     }
 
@@ -243,7 +242,7 @@ public final class Fuzziness implements ToXContent {
                 return similarity;
             }
         }
-        throw new ElasticsearchIllegalArgumentException("Can't get similarity from fuzziness [" + fuzziness + "]");
+        throw new IllegalArgumentException("Can't get similarity from fuzziness [" + fuzziness + "]");
     }
 
     private int termLen(String text) {

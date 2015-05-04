@@ -18,13 +18,18 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -34,18 +39,30 @@ public class AggregatorFactories {
 
     public static final AggregatorFactories EMPTY = new Empty();
 
+    private AggregatorFactory parent;
     private AggregatorFactory[] factories;
+    private List<ReducerFactory> reducerFactories;
 
     public static Builder builder() {
         return new Builder();
     }
 
-    private AggregatorFactories(AggregatorFactory[] factories) {
+    private AggregatorFactories(AggregatorFactory[] factories, List<ReducerFactory> reducers) {
         this.factories = factories;
+        this.reducerFactories = reducers;
+    }
+
+    public List<Reducer> createReducers() throws IOException {
+        List<Reducer> reducers = new ArrayList<>();
+        for (ReducerFactory factory : this.reducerFactories) {
+            reducers.add(factory.create());
+        }
+        return reducers;
     }
 
     /**
-     * Create all aggregators so that they can be consumed with multiple buckets.
+     * Create all aggregators so that they can be consumed with multiple
+     * buckets.
      */
     public Aggregator[] createSubAggregators(Aggregator parent) throws IOException {
         Aggregator[] aggregators = new Aggregator[count()];
@@ -76,6 +93,7 @@ public class AggregatorFactories {
     }
 
     void setParent(AggregatorFactory parent) {
+        this.parent = parent;
         for (AggregatorFactory factory : factories) {
             factory.parent = parent;
         }
@@ -85,15 +103,19 @@ public class AggregatorFactories {
         for (AggregatorFactory factory : factories) {
             factory.validate();
         }
+        for (ReducerFactory factory : reducerFactories) {
+            factory.validate(parent, factories, reducerFactories);
+        }
     }
 
     private final static class Empty extends AggregatorFactories {
 
         private static final AggregatorFactory[] EMPTY_FACTORIES = new AggregatorFactory[0];
         private static final Aggregator[] EMPTY_AGGREGATORS = new Aggregator[0];
+        private static final List<ReducerFactory> EMPTY_REDUCERS = new ArrayList<>();
 
         private Empty() {
-            super(EMPTY_FACTORIES);
+            super(EMPTY_FACTORIES, EMPTY_REDUCERS);
         }
 
         @Override
@@ -112,20 +134,75 @@ public class AggregatorFactories {
 
         private final Set<String> names = new HashSet<>();
         private final List<AggregatorFactory> factories = new ArrayList<>();
+        private final List<ReducerFactory> reducerFactories = new ArrayList<>();
 
-        public Builder add(AggregatorFactory factory) {
+        public Builder addAggregator(AggregatorFactory factory) {
             if (!names.add(factory.name)) {
-                throw new ElasticsearchIllegalArgumentException("Two sibling aggregations cannot have the same name: [" + factory.name + "]");
+                throw new IllegalArgumentException("Two sibling aggregations cannot have the same name: [" + factory.name + "]");
             }
             factories.add(factory);
             return this;
         }
 
+        public Builder addReducer(ReducerFactory reducerFactory) {
+            this.reducerFactories.add(reducerFactory);
+            return this;
+        }
+
         public AggregatorFactories build() {
-            if (factories.isEmpty()) {
+            if (factories.isEmpty() && reducerFactories.isEmpty()) {
                 return EMPTY;
             }
-            return new AggregatorFactories(factories.toArray(new AggregatorFactory[factories.size()]));
+            List<ReducerFactory> orderedReducers = resolveReducerOrder(this.reducerFactories, this.factories);
+            return new AggregatorFactories(factories.toArray(new AggregatorFactory[factories.size()]), orderedReducers);
+        }
+
+        private List<ReducerFactory> resolveReducerOrder(List<ReducerFactory> reducerFactories, List<AggregatorFactory> aggFactories) {
+            Map<String, ReducerFactory> reducerFactoriesMap = new HashMap<>();
+            for (ReducerFactory factory : reducerFactories) {
+                reducerFactoriesMap.put(factory.getName(), factory);
+            }
+            Set<String> aggFactoryNames = new HashSet<>();
+            for (AggregatorFactory aggFactory : aggFactories) {
+                aggFactoryNames.add(aggFactory.name);
+            }
+            List<ReducerFactory> orderedReducers = new LinkedList<>();
+            List<ReducerFactory> unmarkedFactories = new ArrayList<ReducerFactory>(reducerFactories);
+            Set<ReducerFactory> temporarilyMarked = new HashSet<ReducerFactory>();
+            while (!unmarkedFactories.isEmpty()) {
+                ReducerFactory factory = unmarkedFactories.get(0);
+                resolveReducerOrder(aggFactoryNames, reducerFactoriesMap, orderedReducers, unmarkedFactories, temporarilyMarked, factory);
+            }
+            return orderedReducers;
+        }
+
+        private void resolveReducerOrder(Set<String> aggFactoryNames, Map<String, ReducerFactory> reducerFactoriesMap,
+                List<ReducerFactory> orderedReducers, List<ReducerFactory> unmarkedFactories, Set<ReducerFactory> temporarilyMarked,
+                ReducerFactory factory) {
+            if (temporarilyMarked.contains(factory)) {
+                throw new IllegalStateException("Cyclical dependancy found with reducer [" + factory.getName() + "]");
+            } else if (unmarkedFactories.contains(factory)) {
+                temporarilyMarked.add(factory);
+                String[] bucketsPaths = factory.getBucketsPaths();
+                for (String bucketsPath : bucketsPaths) {
+                    List<String> bucketsPathElements = AggregationPath.parse(bucketsPath).getPathElementsAsStringList();
+                    String firstAggName = bucketsPathElements.get(0);
+                    if (bucketsPath.equals("_count") || bucketsPath.equals("_key") || aggFactoryNames.contains(firstAggName)) {
+                        continue;
+                    } else {
+                        ReducerFactory matchingFactory = reducerFactoriesMap.get(firstAggName);
+                        if (matchingFactory != null) {
+                            resolveReducerOrder(aggFactoryNames, reducerFactoriesMap, orderedReducers, unmarkedFactories,
+                                    temporarilyMarked, matchingFactory);
+                        } else {
+                            throw new IllegalStateException("No aggregation found for path [" + bucketsPath + "]");
+                        }
+                    }
+                }
+                unmarkedFactories.remove(factory);
+                temporarilyMarked.remove(factory);
+                orderedReducers.add(factory);
+            }
         }
     }
 }

@@ -21,11 +21,18 @@ package org.elasticsearch.indices.exists.types;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.io.IOException;
+import java.util.Arrays;
+
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TypesExistsTests extends ElasticsearchIntegrationTest {
@@ -69,4 +76,27 @@ public class TypesExistsTests extends ElasticsearchIntegrationTest {
         assertThat(response.isExists(), equalTo(false));
     }
 
+    @Test
+    public void testTypesExistsWithBlocks() throws IOException {
+        assertAcked(prepareCreate("ro").addMapping("type1", jsonBuilder().startObject().startObject("type1").endObject().endObject()));
+        ensureGreen("ro");
+
+        // Request is not blocked
+        for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {
+            try {
+                enableIndexBlock("ro", block);
+                assertThat(client().admin().indices().prepareTypesExists("ro").setTypes("type1").execute().actionGet().isExists(), equalTo(true));
+            } finally {
+                disableIndexBlock("ro", block);
+            }
+        }
+
+        // Request is blocked
+        try {
+            enableIndexBlock("ro", IndexMetaData.SETTING_BLOCKS_METADATA);
+            assertBlocked(client().admin().indices().prepareTypesExists("ro").setTypes("type1"));
+        } finally {
+            disableIndexBlock("ro", IndexMetaData.SETTING_BLOCKS_METADATA);
+        }
+    }
 }

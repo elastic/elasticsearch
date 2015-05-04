@@ -46,7 +46,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
     @Inject
     public TransportClusterRerouteAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                          AllocationService allocationService, ActionFilters actionFilters) {
-        super(settings, ClusterRerouteAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, ClusterRerouteAction.NAME, transportService, clusterService, threadPool, actionFilters, ClusterRerouteRequest.class);
         this.allocationService = allocationService;
     }
 
@@ -58,12 +58,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
 
     @Override
     protected ClusterBlockException checkBlock(ClusterRerouteRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
-    }
-
-    @Override
-    protected ClusterRerouteRequest newRequest() {
-        return new ClusterRerouteRequest();
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
@@ -72,7 +67,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
     }
 
     @Override
-    protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state, final ActionListener<ClusterRerouteResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state, final ActionListener<ClusterRerouteResponse> listener) {
         clusterService.submitStateUpdateTask("cluster_reroute (api)", Priority.IMMEDIATE, new AckedClusterStateUpdateTask<ClusterRerouteResponse>(request, listener) {
 
             private volatile ClusterState clusterStateToSend;

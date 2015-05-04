@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.metrics.stats.extended;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -31,6 +30,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -38,6 +38,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -55,10 +56,10 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
     DoubleArray maxes;
     DoubleArray sumOfSqrs;
 
-    public ExtendedStatsAggregator(String name, ValuesSource.Numeric valuesSource,
-                                   @Nullable ValueFormatter formatter, AggregationContext context,
-                                   Aggregator parent, double sigma, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, metaData);
+    public ExtendedStatsAggregator(String name, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
+            AggregationContext context, Aggregator parent, double sigma, List<Reducer> reducers, Map<String, Object> metaData)
+            throws IOException {
+        super(name, context, parent, reducers, metaData);
         this.valuesSource = valuesSource;
         this.formatter = formatter;
         this.sigma = sigma;
@@ -154,7 +155,7 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
                 if (valuesSource == null) { return Double.NaN; }
                 return (sums.get(owningBucketOrd) / counts.get(owningBucketOrd)) - (Math.sqrt(variance(owningBucketOrd)) * this.sigma);
             default:
-                throw new ElasticsearchIllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
+                throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
         }
     }
 
@@ -167,16 +168,19 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
-            return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, 0d, formatter, metaData());
+            return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, 0d, formatter,
+                    reducers(), metaData());
         }
         assert owningBucketOrdinal < counts.size();
         return new InternalExtendedStats(name, counts.get(owningBucketOrdinal), sums.get(owningBucketOrdinal),
-                mins.get(owningBucketOrdinal), maxes.get(owningBucketOrdinal), sumOfSqrs.get(owningBucketOrdinal), sigma, formatter, metaData());
+                mins.get(owningBucketOrdinal), maxes.get(owningBucketOrdinal), sumOfSqrs.get(owningBucketOrdinal), sigma, formatter,
+                reducers(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, 0d, formatter, metaData());
+        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, 0d, formatter, reducers(),
+                metaData());
     }
 
     @Override
@@ -195,13 +199,16 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
-            return new ExtendedStatsAggregator(name, null, config.formatter(), aggregationContext, parent, sigma, metaData);
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<Reducer> reducers,
+                Map<String, Object> metaData) throws IOException {
+            return new ExtendedStatsAggregator(name, null, config.formatter(), aggregationContext, parent, sigma, reducers, metaData);
         }
 
         @Override
-        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
-            return new ExtendedStatsAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, sigma, metaData);
+        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
+                boolean collectsFromSingleBucket, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+            return new ExtendedStatsAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, sigma, reducers,
+                    metaData);
         }
     }
 }

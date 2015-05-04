@@ -19,11 +19,11 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.PendingClusterTask;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.unit.TimeValue;
@@ -49,12 +49,12 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
     /**
      * Adds an initial block to be set on the first cluster state created.
      */
-    void addInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException;
+    void addInitialStateBlock(ClusterBlock block) throws IllegalStateException;
 
     /**
      * Remove an initial block to be set on the first cluster state created.
      */
-    void removeInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException;
+    void removeInitialStateBlock(ClusterBlock block) throws IllegalStateException;
 
     /**
      * The operation routing.
@@ -95,8 +95,10 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
      * Adds a cluster state listener that will timeout after the provided timeout,
      * and is executed after the clusterstate has been successfully applied ie. is
      * in state {@link org.elasticsearch.cluster.ClusterState.ClusterStateStatus#APPLIED}
+     * NOTE: a {@code null} timeout means that the listener will never be removed
+     * automatically
      */
-    void add(TimeValue timeout, TimeoutClusterStateListener listener);
+    void add(@Nullable TimeValue timeout, TimeoutClusterStateListener listener);
 
     /**
      * Submits a task that will update the cluster state.

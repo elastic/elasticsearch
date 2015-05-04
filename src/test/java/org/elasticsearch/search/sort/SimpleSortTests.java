@@ -20,8 +20,6 @@
 package org.elasticsearch.search.sort;
 
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
@@ -134,7 +132,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         ensureYellow();
         SearchResponse allDocsResponse = client().prepareSearch().setQuery(QueryBuilders.filteredQuery(matchAllQuery(),
                 FilterBuilders.boolFilter().must(FilterBuilders.termFilter("foo", "bar"),
-                        FilterBuilders.rangeFilter("timeUpdated").gte("2014/0" + randomIntBetween(1, 7) + "/01").cache(randomBoolean()))))
+                        FilterBuilders.rangeFilter("timeUpdated").gte("2014/0" + randomIntBetween(1, 7) + "/01"))))
                 .addSort(new FieldSortBuilder("timeUpdated").order(SortOrder.ASC).unmappedType("date"))
                 .setSize(docs).get();
         assertSearchResponse(allDocsResponse);
@@ -143,7 +141,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numiters; i++) {
             SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.filteredQuery(matchAllQuery(),
                     FilterBuilders.boolFilter().must(FilterBuilders.termFilter("foo", "bar"),
-                            FilterBuilders.rangeFilter("timeUpdated").gte("2014/" + String.format(Locale.ROOT, "%02d", randomIntBetween(1, 7)) + "/01").cache(randomBoolean()))))
+                            FilterBuilders.rangeFilter("timeUpdated").gte("2014/" + String.format(Locale.ROOT, "%02d", randomIntBetween(1, 7)) + "/01"))))
                     .addSort(new FieldSortBuilder("timeUpdated").order(SortOrder.ASC).unmappedType("date"))
                     .setSize(scaledRandomIntBetween(1, docs)).get();
             assertSearchResponse(searchResponse);
@@ -214,7 +212,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    public void testRandomSorting() throws ElasticsearchException, IOException, InterruptedException, ExecutionException {
+    public void testRandomSorting() throws IOException, InterruptedException, ExecutionException {
         Random random = getRandom();
         assertAcked(prepareCreate("test")
                 .addMapping("type",
@@ -1023,7 +1021,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
     }
 
     @Test @Slow
-    public void testSortMissingStrings() throws ElasticsearchException, IOException {
+    public void testSortMissingStrings() throws IOException {
         assertAcked(prepareCreate("test").addMapping("type1",
                 XContentFactory.jsonBuilder()
                         .startObject()
@@ -1131,7 +1129,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         } catch (SearchPhaseExecutionException e) {
             //we check that it's a parse failure rather than a different shard failure
             for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
-                assertThat(shardSearchFailure.reason(), containsString("Parse Failure [No mapping found for [kkk] in order to sort on]"));
+                assertThat(shardSearchFailure.toString(), containsString("[No mapping found for [kkk] in order to sort on]"));
             }
         }
 
@@ -1458,7 +1456,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testSortOnRareField() throws ElasticsearchException, IOException {
+    public void testSortOnRareField() throws IOException {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("string_values").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
@@ -1626,7 +1624,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
      * Test case for issue 6150: https://github.com/elasticsearch/elasticsearch/issues/6150
      */
     @Test
-    public void testNestedSort() throws ElasticsearchException, IOException, InterruptedException, ExecutionException {
+    public void testNestedSort() throws IOException, InterruptedException, ExecutionException {
         assertAcked(prepareCreate("test")
                 .addMapping("type",
                         XContentFactory.jsonBuilder()

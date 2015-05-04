@@ -26,7 +26,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -156,7 +155,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         });
     }
 
-    public void validateIndexName(String index, ClusterState state) throws ElasticsearchException {
+    public void validateIndexName(String index, ClusterState state) {
         if (state.routingTable().hasIndex(index)) {
             throw new IndexAlreadyExistsException(new Index(index));
         }
@@ -273,7 +272,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             if (existing == null) {
                                 customs.put(type, custom);
                             } else {
-                                IndexMetaData.Custom merged = IndexMetaData.lookupFactorySafe(type).merge(existing, custom);
+                                IndexMetaData.Custom merged = existing.mergeWith(custom);
                                 customs.put(type, merged);
                             }
                         }
@@ -338,8 +337,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     if (request.index().equals(ScriptService.SCRIPT_INDEX)) {
                         indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 0));
                         indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, "0-all");
-                    }
-                    else {
+                    } else {
                         if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
                             if (request.index().equals(riverIndexName)) {
                                 indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
@@ -552,13 +550,39 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         return templates;
     }
 
-    private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws ElasticsearchException {
+    private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
         validateIndexName(request.index(), state);
-        String customPath = request.settings().get(IndexMetaData.SETTING_DATA_PATH, null);
+        validateIndexSettings(request.index(), request.settings());
+    }
+
+    public void validateIndexSettings(String indexName, Settings settings) throws IndexCreationException {
+        String customPath = settings.get(IndexMetaData.SETTING_DATA_PATH, null);
+        List<String> validationErrors = Lists.newArrayList();
         if (customPath != null && nodeEnv.isCustomPathsEnabled() == false) {
-            throw new IndexCreationException(new Index(request.index()),
-                    new ElasticsearchIllegalArgumentException("custom data_paths for indices is disabled"));
+            validationErrors.add("custom data_paths for indices is disabled");
         }
+        Integer number_of_primaries = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
+        Integer number_of_replicas = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null);
+        if (number_of_primaries != null && number_of_primaries <= 0) {
+            validationErrors.add("index must have 1 or more primary shards");
+        }
+        if (number_of_replicas != null && number_of_replicas < 0) {
+           validationErrors.add("index must have 0 or more replica shards");
+        }
+        if (validationErrors.isEmpty() == false) {
+            throw new IndexCreationException(new Index(indexName),
+                new IllegalArgumentException(getMessage(validationErrors)));
+        }
+    }
+
+    private String getMessage(List<String> validationErrors) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Validation Failed: ");
+        int index = 0;
+        for (String error : validationErrors) {
+            sb.append(++index).append(": ").append(error).append(";");
+        }
+        return sb.toString();
     }
 
     private static class DefaultIndexTemplateFilter implements IndexTemplateFilter {

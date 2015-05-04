@@ -21,8 +21,8 @@ package org.elasticsearch.search.highlight;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -70,8 +70,8 @@ public class HighlighterParseElement implements SearchParseElement {
     public void parse(XContentParser parser, SearchContext context) throws Exception {
         try {
             context.highlight(parse(parser, context.queryParserService()));
-        } catch (ElasticsearchIllegalArgumentException ex) {
-            throw new SearchParseException(context, "Error while trying to parse Highlighter element in request");
+        } catch (IllegalArgumentException ex) {
+            throw new SearchParseException(context, "Error while trying to parse Highlighter element in request", parser.getTokenLocation());
         }
     }
 
@@ -110,7 +110,7 @@ public class HighlighterParseElement implements SearchParseElement {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                 if (token == XContentParser.Token.FIELD_NAME) {
                                     if (highlightFieldName != null) {
-                                        throw new ElasticsearchIllegalArgumentException("If highlighter fields is an array it must contain objects containing a single field");
+                                        throw new IllegalArgumentException("If highlighter fields is an array it must contain objects containing a single field");
                                     }
                                     highlightFieldName = parser.currentName();
                                 } else if (token == XContentParser.Token.START_OBJECT) {
@@ -118,7 +118,7 @@ public class HighlighterParseElement implements SearchParseElement {
                                 }
                             }
                         } else {
-                            throw new ElasticsearchIllegalArgumentException("If highlighter fields is an array it must contain objects containing a single field");
+                            throw new IllegalArgumentException("If highlighter fields is an array it must contain objects containing a single field");
                         }
                     }
                 }
@@ -181,7 +181,7 @@ public class HighlighterParseElement implements SearchParseElement {
 
         final SearchContextHighlight.FieldOptions globalOptions = globalOptionsBuilder.build();
         if (globalOptions.preTags() != null && globalOptions.postTags() == null) {
-            throw new ElasticsearchIllegalArgumentException("Highlighter global preTags are set, but global postTags are not set");
+            throw new IllegalArgumentException("Highlighter global preTags are set, but global postTags are not set");
         }
 
         final List<SearchContextHighlight.Field> fields = Lists.newArrayList();

@@ -59,7 +59,7 @@ public class GetMappingsResponse extends ActionResponse {
             int valueSize = in.readVInt();
             ImmutableOpenMap.Builder<String, MappingMetaData> typeMapBuilder = ImmutableOpenMap.builder();
             for (int j = 0; j < valueSize; j++) {
-                typeMapBuilder.put(in.readString(), MappingMetaData.readFrom(in));
+                typeMapBuilder.put(in.readString(), MappingMetaData.PROTO.readFrom(in));
             }
             indexMapBuilder.put(key, typeMapBuilder.build());
         }
@@ -75,7 +75,7 @@ public class GetMappingsResponse extends ActionResponse {
             out.writeVInt(indexEntry.value.size());
             for (ObjectObjectCursor<String, MappingMetaData> typeEntry : indexEntry.value) {
                 out.writeString(typeEntry.key);
-                MappingMetaData.writeTo(typeEntry.value, out);
+                typeEntry.value.writeTo(out);
             }
         }
     }

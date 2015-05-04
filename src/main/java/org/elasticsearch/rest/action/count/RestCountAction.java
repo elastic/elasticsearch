@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.count;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -60,17 +59,12 @@ public class RestCountAction extends BaseRestHandler {
         CountRequest countRequest = new CountRequest(Strings.splitStringByCommaToArray(request.param("index")));
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
         countRequest.listenerThreaded(false);
-        if (request.hasContent()) {
-            countRequest.source(request.content());
+        if (RestActions.hasBodyContent(request)) {
+            countRequest.source(RestActions.getRestContent(request));
         } else {
-            String source = request.param("source");
-            if (source != null) {
-                countRequest.source(source);
-            } else {
-                QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
-                if (querySourceBuilder != null) {
-                    countRequest.source(querySourceBuilder);
-                }
+            QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
+            if (querySourceBuilder != null) {
+                countRequest.source(querySourceBuilder);
             }
         }
         countRequest.routing(request.param("routing"));
@@ -80,7 +74,7 @@ public class RestCountAction extends BaseRestHandler {
 
         final int terminateAfter = request.paramAsInt("terminate_after", DEFAULT_TERMINATE_AFTER);
         if (terminateAfter < 0) {
-            throw new ElasticsearchIllegalArgumentException("terminateAfter must be > 0");
+            throw new IllegalArgumentException("terminateAfter must be > 0");
         } else if (terminateAfter > 0) {
             countRequest.terminateAfter(terminateAfter);
         }

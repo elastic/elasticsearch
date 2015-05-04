@@ -19,6 +19,7 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.node.liveness.LivenessRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -77,9 +78,9 @@ public class SyncedFlushService extends AbstractComponent {
         this.clusterService = clusterService;
         this.transportService = transportService;
 
-        transportService.registerHandler(PRE_SYNCED_FLUSH_ACTION_NAME, new PreSyncedFlushTransportHandler());
-        transportService.registerHandler(SYNCED_FLUSH_ACTION_NAME, new SyncedFlushTransportHandler());
-        transportService.registerHandler(IN_FLIGHT_OPS_ACTION_NAME, new InFlightOpCountTransportHandler());
+        transportService.registerRequestHandler(PRE_SYNCED_FLUSH_ACTION_NAME, PreSyncedFlushRequest.class, ThreadPool.Names.FLUSH, new PreSyncedFlushTransportHandler());
+        transportService.registerRequestHandler(SYNCED_FLUSH_ACTION_NAME, SyncedFlushRequest.class, ThreadPool.Names.FLUSH, new SyncedFlushTransportHandler());
+        transportService.registerRequestHandler(IN_FLIGHT_OPS_ACTION_NAME, InFlightOpsRequest.class, ThreadPool.Names.SAME, new InFlightOpCountTransportHandler());
         preSyncTimeout = settings.getAsTime(SETTING_PRE_SYNC_TIMEOUT, TimeValue.timeValueMinutes(5));
         syncTimeout = settings.getAsTime(SETTING_SYNC_TIMEOUT, TimeValue.timeValueMinutes(5));
         inflightOpsTimeout = settings.getAsTime(SETTING_IN_FLIGHT_OPS_TIMEOUT, TimeValue.timeValueMinutes(5));
@@ -113,7 +114,9 @@ public class SyncedFlushService extends AbstractComponent {
         return new SyncedFlushResult(syncId, results);
     }
 
-    /** returns the number of inflight operations on primary. -1 upon error. */
+    /**
+     * returns the number of inflight operations on primary. -1 upon error.
+     */
     protected int getInflightOpsCount(final ShardId shardId, ClusterState state, IndexShardRoutingTable shardRoutingTable) {
         final ShardRouting primaryShard = shardRoutingTable.primaryShard();
         final DiscoveryNode primaryNode = state.nodes().get(primaryShard.currentNodeId());
@@ -220,7 +223,9 @@ public class SyncedFlushService extends AbstractComponent {
         return results;
     }
 
-    /** send presync requests to all started copies of the given shard */
+    /**
+     * send presync requests to all started copies of the given shard
+     */
     Map<String, byte[]> sendPreSyncRequests(final List<ShardRouting> shards, final ClusterState state, final ShardId shardId) {
         final CountDownLatch countDownLatch = new CountDownLatch(shards.size());
         final Map<String, byte[]> commitIds = ConcurrentCollections.newConcurrentMap();
@@ -313,14 +318,18 @@ public class SyncedFlushService extends AbstractComponent {
         private final Map<ShardRouting, SyncedFlushResponse> shardResponses;
         private final String syncId;
 
-        /** failure constructor */
+        /**
+         * failure constructor
+         */
         SyncedFlushResult(String failureReason) {
             this.syncId = null;
             this.failureReason = failureReason;
             this.shardResponses = new HashMap<>();
         }
 
-        /** success constructor */
+        /**
+         * success constructor
+         */
         SyncedFlushResult(String syncId, Map<ShardRouting, SyncedFlushResponse> shardResponses) {
             this.failureReason = null;
             this.shardResponses = shardResponses;
@@ -339,7 +348,9 @@ public class SyncedFlushService extends AbstractComponent {
             return syncId;
         }
 
-        /** total number of shards for which a sync attempt was made */
+        /**
+         * total number of shards for which a sync attempt was made
+         */
         public int totalShards() {
             return shardResponses.size();
         }
@@ -477,7 +488,9 @@ public class SyncedFlushService extends AbstractComponent {
 
     static final class SyncedFlushResponse extends TransportResponse {
 
-        /** a non null value indicates a failure to sync flush. null means success */
+        /**
+         * a non null value indicates a failure to sync flush. null means success
+         */
         String failureReason;
 
 
@@ -591,58 +604,28 @@ public class SyncedFlushService extends AbstractComponent {
     }
 
 
-    private class PreSyncedFlushTransportHandler extends BaseTransportRequestHandler<PreSyncedFlushRequest> {
-
-        @Override
-        public PreSyncedFlushRequest newInstance() {
-            return new PreSyncedFlushRequest();
-        }
+    private class PreSyncedFlushTransportHandler implements TransportRequestHandler<PreSyncedFlushRequest> {
 
         @Override
         public void messageReceived(PreSyncedFlushRequest request, TransportChannel channel) throws Exception {
             channel.sendResponse(performPreSyncedFlush(request));
         }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.FLUSH;
-        }
     }
 
 
-    private class SyncedFlushTransportHandler extends BaseTransportRequestHandler<SyncedFlushRequest> {
-
-        @Override
-        public SyncedFlushRequest newInstance() {
-            return new SyncedFlushRequest();
-        }
+    private class SyncedFlushTransportHandler implements TransportRequestHandler<SyncedFlushRequest> {
 
         @Override
         public void messageReceived(SyncedFlushRequest request, TransportChannel channel) throws Exception {
             channel.sendResponse(performSyncedFlush(request));
         }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.FLUSH;
-        }
     }
 
-    private class InFlightOpCountTransportHandler extends BaseTransportRequestHandler<InFlightOpsRequest> {
-
-        @Override
-        public InFlightOpsRequest newInstance() {
-            return new InFlightOpsRequest();
-        }
+    private class InFlightOpCountTransportHandler implements TransportRequestHandler<InFlightOpsRequest> {
 
         @Override
         public void messageReceived(InFlightOpsRequest request, TransportChannel channel) throws Exception {
             channel.sendResponse(performInFlightOps(request));
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 

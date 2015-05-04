@@ -170,7 +170,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
     @Test
     public void singleValuedField_WithTimeZone() throws Exception {
          SearchResponse response = client().prepareSearch("idx")
-                    .addAggregation(dateHistogram("histo").field("date").interval(DateHistogramInterval.DAY).timeZone("+01:00")).execute()
+                    .addAggregation(dateHistogram("histo").field("date").interval(DateHistogramInterval.DAY).minDocCount(1).timeZone("+01:00")).execute()
                     .actionGet();
         DateTimeZone tz = DateTimeZone.forID("+01:00");
         assertSearchResponse(response);
@@ -1314,7 +1314,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                     .actionGet();
             fail();
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), containsString("IllegalArgumentException"));
+            assertThat(e.toString(), containsString("IllegalArgumentException"));
         }
     }
 }

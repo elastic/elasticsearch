@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport.netty;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
@@ -40,7 +39,7 @@ public class KeyedLockTests extends ElasticsearchTestCase {
     public void checkIfMapEmptyAfterLotsOfAcquireAndReleases() throws InterruptedException {
         ConcurrentHashMap<String, Integer> counter = new ConcurrentHashMap<>();
         ConcurrentHashMap<String, AtomicInteger> safeCounter = new ConcurrentHashMap<>();
-        KeyedLock<String> connectionLock = randomBoolean() ? new KeyedLock.GlobalLockable<String>() : new KeyedLock<String>();
+        KeyedLock<String> connectionLock = randomBoolean() ? new KeyedLock.GlobalLockable<String>(randomBoolean()) : new KeyedLock<String>(randomBoolean());
         String[] names = new String[randomIntBetween(1, 40)];
         for (int i = 0; i < names.length; i++) {
             names[i] = randomRealisticUnicodeOfLengthBetween(10, 20);
@@ -75,7 +74,7 @@ public class KeyedLockTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test(expected = ElasticsearchIllegalStateException.class)
+    @Test(expected = IllegalStateException.class)
     public void checkCannotAcquireTwoLocksGlobal() throws InterruptedException {
         KeyedLock.GlobalLockable<String> connectionLock = new KeyedLock.GlobalLockable<>();
         String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
@@ -89,7 +88,7 @@ public class KeyedLockTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test(expected = ElasticsearchIllegalStateException.class)
+    @Test(expected = IllegalStateException.class)
     public void checkCannotAcquireTwoLocks() throws InterruptedException {
         KeyedLock<String> connectionLock = randomBoolean() ? new KeyedLock.GlobalLockable<String>() : new KeyedLock<String>();
         String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
@@ -97,7 +96,7 @@ public class KeyedLockTests extends ElasticsearchTestCase {
         connectionLock.acquire(name);
     }
 
-    @Test(expected = ElasticsearchIllegalStateException.class)
+    @Test(expected = IllegalStateException.class)
     public void checkCannotReleaseUnacquiredLock() throws InterruptedException {
         KeyedLock<String> connectionLock = randomBoolean() ? new KeyedLock.GlobalLockable<String>() : new KeyedLock<String>();
         String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));

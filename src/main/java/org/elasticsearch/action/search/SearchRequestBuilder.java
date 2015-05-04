@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -28,11 +28,13 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.reducers.ReducerBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -84,7 +86,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * one of "dfs_query_then_fetch"/"dfsQueryThenFetch", "dfs_query_and_fetch"/"dfsQueryAndFetch",
      * "query_then_fetch"/"queryThenFetch", and "query_and_fetch"/"queryAndFetch".
      */
-    public SearchRequestBuilder setSearchType(String searchType) throws ElasticsearchIllegalArgumentException {
+    public SearchRequestBuilder setSearchType(String searchType) {
         request.searchType(searchType);
         return this;
     }
@@ -366,9 +368,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Indicates whether the response should contain the stored _source for every hit
-     *
-     * @param fetch
-     * @return
      */
     public SearchRequestBuilder setFetchSource(boolean fetch) {
         sourceBuilder().fetchSource(fetch);
@@ -989,7 +988,17 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     @Override
     public String toString() {
-        return internalBuilder().toString();
+        if (sourceBuilder != null) {
+            return sourceBuilder.toString();
+        }
+        if (request.source() != null) {
+            try {
+                return XContentHelper.convertToJson(request.source().toBytesArray(), false, true);
+            } catch(Exception e) {
+                return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
+            }
+        }
+        return new SearchSourceBuilder().toString();
     }
 
     @Override

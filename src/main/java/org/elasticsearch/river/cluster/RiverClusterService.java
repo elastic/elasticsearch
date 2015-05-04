@@ -59,12 +59,12 @@ public class RiverClusterService extends AbstractLifecycleComponent<RiverCluster
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         this.updateTasksExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "riverClusterService#updateTask"));
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         updateTasksExecutor.shutdown();
         try {
             updateTasksExecutor.awaitTermination(10, TimeUnit.SECONDS);
@@ -74,7 +74,7 @@ public class RiverClusterService extends AbstractLifecycleComponent<RiverCluster
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
     }
 
     public void add(RiverClusterStateListener listener) {

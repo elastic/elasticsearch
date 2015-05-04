@@ -28,7 +28,6 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -498,7 +497,6 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
 
         Map<GeohashCellFilter.Builder, Long> expectedCounts = new HashMap<>();
         Map<GeohashCellFilter.Builder, String[]> expectedResults = new HashMap<>();
-        Map<GeohashCellFilter.Builder, String> cacheKeys = new HashMap<>();
 
         expectedCounts.put(geoHashCellFilter("pin", geohash, false), 1L);
 
@@ -516,19 +514,6 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         for (int j = filterBuilders.size() * 2 * randomIntBetween(1, 5); j > 0; j--) {
             Collections.shuffle(filterBuilders, getRandom());
             for (GeohashCellFilter.Builder builder : filterBuilders) {
-                if (randomBoolean()) {
-                    builder.cache(randomBoolean());
-                }
-                if (randomBoolean()) {
-                    String cacheKey = cacheKeys.get(builder);
-                    if (cacheKey == null) {
-                        cacheKey = randomUnicodeOfLength(6);
-                        cacheKeys.put(builder, cacheKey);
-                    }
-                    builder.cacheKey(cacheKey);
-                } else {
-                    builder.cacheKey(null);
-                }
                 try {
                     long expectedCount = expectedCounts.get(builder);
                     SearchResponse response = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery())

@@ -19,9 +19,10 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import com.google.common.collect.Maps;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.TimestampParsingException;
+import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedString;
@@ -39,14 +40,18 @@ import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 
+import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Mapping configuration for a type.
  */
-public class MappingMetaData {
+public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
+
+    public static final MappingMetaData PROTO = new MappingMetaData();
 
     public static class Id {
 
@@ -297,7 +302,7 @@ public class MappingMetaData {
         this.source = mapping;
         Map<String, Object> mappingMap = XContentHelper.createParser(mapping.compressed(), 0, mapping.compressed().length).mapOrderedAndClose();
         if (mappingMap.size() != 1) {
-            throw new ElasticsearchIllegalStateException("Can't derive type from mapping, no root type: " + mapping.string());
+            throw new IllegalStateException("Can't derive type from mapping, no root type: " + mapping.string());
         }
         this.type = mappingMap.keySet().iterator().next();
         initMappers((Map<String, Object>) mappingMap.get(this.type));
@@ -316,6 +321,15 @@ public class MappingMetaData {
             withoutType = (Map<String, Object>) mapping.get(type);
         }
         initMappers(withoutType);
+    }
+
+    private MappingMetaData() {
+        this.type = "";
+        try {
+            this.source = new CompressedString("");
+        } catch (IOException ex) {
+            throw new IllegalStateException("Cannot create MappingMetaData prototype", ex);
+        }
     }
 
     private void initMappers(Map<String, Object> withoutType) {
@@ -533,34 +547,35 @@ public class MappingMetaData {
         }
     }
 
-    public static void writeTo(MappingMetaData mappingMd, StreamOutput out) throws IOException {
-        out.writeString(mappingMd.type());
-        mappingMd.source().writeTo(out);
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(type());
+        source().writeTo(out);
         // id
-        if (mappingMd.id().hasPath()) {
+        if (id().hasPath()) {
             out.writeBoolean(true);
-            out.writeString(mappingMd.id().path());
+            out.writeString(id().path());
         } else {
             out.writeBoolean(false);
         }
         // routing
-        out.writeBoolean(mappingMd.routing().required());
-        if (mappingMd.routing().hasPath()) {
+        out.writeBoolean(routing().required());
+        if (routing().hasPath()) {
             out.writeBoolean(true);
-            out.writeString(mappingMd.routing().path());
+            out.writeString(routing().path());
         } else {
             out.writeBoolean(false);
         }
         // timestamp
-        out.writeBoolean(mappingMd.timestamp().enabled());
-        out.writeOptionalString(mappingMd.timestamp().path());
-        out.writeString(mappingMd.timestamp().format());
-        out.writeOptionalString(mappingMd.timestamp().defaultTimestamp());
+        out.writeBoolean(timestamp().enabled());
+        out.writeOptionalString(timestamp().path());
+        out.writeString(timestamp().format());
+        out.writeOptionalString(timestamp().defaultTimestamp());
         // TODO Remove the test in elasticsearch 2.0.0
         if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
-            out.writeOptionalBoolean(mappingMd.timestamp().ignoreMissing());
+            out.writeOptionalBoolean(timestamp().ignoreMissing());
         }
-        out.writeBoolean(mappingMd.hasParentField());
+        out.writeBoolean(hasParentField());
     }
 
     @Override
@@ -589,7 +604,7 @@ public class MappingMetaData {
         return result;
     }
 
-    public static MappingMetaData readFrom(StreamInput in) throws IOException {
+    public MappingMetaData readFrom(StreamInput in) throws IOException {
         String type = in.readString();
         CompressedString source = CompressedString.readCompressedString(in);
         // id

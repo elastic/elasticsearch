@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -35,13 +36,14 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -53,16 +55,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMapperListener;
-import org.elasticsearch.index.mapper.FieldMappers;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.ObjectMapperListener;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
@@ -436,9 +429,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             throw new MapperParsingException("failed to parse [" + names.fullName() + "]", e);
         }
         multiFields.parse(this, context);
-        if (copyTo != null) {
-            copyTo.parse(context);
-        }
         return null;
     }
 
@@ -492,7 +482,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        return Queries.wrap(new TermQuery(names().createIndexNameTerm(indexedValueForSearch(value))));
+        return new QueryWrapperFilter(new TermQuery(names().createIndexNameTerm(indexedValueForSearch(value))));
     }
 
     @Override
@@ -511,7 +501,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             for (int i = 0; i < bytesRefs.length; i++) {
                 bytesRefs[i] = indexedValueForSearch(values.get(i));
             }
-            return Queries.wrap(new TermsQuery(names.indexName(), bytesRefs));
+            return new QueryWrapperFilter(new TermsQuery(names.indexName(), bytesRefs));
             
         }
     }
@@ -541,7 +531,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return Queries.wrap(new TermRangeQuery(names.indexName(),
+        return new QueryWrapperFilter(new TermRangeQuery(names.indexName(),
                 lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                 upperTerm == null ? null : indexedValueForSearch(upperTerm),
                 includeLower, includeUpper));
@@ -563,7 +553,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public Filter prefixFilter(Object value, @Nullable QueryParseContext context) {
-        return Queries.wrap(new PrefixQuery(names().createIndexNameTerm(indexedValueForSearch(value))));
+        return new QueryWrapperFilter(new PrefixQuery(names().createIndexNameTerm(indexedValueForSearch(value))));
     }
 
     @Override
@@ -577,7 +567,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public Filter regexpFilter(Object value, int flags, int maxDeterminizedStates, @Nullable QueryParseContext parseContext) {
-        return Queries.wrap(new RegexpQuery(names().createIndexNameTerm(indexedValueForSearch(value)), flags, maxDeterminizedStates));
+        return new QueryWrapperFilter(new RegexpQuery(names().createIndexNameTerm(indexedValueForSearch(value)), flags, maxDeterminizedStates));
     }
 
     @Override
@@ -586,13 +576,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         if (!this.getClass().equals(mergeWith.getClass())) {
             String mergedType = mergeWith.getClass().getSimpleName();
             if (mergeWith instanceof AbstractFieldMapper) {
                 mergedType = ((AbstractFieldMapper) mergeWith).contentType();
             }
-            mergeContext.addConflict("mapper [" + names.fullName() + "] of different type, current_type [" + contentType() + "], merged_type [" + mergedType + "]");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] of different type, current_type [" + contentType() + "], merged_type [" + mergedType + "]");
             // different types, return
             return;
         }
@@ -600,62 +590,62 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         boolean indexed =  fieldType.indexOptions() != IndexOptions.NONE;
         boolean mergeWithIndexed = fieldMergeWith.fieldType().indexOptions() != IndexOptions.NONE;
         if (indexed != mergeWithIndexed || this.fieldType().tokenized() != fieldMergeWith.fieldType().tokenized()) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different index values");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different index values");
         }
         if (this.fieldType().stored() != fieldMergeWith.fieldType().stored()) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different store values");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different store values");
         }
         if (!this.hasDocValues() && fieldMergeWith.hasDocValues()) {
             // don't add conflict if this mapper has doc values while the mapper to merge doesn't since doc values are implicitely set
             // when the doc_values field data format is configured
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different " + TypeParsers.DOC_VALUES + " values");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different " + TypeParsers.DOC_VALUES + " values");
         }
         if (this.fieldType().omitNorms() && !fieldMergeWith.fieldType.omitNorms()) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] cannot enable norms (`norms.enabled`)");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] cannot enable norms (`norms.enabled`)");
         }
         if (this.fieldType().tokenized() != fieldMergeWith.fieldType().tokenized()) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different tokenize values");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different tokenize values");
         }
         if (this.fieldType().storeTermVectors() != fieldMergeWith.fieldType().storeTermVectors()) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different store_term_vector values");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different store_term_vector values");
         }
         if (this.fieldType().storeTermVectorOffsets() != fieldMergeWith.fieldType().storeTermVectorOffsets()) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different store_term_vector_offsets values");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different store_term_vector_offsets values");
         }
         if (this.fieldType().storeTermVectorPositions() != fieldMergeWith.fieldType().storeTermVectorPositions()) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different store_term_vector_positions values");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different store_term_vector_positions values");
         }
         if (this.fieldType().storeTermVectorPayloads() != fieldMergeWith.fieldType().storeTermVectorPayloads()) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different store_term_vector_payloads values");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different store_term_vector_payloads values");
         }
         
         // null and "default"-named index analyzers both mean the default is used
         if (this.indexAnalyzer == null || "default".equals(this.indexAnalyzer.name())) {
             if (fieldMergeWith.indexAnalyzer != null && !"default".equals(fieldMergeWith.indexAnalyzer.name())) {
-                mergeContext.addConflict("mapper [" + names.fullName() + "] has different analyzer");
+                mergeResult.addConflict("mapper [" + names.fullName() + "] has different analyzer");
             }
         } else if (fieldMergeWith.indexAnalyzer == null || "default".equals(fieldMergeWith.indexAnalyzer.name())) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different analyzer");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different analyzer");
         } else if (!this.indexAnalyzer.name().equals(fieldMergeWith.indexAnalyzer.name())) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different analyzer");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different analyzer");
         }
         
         if (!this.names().equals(fieldMergeWith.names())) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_name");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different index_name");
         }
 
         if (this.similarity == null) {
             if (fieldMergeWith.similarity() != null) {
-                mergeContext.addConflict("mapper [" + names.fullName() + "] has different similarity");
+                mergeResult.addConflict("mapper [" + names.fullName() + "] has different similarity");
             }
         } else if (fieldMergeWith.similarity() == null) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different similarity");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different similarity");
         } else if (!this.similarity().equals(fieldMergeWith.similarity())) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different similarity");
+            mergeResult.addConflict("mapper [" + names.fullName() + "] has different similarity");
         }
-        multiFields.merge(mergeWith, mergeContext);
+        multiFields.merge(mergeWith, mergeResult);
 
-        if (!mergeContext.mergeFlags().simulate()) {
+        if (!mergeResult.simulate()) {
             // apply changeable values
             this.fieldType = new FieldType(this.fieldType);
             this.fieldType.setOmitNorms(fieldMergeWith.fieldType.omitNorms());
@@ -777,7 +767,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             case DOCS:
                 return TypeParsers.INDEX_OPTIONS_DOCS;
             default:
-                throw new ElasticsearchIllegalArgumentException("Unknown IndexOptions [" + indexOption + "]");
+                throw new IllegalArgumentException("Unknown IndexOptions [" + indexOption + "]");
         }
     }
 
@@ -844,7 +834,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     public static class MultiFields {
 
         public static MultiFields empty() {
-            return new MultiFields(Defaults.PATH_TYPE, ImmutableOpenMap.<String, Mapper>of());
+            return new MultiFields(Defaults.PATH_TYPE, ImmutableOpenMap.<String, FieldMapper>of());
         }
 
         public static class Builder {
@@ -867,7 +857,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                 if (pathType == Defaults.PATH_TYPE && mapperBuilders.isEmpty()) {
                     return empty();
                 } else if (mapperBuilders.isEmpty()) {
-                    return new MultiFields(pathType, ImmutableOpenMap.<String, Mapper>of());
+                    return new MultiFields(pathType, ImmutableOpenMap.<String, FieldMapper>of());
                 } else {
                     ContentPath.Type origPathType = context.path().pathType();
                     context.path().pathType(pathType);
@@ -876,26 +866,27 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                     for (ObjectObjectCursor<String, Mapper.Builder> cursor : this.mapperBuilders) {
                         String key = cursor.key;
                         Mapper.Builder value = cursor.value;
-                        mapperBuilders.put(key, value.build(context));
+                        Mapper mapper = value.build(context);
+                        assert mapper instanceof FieldMapper;
+                        mapperBuilders.put(key, mapper);
                     }
                     context.path().remove();
                     context.path().pathType(origPathType);
-                    ImmutableOpenMap.Builder<String, Mapper> mappers = mapperBuilders.cast();
+                    ImmutableOpenMap.Builder<String, FieldMapper> mappers = mapperBuilders.cast();
                     return new MultiFields(pathType, mappers.build());
                 }
             }
-
         }
 
         private final ContentPath.Type pathType;
-        private volatile ImmutableOpenMap<String, Mapper> mappers;
+        private volatile ImmutableOpenMap<String, FieldMapper> mappers;
 
-        public MultiFields(ContentPath.Type pathType, ImmutableOpenMap<String, Mapper> mappers) {
+        public MultiFields(ContentPath.Type pathType, ImmutableOpenMap<String, FieldMapper> mappers) {
             this.pathType = pathType;
             this.mappers = mappers;
             // we disable the all in multi-field mappers
-            for (ObjectCursor<Mapper> cursor : mappers.values()) {
-                Mapper mapper = cursor.value;
+            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
+                FieldMapper mapper = cursor.value;
                 if (mapper instanceof AllFieldMapper.IncludeInAll) {
                     ((AllFieldMapper.IncludeInAll) mapper).unsetIncludeInAll();
                 }
@@ -903,6 +894,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
 
         public void parse(AbstractFieldMapper mainField, ParseContext context) throws IOException {
+            // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part of the mappings
             if (mappers.isEmpty()) {
                 return;
             }
@@ -913,7 +905,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             context.path().pathType(pathType);
 
             context.path().add(mainField.name());
-            for (ObjectCursor<Mapper> cursor : mappers.values()) {
+            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
                 cursor.value.parse(context);
             }
             context.path().remove();
@@ -921,18 +913,18 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
 
         // No need for locking, because locking is taken care of in ObjectMapper#merge and DocumentMapper#merge
-        public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+        public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
             AbstractFieldMapper mergeWithMultiField = (AbstractFieldMapper) mergeWith;
 
             List<FieldMapper<?>> newFieldMappers = null;
-            ImmutableOpenMap.Builder<String, Mapper> newMappersBuilder = null;
+            ImmutableOpenMap.Builder<String, FieldMapper> newMappersBuilder = null;
 
-            for (ObjectCursor<Mapper> cursor : mergeWithMultiField.multiFields.mappers.values()) {
-                Mapper mergeWithMapper = cursor.value;
+            for (ObjectCursor<FieldMapper> cursor : mergeWithMultiField.multiFields.mappers.values()) {
+                FieldMapper mergeWithMapper = cursor.value;
                 Mapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
                 if (mergeIntoMapper == null) {
                     // no mapping, simply add it if not simulating
-                    if (!mergeContext.mergeFlags().simulate()) {
+                    if (!mergeResult.simulate()) {
                         // we disable the all in multi-field mappers
                         if (mergeWithMapper instanceof AllFieldMapper.IncludeInAll) {
                             ((AllFieldMapper.IncludeInAll) mergeWithMapper).unsetIncludeInAll();
@@ -945,17 +937,17 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                             if (newFieldMappers == null) {
                                 newFieldMappers = new ArrayList<>(2);
                             }
-                            newFieldMappers.add((FieldMapper) mergeWithMapper);
+                            newFieldMappers.add(mergeWithMapper);
                         }
                     }
                 } else {
-                    mergeIntoMapper.merge(mergeWithMapper, mergeContext);
+                    mergeIntoMapper.merge(mergeWithMapper, mergeResult);
                 }
             }
 
             // first add all field mappers
             if (newFieldMappers != null) {
-                mergeContext.addFieldMappers(newFieldMappers);
+                mergeResult.addFieldMappers(newFieldMappers);
             }
             // now publish mappers
             if (newMappersBuilder != null) {
@@ -964,13 +956,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
 
         public void traverse(FieldMapperListener fieldMapperListener) {
-            for (ObjectCursor<Mapper> cursor : mappers.values()) {
+            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
                 cursor.value.traverse(fieldMapperListener);
             }
         }
 
         public void close() {
-            for (ObjectCursor<Mapper> cursor : mappers.values()) {
+            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
                 cursor.value.close();
             }
         }
@@ -1009,34 +1001,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             this.copyToFields = copyToFields;
         }
 
-        /**
-         * Creates instances of the fields that the current field should be copied to
-         */
-        public void parse(ParseContext context) throws IOException {
-            if (!context.isWithinCopyTo() && copyToFields.isEmpty() == false) {
-                context = context.createCopyToContext();
-                for (String field : copyToFields) {
-                    // In case of a hierarchy of nested documents, we need to figure out
-                    // which document the field should go to
-                    Document targetDoc = null;
-                    for (Document doc = context.doc(); doc != null; doc = doc.getParent()) {
-                        if (field.startsWith(doc.getPrefix())) {
-                            targetDoc = doc;
-                            break;
-                        }
-                    }
-                    assert targetDoc != null;
-                    final ParseContext copyToContext;
-                    if (targetDoc == context.doc()) {
-                        copyToContext = context;
-                    } else {
-                        copyToContext = context.switchDoc(targetDoc);
-                    }
-                    parse(field, copyToContext);
-                }
-            }
-        }
-
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (!copyToFields.isEmpty()) {
                 builder.startArray("copy_to");
@@ -1064,53 +1028,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         public ImmutableList<String> copyToFields() {
             return copyToFields;
         }
-
-        /**
-         * Creates an copy of the current field with given field name and boost
-         */
-        public void parse(String field, ParseContext context) throws IOException {
-            FieldMappers mappers = context.docMapper().mappers().indexName(field);
-            if (mappers != null && !mappers.isEmpty()) {
-                mappers.mapper().parse(context);
-            } else {
-                // The path of the dest field might be completely different from the current one so we need to reset it
-                context = context.overridePath(new ContentPath(0));
-
-                ObjectMapper mapper = context.root();
-                String objectPath = "";
-                String fieldPath = field;
-                int posDot = field.lastIndexOf('.');
-                if (posDot > 0) {
-                    objectPath = field.substring(0, posDot);
-                    context.path().add(objectPath);
-                    mapper = context.docMapper().objectMappers().get(objectPath);
-                    fieldPath = field.substring(posDot + 1);
-                }
-                if (mapper == null) {
-                    //TODO: Create an object dynamically?
-                    throw new MapperParsingException("attempt to copy value to non-existing object [" + field + "]");
-                }
-                ObjectMapper update = mapper.parseDynamicValue(context, fieldPath, context.parser().currentToken());
-                assert update != null; // we are parsing a dynamic value so we necessarily created a new mapping
-
-                // propagate the update to the root
-                while (objectPath.length() > 0) {
-                    String parentPath = "";
-                    ObjectMapper parent = context.root();
-                    posDot = objectPath.lastIndexOf('.');
-                    if (posDot > 0) {
-                        parentPath = objectPath.substring(0, posDot);
-                        parent = context.docMapper().objectMappers().get(parentPath);
-                    }
-                    if (parent == null) {
-                        throw new ElasticsearchIllegalStateException("[" + objectPath + "] has no parent for path [" + parentPath + "]");
-                    }
-                    update = parent.mappingUpdate(update);
-                    objectPath = parentPath;
-                }
-                context.addDynamicMappingsUpdate((RootObjectMapper) update);
-            }
-        }
     }
 
     /**
@@ -1121,4 +1038,10 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         return false;
     }
 
+    @Override
+    public FieldStats stats(Terms terms, int maxDoc) throws IOException {
+        return new FieldStats.Text(
+                maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), terms.getMin(), terms.getMax()
+        );
+    }
 }

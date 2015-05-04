@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.IntSet;
 import com.google.common.collect.*;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,7 +44,9 @@ import static com.google.common.collect.Maps.newHashMap;
  *
  * @see IndexRoutingTable
  */
-public class RoutingTable implements Iterable<IndexRoutingTable> {
+public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<RoutingTable> {
+
+    public static RoutingTable PROTO = builder().build();
 
     public static final RoutingTable EMPTY_ROUTING_TABLE = builder().build();
 
@@ -254,6 +256,66 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
         return new GroupShardsIterator(set);
     }
 
+    @Override
+    public Diff<RoutingTable> diff(RoutingTable previousState) {
+        return new RoutingTableDiff(previousState, this);
+    }
+
+    @Override
+    public Diff<RoutingTable> readDiffFrom(StreamInput in) throws IOException {
+        return new RoutingTableDiff(in);
+    }
+
+    @Override
+    public RoutingTable readFrom(StreamInput in) throws IOException {
+        Builder builder = new Builder();
+        builder.version = in.readLong();
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            IndexRoutingTable index = IndexRoutingTable.Builder.readFrom(in);
+            builder.add(index);
+        }
+
+        return builder.build();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(version);
+        out.writeVInt(indicesRouting.size());
+        for (IndexRoutingTable index : indicesRouting.values()) {
+            index.writeTo(out);
+        }
+    }
+
+    private static class RoutingTableDiff implements Diff<RoutingTable> {
+
+        private final long version;
+
+        private final Diff<ImmutableMap<String, IndexRoutingTable>> indicesRouting;
+
+        public RoutingTableDiff(RoutingTable before, RoutingTable after) {
+            version = after.version;
+            indicesRouting = DiffableUtils.diff(before.indicesRouting, after.indicesRouting);
+        }
+
+        public RoutingTableDiff(StreamInput in) throws IOException {
+            version = in.readLong();
+            indicesRouting = DiffableUtils.readImmutableMapDiff(in, IndexRoutingTable.PROTO);
+        }
+
+        @Override
+        public RoutingTable apply(RoutingTable part) {
+            return new RoutingTable(version, indicesRouting.apply(part.indicesRouting));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(version);
+            indicesRouting.writeTo(out);
+        }
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -403,6 +465,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
             return this;
         }
 
+        public Builder indicesRouting(ImmutableMap<String, IndexRoutingTable> indicesRouting) {
+            this.indicesRouting.putAll(indicesRouting);
+            return this;
+        }
+
         public Builder remove(String index) {
             indicesRouting.remove(index);
             return this;
@@ -422,23 +489,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
         }
 
         public static RoutingTable readFrom(StreamInput in) throws IOException {
-            Builder builder = new Builder();
-            builder.version = in.readLong();
-            int size = in.readVInt();
-            for (int i = 0; i < size; i++) {
-                IndexRoutingTable index = IndexRoutingTable.Builder.readFrom(in);
-                builder.add(index);
-            }
-
-            return builder.build();
-        }
-
-        public static void writeTo(RoutingTable table, StreamOutput out) throws IOException {
-            out.writeLong(table.version);
-            out.writeVInt(table.indicesRouting.size());
-            for (IndexRoutingTable index : table.indicesRouting.values()) {
-                IndexRoutingTable.Builder.writeTo(index, out);
-            }
+            return PROTO.readFrom(in);
         }
     }
 
@@ -449,6 +500,5 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
         }
         return sb.toString();
     }
-
 
 }

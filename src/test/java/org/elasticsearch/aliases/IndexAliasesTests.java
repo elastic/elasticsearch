@@ -20,7 +20,6 @@
 package org.elasticsearch.aliases;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -49,6 +48,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -57,14 +57,13 @@ import java.util.concurrent.TimeUnit;
 import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.client.Requests.indexRequest;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasKey;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -112,7 +111,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         try {
             indicesAliasesRequestBuilder.get();
             fail("put alias should have been failed due to invalid filter");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias1]"));
         }
 
@@ -121,7 +120,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         try {
             indicesAliasesRequestBuilder.get();
             fail("put alias should have been failed due to invalid filter");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias1]"));
         }
     }
@@ -196,7 +195,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
                 .get();
         assertSearchResponse(searchResponse);
         Global global = searchResponse.getAggregations().get("global");
-        Terms terms = global.getAggregations().get("test");
+        Terms terms = global.getAggregations().get("test");System.out.println(searchResponse);
         assertThat(terms.getBuckets().size(), equalTo(4));
 
         logger.info("--> checking single filtering alias search with global facets and sort");
@@ -405,26 +404,6 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> checking counts before delete");
         assertThat(client().prepareCount("bars").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(1L));
-
-        logger.info("--> delete by query from a single alias");
-        client().prepareDeleteByQuery("bars").setQuery(QueryBuilders.termQuery("name", "test")).get();
-
-        logger.info("--> verify that only one record was deleted");
-        assertThat(client().prepareCount("test1").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(3L));
-
-        logger.info("--> delete by query from an aliases pointing to two indices");
-        client().prepareDeleteByQuery("foos").setQuery(QueryBuilders.matchAllQuery()).get();
-
-        logger.info("--> verify that proper records were deleted");
-        SearchResponse searchResponse = client().prepareSearch("aliasToTests").setQuery(QueryBuilders.matchAllQuery()).get();
-        assertHits(searchResponse.getHits(), "3", "4", "6", "7", "8");
-
-        logger.info("--> delete by query from an aliases and an index");
-        client().prepareDeleteByQuery("tests", "test2").setQuery(QueryBuilders.matchAllQuery()).get();
-
-        logger.info("--> verify that proper records were deleted");
-        searchResponse = client().prepareSearch("aliasToTests").setQuery(QueryBuilders.matchAllQuery()).get();
-        assertHits(searchResponse.getHits(), "4");
     }
 
     
@@ -763,7 +742,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         try {
             assertAcked(admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, "alias1")));
             fail("create alias should have failed due to null index");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat("Exception text does not contain \"Alias action [add]: [index] may not be empty string\"",
                     e.getMessage(), containsString("Alias action [add]: [index] may not be empty string"));
         }
@@ -780,7 +759,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         try {
             assertAcked(admin().indices().prepareAliases().addAlias((String) null, "empty-alias"));
             fail("create alias should have failed due to null index");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat("Exception text does not contain \"Alias action [add]: [index] may not be empty string\"",
                     e.getMessage(), containsString("Alias action [add]: [index] may not be empty string"));
         }
@@ -908,10 +887,10 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test")
                 .addMapping("type", "field", "type=string")
                 .setAliases("{\n" +
-                "        \"alias1\" : {},\n" +
-                "        \"alias2\" : {\"filter\" : {\"term\": {\"field\":\"value\"}}},\n" +
-                "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"}\n" +
-                "}"));
+                        "        \"alias1\" : {},\n" +
+                        "        \"alias2\" : {\"filter\" : {\"term\": {\"field\":\"value\"}}},\n" +
+                        "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"}\n" +
+                        "}"));
 
         checkAliases();
     }
@@ -924,7 +903,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         try {
             createIndexRequestBuilder.get();
             fail("create index should have failed due to invalid alias filter");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias2]"));
         }
 
@@ -934,7 +913,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         try {
             createIndexRequestBuilder.get();
             fail("create index should have failed due to invalid alias filter");
-        } catch (ElasticsearchIllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias2]"));
         }
     }
@@ -948,8 +927,8 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
                     .addAlias("test", "a", FilterBuilders.termFilter("field1", "term"))
                     .get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
-            assertThat(e.getRootCause(), instanceOf(QueryParsingException.class));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getCause(), instanceOf(QueryParsingException.class));
         }
 
         try {
@@ -957,8 +936,8 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
                     .addAlias("test", "a", FilterBuilders.rangeFilter("field2").from(0).to(1))
                     .get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {
-            assertThat(e.getRootCause(), instanceOf(QueryParsingException.class));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getCause(), instanceOf(QueryParsingException.class));
         }
 
         client().admin().indices().prepareAliases()
@@ -969,7 +948,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
     @Test
     public void testAliasFilterWithNowInRangeFilterAndQuery() throws Exception {
         assertAcked(prepareCreate("my-index").addMapping("my-type", "_timestamp", "enabled=true"));
-        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1", rangeFilter("_timestamp").cache(randomBoolean()).from("now-1d").to("now")));
+        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1", rangeFilter("_timestamp").from("now-1d").to("now")));
         assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter2", queryFilter(rangeQuery("_timestamp").from("now-1d").to("now"))));
 
         final int numDocs = scaledRandomIntBetween(5, 52);
@@ -989,11 +968,54 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
     @Test
     public void testAliasesFilterWithHasChildQuery() throws Exception {
         assertAcked(prepareCreate("my-index")
-                .addMapping("parent")
-                .addMapping("child", "_parent", "type=parent")
+                        .addMapping("parent")
+                        .addMapping("child", "_parent", "type=parent")
         );
         assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1", hasChildFilter("child", matchAllQuery())));
         assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter2", hasParentFilter("child", matchAllQuery())));
+    }
+
+    @Test
+    public void testAliasesWithBlocks() {
+        createIndex("test");
+        ensureGreen();
+
+        for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
+            try {
+                enableIndexBlock("test", block);
+
+                assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1").addAlias("test", "alias2"));
+                assertAcked(admin().indices().prepareAliases().removeAlias("test", "alias1"));
+                assertThat(admin().indices().prepareGetAliases("alias2").execute().actionGet().getAliases().get("test").size(), equalTo(1));
+                assertThat(admin().indices().prepareAliasesExist("alias2").get().exists(), equalTo(true));
+            } finally {
+                disableIndexBlock("test", block);
+            }
+        }
+
+        try {
+            enableIndexBlock("test", SETTING_READ_ONLY);
+
+            assertBlocked(admin().indices().prepareAliases().addAlias("test", "alias3"), INDEX_READ_ONLY_BLOCK);
+            assertBlocked(admin().indices().prepareAliases().removeAlias("test", "alias2"), INDEX_READ_ONLY_BLOCK);
+            assertThat(admin().indices().prepareGetAliases("alias2").execute().actionGet().getAliases().get("test").size(), equalTo(1));
+            assertThat(admin().indices().prepareAliasesExist("alias2").get().exists(), equalTo(true));
+
+        } finally {
+            disableIndexBlock("test", SETTING_READ_ONLY);
+        }
+
+        try {
+            enableIndexBlock("test", SETTING_BLOCKS_METADATA);
+
+            assertBlocked(admin().indices().prepareAliases().addAlias("test", "alias3"), INDEX_METADATA_BLOCK);
+            assertBlocked(admin().indices().prepareAliases().removeAlias("test", "alias2"), INDEX_METADATA_BLOCK);
+            assertBlocked(admin().indices().prepareGetAliases("alias2"), INDEX_METADATA_BLOCK);
+            assertBlocked(admin().indices().prepareAliasesExist("alias2"), INDEX_METADATA_BLOCK);
+
+        } finally {
+            disableIndexBlock("test", SETTING_BLOCKS_METADATA);
+        }
     }
 
     private void checkAliases() {

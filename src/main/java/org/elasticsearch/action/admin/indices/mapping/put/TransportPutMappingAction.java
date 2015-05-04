@@ -44,7 +44,7 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
     @Inject
     public TransportPutMappingAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                      ThreadPool threadPool, MetaDataMappingService metaDataMappingService, ActionFilters actionFilters) {
-        super(settings, PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, PutMappingRequest.class);
         this.metaDataMappingService = metaDataMappingService;
     }
 
@@ -55,22 +55,17 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
     }
 
     @Override
-    protected PutMappingRequest newRequest() {
-        return new PutMappingRequest();
-    }
-
-    @Override
     protected PutMappingResponse newResponse() {
         return new PutMappingResponse();
     }
 
     @Override
     protected ClusterBlockException checkBlock(PutMappingRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override
-    protected void masterOperation(final PutMappingRequest request, final ClusterState state, final ActionListener<PutMappingResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final PutMappingRequest request, final ClusterState state, final ActionListener<PutMappingResponse> listener) {
         final String[] concreteIndices = clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices());
         PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest()
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())

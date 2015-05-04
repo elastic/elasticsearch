@@ -38,9 +38,9 @@ import org.apache.lucene.search.XFilteredDocIdSetIterator;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.LongBitSet;
+import org.elasticsearch.common.lucene.IndexCacheableQuery;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.NoopCollector;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
 import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.search.internal.SearchContext;
@@ -53,55 +53,41 @@ import java.util.Set;
  *
  */
 // TODO: Remove me and move the logic to ChildrenQuery when needsScore=false
-public class ChildrenConstantScoreQuery extends Query {
+public class ChildrenConstantScoreQuery extends IndexCacheableQuery {
 
     private final IndexParentChildFieldData parentChildIndexFieldData;
-    private Query originalChildQuery;
+    private final Query childQuery;
     private final String parentType;
     private final String childType;
     private final Filter parentFilter;
     private final int shortCircuitParentDocSet;
     private final BitDocIdSetFilter nonNestedDocsFilter;
 
-    private Query rewrittenChildQuery;
-    private IndexReader rewriteIndexReader;
-
     public ChildrenConstantScoreQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String parentType, String childType, Filter parentFilter, int shortCircuitParentDocSet, BitDocIdSetFilter nonNestedDocsFilter) {
         this.parentChildIndexFieldData = parentChildIndexFieldData;
         this.parentFilter = parentFilter;
         this.parentType = parentType;
         this.childType = childType;
-        this.originalChildQuery = childQuery;
+        this.childQuery = childQuery;
         this.shortCircuitParentDocSet = shortCircuitParentDocSet;
         this.nonNestedDocsFilter = nonNestedDocsFilter;
     }
 
     @Override
-    // See TopChildrenQuery#rewrite
     public Query rewrite(IndexReader reader) throws IOException {
-        if (rewrittenChildQuery == null) {
-            rewrittenChildQuery = originalChildQuery.rewrite(reader);
-            rewriteIndexReader = reader;
+        final Query childRewritten = childQuery.rewrite(reader);
+        if (childRewritten != childQuery) {
+            ChildrenConstantScoreQuery rewritten = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childRewritten, parentType, childType, parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
+            rewritten.setBoost(getBoost());
+            return rewritten;
         }
-        return this;
+        return super.rewrite(reader);
     }
 
     @Override
-    public Query clone() {
-        ChildrenConstantScoreQuery q = (ChildrenConstantScoreQuery) super.clone();
-        q.originalChildQuery = originalChildQuery.clone();
-        if (q.rewrittenChildQuery != null) {
-            q.rewrittenChildQuery = rewrittenChildQuery.clone();
-        }
-        return q;
-    }
-
-    @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+    public Weight doCreateWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
         SearchContext sc = SearchContext.current();
         IndexParentChildFieldData globalIfd = parentChildIndexFieldData.loadGlobal(searcher.getIndexReader());
-        assert rewrittenChildQuery != null;
-        assert rewriteIndexReader == searcher.getIndexReader()  : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
 
         final long valueCount;
         List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
@@ -117,9 +103,9 @@ public class ChildrenConstantScoreQuery extends Query {
             return new BooleanQuery().createWeight(searcher, needsScores);
         }
 
-        Query childQuery = rewrittenChildQuery;
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
         indexSearcher.setSimilarity(searcher.getSimilarity());
+        indexSearcher.setQueryCache(null);
         ParentOrdCollector collector = new ParentOrdCollector(globalIfd, valueCount, parentType);
         indexSearcher.search(childQuery, collector);
 
@@ -142,12 +128,12 @@ public class ChildrenConstantScoreQuery extends Query {
         if (this == obj) {
             return true;
         }
-        if (obj == null || obj.getClass() != this.getClass()) {
+        if (super.equals(obj) == false) {
             return false;
         }
 
         ChildrenConstantScoreQuery that = (ChildrenConstantScoreQuery) obj;
-        if (!originalChildQuery.equals(that.originalChildQuery)) {
+        if (!childQuery.equals(that.childQuery)) {
             return false;
         }
         if (!childType.equals(that.childType)) {
@@ -156,24 +142,21 @@ public class ChildrenConstantScoreQuery extends Query {
         if (shortCircuitParentDocSet != that.shortCircuitParentDocSet) {
             return false;
         }
-        if (getBoost() != that.getBoost()) {
-            return false;
-        }
         return true;
     }
 
     @Override
     public int hashCode() {
-        int result = originalChildQuery.hashCode();
+        int result = super.hashCode();
+        result = 31 * result + childQuery.hashCode();
         result = 31 * result + childType.hashCode();
         result = 31 * result + shortCircuitParentDocSet;
-        result = 31 * result + Float.floatToIntBits(getBoost());
         return result;
     }
 
     @Override
     public String toString(String field) {
-        return "child_filter[" + childType + "/" + parentType + "](" + originalChildQuery + ')';
+        return "child_filter[" + childType + "/" + parentType + "](" + childQuery + ')';
     }
 
     private final class ParentWeight extends Weight  {
@@ -202,7 +185,7 @@ public class ChildrenConstantScoreQuery extends Query {
 
         @Override
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-            return new Explanation(getBoost(), "not implemented yet...");
+            return Explanation.match(getBoost(), "not implemented yet...");
         }
 
         @Override

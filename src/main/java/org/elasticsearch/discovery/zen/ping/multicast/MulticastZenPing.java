@@ -21,7 +21,6 @@ package org.elasticsearch.discovery.zen.ping.multicast;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -107,19 +106,19 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
         logger.debug("using group [{}], with port [{}], ttl [{}], and address [{}]", group, port, ttl, address);
 
-        this.transportService.registerHandler(ACTION_NAME, new MulticastPingResponseRequestHandler());
+        this.transportService.registerRequestHandler(ACTION_NAME, MulticastPingResponse.class, ThreadPool.Names.SAME, new MulticastPingResponseRequestHandler());
     }
 
     @Override
     public void setPingContextProvider(PingContextProvider nodesProvider) {
         if (lifecycle.started()) {
-            throw new ElasticsearchIllegalStateException("Can't set nodes provider when started");
+            throw new IllegalStateException("Can't set nodes provider when started");
         }
         this.contextProvider = nodesProvider;
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         try {
             // we know OSX has bugs in the JVM when creating multiple instances of multicast sockets
             // causing for "socket close" exceptions when receive and/or crashes
@@ -138,7 +137,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         if (multicastChannel != null) {
             multicastChannel.close();
             multicastChannel = null;
@@ -146,7 +145,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
     }
 
     public PingResponse[] pingAndWait(TimeValue timeout) {
@@ -326,13 +325,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         }
     }
 
-    class MulticastPingResponseRequestHandler extends BaseTransportRequestHandler<MulticastPingResponse> {
-
-        @Override
-        public MulticastPingResponse newInstance() {
-            return new MulticastPingResponse();
-        }
-
+    class MulticastPingResponseRequestHandler implements TransportRequestHandler<MulticastPingResponse> {
         @Override
         public void messageReceived(MulticastPingResponse request, TransportChannel channel) throws Exception {
             if (logger.isTraceEnabled()) {
@@ -345,11 +338,6 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                 responses.addPing(request.pingResponse);
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 
@@ -417,7 +405,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                                 .createParser(data)
                                 .mapAndClose();
                     } else {
-                        throw new ElasticsearchIllegalStateException("failed multicast message, probably message from previous version");
+                        throw new IllegalStateException("failed multicast message, probably message from previous version");
                     }
                 }
                 if (externalPingData != null) {

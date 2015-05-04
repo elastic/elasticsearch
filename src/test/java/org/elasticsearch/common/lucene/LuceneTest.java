@@ -32,6 +32,8 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 
@@ -46,6 +48,55 @@ public class LuceneTest extends ElasticsearchTestCase {
     public void testVersion() {
         // note this is just a silly sanity check, we test it in lucene, and we point to it this way
         assertEquals(Lucene.VERSION, Version.LATEST);
+    }
+
+    public void testWaitForIndex() throws Exception {
+        final MockDirectoryWrapper dir = newMockDirectory();
+
+        final AtomicBoolean succeeded = new AtomicBoolean(false);
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        // Create a shadow Engine, which will freak out because there is no
+        // index yet
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    latch.await();
+                    if (Lucene.waitForIndex(dir, 5000)) {
+                        succeeded.set(true);
+                    } else {
+                        fail("index should have eventually existed!");
+                    }
+                } catch (InterruptedException e) {
+                    // ignore interruptions
+                } catch (Exception e) {
+                    fail("should have been able to create the engine! " + e.getMessage());
+                }
+            }
+        });
+        t.start();
+
+        // count down latch
+        // now shadow engine should try to be created
+        latch.countDown();
+
+        dir.setEnableVirusScanner(false);
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        iwc.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        iwc.setMaxBufferedDocs(2);
+        IndexWriter writer = new IndexWriter(dir, iwc);
+        Document doc = new Document();
+        doc.add(new TextField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        writer.addDocument(doc);
+        writer.commit();
+
+        t.join();
+
+        writer.close();
+        dir.close();
+        assertTrue("index should have eventually existed", succeeded.get());
     }
 
     public void testCleanIndex() throws IOException {
@@ -93,8 +144,11 @@ public class LuceneTest extends ElasticsearchTestCase {
         }
         Lucene.cleanLuceneIndex(dir);
         if (dir.listAll().length > 0) {
-            assertEquals(dir.listAll().length, 1);
-            assertEquals(dir.listAll()[0], "write.lock");
+            for (String file : dir.listAll()) {
+                if (file.startsWith("extra") == false) {
+                    assertEquals(file, "write.lock");
+                }
+            }
         }
         dir.close();
     }
@@ -149,7 +203,7 @@ public class LuceneTest extends ElasticsearchTestCase {
         assertEquals(s.search(new TermQuery(new Term("id", "4")), 1).totalHits, 0);
 
         for (String file : dir.listAll()) {
-            assertFalse("unexpected file: " + file, file.equals("segments_3") || file.startsWith("_2"));
+            assertFalse("unexpected file: " + file, file.equals("segments_3") || file.startsWith("_2") || file.startsWith("extra"));
         }
         open.close();
         dir.close();

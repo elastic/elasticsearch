@@ -43,7 +43,7 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
 
     void setPingContextProvider(PingContextProvider contextProvider);
 
-    void ping(PingListener listener, TimeValue timeout) throws ElasticsearchException;
+    void ping(PingListener listener, TimeValue timeout);
 
     public interface PingListener {
 

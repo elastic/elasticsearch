@@ -46,7 +46,6 @@ public class ConcurrentDynamicTemplateTests extends ElasticsearchIntegrationTest
     private final String mappingType = "test-mapping";
 
     @Test // see #3544
-    @AwaitsFix(bugUrl = "adrien is looking into this")
     public void testConcurrentDynamicMapping() throws Exception {
         final String fieldName = "field";
         final String mapping = "{ \"" + mappingType + "\": {" +

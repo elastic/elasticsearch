@@ -20,7 +20,6 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionWriteResponse;
@@ -52,9 +51,11 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.river.RiverIndexName;
@@ -82,15 +83,11 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     public TransportShardBulkAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
                                     MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters);
+        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
+                BulkShardRequest.class, BulkShardRequest.class, ThreadPool.Names.BULK);
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.updateHelper = updateHelper;
         this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.BULK;
     }
 
     @Override
@@ -102,17 +99,6 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     protected TransportRequestOptions transportOptions() {
         return BulkAction.INSTANCE.transportOptions(settings);
     }
-
-    @Override
-    protected BulkShardRequest newRequestInstance() {
-        return new BulkShardRequest();
-    }
-
-    @Override
-    protected BulkShardRequest newReplicaRequestInstance() {
-        return newRequestInstance();
-    }
-
     @Override
     protected BulkShardResponse newResponseInstance() {
         return new BulkShardResponse();
@@ -156,7 +142,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                         }
                         throw (ElasticsearchException) e;
                     }
-                    if (e instanceof ElasticsearchException && ((ElasticsearchException) e).status() == RestStatus.CONFLICT) {
+                    if (ExceptionsHelper.status(e) == RestStatus.CONFLICT) {
                         logger.trace("{} failed to execute bulk item (index) {}", e, shardRequest.shardId, indexRequest);
                     } else {
                         logger.debug("{} failed to execute bulk item (index) {}", e, shardRequest.shardId, indexRequest);
@@ -189,7 +175,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                         }
                         throw (ElasticsearchException) e;
                     }
-                    if (e instanceof ElasticsearchException && ((ElasticsearchException) e).status() == RestStatus.CONFLICT) {
+                    if (ExceptionsHelper.status(e) == RestStatus.CONFLICT) {
                         logger.trace("{} failed to execute bulk item (delete) {}", e, shardRequest.shardId, deleteRequest);
                     } else {
                         logger.debug("{} failed to execute bulk item (delete) {}", e, shardRequest.shardId, deleteRequest);
@@ -278,7 +264,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                     case UPSERT:
                                     case INDEX:
                                         IndexRequest indexRequest = updateResult.request();
-                                        if (t instanceof ElasticsearchException && ((ElasticsearchException) t).status() == RestStatus.CONFLICT) {
+                                        if (ExceptionsHelper.status(t) == RestStatus.CONFLICT) {
                                             logger.trace("{} failed to execute bulk item (index) {}", t, shardRequest.shardId, indexRequest);
                                         } else {
                                             logger.debug("{} failed to execute bulk item (index) {}", t, shardRequest.shardId, indexRequest);
@@ -288,7 +274,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                         break;
                                     case DELETE:
                                         DeleteRequest deleteRequest = updateResult.request();
-                                        if (t instanceof ElasticsearchException && ((ElasticsearchException) t).status() == RestStatus.CONFLICT) {
+                                        if (ExceptionsHelper.status(t) == RestStatus.CONFLICT) {
                                             logger.trace("{} failed to execute bulk item (delete) {}", t, shardRequest.shardId, deleteRequest);
                                         } else {
                                             logger.debug("{} failed to execute bulk item (delete) {}", t, shardRequest.shardId, deleteRequest);
@@ -304,6 +290,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
                     }
                 }
+            } else {
+                throw new IllegalStateException("Unexpected index operation: " + item.request());
             }
 
             assert item.getPrimaryResponse() != null;
@@ -352,23 +340,6 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
     }
 
-    private void applyMappingUpdate(IndexService indexService, String type, Mapping update) throws Throwable {
-        // HACK: Rivers seem to have something specific that triggers potential
-        // deadlocks when doing concurrent indexing. So for now they keep the
-        // old behaviour of updating mappings locally first and then
-        // asynchronously notifying the master
-        // this can go away when rivers are removed
-        final String indexName = indexService.index().name();
-        final String indexUUID = indexService.indexUUID();
-        if (indexName.equals(RiverIndexName.Conf.indexName(settings))) {
-            indexService.mapperService().merge(type, new CompressedString(update.toBytes()), true);
-            mappingUpdatedAction.updateMappingOnMaster(indexName, indexUUID, type, update, null);
-        } else {
-            mappingUpdatedAction.updateMappingOnMasterSynchronously(indexName, indexUUID, type, update);
-            indexService.mapperService().merge(type, new CompressedString(update.toBytes()), true);
-        }
-    }
-
     private WriteResult shardIndexOperation(BulkShardRequest request, IndexRequest indexRequest, ClusterState clusterState,
                                             IndexShard indexShard, IndexService indexService, boolean processed) throws Throwable {
 
@@ -387,38 +358,46 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.PRIMARY, indexRequest.source()).type(indexRequest.type()).id(indexRequest.id())
                 .routing(indexRequest.routing()).parent(indexRequest.parent()).timestamp(indexRequest.timestamp()).ttl(indexRequest.ttl());
 
-        long version;
-        boolean created;
-        Engine.IndexingOperation op;
+        final Engine.IndexingOperation operation;
         if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
-            Engine.Index index = indexShard.prepareIndex(sourceToParse, indexRequest.version(), indexRequest.versionType(), Engine.Operation.Origin.PRIMARY, request.canHaveDuplicates() || indexRequest.canHaveDuplicates());
-            if (index.parsedDoc().dynamicMappingsUpdate() != null) {
-                applyMappingUpdate(indexService, indexRequest.type(), index.parsedDoc().dynamicMappingsUpdate());
-            }
-            indexShard.index(index);
-            version = index.version();
-            op = index;
-            created = index.created();
+            operation = indexShard.prepareIndex(sourceToParse, indexRequest.version(), indexRequest.versionType(), Engine.Operation.Origin.PRIMARY, request.canHaveDuplicates() || indexRequest.canHaveDuplicates());
         } else {
-            Engine.Create create = indexShard.prepareCreate(sourceToParse, indexRequest.version(), indexRequest.versionType(), Engine.Operation.Origin.PRIMARY,
+            assert indexRequest.opType() == IndexRequest.OpType.CREATE : indexRequest.opType();
+            operation = indexShard.prepareCreate(sourceToParse, indexRequest.version(), indexRequest.versionType(), Engine.Operation.Origin.PRIMARY,
                     request.canHaveDuplicates() || indexRequest.canHaveDuplicates(), indexRequest.autoGeneratedId());
-            if (create.parsedDoc().dynamicMappingsUpdate() != null) {
-                applyMappingUpdate(indexService, indexRequest.type(), create.parsedDoc().dynamicMappingsUpdate());
-            }
-            indexShard.create(create);
-            version = create.version();
-            op = create;
-            created = true;
         }
+        Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
+        final boolean created;
+        if (update != null) {
+            final String indexName = indexService.index().name();
+            if (indexName.equals(RiverIndexName.Conf.indexName(settings))) {
+                // With rivers, we have a chicken and egg problem if indexing
+                // the _meta document triggers a mapping update. Because we would
+                // like to validate the mapping update first, but on the other
+                // hand putting the mapping would start the river, which expects
+                // to find a _meta document
+                // So we have no choice but to index first and send mappings afterwards
+                MapperService mapperService = indexService.mapperService();
+                mapperService.merge(indexRequest.type(), new CompressedString(update.toBytes()), true);
+                created = operation.execute(indexShard);
+                mappingUpdatedAction.updateMappingOnMasterAsynchronously(indexName, indexRequest.type(), update);
+            } else {
+                mappingUpdatedAction.updateMappingOnMasterSynchronously(indexName, indexRequest.type(), update);
+                created = operation.execute(indexShard);
+            }
+        } else {
+            created = operation.execute(indexShard);
+        }
+
         // update the version on request so it will happen on the replicas
+        final long version = operation.version();
         indexRequest.versionType(indexRequest.versionType().versionTypeForReplicationAndRecovery());
         indexRequest.version(version);
 
         assert indexRequest.versionType().validateVersionForWrites(indexRequest.version());
 
-
         IndexResponse indexResponse = new IndexResponse(request.index(), indexRequest.type(), indexRequest.id(), version, created);
-        return new WriteResult(indexResponse, op);
+        return new WriteResult(indexResponse, operation);
     }
 
     private WriteResult shardDeleteOperation(BulkShardRequest request, DeleteRequest deleteRequest, IndexShard indexShard) {
@@ -522,15 +501,15 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 indexShard.indexingService().noopUpdate(updateRequest.type());
                 return new UpdateResult(translate, updateResponse);
             default:
-                throw new ElasticsearchIllegalStateException("Illegal update operation " + translate.operation());
+                throw new IllegalStateException("Illegal update operation " + translate.operation());
         }
     }
 
 
     @Override
-    protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId.getIndex()).shardSafe(shardRequest.shardId.id());
-        final BulkShardRequest request = shardRequest.request;
+    protected void shardOperationOnReplica(ShardId shardId, BulkShardRequest request) {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        IndexShard indexShard = indexService.shardSafe(shardId.id());
         for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];
             if (item == null || item.isIgnoreOnReplica()) {
@@ -542,15 +521,20 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, indexRequest.source()).type(indexRequest.type()).id(indexRequest.id())
                             .routing(indexRequest.routing()).parent(indexRequest.parent()).timestamp(indexRequest.timestamp()).ttl(indexRequest.ttl());
 
+                    final Engine.IndexingOperation operation;
                     if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
-                        Engine.Index index = indexShard.prepareIndex(sourceToParse, indexRequest.version(), indexRequest.versionType(), Engine.Operation.Origin.REPLICA, request.canHaveDuplicates() || indexRequest.canHaveDuplicates());
-                        indexShard.index(index);
+                        operation = indexShard.prepareIndex(sourceToParse, indexRequest.version(), indexRequest.versionType(), Engine.Operation.Origin.REPLICA, request.canHaveDuplicates() || indexRequest.canHaveDuplicates());
                     } else {
-                        Engine.Create create = indexShard.prepareCreate(sourceToParse,
+                        assert indexRequest.opType() == IndexRequest.OpType.CREATE : indexRequest.opType();
+                        operation = indexShard.prepareCreate(sourceToParse,
                                 indexRequest.version(), indexRequest.versionType(),
                                 Engine.Operation.Origin.REPLICA, request.canHaveDuplicates() || indexRequest.canHaveDuplicates(), indexRequest.autoGeneratedId());
-                        indexShard.create(create);
                     }
+                    Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
+                    if (update != null) {
+                        throw new RetryOnReplicaException(shardId, "Mappings are not available on the replica yet, triggered update: " + update);
+                    }
+                    operation.execute(indexShard);
                 } catch (Throwable e) {
                     // if its not an ignore replica failure, we need to make sure to bubble up the failure
                     // so we will fail the shard
@@ -570,6 +554,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                         throw e;
                     }
                 }
+            } else {
+                throw new IllegalStateException("Unexpected index operation: " + item.request());
             }
         }
 

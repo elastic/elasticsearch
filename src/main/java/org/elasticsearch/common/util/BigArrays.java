@@ -39,9 +39,9 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import java.util.Arrays;
 
 /** Utility class to work with arrays. */
-public class BigArrays extends AbstractComponent {
+public class BigArrays {
 
-    public static final BigArrays NON_RECYCLING_INSTANCE = new BigArrays(ImmutableSettings.EMPTY, null, null);
+    public static final BigArrays NON_RECYCLING_INSTANCE = new BigArrays(null, null);
 
     /** Page size in bytes: 16KB */
     public static final int PAGE_SIZE_IN_BYTES = 1 << 14;
@@ -364,18 +364,23 @@ public class BigArrays extends AbstractComponent {
     final PageCacheRecycler recycler;
     final CircuitBreakerService breakerService;
     final boolean checkBreaker;
+    private final BigArrays circuitBreakingInstance;
 
     @Inject
-    public BigArrays(Settings settings, PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService) {
+    public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService) {
         // Checking the breaker is disabled if not specified
-        this(settings, recycler, breakerService, false);
+        this(recycler, breakerService, false);
     }
 
-    public BigArrays(Settings settings, PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, boolean checkBreaker) {
-        super(settings);
+    public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, boolean checkBreaker) {
         this.checkBreaker = checkBreaker;
         this.recycler = recycler;
         this.breakerService = breakerService;
+        if (checkBreaker) {
+            this.circuitBreakingInstance = this;
+        } else {
+            this.circuitBreakingInstance = new BigArrays(recycler, breakerService, true);
+        }
     }
 
     /**
@@ -411,11 +416,11 @@ public class BigArrays extends AbstractComponent {
     }
 
     /**
-     * Return a new instance of this BigArrays class with circuit breaking
+     * Return an instance of this BigArrays class with circuit breaking
      * explicitly enabled, instead of only accounting enabled
      */
     public BigArrays withCircuitBreaking() {
-        return new BigArrays(this.settings, this.recycler, this.breakerService, true);
+        return this.circuitBreakingInstance;
     }
 
     private <T extends AbstractBigArray> T resizeInPlace(T array, long newSize) {

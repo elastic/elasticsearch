@@ -25,8 +25,9 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.DiffableUtils.KeyedReader;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.Nullable;
@@ -56,7 +57,9 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
 /**
  *
  */
-public class MetaData implements Iterable<IndexMetaData> {
+public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData> {
+
+    public static final MetaData PROTO = builder().build();
 
     public static final String ALL = "_all";
 
@@ -68,66 +71,57 @@ public class MetaData implements Iterable<IndexMetaData> {
         GATEWAY,
 
         /* Custom metadata should be stored as part of a snapshot */
-        SNAPSHOT;
+        SNAPSHOT
     }
 
     public static EnumSet<XContentContext> API_ONLY = EnumSet.of(XContentContext.API);
     public static EnumSet<XContentContext> API_AND_GATEWAY = EnumSet.of(XContentContext.API, XContentContext.GATEWAY);
     public static EnumSet<XContentContext> API_AND_SNAPSHOT = EnumSet.of(XContentContext.API, XContentContext.SNAPSHOT);
 
-    public interface Custom {
+    public interface Custom extends Diffable<Custom>, ToXContent {
 
-        abstract class Factory<T extends Custom> {
+        String type();
 
-            public abstract String type();
+        Custom fromXContent(XContentParser parser) throws IOException;
 
-            public abstract T readFrom(StreamInput in) throws IOException;
-
-            public abstract void writeTo(T customIndexMetaData, StreamOutput out) throws IOException;
-
-            public abstract T fromXContent(XContentParser parser) throws IOException;
-
-            public abstract void toXContent(T customIndexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException;
-
-            public EnumSet<XContentContext> context() {
-                return API_ONLY;
-            }
-        }
+        EnumSet<XContentContext> context();
     }
 
-    public static Map<String, Custom.Factory> customFactories = new HashMap<>();
+    public static Map<String, Custom> customPrototypes = new HashMap<>();
 
     static {
         // register non plugin custom metadata
-        registerFactory(RepositoriesMetaData.TYPE, RepositoriesMetaData.FACTORY);
-        registerFactory(SnapshotMetaData.TYPE, SnapshotMetaData.FACTORY);
-        registerFactory(RestoreMetaData.TYPE, RestoreMetaData.FACTORY);
+        registerPrototype(RepositoriesMetaData.TYPE, RepositoriesMetaData.PROTO);
+        registerPrototype(SnapshotMetaData.TYPE, SnapshotMetaData.PROTO);
+        registerPrototype(RestoreMetaData.TYPE, RestoreMetaData.PROTO);
     }
 
     /**
      * Register a custom index meta data factory. Make sure to call it from a static block.
      */
-    public static void registerFactory(String type, Custom.Factory factory) {
-        customFactories.put(type, factory);
+    public static void registerPrototype(String type, Custom proto) {
+        customPrototypes.put(type, proto);
     }
 
     @Nullable
-    public static <T extends Custom> Custom.Factory<T> lookupFactory(String type) {
-        return customFactories.get(type);
+    public static <T extends Custom> T lookupPrototype(String type) {
+        //noinspection unchecked
+        return (T) customPrototypes.get(type);
     }
 
-    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) throws ElasticsearchIllegalArgumentException {
-        Custom.Factory<T> factory = customFactories.get(type);
-        if (factory == null) {
-            throw new ElasticsearchIllegalArgumentException("No custom index metadata factory registered for type [" + type + "]");
+    public static <T extends Custom> T lookupPrototypeSafe(String type) {
+        //noinspection unchecked
+        T proto = (T) customPrototypes.get(type);
+        if (proto == null) {
+            throw new IllegalArgumentException("No custom metadata prototype registered for type [" + type + "]");
         }
-        return factory;
+        return proto;
     }
 
 
     public static final String SETTING_READ_ONLY = "cluster.blocks.read_only";
 
-    public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA));
+    public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
 
     public static final MetaData EMPTY_META_DATA = builder().build();
 
@@ -474,20 +468,20 @@ public class MetaData implements Iterable<IndexMetaData> {
             return routing;
         }
         if (indexAliases.size() > 1) {
-            throw new ElasticsearchIllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" + Arrays.toString(indexAliases.keys().toArray(String.class)) + "], can't execute a single index op");
+            throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" + Arrays.toString(indexAliases.keys().toArray(String.class)) + "], can't execute a single index op");
         }
         AliasMetaData aliasMd = indexAliases.values().iterator().next().value;
         if (aliasMd.indexRouting() != null) {
             if (routing != null) {
                 if (!routing.equals(aliasMd.indexRouting())) {
-                    throw new ElasticsearchIllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it [" + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
+                    throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it [" + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
                 }
             }
             routing = aliasMd.indexRouting();
         }
         if (routing != null) {
             if (routing.indexOf(',') != -1) {
-                throw new ElasticsearchIllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value [" + routing + "] that resolved to several routing values, rejecting operation");
+                throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value [" + routing + "] that resolved to several routing values, rejecting operation");
             }
         }
         return routing;
@@ -645,16 +639,24 @@ public class MetaData implements Iterable<IndexMetaData> {
     /**
      * Translates the provided indices or aliases, eventually containing wildcard expressions, into actual indices.
      *
-     * @param indicesOptions how the aliases or indices need to be resolved to concrete indices
+     * @param indicesOptions   how the aliases or indices need to be resolved to concrete indices
      * @param aliasesOrIndices the aliases or indices to be resolved to concrete indices
      * @return the obtained concrete indices
+<<<<<<< HEAD
      * @throws IndexMissingException if one of the aliases or indices is missing and the provided indices options
      * don't allow such a case, or if the final result of the indices resolution is no indices and the indices options
      * don't allow such a case.
-     * @throws ElasticsearchIllegalArgumentException if one of the aliases resolve to multiple indices and the provided
+     * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
      * indices options don't allow such a case.
+=======
+     * @throws IndexMissingException                 if one of the aliases or indices is missing and the provided indices options
+     *                                               don't allow such a case, or if the final result of the indices resolution is no indices and the indices options
+     *                                               don't allow such a case.
+     * @throws ElasticsearchIllegalArgumentException if one of the aliases resolve to multiple indices and the provided
+     *                                               indices options don't allow such a case.
+>>>>>>> Add support for cluster state diffs
      */
-    public String[] concreteIndices(IndicesOptions indicesOptions, String... aliasesOrIndices) throws IndexMissingException, ElasticsearchIllegalArgumentException {
+    public String[] concreteIndices(IndicesOptions indicesOptions, String... aliasesOrIndices) throws IndexMissingException, IllegalArgumentException {
         if (indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed()) {
             if (isAllIndices(aliasesOrIndices)) {
                 String[] concreteIndices;
@@ -677,7 +679,7 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         if (aliasesOrIndices == null || aliasesOrIndices.length == 0) {
             if (!indicesOptions.allowNoIndices()) {
-                throw new ElasticsearchIllegalArgumentException("no indices were specified and wildcard expansion is disabled.");
+                throw new IllegalArgumentException("no indices were specified and wildcard expansion is disabled.");
             } else {
                 return Strings.EMPTY_ARRAY;
             }
@@ -734,23 +736,23 @@ public class MetaData implements Iterable<IndexMetaData> {
      * Utility method that allows to resolve an index or alias to its corresponding single concrete index.
      * Callers should make sure they provide proper {@link org.elasticsearch.action.support.IndicesOptions}
      * that require a single index as a result. The indices resolution must in fact return a single index when
-     * using this method, an {@link org.elasticsearch.ElasticsearchIllegalArgumentException} gets thrown otherwise.
+     * using this method, an {@link IllegalArgumentException} gets thrown otherwise.
      *
      * @param indexOrAlias   the index or alias to be resolved to concrete index
      * @param indicesOptions the indices options to be used for the index resolution
      * @return the concrete index obtained as a result of the index resolution
      * @throws IndexMissingException                 if the index or alias provided doesn't exist
-     * @throws ElasticsearchIllegalArgumentException if the index resolution lead to more than one index
+     * @throws IllegalArgumentException if the index resolution lead to more than one index
      */
-    public String concreteSingleIndex(String indexOrAlias, IndicesOptions indicesOptions) throws IndexMissingException, ElasticsearchIllegalArgumentException {
+    public String concreteSingleIndex(String indexOrAlias, IndicesOptions indicesOptions) throws IndexMissingException, IllegalArgumentException {
         String[] indices = concreteIndices(indicesOptions, indexOrAlias);
         if (indices.length != 1) {
-            throw new ElasticsearchIllegalArgumentException("unable to return a single index as the index and options provided got resolved to multiple indices");
+            throw new IllegalArgumentException("unable to return a single index as the index and options provided got resolved to multiple indices");
         }
         return indices[0];
     }
 
-    private String[] concreteIndices(String aliasOrIndex, IndicesOptions options, boolean failNoIndices) throws IndexMissingException, ElasticsearchIllegalArgumentException {
+    private String[] concreteIndices(String aliasOrIndex, IndicesOptions options, boolean failNoIndices) throws IndexMissingException, IllegalArgumentException {
         boolean failClosed = options.forbidClosedIndices() && !options.ignoreUnavailable();
 
         // a quick check, if this is an actual index, if so, return it
@@ -772,7 +774,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             throw new IndexMissingException(new Index(aliasOrIndex));
         }
         if (indices.length > 1 && !options.allowAliasesToMultipleIndices()) {
-            throw new ElasticsearchIllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one indices associated with it [" + Arrays.toString(indices) + "], can't execute a single index op");
+            throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one indices associated with it [" + Arrays.toString(indices) + "], can't execute a single index op");
         }
 
         // No need to check whether indices referred by aliases are closed, because there are no closed indices.
@@ -1140,19 +1142,142 @@ public class MetaData implements Iterable<IndexMetaData> {
         // Check if any persistent metadata needs to be saved
         int customCount1 = 0;
         for (ObjectObjectCursor<String, Custom> cursor : metaData1.customs) {
-            if (customFactories.get(cursor.key).context().contains(XContentContext.GATEWAY)) {
+            if (customPrototypes.get(cursor.key).context().contains(XContentContext.GATEWAY)) {
                 if (!cursor.value.equals(metaData2.custom(cursor.key))) return false;
                 customCount1++;
             }
         }
         int customCount2 = 0;
         for (ObjectObjectCursor<String, Custom> cursor : metaData2.customs) {
-            if (customFactories.get(cursor.key).context().contains(XContentContext.GATEWAY)) {
+            if (customPrototypes.get(cursor.key).context().contains(XContentContext.GATEWAY)) {
                 customCount2++;
             }
         }
         if (customCount1 != customCount2) return false;
         return true;
+    }
+
+    @Override
+    public Diff<MetaData> diff(MetaData previousState) {
+        return new MetaDataDiff(previousState, this);
+    }
+
+    @Override
+    public Diff<MetaData> readDiffFrom(StreamInput in) throws IOException {
+        return new MetaDataDiff(in);
+    }
+
+    private static class MetaDataDiff implements Diff<MetaData> {
+
+        private long version;
+
+        private String uuid;
+
+        private Settings transientSettings;
+        private Settings persistentSettings;
+        private Diff<ImmutableOpenMap<String, IndexMetaData>> indices;
+        private Diff<ImmutableOpenMap<String, IndexTemplateMetaData>> templates;
+        private Diff<ImmutableOpenMap<String, Custom>> customs;
+
+
+        public MetaDataDiff(MetaData before, MetaData after) {
+            uuid = after.uuid;
+            version = after.version;
+            transientSettings = after.transientSettings;
+            persistentSettings = after.persistentSettings;
+            indices = DiffableUtils.diff(before.indices, after.indices);
+            templates = DiffableUtils.diff(before.templates, after.templates);
+            customs = DiffableUtils.diff(before.customs, after.customs);
+        }
+
+        public MetaDataDiff(StreamInput in) throws IOException {
+            uuid = in.readString();
+            version = in.readLong();
+            transientSettings = ImmutableSettings.readSettingsFromStream(in);
+            persistentSettings = ImmutableSettings.readSettingsFromStream(in);
+            indices = DiffableUtils.readImmutableOpenMapDiff(in, IndexMetaData.PROTO);
+            templates = DiffableUtils.readImmutableOpenMapDiff(in, IndexTemplateMetaData.PROTO);
+            customs = DiffableUtils.readImmutableOpenMapDiff(in, new KeyedReader<Custom>() {
+                @Override
+                public Custom readFrom(StreamInput in, String key) throws IOException {
+                    return lookupPrototypeSafe(key).readFrom(in);
+                }
+
+                @Override
+                public Diff<Custom> readDiffFrom(StreamInput in, String key) throws IOException {
+                    return lookupPrototypeSafe(key).readDiffFrom(in);
+                }
+            });
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(uuid);
+            out.writeLong(version);
+            ImmutableSettings.writeSettingsToStream(transientSettings, out);
+            ImmutableSettings.writeSettingsToStream(persistentSettings, out);
+            indices.writeTo(out);
+            templates.writeTo(out);
+            customs.writeTo(out);
+        }
+
+        @Override
+        public MetaData apply(MetaData part) {
+            Builder builder = builder();
+            builder.uuid(uuid);
+            builder.version(version);
+            builder.transientSettings(transientSettings);
+            builder.persistentSettings(persistentSettings);
+            builder.indices(indices.apply(part.indices));
+            builder.templates(templates.apply(part.templates));
+            builder.customs(customs.apply(part.customs));
+            return builder.build();
+        }
+    }
+
+    @Override
+    public MetaData readFrom(StreamInput in) throws IOException {
+        Builder builder = new Builder();
+        builder.version = in.readLong();
+        builder.uuid = in.readString();
+        builder.transientSettings(readSettingsFromStream(in));
+        builder.persistentSettings(readSettingsFromStream(in));
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            builder.put(IndexMetaData.Builder.readFrom(in), false);
+        }
+        size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            builder.put(IndexTemplateMetaData.Builder.readFrom(in));
+        }
+        int customSize = in.readVInt();
+        for (int i = 0; i < customSize; i++) {
+            String type = in.readString();
+            Custom customIndexMetaData = lookupPrototypeSafe(type).readFrom(in);
+            builder.putCustom(type, customIndexMetaData);
+        }
+        return builder.build();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(version);
+        out.writeString(uuid);
+        writeSettingsToStream(transientSettings, out);
+        writeSettingsToStream(persistentSettings, out);
+        out.writeVInt(indices.size());
+        for (IndexMetaData indexMetaData : this) {
+            indexMetaData.writeTo(out);
+        }
+        out.writeVInt(templates.size());
+        for (ObjectCursor<IndexTemplateMetaData> cursor : templates.values()) {
+            cursor.value.writeTo(out);
+        }
+        out.writeVInt(customs.size());
+        for (ObjectObjectCursor<String, Custom> cursor : customs) {
+            out.writeString(cursor.key);
+            cursor.value.writeTo(out);
+        }
     }
 
     public static Builder builder() {
@@ -1226,6 +1351,11 @@ public class MetaData implements Iterable<IndexMetaData> {
             return this;
         }
 
+        public Builder indices(ImmutableOpenMap<String, IndexMetaData> indices) {
+            this.indices.putAll(indices);
+            return this;
+        }
+
         public Builder put(IndexTemplateMetaData.Builder template) {
             return put(template.build());
         }
@@ -1240,6 +1370,11 @@ public class MetaData implements Iterable<IndexMetaData> {
             return this;
         }
 
+        public Builder templates(ImmutableOpenMap<String, IndexTemplateMetaData> templates) {
+            this.templates.putAll(templates);
+            return this;
+        }
+
         public Custom getCustom(String type) {
             return customs.get(type);
         }
@@ -1251,6 +1386,11 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         public Builder removeCustom(String type) {
             customs.remove(type);
+            return this;
+        }
+
+        public Builder customs(ImmutableOpenMap<String, Custom> customs) {
+            this.customs.putAll(customs);
             return this;
         }
 
@@ -1303,6 +1443,11 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         public Builder version(long version) {
             this.version = version;
+            return this;
+        }
+
+        public Builder uuid(String uuid) {
+            this.uuid = uuid;
             return this;
         }
 
@@ -1364,10 +1509,10 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
 
             for (ObjectObjectCursor<String, Custom> cursor : metaData.customs()) {
-                Custom.Factory factory = lookupFactorySafe(cursor.key);
-                if (factory.context().contains(context)) {
+                Custom proto = lookupPrototypeSafe(cursor.key);
+                if (proto.context().contains(context)) {
                     builder.startObject(cursor.key);
-                    factory.toXContent(cursor.value, builder, params);
+                    cursor.value.toXContent(builder, params);
                     builder.endObject();
                 }
             }
@@ -1411,12 +1556,13 @@ public class MetaData implements Iterable<IndexMetaData> {
                         }
                     } else {
                         // check if its a custom index metadata
-                        Custom.Factory<Custom> factory = lookupFactory(currentFieldName);
-                        if (factory == null) {
+                        Custom proto = lookupPrototype(currentFieldName);
+                        if (proto == null) {
                             //TODO warn
                             parser.skipChildren();
                         } else {
-                            builder.putCustom(factory.type(), factory.fromXContent(parser));
+                            Custom custom = proto.fromXContent(parser);
+                            builder.putCustom(custom.type(), custom);
                         }
                     }
                 } else if (token.isValue()) {
@@ -1431,46 +1577,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
 
         public static MetaData readFrom(StreamInput in) throws IOException {
-            Builder builder = new Builder();
-            builder.version = in.readLong();
-            builder.uuid = in.readString();
-            builder.transientSettings(readSettingsFromStream(in));
-            builder.persistentSettings(readSettingsFromStream(in));
-            int size = in.readVInt();
-            for (int i = 0; i < size; i++) {
-                builder.put(IndexMetaData.Builder.readFrom(in), false);
-            }
-            size = in.readVInt();
-            for (int i = 0; i < size; i++) {
-                builder.put(IndexTemplateMetaData.Builder.readFrom(in));
-            }
-            int customSize = in.readVInt();
-            for (int i = 0; i < customSize; i++) {
-                String type = in.readString();
-                Custom customIndexMetaData = lookupFactorySafe(type).readFrom(in);
-                builder.putCustom(type, customIndexMetaData);
-            }
-            return builder.build();
-        }
-
-        public static void writeTo(MetaData metaData, StreamOutput out) throws IOException {
-            out.writeLong(metaData.version);
-            out.writeString(metaData.uuid);
-            writeSettingsToStream(metaData.transientSettings(), out);
-            writeSettingsToStream(metaData.persistentSettings(), out);
-            out.writeVInt(metaData.indices.size());
-            for (IndexMetaData indexMetaData : metaData) {
-                IndexMetaData.Builder.writeTo(indexMetaData, out);
-            }
-            out.writeVInt(metaData.templates.size());
-            for (ObjectCursor<IndexTemplateMetaData> cursor : metaData.templates.values()) {
-                IndexTemplateMetaData.Builder.writeTo(cursor.value, out);
-            }
-            out.writeVInt(metaData.customs().size());
-            for (ObjectObjectCursor<String, Custom> cursor : metaData.customs()) {
-                out.writeString(cursor.key);
-                lookupFactorySafe(cursor.key).writeTo(cursor.value, out);
-            }
+            return PROTO.readFrom(in);
         }
     }
 }

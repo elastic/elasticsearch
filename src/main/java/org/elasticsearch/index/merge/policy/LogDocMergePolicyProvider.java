@@ -19,9 +19,8 @@
 
 package org.elasticsearch.index.merge.policy;
 
+import com.google.common.base.Preconditions;
 import org.apache.lucene.index.LogDocMergePolicy;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettingsService;
@@ -64,7 +63,7 @@ public class LogDocMergePolicyProvider extends AbstractMergePolicyProvider<LogDo
     }
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void close() {
         indexSettingsService.removeListener(applySettings);
     }
 

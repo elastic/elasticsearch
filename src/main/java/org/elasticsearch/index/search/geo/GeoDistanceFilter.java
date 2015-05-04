@@ -26,7 +26,6 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocValuesDocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -73,7 +72,7 @@ public class GeoDistanceFilter extends Filter {
                 boundingBoxFilter = IndexedGeoBoundingBoxFilter.create(distanceBoundingCheck.topLeft(), distanceBoundingCheck.bottomRight(), mapper);
                 distanceBoundingCheck = GeoDistance.ALWAYS_INSTANCE; // fine, we do the bounding box check using the filter
             } else {
-                throw new ElasticsearchIllegalArgumentException("type [" + optimizeBbox + "] for bounding box optimization not supported");
+                throw new IllegalArgumentException("type [" + optimizeBbox + "] for bounding box optimization not supported");
             }
         } else {
             distanceBoundingCheck = GeoDistance.ALWAYS_INSTANCE;
@@ -123,7 +122,7 @@ public class GeoDistanceFilter extends Filter {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (super.equals(o) == false) return false;
 
         GeoDistanceFilter filter = (GeoDistanceFilter) o;
 
@@ -144,10 +143,10 @@ public class GeoDistanceFilter extends Filter {
 
     @Override
     public int hashCode() {
-        int result;
+        int result = super.hashCode();
         long temp;
         temp = lat != +0.0d ? Double.doubleToLongBits(lat) : 0L;
-        result = (int) (temp ^ (temp >>> 32));
+        result = 31 * result + (int) (temp ^ (temp >>> 32));
         temp = lon != +0.0d ? Double.doubleToLongBits(lon) : 0L;
         result = 31 * result + (int) (temp ^ (temp >>> 32));
         temp = distance != +0.0d ? Double.doubleToLongBits(distance) : 0L;

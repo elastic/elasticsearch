@@ -38,7 +38,6 @@ import com.google.common.util.concurrent.SettableFuture;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -79,10 +78,11 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.cache.filter.FilterCacheModule.FilterCacheSettings;
+import org.elasticsearch.index.cache.filter.index.IndexFilterCache;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
-import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.shard.IndexShardModule;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -131,7 +131,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static junit.framework.Assert.fail;
 import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
-import static org.apache.lucene.util.LuceneTestCase.random;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.apache.lucene.util.LuceneTestCase.usually;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -180,8 +179,8 @@ public final class InternalTestCluster extends TestCluster {
 
     private static final boolean ENABLE_MOCK_MODULES = RandomizedTest.systemPropertyAsBoolean(TESTS_ENABLE_MOCK_MODULES, true);
 
-    static final int DEFAULT_MIN_NUM_DATA_NODES = 2;
-    static final int DEFAULT_MAX_NUM_DATA_NODES = 6;
+    static final int DEFAULT_MIN_NUM_DATA_NODES = 1;
+    static final int DEFAULT_MAX_NUM_DATA_NODES = TEST_NIGHTLY ? 6 : 3;
 
     static final int DEFAULT_NUM_CLIENT_NODES = -1;
     static final int DEFAULT_MIN_NUM_CLIENT_NODES = 0;
@@ -236,7 +235,6 @@ public final class InternalTestCluster extends TestCluster {
         super(clusterSeed);
         this.baseDir = baseDir;
         this.clusterName = clusterName;
-
         if (minNumDataNodes < 0 || maxNumDataNodes < 0) {
             throw new IllegalArgumentException("minimum and maximum number of data nodes must be >= 0");
         }
@@ -365,7 +363,7 @@ public final class InternalTestCluster extends TestCluster {
         Settings settings = settingsSource.node(nodeOrdinal);
         if (settings != null) {
             if (settings.get(ClusterName.SETTING) != null) {
-                throw new ElasticsearchIllegalStateException("Tests must not set a '" + ClusterName.SETTING + "' as a node setting set '" + ClusterName.SETTING + "': [" + settings.get(ClusterName.SETTING) + "]");
+                throw new IllegalStateException("Tests must not set a '" + ClusterName.SETTING + "' as a node setting set '" + ClusterName.SETTING + "': [" + settings.get(ClusterName.SETTING) + "]");
             }
             builder.put(settings);
         }
@@ -383,7 +381,7 @@ public final class InternalTestCluster extends TestCluster {
                 .put("cluster.routing.schedule", (30 + random.nextInt(50)) + "ms")
                 .put(SETTING_CLUSTER_NODE_SEED, seed);
         if (ENABLE_MOCK_MODULES && usually(random)) {
-            builder.put("index.store.type", MockFSIndexStoreModule.class.getName()); // no RAM dir for now!
+            builder.put(IndexStoreModule.STORE_TYPE, MockFSIndexStoreModule.class.getName()); // no RAM dir for now!
             builder.put(IndexShardModule.ENGINE_FACTORY, MockEngineFactory.class);
             builder.put(PageCacheRecyclerModule.CACHE_IMPL, MockPageCacheRecyclerModule.class.getName());
             builder.put(BigArraysModule.IMPL, MockBigArraysModule.class.getName());
@@ -451,7 +449,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         if (random.nextBoolean()) {
-            builder.put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, random.nextBoolean() ? WeightedFilterCache.class : NoneFilterCache.class);
+            builder.put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, random.nextBoolean() ? IndexFilterCache.class : NoneFilterCache.class);
         }
 
         if (random.nextBoolean()) {

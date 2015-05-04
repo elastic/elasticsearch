@@ -57,23 +57,14 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
 
     @Inject
     public TransportShardMultiPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, PercolatorService percolatorService, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
+                Request.class, ThreadPool.Names.PERCOLATE);
         this.percolatorService = percolatorService;
     }
 
     @Override
     protected boolean isSubAction() {
         return true;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.PERCOLATE;
-    }
-
-    @Override
-    protected Request newRequest() {
-        return new Request();
     }
 
     @Override
@@ -87,14 +78,14 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
     }
 
     @Override
-    protected ShardIterator shards(ClusterState state, InternalRequest request) throws ElasticsearchException {
+    protected ShardIterator shards(ClusterState state, InternalRequest request) {
         return clusterService.operationRouting().getShards(
                 state, request.concreteIndex(), request.request().shardId(), request.request().preference
         );
     }
 
     @Override
-    protected Response shardOperation(Request request, ShardId shardId) throws ElasticsearchException {
+    protected Response shardOperation(Request request, ShardId shardId) {
         // TODO: Look into combining the shard req's docs into one in memory index.
         Response response = new Response();
         response.items = new ArrayList<>(request.items.size());

@@ -41,7 +41,6 @@ import org.apache.lucene.search.postingshighlight.WholeBreakIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.text.StringText;
@@ -75,7 +74,7 @@ public class PostingsHighlighter implements Highlighter {
         FieldMapper<?> fieldMapper = highlighterContext.mapper;
         SearchContextHighlight.Field field = highlighterContext.field;
         if (fieldMapper.fieldType().indexOptions() != IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
-            throw new ElasticsearchIllegalArgumentException("the field [" + highlighterContext.fieldName + "] should be indexed with positions and offsets in the postings list to be used with postings highlighter");
+            throw new IllegalArgumentException("the field [" + highlighterContext.fieldName + "] should be indexed with positions and offsets in the postings list to be used with postings highlighter");
         }
 
         SearchContext context = highlighterContext.context;
@@ -123,7 +122,7 @@ public class PostingsHighlighter implements Highlighter {
             //we highlight every value separately calling the highlight method multiple times, only if we need to have back a snippet per value (whole value)
             int values = mergeValues ? 1 : textsToHighlight.size();
             for (int i = 0; i < values; i++) {
-                Snippet[] fieldSnippets = highlighter.highlightDoc(fieldMapper.names().indexName(), mapperHighlighterEntry.filteredQueryTerms, hitContext.searcher(), hitContext.docId(), numberOfFragments);
+                Snippet[] fieldSnippets = highlighter.highlightDoc(fieldMapper.names().indexName(), mapperHighlighterEntry.filteredQueryTerms, hitContext.reader(), hitContext.docId(), numberOfFragments);
                 if (fieldSnippets != null) {
                     for (Snippet fieldSnippet : fieldSnippets) {
                         if (Strings.hasText(fieldSnippet.getText())) {

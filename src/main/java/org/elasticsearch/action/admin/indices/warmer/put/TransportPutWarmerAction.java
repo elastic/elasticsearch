@@ -58,18 +58,13 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
     @Inject
     public TransportPutWarmerAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                     TransportSearchAction searchAction, ActionFilters actionFilters) {
-        super(settings, PutWarmerAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, PutWarmerAction.NAME, transportService, clusterService, threadPool, actionFilters, PutWarmerRequest.class);
         this.searchAction = searchAction;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected PutWarmerRequest newRequest() {
-        return new PutWarmerRequest();
     }
 
     @Override
@@ -80,11 +75,17 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
     @Override
     protected ClusterBlockException checkBlock(PutWarmerRequest request, ClusterState state) {
         String[] concreteIndices = clusterService.state().metaData().concreteIndices(request.searchRequest().indicesOptions(), request.searchRequest().indices());
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, concreteIndices);
+        ClusterBlockException status = state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
+        if (status != null) {
+            return status;
+        }
+        // PutWarmer executes a SearchQuery before adding the new warmer to the cluster state,
+        // so we need to check the same block as TransportSearchTypeAction here
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, concreteIndices);
     }
 
     @Override
-    protected void masterOperation(final PutWarmerRequest request, final ClusterState state, final ActionListener<PutWarmerResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final PutWarmerRequest request, final ClusterState state, final ActionListener<PutWarmerResponse> listener) {
         // first execute the search request, see that its ok...
         SearchRequest searchRequest = new SearchRequest(request.searchRequest(), request);
         searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {

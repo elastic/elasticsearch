@@ -53,6 +53,8 @@ Computing the grades stats based on a script:
 }
 --------------------------------------------------
 
+TIP: The `script` parameter expects an inline script. Use `script_id` for indexed scripts and `script_file` for scripts in the `config/scripts/` directory.
+
 ===== Value Script
 
 It turned out that the exam was way above the level of the students and a grade correction needs to be applied. We can use a value script to get the new stats:

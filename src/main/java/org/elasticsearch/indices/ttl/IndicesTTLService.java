@@ -91,12 +91,12 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         this.purgerThread.start();
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         try {
             this.purgerThread.shutdown();
         } catch (InterruptedException e) {
@@ -105,7 +105,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
     }
 
     private class PurgerThread extends Thread {

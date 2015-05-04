@@ -41,7 +41,7 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadOperation
     @Inject
     public TransportTypesExistsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, TypesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, TypesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters, TypesExistsRequest.class);
     }
 
     @Override
@@ -51,22 +51,17 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadOperation
     }
 
     @Override
-    protected TypesExistsRequest newRequest() {
-        return new TypesExistsRequest();
-    }
-
-    @Override
     protected TypesExistsResponse newResponse() {
         return new TypesExistsResponse();
     }
 
     @Override
     protected ClusterBlockException checkBlock(TypesExistsRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override
-    protected void masterOperation(final TypesExistsRequest request, final ClusterState state, final ActionListener<TypesExistsResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(final TypesExistsRequest request, final ClusterState state, final ActionListener<TypesExistsResponse> listener) {
         String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
         if (concreteIndices.length == 0) {
             listener.onResponse(new TypesExistsResponse(false));

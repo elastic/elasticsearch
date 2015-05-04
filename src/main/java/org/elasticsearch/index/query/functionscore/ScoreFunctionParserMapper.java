@@ -20,9 +20,10 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
 
 import java.util.Set;
@@ -42,10 +43,10 @@ public class ScoreFunctionParserMapper {
         this.functionParsers = builder.immutableMap();
     }
 
-    public ScoreFunctionParser get(Index index, String parserName) {
+    public ScoreFunctionParser get(QueryParseContext parseContext, String parserName) {
         ScoreFunctionParser functionParser = get(parserName);
         if (functionParser == null) {
-            throw new QueryParsingException(index, "No function with the name [" + parserName + "] is registered.");
+            throw new QueryParsingException(parseContext, "No function with the name [" + parserName + "] is registered.", null);
         }
         return functionParser;
     }

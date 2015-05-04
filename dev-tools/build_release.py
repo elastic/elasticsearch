@@ -57,7 +57,9 @@ Once it's done it will print all the remaining steps.
     - Python 3k for script execution
     - Boto for S3 Upload ($ apt-get install python-boto)
     - RPM for RPM building ($ apt-get install rpm)
-    - S3 keys exported via ENV Variables (AWS_ACCESS_KEY_ID,  AWS_SECRET_ACCESS_KEY)
+    - S3 keys exported via ENV variables (AWS_ACCESS_KEY_ID,  AWS_SECRET_ACCESS_KEY)
+    - GPG data exported via ENV variables (GPG_KEY_ID, GPG_PASSPHRASE, optionally GPG_KEYRING)
+    - S3 target repository via ENV variables (S3_BUCKET_SYNC_TO, optionally S3_BUCKET_SYNC_FROM)
 """
 env = os.environ
 
@@ -246,10 +248,13 @@ def build_release(run_tests=False, dry_run=True, cpus=1, bwc_version=None):
       print('Running Backwards compatibility tests against version [%s]' % (bwc_version))
       run_mvn('clean', 'test -Dtests.filter=@backwards -Dtests.bwc.version=%s -Dtests.bwc=true -Dtests.jvms=1' % bwc_version)
   run_mvn('clean test-compile -Dforbidden.test.signatures="org.apache.lucene.util.LuceneTestCase\$AwaitsFix @ Please fix all bugs before release"')
-  run_mvn('clean %s -DskipTests' % (target))
+  gpg_args = '-Dgpg.key="%s" -Dgpg.passphrase="%s" -Ddeb.sign=true' % (env.get('GPG_KEY_ID'), env.get('GPG_PASSPHRASE'))
+  if env.get('GPG_KEYRING'):
+    gpg_args += ' -Dgpg.keyring="%s"' % env.get('GPG_KEYRING')
+  run_mvn('clean %s -DskipTests %s' % (target, gpg_args))
   success = False
   try:
-    run_mvn('-DskipTests rpm:rpm')
+    run_mvn('-DskipTests rpm:rpm %s' % (gpg_args))
     success = True
   finally:
     if not success:
@@ -502,6 +507,14 @@ def publish_artifacts(artifacts, base='elasticsearch/elasticsearch', dry_run=Tru
       # requires boto to be installed but it is not available on python3k yet so we use a dedicated tool
       run('python %s/upload-s3.py --file %s ' % (location, os.path.abspath(artifact)))
 
+def publish_repositories(version, dry_run=True):
+  if dry_run:
+    print('Skipping package repository update')
+  else:
+    print('Triggering repository update - calling dev-tools/build_repositories.sh %s' % version)
+    # src_branch is a version like 1.5/1.6/2.0/etc.. so we can use this
+    run('dev-tools/build_repositories.sh %s' % src_branch)
+
 def print_sonatype_notice():
   settings = os.path.join(os.path.expanduser('~'), '.m2/settings.xml')
   if os.path.isfile(settings):
@@ -535,6 +548,16 @@ def print_sonatype_notice():
 def check_s3_credentials():
   if not env.get('AWS_ACCESS_KEY_ID', None) or not env.get('AWS_SECRET_ACCESS_KEY', None):
     raise RuntimeError('Could not find "AWS_ACCESS_KEY_ID" / "AWS_SECRET_ACCESS_KEY" in the env variables please export in order to upload to S3')
+
+def check_gpg_credentials():
+  if not env.get('GPG_KEY_ID', None) or not env.get('GPG_PASSPHRASE', None):
+    raise RuntimeError('Could not find "GPG_KEY_ID" / "GPG_PASSPHRASE" in the env variables please export in order to sign the packages (also make sure that GPG_KEYRING is set when not in ~/.gnupg)')
+
+def check_command_exists(name, cmd):
+  try:
+    subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+  except subprocess.CalledProcessError:
+    raise RuntimeError('Could not run command %s - please make sure it is installed' % (name))
 
 VERSION_FILE = 'src/main/java/org/elasticsearch/Version.java'
 POM_FILE = 'pom.xml'
@@ -628,9 +651,16 @@ if __name__ == '__main__':
 
   if os.path.exists(LOG):
     raise RuntimeError('please remove old release log %s first' % LOG)
+
+  check_gpg_credentials()
+  check_command_exists('gpg', 'gpg --version')
+  check_command_exists('expect', 'expect -v')
   
   if not dry_run:
     check_s3_credentials()
+    check_command_exists('createrepo', 'createrepo --version')
+    check_command_exists('s3cmd', 's3cmd --version')
+    check_command_exists('apt-ftparchive', 'apt-ftparchive --version')
     print('WARNING: dryrun is set to "false" - this will push and publish the release')
     input('Press Enter to continue...')
 
@@ -687,6 +717,8 @@ if __name__ == '__main__':
       merge_tag_push(remote, src_branch, release_version, dry_run)
       print('  publish artifacts to S3 -- dry_run: %s' % dry_run)
       publish_artifacts(artifacts_and_checksum, dry_run=dry_run)
+      print('  Updating package repositories -- dry_run: %s' % dry_run)
+      publish_repositories(src_branch, dry_run=dry_run)
       cherry_pick_command = '.'
       if version_head_hash:
         cherry_pick_command = ' and cherry-pick the documentation changes: \'git cherry-pick %s\' to the development branch' % (version_head_hash)

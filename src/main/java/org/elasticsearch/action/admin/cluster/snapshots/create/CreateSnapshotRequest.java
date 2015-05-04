@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -371,10 +370,6 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
      * @return this request
      */
     public CreateSnapshotRequest source(Map source) {
-        boolean ignoreUnavailable = IndicesOptions.lenientExpandOpen().ignoreUnavailable();
-        boolean allowNoIndices = IndicesOptions.lenientExpandOpen().allowNoIndices();
-        boolean expandWildcardsOpen = IndicesOptions.lenientExpandOpen().expandWildcardsOpen();
-        boolean expandWildcardsClosed = IndicesOptions.lenientExpandOpen().expandWildcardsClosed();
         for (Map.Entry<String, Object> entry : ((Map<String, Object>) source).entrySet()) {
             String name = entry.getKey();
             if (name.equals("indices")) {
@@ -383,28 +378,20 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
                 } else if (entry.getValue() instanceof ArrayList) {
                     indices((ArrayList<String>) entry.getValue());
                 } else {
-                    throw new ElasticsearchIllegalArgumentException("malformed indices section, should be an array of strings");
+                    throw new IllegalArgumentException("malformed indices section, should be an array of strings");
                 }
-            } else if (name.equals("ignore_unavailable") || name.equals("ignoreUnavailable")) {
-                ignoreUnavailable = nodeBooleanValue(entry.getValue());
-            } else if (name.equals("allow_no_indices") || name.equals("allowNoIndices")) {
-                allowNoIndices = nodeBooleanValue(entry.getValue());
-            } else if (name.equals("expand_wildcards_open") || name.equals("expandWildcardsOpen")) {
-                expandWildcardsOpen = nodeBooleanValue(entry.getValue());
-            } else if (name.equals("expand_wildcards_closed") || name.equals("expandWildcardsClosed")) {
-                expandWildcardsClosed = nodeBooleanValue(entry.getValue());
             } else if (name.equals("partial")) {
                 partial(nodeBooleanValue(entry.getValue()));
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
-                    throw new ElasticsearchIllegalArgumentException("malformed settings section, should indices an inner object");
+                    throw new IllegalArgumentException("malformed settings section, should indices an inner object");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
                 includeGlobalState = nodeBooleanValue(entry.getValue());
             }
         }
-        indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
+        indicesOptions(IndicesOptions.fromMap((Map<String, Object>) source, IndicesOptions.lenientExpandOpen()));
         return this;
     }
 
@@ -419,7 +406,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
             try {
                 return source(XContentFactory.xContent(source).createParser(source).mapOrderedAndClose());
             } catch (Exception e) {
-                throw new ElasticsearchIllegalArgumentException("failed to parse repository source [" + source + "]", e);
+                throw new IllegalArgumentException("failed to parse repository source [" + source + "]", e);
             }
         }
         return this;
@@ -448,7 +435,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
             try {
                 return source(XContentFactory.xContent(source, offset, length).createParser(source, offset, length).mapOrderedAndClose());
             } catch (IOException e) {
-                throw new ElasticsearchIllegalArgumentException("failed to parse repository source", e);
+                throw new IllegalArgumentException("failed to parse repository source", e);
             }
         }
         return this;
@@ -464,7 +451,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
         try {
             return source(XContentFactory.xContent(source).createParser(source).mapOrderedAndClose());
         } catch (IOException e) {
-            throw new ElasticsearchIllegalArgumentException("failed to parse snapshot source", e);
+            throw new IllegalArgumentException("failed to parse snapshot source", e);
         }
     }
 

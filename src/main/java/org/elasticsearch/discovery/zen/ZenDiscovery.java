@@ -22,9 +22,6 @@ package org.elasticsearch.discovery.zen;
 import com.google.common.base.Objects;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -173,10 +170,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.rejoinOnMasterGone = settings.getAsBoolean(SETTING_REJOIN_ON_MASTER_GONE, true);
 
         if (this.joinRetryAttempts < 1) {
-            throw new ElasticsearchIllegalArgumentException("'" + SETTING_JOIN_RETRY_ATTEMPTS + "' must be a positive number. got [" + SETTING_JOIN_RETRY_ATTEMPTS + "]");
+            throw new IllegalArgumentException("'" + SETTING_JOIN_RETRY_ATTEMPTS + "' must be a positive number. got [" + SETTING_JOIN_RETRY_ATTEMPTS + "]");
         }
         if (this.maxPingsFromAnotherMaster < 1) {
-            throw new ElasticsearchIllegalArgumentException("'" + SETTING_MAX_PINGS_FROM_ANOTHER_MASTER + "' must be a positive number. got [" + this.maxPingsFromAnotherMaster + "]");
+            throw new IllegalArgumentException("'" + SETTING_MAX_PINGS_FROM_ANOTHER_MASTER + "' must be a positive number. got [" + this.maxPingsFromAnotherMaster + "]");
         }
 
         logger.debug("using ping.timeout [{}], join.timeout [{}], master_election.filter_client [{}], master_election.filter_data [{}]", pingTimeout, joinTimeout, masterElectionFilterClientNodes, masterElectionFilterDataNodes);
@@ -195,7 +192,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         this.joinThreadControl = new JoinThreadControl(threadPool);
 
-        transportService.registerHandler(DISCOVERY_REJOIN_ACTION_NAME, new RejoinClusterRequestHandler());
+        transportService.registerRequestHandler(DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest.class, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
 
         dynamicSettings.addDynamicSetting(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, new Validator() {
             @Override
@@ -227,7 +224,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
+    protected void doStart() {
         nodesFD.setLocalNode(clusterService.localNode());
         joinThreadControl.start();
         pingService.start();
@@ -249,7 +246,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doStop() {
         joinThreadControl.stop();
         pingService.stop();
         masterFD.stop("zen disco stop");
@@ -283,7 +280,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override
-    protected void doClose() throws ElasticsearchException {
+    protected void doClose() {
         masterFD.close();
         nodesFD.close();
         publishClusterState.close();
@@ -331,12 +328,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
 
     @Override
-    public void publish(ClusterState clusterState, AckListener ackListener) {
-        if (!clusterState.getNodes().localNodeMaster()) {
-            throw new ElasticsearchIllegalStateException("Shouldn't publish state when not master");
+    public void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener) {
+        if (!clusterChangedEvent.state().getNodes().localNodeMaster()) {
+            throw new IllegalStateException("Shouldn't publish state when not master");
         }
-        nodesFD.updateNodesAndPing(clusterState);
-        publishClusterState.publish(clusterState, ackListener);
+        nodesFD.updateNodesAndPing(clusterChangedEvent.state());
+        publishClusterState.publish(clusterChangedEvent, ackListener);
     }
 
     /**
@@ -692,12 +689,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     static class ProcessClusterState {
         final ClusterState clusterState;
-        final PublishClusterStateAction.NewClusterStateListener.NewStateProcessed newStateProcessed;
         volatile boolean processed;
 
-        ProcessClusterState(ClusterState clusterState, PublishClusterStateAction.NewClusterStateListener.NewStateProcessed newStateProcessed) {
+        ProcessClusterState(ClusterState clusterState) {
             this.clusterState = clusterState;
-            this.newStateProcessed = newStateProcessed;
         }
     }
 
@@ -708,7 +703,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         /* The cluster name can still be null if the state comes from a node that is prev 1.1.1*/
         if (incomingClusterName != null && !incomingClusterName.equals(this.clusterName)) {
             logger.warn("received cluster state from [{}] which is also master but with a different cluster name [{}]", newClusterState.nodes().masterNode(), incomingClusterName);
-            newStateProcessed.onNewClusterStateFailed(new ElasticsearchIllegalStateException("received state from a node that is not part of the cluster"));
+            newStateProcessed.onNewClusterStateFailed(new IllegalStateException("received state from a node that is not part of the cluster"));
             return;
         }
         if (localNodeMaster()) {
@@ -735,10 +730,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         } else {
             if (newClusterState.nodes().localNode() == null) {
                 logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", newClusterState.nodes().masterNode());
-                newStateProcessed.onNewClusterStateFailed(new ElasticsearchIllegalStateException("received state from a node that is not part of the cluster"));
+                newStateProcessed.onNewClusterStateFailed(new IllegalStateException("received state from a node that is not part of the cluster"));
             } else {
 
-                final ProcessClusterState processClusterState = new ProcessClusterState(newClusterState, newStateProcessed);
+                final ProcessClusterState processClusterState = new ProcessClusterState(newClusterState);
                 processNewClusterStates.add(processClusterState);
 
                 assert newClusterState.nodes().masterNode() != null : "received a cluster state without a master";
@@ -881,7 +876,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
         if (!currentState.nodes().masterNodeId().equals(newClusterState.nodes().masterNodeId())) {
             logger.warn("received a cluster state from a different master then the current one, rejecting (received {}, current {})", newClusterState.nodes().masterNode(), currentState.nodes().masterNode());
-            throw new ElasticsearchIllegalStateException("cluster state from a different master then the current one, rejecting (received " + newClusterState.nodes().masterNode() + ", current " + currentState.nodes().masterNode() + ")");
+            throw new IllegalStateException("cluster state from a different master then the current one, rejecting (received " + newClusterState.nodes().masterNode() + ", current " + currentState.nodes().masterNode() + ")");
         } else if (newClusterState.version() < currentState.version()) {
             // if the new state has a smaller version, and it has the same master node, then no need to process it
             logger.debug("received a cluster state that has a lower version than the current one, ignoring (received {}, current {})", newClusterState.version(), currentState.version());
@@ -1242,13 +1237,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
     }
 
-    class RejoinClusterRequestHandler extends BaseTransportRequestHandler<RejoinClusterRequest> {
-
-        @Override
-        public RejoinClusterRequest newInstance() {
-            return new RejoinClusterRequest();
-        }
-
+    class RejoinClusterRequestHandler implements TransportRequestHandler<RejoinClusterRequest> {
         @Override
         public void messageReceived(final RejoinClusterRequest request, final TransportChannel channel) throws Exception {
             clusterService.submitStateUpdateTask("received a request to rejoin the cluster from [" + request.fromNodeId + "]", Priority.IMMEDIATE, new ClusterStateNonMasterUpdateTask() {
@@ -1272,11 +1261,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     logger.error("unexpected failure during [{}]", t, source);
                 }
             });
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 

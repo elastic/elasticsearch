@@ -441,6 +441,9 @@ Generating the terms using a script:
 }
 --------------------------------------------------
 
+TIP: The `script` parameter expects an inline script. Use `script_id` for indexed scripts and `script_file` for scripts in the `config/scripts/` directory.
+
+
 ==== Value Script
 
 [source,js]
@@ -610,7 +613,7 @@ this would typically be too costly in terms of RAM.
 [[search-aggregations-bucket-terms-aggregation-execution-hint]]
 ==== Execution hint
 
-experimental[]
+experimental[The automated execution optimization is experimental, so this parameter is provided temporarily as a way to override the default behaviour]
 
 There are different mechanisms by which terms aggregations can be executed:
 

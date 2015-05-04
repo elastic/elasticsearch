@@ -52,7 +52,7 @@ public class HistogramParser implements Aggregator.Parser {
                 .build();
 
         boolean keyed = false;
-        long minDocCount = 1;
+        long minDocCount = 0;
         InternalOrder order = (InternalOrder) InternalOrder.KEY_ASC;
         long interval = -1;
         ExtendedBounds extendedBounds = null;
@@ -75,7 +75,8 @@ public class HistogramParser implements Aggregator.Parser {
                 } else if ("offset".equals(currentFieldName)) {
                     offset = parser.longValue();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: ["
+                            + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("order".equals(currentFieldName)) {
@@ -86,7 +87,8 @@ public class HistogramParser implements Aggregator.Parser {
                             String dir = parser.text();
                             boolean asc = "asc".equals(dir);
                             if (!asc && !"desc".equals(dir)) {
-                                throw new SearchParseException(context, "Unknown order direction [" + dir + "] in aggregation [" + aggregationName + "]. Should be either [asc] or [desc]");
+                                throw new SearchParseException(context, "Unknown order direction [" + dir + "] in aggregation ["
+                                        + aggregationName + "]. Should be either [asc] or [desc]", parser.getTokenLocation());
                             }
                             order = resolveOrder(currentFieldName, asc);
                         }
@@ -102,21 +104,25 @@ public class HistogramParser implements Aggregator.Parser {
                             } else if ("max".equals(currentFieldName)) {
                                 extendedBounds.max = parser.longValue(true);
                             } else {
-                                throw new SearchParseException(context, "Unknown extended_bounds key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
+                                throw new SearchParseException(context, "Unknown extended_bounds key for a " + token + " in aggregation ["
+                                        + aggregationName + "]: [" + currentFieldName + "].", parser.getTokenLocation());
                             }
                         }
                     }
 
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: ["
+                            + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in aggregation [" + aggregationName + "].");
+                throw new SearchParseException(context, "Unexpected token " + token + " in aggregation [" + aggregationName + "].",
+                        parser.getTokenLocation());
             }
         }
 
         if (interval < 1) {
-            throw new SearchParseException(context, "Missing required field [interval] for histogram aggregation [" + aggregationName + "]");
+            throw new SearchParseException(context,
+                    "Missing required field [interval] for histogram aggregation [" + aggregationName + "]", parser.getTokenLocation());
         }
 
         Rounding rounding = new Rounding.Interval(interval);

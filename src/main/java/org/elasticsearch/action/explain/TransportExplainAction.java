@@ -71,7 +71,8 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
                                   TransportService transportService, IndicesService indicesService,
                                   ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
                                   BigArrays bigArrays, ActionFilters actionFilters) {
-        super(settings, ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters);
+        super(settings, ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                ExplainRequest.class, ThreadPool.Names.GET);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.pageCacheRecycler = pageCacheRecycler;
@@ -82,11 +83,6 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
     protected void doExecute(ExplainRequest request, ActionListener<ExplainResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
         super.doExecute(request, listener);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.GET; // Or use Names.SEARCH?
     }
 
     @Override
@@ -104,7 +100,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
     }
 
     @Override
-    protected ExplainResponse shardOperation(ExplainRequest request, ShardId shardId) throws ElasticsearchException {
+    protected ExplainResponse shardOperation(ExplainRequest request, ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.shardSafe(shardId.id());
         Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
@@ -148,17 +144,12 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
     }
 
     @Override
-    protected ExplainRequest newRequest() {
-        return new ExplainRequest();
-    }
-
-    @Override
     protected ExplainResponse newResponse() {
         return new ExplainResponse();
     }
 
     @Override
-    protected ShardIterator shards(ClusterState state, InternalRequest request) throws ElasticsearchException {
+    protected ShardIterator shards(ClusterState state, InternalRequest request) {
         return clusterService.operationRouting().getShards(
                 clusterService.state(), request.concreteIndex(), request.request().type(), request.request().id(), request.request().routing(), request.request().preference()
         );

@@ -227,7 +227,7 @@ several attributes, for example:
 [source,js]
 --------------------------------------------------
 curl -XPUT localhost:9200/test/_settings -d '{
-    "index.routing.allocation.include.group1" : "xxx"
+    "index.routing.allocation.include.group1" : "xxx",
     "index.routing.allocation.include.group2" : "yyy",
     "index.routing.allocation.exclude.group3" : "zzz",
     "index.routing.allocation.require.group4" : "aaa"

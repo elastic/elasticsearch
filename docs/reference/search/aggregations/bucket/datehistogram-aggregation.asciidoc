@@ -119,7 +119,7 @@ Response:
 
 Like with the normal <<search-aggregations-bucket-histogram-aggregation,histogram>>, both document level scripts and
 value level scripts are supported. It is also possible to control the order of the returned buckets using the `order`
-settings and filter the returned buckets based on a `min_doc_count` setting (by default all buckets with
-`min_doc_count > 0` will be returned). This histogram also supports the `extended_bounds` setting, which enables extending
-the bounds of the histogram beyond the data itself (to read more on why you'd want to do that please refer to the
-explanation <<search-aggregations-bucket-histogram-aggregation-extended-bounds,here>>).
+settings and filter the returned buckets based on a `min_doc_count` setting (by default all buckets between the first
+bucket that matches documents and the last one are returned). This histogram also supports the `extended_bounds`
+setting, which enables extending the bounds of the histogram beyond the data itself (to read more on why you'd want to
+do that please refer to the explanation <<search-aggregations-bucket-histogram-aggregation-extended-bounds,here>>).

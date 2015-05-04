@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
@@ -71,7 +70,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     @Override
     public boolean needsScores() {
         if (collector == null) {
-            throw new ElasticsearchIllegalStateException();
+            throw new IllegalStateException();
         }
         return collector.needsScores();
     }
@@ -127,10 +126,10 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     @Override
     public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {
         if (!finished) {
-            throw new ElasticsearchIllegalStateException("Cannot replay yet, collection is not finished: postCollect() has not been called");
+            throw new IllegalStateException("Cannot replay yet, collection is not finished: postCollect() has not been called");
         }
         if (this.selectedBuckets != null) {
-            throw new ElasticsearchIllegalStateException("Already been replayed");
+            throw new IllegalStateException("Already been replayed");
         }
 
         final LongHash hash = new LongHash(selectedBuckets.length, BigArrays.NON_RECYCLING_INSTANCE);
@@ -141,7 +140,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
 
         collector.preCollection();
         if (collector.needsScores()) {
-            throw new ElasticsearchIllegalStateException("Cannot defer if scores are needed");
+            throw new IllegalStateException("Cannot defer if scores are needed");
         }
 
         for (Entry entry : entries) {
@@ -176,11 +175,11 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
             @Override
             public InternalAggregation buildAggregation(long bucket) throws IOException {
                 if (selectedBuckets == null) {
-                    throw new ElasticsearchIllegalStateException("Collection has not been replayed yet.");
+                    throw new IllegalStateException("Collection has not been replayed yet.");
                 }
                 final long rebasedBucket = selectedBuckets.find(bucket);
                 if (rebasedBucket == -1) {
-                    throw new ElasticsearchIllegalStateException("Cannot build for a bucket which has not been collected");
+                    throw new IllegalStateException("Cannot build for a bucket which has not been collected");
                 }
                 return in.buildAggregation(rebasedBucket);
             }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
@@ -68,8 +67,8 @@ public class RestSearchScrollAction extends BaseRestHandler {
             searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
         }
 
-        if (request.hasContent()) {
-            XContentType type = XContentFactory.xContentType(request.content());
+        if (RestActions.hasBodyContent(request)) {
+            XContentType type = XContentFactory.xContentType(RestActions.getRestContent(request));
             if (type == null) {
                 if (scrollId == null) {
                     scrollId = RestActions.getRestContent(request).toUtf8();
@@ -77,16 +76,16 @@ public class RestSearchScrollAction extends BaseRestHandler {
                 }
             } else {
                 // NOTE: if rest request with xcontent body has request parameters, these parameters override xcontent values
-                buildFromContent(request.content(), searchScrollRequest);
+                buildFromContent(RestActions.getRestContent(request), searchScrollRequest);
             }
         }
         client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<SearchResponse>(channel));
     }
 
-    public static void buildFromContent(BytesReference content, SearchScrollRequest searchScrollRequest) throws ElasticsearchIllegalArgumentException {
+    public static void buildFromContent(BytesReference content, SearchScrollRequest searchScrollRequest) {
         try (XContentParser parser = XContentHelper.createParser(content)) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchIllegalArgumentException("Malforrmed content, must start with an object");
+                throw new IllegalArgumentException("Malforrmed content, must start with an object");
             } else {
                 XContentParser.Token token;
                 String currentFieldName = null;
@@ -98,13 +97,12 @@ public class RestSearchScrollAction extends BaseRestHandler {
                     } else if ("scroll".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
                         searchScrollRequest.scroll(new Scroll(TimeValue.parseTimeValue(parser.text(), null)));
                     } else {
-                        throw new ElasticsearchIllegalArgumentException("Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");
+                        throw new IllegalArgumentException("Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");
                     }
                 }
             }
         } catch (IOException e) {
-            throw new ElasticsearchIllegalArgumentException("Failed to parse request body", e);
+            throw new IllegalArgumentException("Failed to parse request body", e);
         }
     }
-
 }

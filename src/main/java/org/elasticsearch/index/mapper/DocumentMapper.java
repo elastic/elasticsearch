@@ -19,21 +19,17 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.util.BitDocIdSet;
-import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -46,10 +42,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.Mapping.SourceTransform;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
@@ -67,75 +60,25 @@ import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  *
  */
 public class DocumentMapper implements ToXContent {
-
-    /**
-     * A result of a merge.
-     */
-    public static class MergeResult {
-
-        private final String[] conflicts;
-
-        public MergeResult(String[] conflicts) {
-            this.conflicts = conflicts;
-        }
-
-        /**
-         * Does the merge have conflicts or not?
-         */
-        public boolean hasConflicts() {
-            return conflicts.length > 0;
-        }
-
-        /**
-         * The merge conflicts.
-         */
-        public String[] conflicts() {
-            return this.conflicts;
-        }
-    }
-
-    public static class MergeFlags {
-
-        public static MergeFlags mergeFlags() {
-            return new MergeFlags();
-        }
-
-        private boolean simulate = true;
-
-        public MergeFlags() {
-        }
-
-        /**
-         * A simulation run, don't perform actual modifications to the mapping.
-         */
-        public boolean simulate() {
-            return simulate;
-        }
-
-        public MergeFlags simulate(boolean simulate) {
-            this.simulate = simulate;
-            return this;
-        }
-    }
 
     /**
      * A listener to be called during the parse process.
@@ -221,26 +164,14 @@ public class DocumentMapper implements ToXContent {
         }
     }
 
-
-    private CloseableThreadLocal<ParseContext.InternalParseContext> cache = new CloseableThreadLocal<ParseContext.InternalParseContext>() {
-        @Override
-        protected ParseContext.InternalParseContext initialValue() {
-            return new ParseContext.InternalParseContext(index, indexSettings, docMapperParser, DocumentMapper.this, new ContentPath(0));
-        }
-    };
-
-    private final String index;
-
-    private final Settings indexSettings;
-
     private final String type;
     private final StringAndBytesText typeText;
-
-    private final DocumentMapperParser docMapperParser;
 
     private volatile CompressedString mappingSource;
 
     private final Mapping mapping;
+
+    private final DocumentParser documentParser;
 
     private volatile DocumentFieldMappers fieldMappers;
 
@@ -260,16 +191,14 @@ public class DocumentMapper implements ToXContent {
                           RootObjectMapper rootObjectMapper,
                           ImmutableMap<String, Object> meta,
                           Map<Class<? extends RootMapper>, RootMapper> rootMappers, List<SourceTransform> sourceTransforms) {
-        this.index = index;
-        this.indexSettings = indexSettings;
         this.type = rootObjectMapper.name();
         this.typeText = new StringAndBytesText(this.type);
-        this.docMapperParser = docMapperParser;
         this.mapping = new Mapping(
                 rootObjectMapper,
                 rootMappers.values().toArray(new RootMapper[rootMappers.values().size()]),
                 sourceTransforms.toArray(new SourceTransform[sourceTransforms.size()]),
                 meta);
+        this.documentParser = new DocumentParser(index, indexSettings, docMapperParser, this);
 
         this.typeFilter = typeMapper().termFilter(type, null);
 
@@ -413,123 +342,41 @@ public class DocumentMapper implements ToXContent {
     }
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
-        return parse(source, null);
+        return documentParser.parseDocument(source, null);
     }
 
+    // NOTE: do not use this method, it will be removed in the future once
+    // https://github.com/elastic/elasticsearch/issues/10736 is done (MLT api is the only user of this listener)
     public ParsedDocument parse(SourceToParse source, @Nullable ParseListener listener) throws MapperParsingException {
-        ParseContext.InternalParseContext context = cache.get();
-
-        if (source.type() != null && !source.type().equals(this.type)) {
-            throw new MapperParsingException("Type mismatch, provide type [" + source.type() + "] but mapper is of type [" + this.type + "]");
-        }
-        source.type(this.type);
-
-        XContentParser parser = source.parser();
-        try {
-            if (parser == null) {
-                parser = XContentHelper.createParser(source.source());
-            }
-            if (mapping.sourceTransforms.length > 0) {
-                parser = transform(parser);
-            }
-            context.reset(parser, new ParseContext.Document(), source, listener);
-
-            // will result in START_OBJECT
-            int countDownTokens = 0;
-            XContentParser.Token token = parser.nextToken();
-            if (token != XContentParser.Token.START_OBJECT) {
-                throw new MapperParsingException("Malformed content, must start with an object");
-            }
-            boolean emptyDoc = false;
-            token = parser.nextToken();
-            if (token == XContentParser.Token.END_OBJECT) {
-                // empty doc, we can handle it...
-                emptyDoc = true;
-            } else if (token != XContentParser.Token.FIELD_NAME) {
-                throw new MapperParsingException("Malformed content, after first object, either the type field or the actual properties should exist");
-            }
-
-            for (RootMapper rootMapper : mapping.rootMappers) {
-                rootMapper.preParse(context);
-            }
-
-            if (!emptyDoc) {
-                Mapper update = mapping.root.parse(context);
-                if (update != null) {
-                    context.addDynamicMappingsUpdate((RootObjectMapper) update);
-                }
-            }
-
-            for (int i = 0; i < countDownTokens; i++) {
-                parser.nextToken();
-            }
-
-            for (RootMapper rootMapper : mapping.rootMappers) {
-                rootMapper.postParse(context);
-            }
-        } catch (Throwable e) {
-            // if its already a mapper parsing exception, no need to wrap it...
-            if (e instanceof MapperParsingException) {
-                throw (MapperParsingException) e;
-            }
-
-            // Throw a more meaningful message if the document is empty.
-            if (source.source() != null && source.source().length() == 0) {
-                throw new MapperParsingException("failed to parse, document is empty");
-            }
-
-            throw new MapperParsingException("failed to parse", e);
-        } finally {
-            // only close the parser when its not provided externally
-            if (source.parser() == null && parser != null) {
-                parser.close();
-            }
-        }
-        // reverse the order of docs for nested docs support, parent should be last
-        if (context.docs().size() > 1) {
-            Collections.reverse(context.docs());
-        }
-        // apply doc boost
-        if (context.docBoost() != 1.0f) {
-            Set<String> encounteredFields = Sets.newHashSet();
-            for (ParseContext.Document doc : context.docs()) {
-                encounteredFields.clear();
-                for (IndexableField field : doc) {
-                    if (field.fieldType().indexOptions() != IndexOptions.NONE && !field.fieldType().omitNorms()) {
-                        if (!encounteredFields.contains(field.name())) {
-                            ((Field) field).setBoost(context.docBoost() * field.boost());
-                            encounteredFields.add(field.name());
-                        }
-                    }
-                }
-            }
-        }
-
-        Mapper rootDynamicUpdate = context.dynamicMappingsUpdate();
-        Mapping update = null;
-        if (rootDynamicUpdate != null) {
-            update = mapping.mappingUpdate(rootDynamicUpdate);
-        }
-
-        ParsedDocument doc = new ParsedDocument(context.uid(), context.version(), context.id(), context.type(), source.routing(), source.timestamp(), source.ttl(), context.docs(),
-                context.source(), update).parent(source.parent());
-        // reset the context to free up memory
-        context.reset(null, null, null, null);
-        return doc;
+        return documentParser.parseDocument(source, listener);
     }
 
     /**
      * Returns the best nested {@link ObjectMapper} instances that is in the scope of the specified nested docId.
      */
-    public ObjectMapper findNestedObjectMapper(int nestedDocId, BitsetFilterCache cache, LeafReaderContext context) throws IOException {
+    public ObjectMapper findNestedObjectMapper(int nestedDocId, SearchContext sc, LeafReaderContext context) throws IOException {
         ObjectMapper nestedObjectMapper = null;
         for (ObjectMapper objectMapper : objectMappers().values()) {
             if (!objectMapper.nested().isNested()) {
                 continue;
             }
 
-            BitDocIdSet nestedTypeBitSet = cache.getBitDocIdSetFilter(objectMapper.nestedTypeFilter()).getDocIdSet(context);
-            if (nestedTypeBitSet != null && nestedTypeBitSet.bits().get(nestedDocId)) {
+            Filter filter = objectMapper.nestedTypeFilter();
+            if (filter == null) {
+                continue;
+            }
+            // We can pass down 'null' as acceptedDocs, because nestedDocId is a doc to be fetched and
+            // therefor is guaranteed to be a live doc.
+            DocIdSet nestedTypeSet = filter.getDocIdSet(context, null);
+            if (nestedTypeSet == null) {
+                continue;
+            }
+            DocIdSetIterator iterator = nestedTypeSet.iterator();
+            if (iterator == null) {
+                continue;
+            }
+
+            if (iterator.advance(nestedDocId) == nestedDocId) {
                 if (nestedObjectMapper == null) {
                     nestedObjectMapper = objectMapper;
                 } else {
@@ -563,22 +410,10 @@ public class DocumentMapper implements ToXContent {
      * @return transformed version of transformMe.  This may actually be the same object as sourceAsMap
      */
     public Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap) {
-        if (mapping.sourceTransforms.length == 0) {
-            return sourceAsMap;
-        }
-        for (SourceTransform transform : mapping.sourceTransforms) {
-            sourceAsMap = transform.transformSourceAsMap(sourceAsMap);
-        }
-        return sourceAsMap;
+        return DocumentParser.transformSourceAsMap(mapping, sourceAsMap);
     }
 
-    private XContentParser transform(XContentParser parser) throws IOException {
-        Map<String, Object> transformed = transformSourceAsMap(parser.mapOrderedAndClose());
-        XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType()).value(transformed);
-        return parser.contentType().xContent().createParser(builder.bytes());
-    }
-
-    public void addFieldMappers(List<FieldMapper<?>> fieldMappers) {
+    public void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
         synchronized (mappersMutex) {
             this.fieldMappers = this.fieldMappers.copyAndAllAll(fieldMappers);
         }
@@ -628,20 +463,20 @@ public class DocumentMapper implements ToXContent {
         mapping.root.traverse(listener);
     }
 
-    private MergeContext newMergeContext(MergeFlags mergeFlags) {
-        return new MergeContext(mergeFlags) {
+    private MergeResult newMergeContext(boolean simulate) {
+        return new MergeResult(simulate) {
 
             List<String> conflicts = new ArrayList<>();
 
             @Override
-            public void addFieldMappers(List<FieldMapper<?>> fieldMappers) {
-                assert mergeFlags().simulate() == false;
+            public void addFieldMappers(Collection<FieldMapper<?>> fieldMappers) {
+                assert simulate() == false;
                 DocumentMapper.this.addFieldMappers(fieldMappers);
             }
 
             @Override
             public void addObjectMappers(Collection<ObjectMapper> objectMappers) {
-                assert mergeFlags().simulate() == false;
+                assert simulate() == false;
                 DocumentMapper.this.addObjectMappers(objectMappers);
             }
 
@@ -663,10 +498,10 @@ public class DocumentMapper implements ToXContent {
         };
     }
 
-    public synchronized MergeResult merge(Mapping mapping, MergeFlags mergeFlags) {
-        final MergeContext mergeContext = newMergeContext(mergeFlags);
-        final MergeResult mergeResult = this.mapping.merge(mapping, mergeContext);
-        if (mergeFlags.simulate() == false) {
+    public synchronized MergeResult merge(Mapping mapping, boolean simulate) {
+        final MergeResult mergeResult = newMergeContext(simulate);
+        this.mapping.merge(mapping, mergeResult);
+        if (simulate == false) {
             refreshSource();
         }
         return mergeResult;
@@ -687,7 +522,7 @@ public class DocumentMapper implements ToXContent {
     }
 
     public void close() {
-        cache.close();
+        documentParser.close();
         mapping.root.close();
         for (RootMapper rootMapper : mapping.rootMappers) {
             rootMapper.close();
@@ -734,7 +569,7 @@ public class DocumentMapper implements ToXContent {
         public Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap) {
             try {
                 // We use the ctx variable and the _source name to be consistent with the update api.
-                ExecutableScript executable = scriptService.executable(language, script, scriptType, ScriptContext.Standard.MAPPING, parameters);
+                ExecutableScript executable = scriptService.executable(new Script(language, script, scriptType, parameters), ScriptContext.Standard.MAPPING);
                 Map<String, Object> ctx = new HashMap<>(1);
                 ctx.put("_source", sourceAsMap);
                 executable.setNextVar("ctx", ctx);
@@ -742,7 +577,7 @@ public class DocumentMapper implements ToXContent {
                 ctx = (Map<String, Object>) executable.unwrap(ctx);
                 return (Map<String, Object>) ctx.get("_source");
             } catch (Exception e) {
-                throw new ElasticsearchIllegalArgumentException("failed to execute script", e);
+                throw new IllegalArgumentException("failed to execute script", e);
             }
         }
 

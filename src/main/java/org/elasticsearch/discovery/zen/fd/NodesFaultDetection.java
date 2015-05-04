@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.zen.fd;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -65,7 +64,7 @@ public class NodesFaultDetection extends FaultDetection {
 
         logger.debug("[node  ] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
 
-        transportService.registerHandler(PING_ACTION_NAME, new PingRequestHandler());
+        transportService.registerRequestHandler(PING_ACTION_NAME, PingRequest.class, ThreadPool.Names.SAME, new PingRequestHandler());
     }
 
     public void setLocalNode(DiscoveryNode localNode) {
@@ -239,35 +238,24 @@ public class NodesFaultDetection extends FaultDetection {
         }
     }
 
-    class PingRequestHandler extends BaseTransportRequestHandler<PingRequest> {
-
-        @Override
-        public PingRequest newInstance() {
-            return new PingRequest();
-        }
-
+    class PingRequestHandler implements TransportRequestHandler<PingRequest> {
         @Override
         public void messageReceived(PingRequest request, TransportChannel channel) throws Exception {
             // if we are not the node we are supposed to be pinged, send an exception
             // this can happen when a kill -9 is sent, and another node is started using the same port
             if (!localNode.id().equals(request.nodeId)) {
-                throw new ElasticsearchIllegalStateException("Got pinged as node [" + request.nodeId + "], but I am node [" + localNode.id() + "]");
+                throw new IllegalStateException("Got pinged as node [" + request.nodeId + "], but I am node [" + localNode.id() + "]");
             }
 
             // PingRequest will have clusterName set to null if it came from a node of version <1.4.0
             if (request.clusterName != null && !request.clusterName.equals(clusterName)) {
                 // Don't introduce new exception for bwc reasons
-                throw new ElasticsearchIllegalStateException("Got pinged with cluster name [" + request.clusterName + "], but I'm part of cluster [" + clusterName + "]");
+                throw new IllegalStateException("Got pinged with cluster name [" + request.clusterName + "], but I'm part of cluster [" + clusterName + "]");
             }
 
             notifyPingReceived(request);
 
             channel.sendResponse(new PingResponse());
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 

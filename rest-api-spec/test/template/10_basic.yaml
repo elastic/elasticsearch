@@ -50,7 +50,7 @@
         body: { "template": { "query": { "match{{}}_all": {}}, "size": "{{my_size}}" } }
 
   - do:
-      catch: /ElasticsearchIllegalArgumentException\SUnable\sto\sparse.*/
+      catch: /Unable\sto\sparse.*/
       put_template:
         id: "1"
         body: { "template": { "query": { "match{{}}_all": {}}, "size": "{{my_size}}" } }

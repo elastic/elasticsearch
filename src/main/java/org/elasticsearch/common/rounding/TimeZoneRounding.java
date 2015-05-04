@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.rounding;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -60,7 +59,7 @@ public abstract class TimeZoneRounding extends Rounding {
         public Builder(TimeValue interval) {
             this.unit = null;
             if (interval.millis() < 1)
-                throw new ElasticsearchIllegalArgumentException("Zero or negative time interval not supported");
+                throw new IllegalArgumentException("Zero or negative time interval not supported");
             this.interval = interval.millis();
         }
 
@@ -169,7 +168,7 @@ public abstract class TimeZoneRounding extends Rounding {
 
         TimeIntervalRounding(long interval, DateTimeZone timeZone) {
             if (interval < 1)
-                throw new ElasticsearchIllegalArgumentException("Zero or negative time interval not supported");
+                throw new IllegalArgumentException("Zero or negative time interval not supported");
             this.interval = interval;
             this.timeZone = timeZone;
         }

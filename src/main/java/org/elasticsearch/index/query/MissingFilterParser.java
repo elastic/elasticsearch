@@ -78,13 +78,13 @@ public class MissingFilterParser implements FilterParser {
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[missing] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[missing] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
 
         if (fieldPattern == null) {
-            throw new QueryParsingException(parseContext.index(), "missing must be provided with a [field]");
+            throw new QueryParsingException(parseContext, "missing must be provided with a [field]");
         }
 
         return newFilter(parseContext, fieldPattern, existence, nullValue, filterName);
@@ -92,7 +92,7 @@ public class MissingFilterParser implements FilterParser {
 
     public static Filter newFilter(QueryParseContext parseContext, String fieldPattern, boolean existence, boolean nullValue, String filterName) {
         if (!existence && !nullValue) {
-            throw new QueryParsingException(parseContext.index(), "missing must have either existence, or null_value, or both set to true");
+            throw new QueryParsingException(parseContext, "missing must have either existence, or null_value, or both set to true");
         }
 
         final FieldMappers fieldNamesMappers = parseContext.mapperService().fullName(FieldNamesFieldMapper.NAME);
@@ -144,13 +144,8 @@ public class MissingFilterParser implements FilterParser {
                 boolFilter.add(filter, BooleanClause.Occur.SHOULD);
             }
 
-            // we always cache this one, really does not change... (exists)
-            // its ok to cache under the fieldName cacheKey, since its per segment and the mapping applies to this data on this segment...
-            existenceFilter = Queries.wrap(boolFilter);
-            existenceFilter = parseContext.cacheFilter(existenceFilter, new HashedBytesRef("$exists$" + fieldPattern), parseContext.autoFilterCachePolicy());
-            existenceFilter = Queries.wrap(Queries.not(existenceFilter));
-            // cache the not filter as well, so it will be faster
-            existenceFilter = parseContext.cacheFilter(existenceFilter, new HashedBytesRef("$missing$" + fieldPattern), parseContext.autoFilterCachePolicy());
+            existenceFilter = new QueryWrapperFilter(boolFilter);
+            existenceFilter = new QueryWrapperFilter(Queries.not(existenceFilter));;
         }
 
         if (nullValue) {
@@ -158,10 +153,6 @@ public class MissingFilterParser implements FilterParser {
                 MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(field);
                 if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
                     nullFilter = smartNameFieldMappers.mapper().nullValueFilter();
-                    if (nullFilter != null) {
-                        // cache the not filter as well, so it will be faster
-                        nullFilter = parseContext.cacheFilter(nullFilter, new HashedBytesRef("$null$" + fieldPattern), parseContext.autoFilterCachePolicy());
-                    }
                 }
             }
         }
@@ -173,7 +164,7 @@ public class MissingFilterParser implements FilterParser {
                 combined.add(existenceFilter, BooleanClause.Occur.SHOULD);
                 combined.add(nullFilter, BooleanClause.Occur.SHOULD);
                 // cache the not filter as well, so it will be faster
-                filter = parseContext.cacheFilter(Queries.wrap(combined), null, parseContext.autoFilterCachePolicy());
+                filter = new QueryWrapperFilter(combined);
             } else {
                 filter = nullFilter;
             }

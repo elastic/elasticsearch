@@ -20,6 +20,7 @@
 package org.elasticsearch.test;
 
 import org.apache.lucene.util.TestSecurityManager;
+import org.elasticsearch.bootstrap.Bootstrap;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 
@@ -33,6 +34,8 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAs
 class SecurityHack {
 
     static {
+        // just like bootstrap, initialize natives, then SM
+        Bootstrap.initializeNatives(true, true);
         // for IDEs, we check that security.policy is set
         if (systemPropertyAsBoolean("tests.security.manager", true) && 
                 System.getProperty("java.security.policy") != null) {

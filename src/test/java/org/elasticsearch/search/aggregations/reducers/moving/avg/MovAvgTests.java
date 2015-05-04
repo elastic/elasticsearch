@@ -59,9 +59,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
 import static org.elasticsearch.search.aggregations.reducers.ReducerBuilders.movingAvg;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
@@ -308,7 +306,6 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
      * test simple moving average on single value field
      */
     @Test
-    @AwaitsFix(bugUrl = "Fails with certain seeds including -Dtests.seed=D9EF60095522804F")
     public void simpleSingleValuedField() {
 
         SearchResponse response = client()
@@ -361,7 +358,6 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "Fails with certain seeds including -Dtests.seed=D9EF60095522804F")
     public void linearSingleValuedField() {
 
         SearchResponse response = client()
@@ -414,7 +410,6 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "Fails with certain seeds including -Dtests.seed=D9EF60095522804F")
     public void singleSingleValuedField() {
 
         SearchResponse response = client()
@@ -467,7 +462,6 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "Fails with certain seeds including -Dtests.seed=D9EF60095522804F")
     public void doubleSingleValuedField() {
 
         SearchResponse response = client()
@@ -1038,7 +1032,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         } else {
             assertThat("[_count] movavg is null", countMovAvg, notNullValue());
             assertThat("[_count] movavg does not match expected ["+countMovAvg.value()+" vs "+expectedCount+"]",
-                    Math.abs(countMovAvg.value() - expectedCount) <= 0.000001, equalTo(true));
+                    countMovAvg.value(), closeTo(expectedCount, 0.1));
         }
 
         // This is a gap bucket
@@ -1047,7 +1041,8 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             assertThat("[value] movavg is not null", valuesMovAvg, Matchers.nullValue());
         } else {
             assertThat("[value] movavg is null", valuesMovAvg, notNullValue());
-            assertThat("[value] movavg does not match expected ["+valuesMovAvg.value()+" vs "+expectedValue+"]", Math.abs(valuesMovAvg.value() - expectedValue) <= 0.000001, equalTo(true));
+            assertThat("[value] movavg does not match expected ["+valuesMovAvg.value()+" vs "+expectedValue+"]",
+                    valuesMovAvg.value(), closeTo(expectedValue, 0.1));
         }
     }
 

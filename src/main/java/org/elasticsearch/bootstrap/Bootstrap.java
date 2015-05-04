@@ -216,15 +216,6 @@ public class Bootstrap {
             // fail if using broken version
             JVMCheck.check();
 
-            bootstrap.setup(true, settings, environment);
-
-            stage = "Startup";
-            bootstrap.start();
-
-            if (!foreground) {
-                closeSysError();
-            }
-
             keepAliveLatch = new CountDownLatch(1);
             // keep this thread alive (non daemon thread) until we shutdown
             Runtime.getRuntime().addShutdownHook(new Thread() {
@@ -233,6 +224,15 @@ public class Bootstrap {
                     keepAliveLatch.countDown();
                 }
             });
+
+            bootstrap.setup(true, settings, environment);
+
+            stage = "Startup";
+            bootstrap.start();
+
+            if (!foreground) {
+                closeSysError();
+            }
 
             keepAliveThread = new Thread(new Runnable() {
                 @Override

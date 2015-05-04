@@ -110,10 +110,9 @@ public class ClusterChangedEvent {
         // is actually supposed to be deleted or imported as dangling instead. for example a new master might not have
         // the index in its cluster state because it was started with an empty data folder and in this case we want to
         // import as dangling. we check here for new master too to be on the safe side in this case.
-        if (newMaster()) {
-            return ImmutableList.of();
-        }
-        if (previousState == null) {
+        // norelease because we are not sure this is actually a good solution
+        // See discussion on https://github.com/elastic/elasticsearch/pull/9952
+        if (hasNewMaster() || previousState == null) {
             return ImmutableList.of();
         }
         if (!metaDataChanged()) {
@@ -174,7 +173,14 @@ public class ClusterChangedEvent {
         return nodesRemoved() || nodesAdded();
     }
 
-    private boolean newMaster() {
+    /**
+     * Checks if this cluster state comes from a different master than the previous one.
+     * This is a workaround for the scenario where a node misses a cluster state  that has either
+     * no master block or state not recovered flag set. In this case we must make sure that
+     * if an index is missing from the cluster state is not deleted immediately but instead imported
+     * as dangling. See discussion on https://github.com/elastic/elasticsearch/pull/9952
+     */
+    private boolean hasNewMaster() {
         String oldMaster = previousState().getNodes().masterNodeId();
         String newMaster = state().getNodes().masterNodeId();
         if (oldMaster == null && newMaster == null) {

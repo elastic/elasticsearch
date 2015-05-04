@@ -42,7 +42,7 @@ public class Security {
      */
     static void configure(Environment environment) throws Exception {
         // enable security policy: union of template and environment-based paths.
-        Policy.setPolicy(new ESPolicy(createPermissions(environment, true)));
+        Policy.setPolicy(new ESPolicy(createPermissions(environment)));
 
         // enable security manager
         System.setSecurityManager(new SecurityManager());
@@ -52,13 +52,11 @@ public class Security {
     }
 
     /** returns dynamic Permissions to configured paths */
-    static Permissions createPermissions(Environment environment, boolean addTempDir) throws IOException {
+    static Permissions createPermissions(Environment environment) throws IOException {
         // TODO: improve test infra so we can reduce permissions where read/write
         // is not really needed...
         Permissions policy = new Permissions();
-        if (addTempDir) {
-            addPath(policy, PathUtils.get(System.getProperty("java.io.tmpdir")), "read,readlink,write,delete");
-        }
+        addPath(policy, PathUtils.get(System.getProperty("java.io.tmpdir")), "read,readlink,write,delete");
         addPath(policy, environment.homeFile(), "read,readlink,write,delete");
         addPath(policy, environment.configFile(), "read,readlink,write,delete");
         addPath(policy, environment.logsFile(), "read,readlink,write,delete");

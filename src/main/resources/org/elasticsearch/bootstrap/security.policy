@@ -21,14 +21,35 @@
 // On startup, BootStrap reads environment and adds additional permissions
 // for configured paths to these.
 
+//// System code permissions:
+
+// These permissions apply to javac
+grant codeBase "file:${java.home}/lib/-" {
+        permission java.security.AllPermission;
+};
+
+// These permissions apply to all shared system extensions
+grant codeBase "file:${java.home}/jre/lib/ext/-" {
+        permission java.security.AllPermission;
+};
+
+// These permissions apply to javac when ${java.home] points at $JAVA_HOME/jre
+grant codeBase "file:${java.home}/../lib/-" {
+        permission java.security.AllPermission;
+};
+
+// These permissions apply to all shared system extensions when
+// ${java.home} points at $JAVA_HOME/jre
+grant codeBase "file:${java.home}/lib/ext/-" {
+        permission java.security.AllPermission;
+};
+
+//// Everything else:
+
 grant {
 
   // system jar resources
   permission java.io.FilePermission "${java.home}${/}-", "read";
-
-  // temporary files
-  permission java.io.FilePermission "${java.io.tmpdir}", "read,write";
-  permission java.io.FilePermission "${java.io.tmpdir}${/}-", "read,write,delete";
 
   // paths used for running tests
   // compiled classes

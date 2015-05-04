@@ -43,7 +43,7 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 public abstract class ElasticsearchTokenStreamTestCase extends BaseTokenStreamTestCase {
 
     static {
-        SecurityHack.ensureInitialized();
+        SecurityBootstrap.ensureInitialized();
     }
     
     public static Version randomVersion() {

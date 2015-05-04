@@ -42,7 +42,11 @@ public class StopAnalyzerTests extends ElasticsearchTokenStreamTestCase {
     @Test
     public void testDefaultsCompoundAnalysis() throws Exception {
         Index index = new Index("test");
-        Settings settings = settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/stop.json").put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings settings = settingsBuilder()
+                .loadFromClasspath("org/elasticsearch/index/analysis/stop.json")
+                .put("path.home", createTempDir().toString())
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .build();
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings)), new IndicesAnalysisModule()).createInjector();
         Injector injector = new ModulesBuilder().add(
                 new IndexSettingsModule(index, settings),

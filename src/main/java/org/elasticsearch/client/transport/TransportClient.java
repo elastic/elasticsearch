@@ -93,7 +93,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
  */
 public class TransportClient extends AbstractClient {
 
-    private static final String CLIENT_TYPE = "transport";
+    public static final String CLIENT_TYPE = "transport";
 
     final Injector injector;
 
@@ -102,14 +102,6 @@ public class TransportClient extends AbstractClient {
     private final PluginsService pluginsService;
     private final TransportClientNodesService nodesService;
     private final InternalTransportClient internalClient;
-
-    /**
-     * Constructs a new transport client with settings loaded either from the classpath or the file system (the
-     * <tt>elasticsearch.(yml|json)</tt> files optionally prefixed with <tt>config/</tt>).
-     */
-    public TransportClient() {
-        this(ImmutableSettings.Builder.EMPTY_SETTINGS, true);
-    }
 
     /**
      * Constructs a new transport client with explicit settings and settings loaded either from the classpath or the file

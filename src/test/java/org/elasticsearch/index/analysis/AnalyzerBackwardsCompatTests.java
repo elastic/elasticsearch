@@ -45,6 +45,7 @@ public class AnalyzerBackwardsCompatTests extends ElasticsearchTokenStreamTestCa
                 builder.put(SETTING_VERSION_CREATED, version);
             }
             builder.put("index.analysis.analyzer.foo.type", type);
+            builder.put("path.home", createTempDir().toString());
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(builder.build());
             NamedAnalyzer analyzer = analysisService.analyzer("foo");
             if (version.onOrAfter(noStopwordVersion)) {

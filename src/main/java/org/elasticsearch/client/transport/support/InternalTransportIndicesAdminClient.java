@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.support.AbstractIndicesAdminClient;
 import org.elasticsearch.client.support.Headers;
@@ -30,6 +31,8 @@ import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -42,17 +45,17 @@ import java.util.Map;
 @SuppressWarnings("unchecked")
 public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminClient implements IndicesAdminClient {
 
+    private final ESLogger logger;
     private final TransportClientNodesService nodesService;
-
     private final ThreadPool threadPool;
-
     private final ImmutableMap<Action, TransportActionNodeProxy> actions;
-
     private final Headers headers;
+    private final ThreadedActionListener.Wrapper threadedWrapper;
 
     @Inject
     public InternalTransportIndicesAdminClient(Settings settings, TransportClientNodesService nodesService, TransportService transportService, ThreadPool threadPool,
                                                Map<String, GenericAction> actions, Headers headers) {
+        this.logger = Loggers.getLogger(getClass(), settings);
         this.nodesService = nodesService;
         this.threadPool = threadPool;
         this.headers = headers;
@@ -63,6 +66,7 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
             }
         }
         this.actions = actionsBuilder.immutableMap();
+        this.threadedWrapper = new ThreadedActionListener.Wrapper(logger, settings, threadPool);
     }
 
     @Override
@@ -82,6 +86,7 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     @Override
     public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> void execute(final Action<Request, Response, RequestBuilder, IndicesAdminClient> action, final Request request, ActionListener<Response> listener) {
         headers.applyTo(request);
+        listener = threadedWrapper.wrap(listener);
         final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<Response>() {
             @Override

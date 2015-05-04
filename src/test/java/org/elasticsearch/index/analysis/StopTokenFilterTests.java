@@ -49,6 +49,7 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
         if (random().nextBoolean()) {
             builder.put("index.analysis.filter.my_stop.version", "5.0");
         }
+        builder.put("path.home", createTempDir().toString());
         Settings settings = builder.build();
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
         analysisService.tokenFilter("my_stop");
@@ -68,6 +69,7 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
         } else {
             // don't specify
         }
+        builder.put("path.home", createTempDir().toString());
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(builder.build());
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_stop");
         assertThat(tokenFilter, instanceOf(StopTokenFilterFactory.class));
@@ -83,8 +85,11 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
 
     @Test
     public void testDeprecatedPositionIncrementSettingWithVersions() throws IOException {
-        Settings settings = ImmutableSettings.settingsBuilder().put("index.analysis.filter.my_stop.type", "stop")
-                .put("index.analysis.filter.my_stop.enable_position_increments", false).put("index.analysis.filter.my_stop.version", "4.3")
+        Settings settings = ImmutableSettings.settingsBuilder()
+                .put("index.analysis.filter.my_stop.type", "stop")
+                .put("index.analysis.filter.my_stop.enable_position_increments", false)
+                .put("index.analysis.filter.my_stop.version", "4.3")
+                .put("path.home", createTempDir().toString())
                 .build();
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_stop");
@@ -100,6 +105,7 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("index.analysis.filter.my_stop.type", "stop")
                 .put("index.analysis.filter.my_stop.remove_trailing", false)
+                .put("path.home", createTempDir().toString())
                 .build();
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_stop");

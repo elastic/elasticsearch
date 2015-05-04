@@ -458,3 +458,8 @@ there is not enough disk space to complete this migration, the upgrade will be
 cancelled and can only be resumed once enough disk space is made available.
 
 The `index.store.distributor` setting has also been removed.
+
+=== Hunspell dictionary configuration
+
+The parameter `indices.analysis.hunspell.dictionary.location` has been removed,
+and `<path.conf>/hunspell` is always used. 

@@ -59,6 +59,9 @@
 
 * http://searchbox-io.github.com/wp-elasticsearch/[Wp-Elasticsearch]:
   Elasticsearch WordPress Plugin
+  
+* https://github.com/wallmanderco/elasticsearch-indexer[Elasticsearch Indexer]:
+  Elasticsearch WordPress Plugin
 
 * https://github.com/OlegKunitsyn/eslogd[eslogd]:
   Linux daemon that replicates events to a central Elasticsearch server in real-time

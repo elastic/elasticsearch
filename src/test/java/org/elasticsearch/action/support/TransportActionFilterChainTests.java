@@ -92,7 +92,7 @@ public class TransportActionFilterChainTests extends ElasticsearchTestCase {
             }
         }
 
-        PlainListenableActionFuture<TestResponse> future = new PlainListenableActionFuture<>(false, null);
+        PlainListenableActionFuture<TestResponse> future = new PlainListenableActionFuture<>(null);
         transportAction.execute(new TestRequest(), future);
         try {
             assertThat(future.get(), notNullValue());
@@ -174,7 +174,7 @@ public class TransportActionFilterChainTests extends ElasticsearchTestCase {
             }
         }
 
-        PlainListenableActionFuture<TestResponse> future = new PlainListenableActionFuture<>(false, null);
+        PlainListenableActionFuture<TestResponse> future = new PlainListenableActionFuture<>(null);
         transportAction.execute(new TestRequest(), future);
         try {
             assertThat(future.get(), notNullValue());

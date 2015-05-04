@@ -41,8 +41,6 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
 
         @Override
         public final void messageReceived(final Request request, final TransportChannel channel) throws Exception {
-            // no need to use threaded listener, since we just send a response
-            request.listenerThreaded(false);
             execute(request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {

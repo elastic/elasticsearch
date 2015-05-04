@@ -40,7 +40,7 @@ public class ShingleTokenFilterFactoryTests extends ElasticsearchTokenStreamTest
 
     @Test
     public void testDefault() throws IOException {
-        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(RESOURCE);
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("shingle");
         String source = "the quick brown fox";
         String[] expected = new String[]{"the", "the quick", "quick", "quick brown", "brown", "brown fox", "fox"};
@@ -51,7 +51,7 @@ public class ShingleTokenFilterFactoryTests extends ElasticsearchTokenStreamTest
 
     @Test
     public void testInverseMapping() throws IOException {
-        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(RESOURCE);
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("shingle_inverse");
         assertThat(tokenFilter, instanceOf(ShingleTokenFilterFactory.class));
         String source = "the quick brown fox";
@@ -63,7 +63,7 @@ public class ShingleTokenFilterFactoryTests extends ElasticsearchTokenStreamTest
 
     @Test
     public void testInverseMappingNoShingles() throws IOException {
-        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(RESOURCE);
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("shingle_inverse");
         assertThat(tokenFilter, instanceOf(ShingleTokenFilterFactory.class));
         String source = "the quick";
@@ -75,7 +75,7 @@ public class ShingleTokenFilterFactoryTests extends ElasticsearchTokenStreamTest
 
     @Test
     public void testFillerToken() throws IOException {
-        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(RESOURCE);
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("shingle_filler");
         String source = "simon the sorcerer";
         String[] expected = new String[]{"simon FILLER", "simon FILLER sorcerer", "FILLER sorcerer"};

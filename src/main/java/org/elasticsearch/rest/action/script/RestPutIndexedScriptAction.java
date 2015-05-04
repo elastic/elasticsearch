@@ -75,7 +75,7 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
-        PutIndexedScriptRequest putRequest = new PutIndexedScriptRequest(getScriptLang(request), request.param("id")).listenerThreaded(false);
+        PutIndexedScriptRequest putRequest = new PutIndexedScriptRequest(getScriptLang(request), request.param("id"));
         putRequest.version(request.paramAsLong("version", putRequest.version()));
         putRequest.versionType(VersionType.fromString(request.param("version_type"), putRequest.versionType()));
         putRequest.source(request.content());

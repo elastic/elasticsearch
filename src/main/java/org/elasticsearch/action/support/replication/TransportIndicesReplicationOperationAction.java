@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
@@ -43,15 +42,15 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  */
 public abstract class TransportIndicesReplicationOperationAction<Request extends IndicesReplicationOperationRequest, Response extends ActionResponse, IndexRequest extends IndexReplicationOperationRequest, IndexResponse extends ActionResponse,
-        ShardRequest extends ShardReplicationOperationRequest, ShardResponse extends ActionWriteResponse, ReplicaResponse extends TransportResponse>
+        ShardRequest extends ShardReplicationOperationRequest, ShardResponse extends ActionWriteResponse>
         extends TransportAction<Request, Response> {
 
     protected final ClusterService clusterService;
 
-    protected final TransportIndexReplicationOperationAction<IndexRequest, IndexResponse, ShardRequest, ShardResponse, ReplicaResponse> indexAction;
+    protected final TransportIndexReplicationOperationAction<IndexRequest, IndexResponse, ShardRequest, ShardResponse> indexAction;
 
     protected TransportIndicesReplicationOperationAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                         TransportIndexReplicationOperationAction<IndexRequest, IndexResponse, ShardRequest, ShardResponse, ReplicaResponse> indexAction, ActionFilters actionFilters) {
+                                                         TransportIndexReplicationOperationAction<IndexRequest, IndexResponse, ShardRequest, ShardResponse> indexAction, ActionFilters actionFilters) {
         super(settings, actionName, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.indexAction = indexAction;

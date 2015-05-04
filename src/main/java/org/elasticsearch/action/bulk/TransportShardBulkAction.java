@@ -60,7 +60,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.river.RiverIndexName;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
@@ -68,7 +67,7 @@ import java.util.Map;
 /**
  * Performs the index operation.
  */
-public class TransportShardBulkAction extends TransportShardReplicationOperationAction<BulkShardRequest, BulkShardRequest, BulkShardResponse, TransportResponse.Empty> {
+public class TransportShardBulkAction extends TransportShardReplicationOperationAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
 
     private final static String OP_TYPE_UPDATE = "update";
     private final static String OP_TYPE_DELETE = "delete";
@@ -117,11 +116,6 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     @Override
     protected BulkShardResponse newResponseInstance() {
         return new BulkShardResponse();
-    }
-
-    @Override
-    protected TransportResponse.Empty newReplicaResponseInstance() {
-        return TransportResponse.Empty.INSTANCE;
     }
 
     @Override
@@ -534,7 +528,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
 
     @Override
-    protected TransportResponse.Empty shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
+    protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId.getIndex()).shardSafe(shardRequest.shardId.id());
         final BulkShardRequest request = shardRequest.request;
         for (int i = 0; i < request.items().length; i++) {
@@ -586,7 +580,6 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 // ignore
             }
         }
-        return newReplicaResponseInstance();
     }
 
     private void applyVersion(BulkItemRequest item, long version, VersionType versionType) {

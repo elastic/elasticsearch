@@ -26,6 +26,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
@@ -39,6 +40,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -236,5 +238,43 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
     public static void write(ShardStateMetaData shardStateMetaData,
                              Path... shardPaths) throws IOException {
         ShardStateMetaData.FORMAT.write(shardStateMetaData, shardStateMetaData.version, shardPaths);
+    }
+
+    public void testDurableFlagHasEffect() {
+        createIndex("test");
+        ensureGreen();
+        client().prepareIndex("test", "bar", "1").setSource("{}").get();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("test");
+        IndexShard shard = test.shard(0);
+        setDurability(shard, Translog.Durabilty.REQUEST);
+        assertFalse(shard.engine().getTranslog().syncNeeded());
+        setDurability(shard, Translog.Durabilty.ASYNC);
+        client().prepareIndex("test", "bar", "2").setSource("{}").get();
+        assertTrue(shard.engine().getTranslog().syncNeeded());
+        setDurability(shard, Translog.Durabilty.REQUEST);
+        client().prepareDelete("test", "bar", "1").get();
+        assertFalse(shard.engine().getTranslog().syncNeeded());
+
+        setDurability(shard, Translog.Durabilty.ASYNC);
+        client().prepareDelete("test", "bar", "2").get();
+        assertTrue(shard.engine().getTranslog().syncNeeded());
+        setDurability(shard, Translog.Durabilty.REQUEST);
+        assertNoFailures(client().prepareBulk()
+                .add(client().prepareIndex("test", "bar", "3").setSource("{}"))
+                .add(client().prepareDelete("test", "bar", "1")).get());
+        assertFalse(shard.engine().getTranslog().syncNeeded());
+
+        setDurability(shard, Translog.Durabilty.ASYNC);
+        assertNoFailures(client().prepareBulk()
+                .add(client().prepareIndex("test", "bar", "4").setSource("{}"))
+                .add(client().prepareDelete("test", "bar", "3")).get());
+        setDurability(shard, Translog.Durabilty.REQUEST);
+        assertTrue(shard.engine().getTranslog().syncNeeded());
+    }
+
+    private void setDurability(IndexShard shard, Translog.Durabilty durabilty) {
+        client().admin().indices().prepareUpdateSettings(shard.shardId.getIndex()).setSettings(settingsBuilder().put(Translog.INDEX_TRANSLOG_DURABILITY, durabilty.name()).build()).get();
+        assertEquals(durabilty, shard.getTranslogDurability());
     }
 }

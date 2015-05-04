@@ -28,8 +28,7 @@ import java.io.IOException;
 /**
  *
  */
-@TestLogging("index.translog.fs:TRACE")
-public class FsBufferedTranslogTests extends AbstractTranslogTests {
+public class BufferedTranslogTests extends TranslogTests {
 
     @Override
     protected Translog create() throws IOException {

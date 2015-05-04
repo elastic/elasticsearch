@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.index;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
@@ -45,10 +46,13 @@ import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 /**
  * Performs the index operation.
@@ -166,16 +170,10 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         IndexService indexService = indicesService.indexServiceSafe(shardRequest.shardId.getIndex());
         IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
 
-        final IndexResponse response = executeIndexRequestOnPrimary(null, request, indexShard);
-
-        if (request.refresh()) {
-            try {
-                indexShard.refresh("refresh_flag_index");
-            } catch (Throwable e) {
-                // ignore
-            }
-        }
-
+        final WriteResult<IndexResponse> result = executeIndexRequestOnPrimary(null, request, indexShard);
+        final IndexResponse response = result.response;
+        final Translog.Location location = result.location;
+        processAfter(request, indexShard, location);
         return new Tuple<>(response, shardRequest.request);
     }
 
@@ -198,12 +196,20 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             throw new RetryOnReplicaException(shardId, "Mappings are not available on the replica yet, triggered update: " + update);
         }
         operation.execute(indexShard);
+        processAfter(request, indexShard, operation.getTranslogLocation());
+    }
+
+    private void processAfter(IndexRequest request, IndexShard indexShard, Translog.Location location) {
         if (request.refresh()) {
             try {
                 indexShard.refresh("refresh_flag_index");
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 // ignore
             }
+        }
+
+        if (indexShard.getTranslogDurability() == Translog.Durabilty.REQUEST && location != null) {
+            indexShard.sync(location);
         }
     }
 }

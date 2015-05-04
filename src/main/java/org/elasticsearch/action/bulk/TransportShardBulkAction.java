@@ -22,7 +22,6 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -41,7 +40,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -51,14 +49,13 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.river.RiverIndexName;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -116,11 +113,12 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     @Override
     protected Tuple<BulkShardResponse, BulkShardRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         final BulkShardRequest request = shardRequest.request;
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
-        IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
+        final IndexService indexService = indicesService.indexServiceSafe(request.index());
+        final IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
 
         long[] preVersions = new long[request.items().length];
         VersionType[] preVersionTypes = new VersionType[request.items().length];
+        Translog.Location location = null;
         for (int requestIndex = 0; requestIndex < request.items().length; requestIndex++) {
             BulkItemRequest item = request.items()[requestIndex];
             if (item.request() instanceof IndexRequest) {
@@ -128,7 +126,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 preVersions[requestIndex] = indexRequest.version();
                 preVersionTypes[requestIndex] = indexRequest.versionType();
                 try {
-                    WriteResult result = shardIndexOperation(request, indexRequest, clusterState, indexShard, indexService, true);
+                    WriteResult<IndexResponse> result = shardIndexOperation(request, indexRequest, clusterState, indexShard, true);
+                    location = locationToSync(location, result.location);
                     // add the response
                     IndexResponse indexResponse = result.response();
                     setResponse(item, new BulkItemResponse(item.id(), indexRequest.opType().lowercase(), indexResponse));
@@ -163,7 +162,9 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
                 try {
                     // add the response
-                    DeleteResponse deleteResponse = shardDeleteOperation(request, deleteRequest, indexShard).response();
+                    final WriteResult<DeleteResponse> writeResult = shardDeleteOperation(request, deleteRequest, indexShard);
+                    DeleteResponse deleteResponse = writeResult.response();
+                    location = locationToSync(location, writeResult.location);
                     setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_DELETE, deleteResponse));
                 } catch (Throwable e) {
                     // rethrow the failure if we are going to retry on primary and let parent failure to handle it
@@ -197,15 +198,18 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 for (int updateAttemptsCount = 0; updateAttemptsCount <= updateRequest.retryOnConflict(); updateAttemptsCount++) {
                     UpdateResult updateResult;
                     try {
-                        updateResult = shardUpdateOperation(clusterState, request, updateRequest, indexShard, indexService);
+                        updateResult = shardUpdateOperation(clusterState, request, updateRequest, indexShard);
                     } catch (Throwable t) {
                         updateResult = new UpdateResult(null, null, false, t, null);
                     }
                     if (updateResult.success()) {
+                        if (updateResult.writeResult != null) {
+                            location = locationToSync(location, updateResult.writeResult.location);
+                        }
                         switch (updateResult.result.operation()) {
                             case UPSERT:
                             case INDEX:
-                                WriteResult result = updateResult.writeResult;
+                                WriteResult<IndexResponse> result = updateResult.writeResult;
                                 IndexRequest indexRequest = updateResult.request();
                                 BytesReference indexSourceAsBytes = indexRequest.source();
                                 // add the response
@@ -219,7 +223,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                 setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_UPDATE, updateResponse));
                                 break;
                             case DELETE:
-                                DeleteResponse response = updateResult.writeResult.response();
+                                WriteResult<DeleteResponse> writeResult = updateResult.writeResult;
+                                DeleteResponse response = writeResult.response();
                                 DeleteRequest deleteRequest = updateResult.request();
                                 updateResponse = new UpdateResponse(response.getShardInfo(), response.getIndex(), response.getType(), response.getId(), response.getVersion(), false);
                                 updateResponse.setGetResult(updateHelper.extractGetResult(updateRequest, shardRequest.request.index(), response.getVersion(), updateResult.result.updatedSourceAsMap(), updateResult.result.updateSourceContentType(), null));
@@ -297,13 +302,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             assert preVersionTypes[requestIndex] != null;
         }
 
-        if (request.refresh()) {
-            try {
-                indexShard.refresh("refresh_flag_bulk");
-            } catch (Throwable e) {
-                // ignore
-            }
-        }
+        processAfter(request, indexShard, location);
         BulkItemResponse[] responses = new BulkItemResponse[request.items().length];
         BulkItemRequest[] items = request.items();
         for (int i = 0; i < items.length; i++) {
@@ -319,26 +318,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         }
     }
 
-    static class WriteResult {
-
-        final ActionWriteResponse response;
-
-        WriteResult(ActionWriteResponse response) {
-            this.response = response;
-        }
-
-        @SuppressWarnings("unchecked")
-        <T extends ActionWriteResponse> T response() {
-            // this sets total, pending and failed to 0 and this is ok, because we will embed this into the replica
-            // request and not use it
-            response.setShardInfo(new ActionWriteResponse.ShardInfo());
-            return (T) response;
-        }
-
-    }
-
     private WriteResult shardIndexOperation(BulkShardRequest request, IndexRequest indexRequest, ClusterState clusterState,
-                                            IndexShard indexShard, IndexService indexService, boolean processed) throws Throwable {
+                                            IndexShard indexShard, boolean processed) throws Throwable {
 
         // validate, if routing is required, that we got routing
         MappingMetaData mappingMd = clusterState.metaData().index(request.index()).mappingOrDefault(indexRequest.type());
@@ -352,11 +333,10 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             indexRequest.process(clusterState.metaData(), mappingMd, allowIdGeneration, request.index());
         }
 
-        final IndexResponse response = executeIndexRequestOnPrimary(request, indexRequest, indexShard);
-        return new WriteResult(response);
+        return executeIndexRequestOnPrimary(request, indexRequest, indexShard);
     }
 
-    private WriteResult shardDeleteOperation(BulkShardRequest request, DeleteRequest deleteRequest, IndexShard indexShard) {
+    private WriteResult<DeleteResponse> shardDeleteOperation(BulkShardRequest request, DeleteRequest deleteRequest, IndexShard indexShard) {
         Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version(), deleteRequest.versionType(), Engine.Operation.Origin.PRIMARY);
         indexShard.delete(delete);
         // update the request with the version so it will go to the replicas
@@ -366,7 +346,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         assert deleteRequest.versionType().validateVersionForWrites(deleteRequest.version());
 
         DeleteResponse deleteResponse = new DeleteResponse(request.index(), deleteRequest.type(), deleteRequest.id(), delete.version(), delete.found());
-        return new WriteResult(deleteResponse);
+        return new WriteResult(deleteResponse, delete.getTranslogLocation());
     }
 
     static class UpdateResult {
@@ -422,14 +402,14 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
     }
 
-    private UpdateResult shardUpdateOperation(ClusterState clusterState, BulkShardRequest bulkShardRequest, UpdateRequest updateRequest, IndexShard indexShard, IndexService indexService) {
+    private UpdateResult shardUpdateOperation(ClusterState clusterState, BulkShardRequest bulkShardRequest, UpdateRequest updateRequest, IndexShard indexShard) {
         UpdateHelper.Result translate = updateHelper.prepare(updateRequest, indexShard);
         switch (translate.operation()) {
             case UPSERT:
             case INDEX:
                 IndexRequest indexRequest = translate.action();
                 try {
-                    WriteResult result = shardIndexOperation(bulkShardRequest, indexRequest, clusterState, indexShard, indexService, false);
+                    WriteResult result = shardIndexOperation(bulkShardRequest, indexRequest, clusterState, indexShard, false);
                     return new UpdateResult(translate, indexRequest, result);
                 } catch (Throwable t) {
                     t = ExceptionsHelper.unwrapCause(t);
@@ -466,6 +446,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     protected void shardOperationOnReplica(ShardId shardId, BulkShardRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.shardSafe(shardId.id());
+        Translog.Location location = null;
         for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];
             if (item == null || item.isIgnoreOnReplica()) {
@@ -491,6 +472,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                         throw new RetryOnReplicaException(shardId, "Mappings are not available on the replica yet, triggered update: " + update);
                     }
                     operation.execute(indexShard);
+                    location = locationToSync(location, operation.getTranslogLocation());
                 } catch (Throwable e) {
                     // if its not an ignore replica failure, we need to make sure to bubble up the failure
                     // so we will fail the shard
@@ -503,6 +485,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 try {
                     Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version(), deleteRequest.versionType(), Engine.Operation.Origin.REPLICA);
                     indexShard.delete(delete);
+                    location = locationToSync(location, delete.getTranslogLocation());
                 } catch (Throwable e) {
                     // if its not an ignore replica failure, we need to make sure to bubble up the failure
                     // so we will fail the shard
@@ -515,12 +498,20 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             }
         }
 
+       processAfter(request, indexShard, location);
+    }
+
+    private void processAfter(BulkShardRequest request, IndexShard indexShard, Translog.Location location) {
         if (request.refresh()) {
             try {
                 indexShard.refresh("refresh_flag_bulk");
             } catch (Throwable e) {
                 // ignore
             }
+        }
+
+        if (indexShard.getTranslogDurability() == Translog.Durabilty.REQUEST && location != null) {
+            indexShard.sync(location);
         }
     }
 
@@ -534,5 +525,16 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         } else {
             // log?
         }
+    }
+
+    private Translog.Location locationToSync(Translog.Location current, Translog.Location next) {
+        /* here we are moving forward in the translog with each operation. Under the hood
+         * this might cross translog files which is ok since from the user perspective
+         * the translog is like a tape where only the highest location needs to be fsynced
+         * in order to sync all previous locations even though they are not in the same file.
+         * When the translog rolls over files the previous file is fsynced on after closing if needed.*/
+        assert next != null : "next operation can't be null";
+        assert current == null || current.compareTo(next) < 0 : "translog locations are not increasing";
+        return next;
     }
 }

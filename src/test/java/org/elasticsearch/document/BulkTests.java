@@ -344,7 +344,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
             );
         }
         response = builder.execute().actionGet();
-        assertThat(response.hasFailures(), equalTo(false));
+        assertThat(response.buildFailureMessage(), response.hasFailures(), equalTo(false));
         assertThat(response.getItems().length, equalTo(numDocs));
         for (int i = 0; i < numDocs; i++) {
             assertThat(response.getItems()[i].getItemId(), equalTo(i));

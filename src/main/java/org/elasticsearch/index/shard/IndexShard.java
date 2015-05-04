@@ -116,6 +116,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
@@ -1351,5 +1353,25 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public int getOperationsCount() {
         return indexShardOperationCounter.refCount();
+    }
+
+    /**
+     * Syncs the given location with the underlying storage unless already synced.
+     */
+    public void sync(Translog.Location location) {
+        final Engine engine = engine();
+        try {
+            engine.getTranslog().ensureSynced(location);
+        } catch (IOException ex) { // if this fails we are in deep shit - fail the request
+            logger.debug("failed to sync translog", ex);
+            throw new ElasticsearchException("failed to sync translog", ex);
+        }
+    }
+
+    /**
+     * Returns the current translog durability mode
+     */
+    public Translog.Durabilty getTranslogDurability() {
+       return engine().getTranslog().getDurabilty();
     }
 }

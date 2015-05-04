@@ -27,6 +27,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.Index;
@@ -42,6 +44,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -59,7 +62,7 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
-public abstract class AbstractTranslogTests extends ElasticsearchTestCase {
+public class TranslogTests extends ElasticsearchTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
@@ -101,9 +104,11 @@ public abstract class AbstractTranslogTests extends ElasticsearchTestCase {
         }
     }
 
-
-    protected abstract Translog create() throws IOException;
-
+    protected Translog create() throws IOException {
+        return new Translog(shardId,
+                ImmutableSettings.settingsBuilder().put("index.translog.fs.type", TranslogFile.Type.SIMPLE.name()).build(),
+                BigArrays.NON_RECYCLING_INSTANCE, translogDir);
+    }
 
     protected void addToTranslogAndList(Translog translog, ArrayList<Translog.Operation> list, Translog.Operation op) {
         list.add(op);
@@ -770,4 +775,59 @@ public abstract class AbstractTranslogTests extends ElasticsearchTestCase {
         }
     }
 
+
+    public void testSyncUpTo() throws IOException {
+        int translogOperations = randomIntBetween(10, 100);
+        int count = 0;
+        for (int op = 0; op < translogOperations; op++) {
+            final Translog.Location location = translog.add(new Translog.Create("test", "" + op, Integer.toString(++count).getBytes(Charset.forName("UTF-8"))));
+            if (randomBoolean()) {
+                assertTrue("at least one operation pending", translog.syncNeeded());
+                assertTrue("this operation has not been synced", translog.ensureSynced(location));
+                assertFalse("the last call to ensureSycned synced all previous ops", translog.syncNeeded()); // we are the last location so everything should be synced
+                translog.add(new Translog.Create("test", "" + op, Integer.toString(++count).getBytes(Charset.forName("UTF-8"))));
+                assertTrue("one pending operation", translog.syncNeeded());
+                assertFalse("this op has been synced before", translog.ensureSynced(location)); // not syncing now
+                assertTrue("we only synced a previous operation yet", translog.syncNeeded());
+            }
+            if (rarely()) {
+                translog.newTranslog();
+                assertFalse("location is from a previous translog - already synced", translog.ensureSynced(location)); // not syncing now
+                assertFalse("no sync needed since no operations in current translog", translog.syncNeeded());
+            }
+
+            if (randomBoolean()) {
+                translog.sync();
+                assertFalse("translog has been synced already", translog.ensureSynced(location));
+            }
+        }
+    }
+
+    public void testLocationComparison() throws IOException {
+        List<Translog.Location> locations = newArrayList();
+        int translogOperations = randomIntBetween(10, 100);
+        int count = 0;
+        for (int op = 0; op < translogOperations; op++) {
+            locations.add(translog.add(new Translog.Create("test", "" + op, Integer.toString(++count).getBytes(Charset.forName("UTF-8")))));
+            if (rarely()) {
+                translog.newTranslog();
+            }
+        }
+        Collections.shuffle(locations, random());
+        Translog.Location max = locations.get(0);
+        for (Translog.Location location : locations) {
+            max = max(max, location);
+        }
+
+        assertEquals(max.translogId, translog.currentId());
+        final Translog.Operation read = translog.read(max);
+        assertEquals(read.getSource().source.toUtf8(), Integer.toString(count));
+    }
+
+    public static Translog.Location max(Translog.Location a, Translog.Location b) {
+        if (a.compareTo(b) > 0) {
+            return a;
+        }
+        return b;
+    }
 }

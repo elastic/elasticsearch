@@ -22,12 +22,16 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
+import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 /**
  * A recovery handler that skips phase 1 as well as sending the snapshot. During phase 3 the shard is marked
@@ -37,6 +41,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
 
     private final IndexShard shard;
     private final StartRecoveryRequest request;
+    private static final Translog.View EMPTY_VIEW = new EmptyView();
 
     public SharedFSRecoverySourceHandler(IndexShard shard, StartRecoveryRequest request, RecoverySettings recoverySettings, TransportService transportService, ClusterService clusterService, IndicesService indicesService, MappingUpdatedAction mappingUpdatedAction, ESLogger logger) {
         super(shard, request, recoverySettings, transportService, clusterService, indicesService, mappingUpdatedAction, logger);
@@ -45,24 +50,78 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
     }
 
     @Override
-    public void phase1(SnapshotIndexCommit snapshot, final Translog.View translogView) {
-        if (request.recoveryType() == RecoveryState.Type.RELOCATION && shard.routingEntry().primary()) {
-            // here we simply fail the primary shard since we can't move them (have 2 writers open at the same time)
-            // by failing the shard we play safe and just go through the entire reallocation procedure of the primary
-            // it would be ideal to make sure we flushed the translog here but that is not possible in the current design.
-            IllegalStateException exception = new IllegalStateException("Can't relocate primary - failing");
-            shard.failShard("primary_relocation", exception);
-            throw exception;
+    public RecoveryResponse recoverToTarget() {
+       boolean engineClosed = false;
+        try {
+            logger.trace("{} recovery [phase1] to {}: skipping phase 1 for shared filesystem", request.shardId(), request.targetNode());
+            if (isPrimaryRelocation()) {
+                logger.debug("[phase1] closing engine on primary for shared filesystem recovery");
+                try {
+                    // if we relocate we need to close the engine in order to open a new
+                    // IndexWriter on the other end of the relocation
+                    engineClosed = true;
+                    shard.engine().flushAndClose();
+                } catch (IOException e) {
+                    logger.warn("close engine failed", e);
+                    shard.failShard("failed to close engine (phase1)", e);
+                }
+            }
+            prepareTargetForTranslog(EMPTY_VIEW);
+            finalizeRecovery();
+            return response;
+        } catch (Throwable t) {
+            if (engineClosed) {
+                // If the relocation fails then the primary is closed and can't be
+                // used anymore... (because it's closed) that's a problem, so in
+                // that case, fail the shard to reallocate a new IndexShard and
+                // create a new IndexWriter
+                logger.info("recovery failed for primary shadow shard, failing shard");
+                shard.failShard("primary relocation failed on shared filesystem", t);
+            } else {
+                logger.info("recovery failed on shared filesystem", t);
+            }
+            throw t;
         }
-        logger.trace("{} recovery [phase1] to {}: skipping phase 1 for shared filesystem", request.shardId(), request.targetNode());
-        prepareTargetForTranslog(translogView);
     }
-
 
     @Override
     protected int sendSnapshot(Translog.Snapshot snapshot) {
-        logger.trace("{} recovery [phase2] to {}: skipping transaction log operations for file sync", shard.shardId(), request.targetNode());
+        logger.trace("{} skipping recovery of translog snapshot on shared filesystem to: {}",
+                shard.shardId(), request.targetNode());
         return 0;
     }
 
+    private boolean isPrimaryRelocation() {
+        return request.recoveryType() == RecoveryState.Type.RELOCATION && shard.routingEntry().primary();
+    }
+
+    /**
+     * An empty view since we don't recover from translog even in the shared FS case
+     */
+    private static class EmptyView implements Translog.View {
+
+        @Override
+        public int totalOperations() {
+            return 0;
+        }
+
+        @Override
+        public long sizeInBytes() {
+            return 0;
+        }
+
+        @Override
+        public Translog.Snapshot snapshot() {
+            return null;
+        }
+
+        @Override
+        public long minTranslogId() {
+            return 0;
+        }
+
+        @Override
+        public void close() {
+        }
+    }
 }

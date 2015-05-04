@@ -94,7 +94,7 @@ public class RecoverySourceHandler {
     private final IndexService indexService;
     private final MappingUpdatedAction mappingUpdatedAction;
 
-    private final RecoveryResponse response;
+    protected final RecoveryResponse response;
     private final CancellableThreads cancellableThreads = new CancellableThreads() {
         @Override
         protected void onCancel(String reason, @Nullable Throwable suppressedException) {

@@ -1045,8 +1045,15 @@ public abstract class Engine implements Closeable {
 
     protected abstract SearcherManager getSearcherManager();
 
+    /**
+     * Method to close the engine while the write lock is held.
+     */
     protected abstract void closeNoLock(String reason);
 
+    /**
+     * Flush the engine (committing segments to disk and truncating the
+     * translog) and close it.
+     */
     public void flushAndClose() throws IOException {
         if (isClosed.get() == false) {
             logger.trace("flushAndClose now acquire writeLock");

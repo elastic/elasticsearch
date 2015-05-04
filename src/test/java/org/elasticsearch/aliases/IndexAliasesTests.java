@@ -195,7 +195,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
                 .get();
         assertSearchResponse(searchResponse);
         Global global = searchResponse.getAggregations().get("global");
-        Terms terms = global.getAggregations().get("test");
+        Terms terms = global.getAggregations().get("test");System.out.println(searchResponse);
         assertThat(terms.getBuckets().size(), equalTo(4));
 
         logger.info("--> checking single filtering alias search with global facets and sort");
@@ -948,7 +948,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
     @Test
     public void testAliasFilterWithNowInRangeFilterAndQuery() throws Exception {
         assertAcked(prepareCreate("my-index").addMapping("my-type", "_timestamp", "enabled=true"));
-        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1", rangeFilter("_timestamp").cache(randomBoolean()).from("now-1d").to("now")));
+        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1", rangeFilter("_timestamp").from("now-1d").to("now")));
         assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter2", queryFilter(rangeQuery("_timestamp").from("now-1d").to("now"))));
 
         final int numDocs = scaledRandomIntBetween(5, 52);

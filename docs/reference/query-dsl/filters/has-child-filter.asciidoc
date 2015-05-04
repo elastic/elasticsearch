@@ -88,9 +88,3 @@ APIS, eg:
 curl -XGET "http://localhost:9200/_stats/id_cache?pretty&human"
 --------------------------------------------------
 
-[float]
-==== Caching
-
-The `has_child` filter cannot be cached in the filter cache. The `_cache`
-and `_cache_key` options are a no-op in this filter. Also any filter that
-wraps the `has_child` filter either directly or indirectly will not be cached.

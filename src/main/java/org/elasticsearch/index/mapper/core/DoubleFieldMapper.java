@@ -31,6 +31,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
@@ -38,7 +39,6 @@ import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.ByteUtils;
@@ -202,14 +202,14 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
 
     @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return Queries.wrap(NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,
+        return new QueryWrapperFilter(NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseDoubleValue(lowerTerm),
                 upperTerm == null ? null : parseDoubleValue(upperTerm),
                 includeLower, includeUpper));
     }
 
     public Filter rangeFilter(Double lowerTerm, Double upperTerm, boolean includeLower, boolean includeUpper) {
-        return Queries.wrap(NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep, lowerTerm, upperTerm, includeLower, includeUpper));
+        return new QueryWrapperFilter(NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep, lowerTerm, upperTerm, includeLower, includeUpper));
     }
 
     @Override
@@ -225,7 +225,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
         if (nullValue == null) {
             return null;
         }
-        return Queries.wrap(NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,
+        return new QueryWrapperFilter(NumericRangeQuery.newDoubleRange(names.indexName(), precisionStep,
                 nullValue,
                 nullValue,
                 true, true));

@@ -36,10 +36,13 @@ public class CachedDfSource extends IndexSearcher {
 
     private final int maxDoc;
 
-    public CachedDfSource(IndexReader reader, AggregatedDfs aggregatedDfs, Similarity similarity) throws IOException {
+    public CachedDfSource(IndexReader reader, AggregatedDfs aggregatedDfs, Similarity similarity,
+            QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) throws IOException {
         super(reader);
         this.aggregatedDfs = aggregatedDfs;
         setSimilarity(similarity);
+        setQueryCache(queryCache);
+        setQueryCachingPolicy(queryCachingPolicy);
         if (aggregatedDfs.maxDoc() > Integer.MAX_VALUE) {
             maxDoc = Integer.MAX_VALUE;
         } else {

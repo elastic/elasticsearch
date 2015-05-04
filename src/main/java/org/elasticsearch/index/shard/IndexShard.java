@@ -555,7 +555,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         Query query = queryParserService.parseQuery(source).query();
         Filter searchFilter = mapperService.searchFilter(types);
         if (searchFilter != null) {
-            query = new FilteredQuery(query, indexCache.filter().cache(searchFilter, null, queryParserService.autoFilterCachePolicy()));
+            query = new FilteredQuery(query, searchFilter);
         }
 
         Filter aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
@@ -753,7 +753,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                         engine.flushAndClose();
                     }
                 } finally { // playing safe here and close the engine even if the above succeeds - close can be called multiple times
-                    IOUtils.close(engine);
+                    IOUtils.close(engine, shardFilterCache);
                 }
             }
         }
@@ -1291,6 +1291,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         };
         return new EngineConfig(shardId,
                 threadPool, indexingService, indexSettingsService, warmer, store, deletionPolicy, translog, mergePolicyProvider, mergeScheduler,
-                mapperAnalyzer, similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer);
+                mapperAnalyzer, similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer, indexCache.filter(), indexCache.filterPolicy());
     }
 }

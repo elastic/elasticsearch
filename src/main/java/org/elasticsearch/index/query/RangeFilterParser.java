@@ -20,14 +20,12 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -57,8 +55,6 @@ public class RangeFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
-        HashedBytesRef cacheKey = null;
         String fieldName = null;
         Object from = null;
         Object to = null;
@@ -74,6 +70,8 @@ public class RangeFilterParser implements FilterParser {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 fieldName = currentFieldName;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -112,10 +110,6 @@ public class RangeFilterParser implements FilterParser {
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
-                } else if ("_cache".equals(currentFieldName)) {
-                    cache = parseContext.parseFilterCachePolicy();
-                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new HashedBytesRef(parser.text());
                 } else if ("execution".equals(currentFieldName)) {
                     execution = parser.text();
                 } else {
@@ -174,12 +168,9 @@ public class RangeFilterParser implements FilterParser {
         }
 
         if (filter == null) {
-            filter = Queries.wrap(new TermRangeQuery(fieldName, BytesRefs.toBytesRef(from), BytesRefs.toBytesRef(to), includeLower, includeUpper));
+            filter = new QueryWrapperFilter(new TermRangeQuery(fieldName, BytesRefs.toBytesRef(from), BytesRefs.toBytesRef(to), includeLower, includeUpper));
         }
 
-        if (cache != null) {
-            filter = parseContext.cacheFilter(filter, cacheKey, cache);
-        }
 
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);

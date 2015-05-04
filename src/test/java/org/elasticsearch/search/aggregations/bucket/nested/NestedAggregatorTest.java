@@ -30,7 +30,6 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -123,7 +122,7 @@ public class NestedAggregatorTest extends ElasticsearchSingleNodeTest {
         AggregationContext context = new AggregationContext(searchContext);
 
         AggregatorFactories.Builder builder = AggregatorFactories.builder();
-        builder.addAggregator(new NestedAggregator.Factory("test", "nested_field", QueryCachingPolicy.ALWAYS_CACHE));
+        builder.addAggregator(new NestedAggregator.Factory("test", "nested_field"));
         AggregatorFactories factories = builder.build();
         searchContext.aggregations(new SearchContextAggregations(factories));
         Aggregator[] aggs = factories.createTopLevelAggregators(context);

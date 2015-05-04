@@ -27,6 +27,7 @@ import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
@@ -252,7 +253,7 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
             public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
             }
-        }, null);
+        }, null, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
 
 
         return config;

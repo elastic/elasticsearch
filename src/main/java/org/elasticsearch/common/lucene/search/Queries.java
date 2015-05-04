@@ -31,10 +31,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 
 import java.util.List;
 import java.util.regex.Pattern;
@@ -54,19 +51,19 @@ public class Queries {
     }
 
     public static Filter newMatchAllFilter() {
-        return wrap(newMatchAllQuery());
+        return new QueryWrapperFilter(newMatchAllQuery());
     }
 
     public static Filter newMatchNoDocsFilter() {
-        return wrap(newMatchNoDocsQuery());
+        return new QueryWrapperFilter(newMatchNoDocsQuery());
     }
 
     public static Filter newNestedFilter() {
-        return wrap(new PrefixQuery(new Term(TypeFieldMapper.NAME, new BytesRef("__"))));
+        return new QueryWrapperFilter(new PrefixQuery(new Term(TypeFieldMapper.NAME, new BytesRef("__"))));
     }
 
     public static Filter newNonNestedFilter() {
-        return wrap(not(newNestedFilter()));
+        return new QueryWrapperFilter(not(newNestedFilter()));
     }
 
     /** Return a query that matches all documents but those that match the given query. */
@@ -168,25 +165,5 @@ public class Queries {
         return (optionalClauseCount < result ?
                 optionalClauseCount : (result < 0 ? 0 : result));
 
-    }
-
-    /**
-     * Wraps a query in a filter.
-     *
-     * If a filter has an anti per segment execution / caching nature then @{@link CustomQueryWrappingFilter} is returned
-     * otherwise the standard {@link org.apache.lucene.search.QueryWrapperFilter} is returned.
-     */
-    @SuppressForbidden(reason = "QueryWrapperFilter cachability")
-    public static Filter wrap(Query query, QueryParseContext context) {
-        if ((context != null && context.requireCustomQueryWrappingFilter()) || CustomQueryWrappingFilter.shouldUseCustomQueryWrappingFilter(query)) {
-            return new CustomQueryWrappingFilter(query);
-        } else {
-            return new QueryWrapperFilter(query);
-        }
-    }
-
-    /** Wrap as a {@link Filter}. */
-    public static Filter wrap(Query query) {
-        return wrap(query, null);
     }
 }

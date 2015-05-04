@@ -20,8 +20,8 @@ package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
@@ -119,9 +119,12 @@ public class AggregationPhase implements SearchPhase {
         if (!globals.isEmpty()) {
             BucketCollector globalsCollector = BucketCollector.wrap(globals);
             Query query = Queries.newMatchAllQuery();
-            Filter searchFilter = context.searchFilter(context.types());
+            Query searchFilter = context.searchFilter(context.types());
             if (searchFilter != null) {
-                query = new FilteredQuery(query, searchFilter);
+                BooleanQuery filtered = new BooleanQuery();
+                filtered.add(query, Occur.MUST);
+                filtered.add(searchFilter, Occur.FILTER);
+                query = filtered;
             }
             try {
                 globalsCollector.preCollection();

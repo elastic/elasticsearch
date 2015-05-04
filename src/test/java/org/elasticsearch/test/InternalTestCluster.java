@@ -971,12 +971,9 @@ public final class InternalTestCluster extends TestCluster {
         randomlyResetClients(); /* reset all clients - each test gets its own client based on the Random instance created above. */
     }
 
-    /**
-     * Wipes any data that a test can leave behind: indices, templates and repositories
-     */
-    public void wipe() {
+    @Override
+    public void beforeIndexDeletion() {
         assertShardIndexCounter();
-        super.wipe();
     }
 
     private void assertShardIndexCounter() {
@@ -985,7 +982,7 @@ public final class InternalTestCluster extends TestCluster {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    assertThat(indexShard.getOperationsCount(), anyOf(equalTo(1)));
+                    assertThat(indexShard.getOperationsCount(), equalTo(1));
                 }
             }
         }

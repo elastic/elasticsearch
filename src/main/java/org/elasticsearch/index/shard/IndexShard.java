@@ -1251,6 +1251,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
 
+
     /**
      * Returns <code>true</code> iff this shard allows primary promotion, otherwise <code>false</code>
      */
@@ -1331,11 +1332,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         protected void alreadyClosed() {
             throw new IndexShardClosedException(shardId, "could not increment operation counter. shard is closed.");
         }
-
-        public ShardId getShardId() {
-            return shardId;
-        }
-
     }
 
     public void incrementOperationCounter() {

@@ -45,7 +45,7 @@ public class SecurityTests extends ElasticsearchTestCase {
       
         // the fake es home
         assertTrue(permissions.implies(new FilePermission(esHome.toString(), "read")));
-        // its filesystem root
+        // its parent
         assertFalse(permissions.implies(new FilePermission(path.toString(), "read")));
         // some other sibling
         assertFalse(permissions.implies(new FilePermission(path.resolve("other").toString(), "read")));

@@ -35,7 +35,7 @@ grant {
   permission java.io.FilePermission "${project.basedir}${/}target${/}classes${/}-", "read";
   permission java.io.FilePermission "${project.basedir}${/}target${/}test-classes${/}-", "read";
   // read permission for lib sigar
-  permission java.io.FilePermission "${project.basedir}${/}lib/sigar{/}-", "read";
+  permission java.io.FilePermission "${project.basedir}${/}lib${/}sigar${/}-", "read";
   // mvn custom ./m2/repository for dependency jars
   permission java.io.FilePermission "${m2.repository}${/}-", "read";
 
@@ -84,10 +84,6 @@ grant {
 
   // needed for natives calls
   permission java.lang.RuntimePermission "loadLibrary.*";
-
-  // needed for testing access rules etc
-  permission java.lang.RuntimePermission "createSecurityManager";
-  permission java.security.SecurityPermission "createPolicy.JavaPolicy";
 
   // reflection hacks:
   // needed for Striped64 (what is this doing), also enables unmap hack

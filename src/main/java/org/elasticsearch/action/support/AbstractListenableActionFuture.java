@@ -20,10 +20,10 @@
 package org.elasticsearch.action.support;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ListenableActionFuture;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
@@ -33,18 +33,14 @@ import java.util.List;
  */
 public abstract class AbstractListenableActionFuture<T, L> extends AdapterActionFuture<T, L> implements ListenableActionFuture<T> {
 
-    final boolean listenerThreaded;
+    private final static ESLogger logger = Loggers.getLogger(AbstractListenableActionFuture.class);
+
     final ThreadPool threadPool;
     volatile Object listeners;
     boolean executedListeners = false;
 
-    protected AbstractListenableActionFuture(boolean listenerThreaded, ThreadPool threadPool) {
-        this.listenerThreaded = listenerThreaded;
+    protected AbstractListenableActionFuture(ThreadPool threadPool) {
         this.threadPool = threadPool;
-    }
-
-    public boolean listenerThreaded() {
-        return false; // we control execution of the listener
     }
 
     public ThreadPool threadPool() {
@@ -57,6 +53,7 @@ public abstract class AbstractListenableActionFuture<T, L> extends AdapterAction
     }
 
     public void internalAddListener(ActionListener<T> listener) {
+        listener = new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.LISTENER, listener);
         boolean executeImmediate = false;
         synchronized (this) {
             if (executedListeners) {
@@ -101,27 +98,10 @@ public abstract class AbstractListenableActionFuture<T, L> extends AdapterAction
     }
 
     private void executeListener(final ActionListener<T> listener) {
-        if (listenerThreaded) {
-            try {
-                threadPool.executor(ThreadPool.Names.LISTENER).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            listener.onResponse(actionGet());
-                        } catch (ElasticsearchException e) {
-                            listener.onFailure(e);
-                        }
-                    }
-                });
-            } catch (EsRejectedExecutionException e) {
-                listener.onFailure(e);
-            }
-        } else {
-            try {
-                listener.onResponse(actionGet());
-            } catch (Throwable e) {
-                listener.onFailure(e);
-            }
+        try {
+            listener.onResponse(actionGet());
+        } catch (Throwable e) {
+            listener.onFailure(e);
         }
     }
 }

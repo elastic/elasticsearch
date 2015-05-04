@@ -34,6 +34,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
@@ -371,11 +372,11 @@ public class MapperService extends AbstractIndexComponent  {
                 BooleanQuery bq = new BooleanQuery();
                 bq.add(percolatorType, Occur.MUST_NOT);
                 bq.add(Queries.newNonNestedFilter(), Occur.MUST);
-                return Queries.wrap(bq);
+                return new QueryWrapperFilter(bq);
             } else if (hasNested) {
                 return Queries.newNonNestedFilter();
             } else if (filterPercolateType) {
-                return Queries.wrap(Queries.not(percolatorType));
+                return new QueryWrapperFilter(Queries.not(percolatorType));
             } else {
                 return null;
             }
@@ -384,12 +385,12 @@ public class MapperService extends AbstractIndexComponent  {
         // since they have different types (starting with __)
         if (types.length == 1) {
             DocumentMapper docMapper = documentMapper(types[0]);
-            Filter filter = docMapper != null ? docMapper.typeFilter() : Queries.wrap(new TermQuery(new Term(TypeFieldMapper.NAME, types[0])));
+            Filter filter = docMapper != null ? docMapper.typeFilter() : new QueryWrapperFilter(new TermQuery(new Term(TypeFieldMapper.NAME, types[0])));
             if (filterPercolateType) {
                 BooleanQuery bq = new BooleanQuery();
                 bq.add(percolatorType, Occur.MUST_NOT);
                 bq.add(filter, Occur.MUST);
-                return Queries.wrap(bq);
+                return new QueryWrapperFilter(bq);
             } else {
                 return filter;
             }
@@ -419,9 +420,9 @@ public class MapperService extends AbstractIndexComponent  {
                 BooleanQuery bq = new BooleanQuery();
                 bq.add(percolatorType, Occur.MUST_NOT);
                 bq.add(termsFilter, Occur.MUST);
-                return Queries.wrap(bq);
+                return new QueryWrapperFilter(bq);
             } else {
-                return Queries.wrap(termsFilter);
+                return new QueryWrapperFilter(termsFilter);
             }
         } else {
             // Current bool filter requires that at least one should clause matches, even with a must clause.
@@ -441,7 +442,7 @@ public class MapperService extends AbstractIndexComponent  {
                 bool.add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST);
             }
 
-            return Queries.wrap(bool);
+            return new QueryWrapperFilter(bool);
         }
     }
 

@@ -440,11 +440,6 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public FilterCache filterCache() {
-        return indexService.cache().filter();
-    }
-
-    @Override
     public BitsetFilterCache bitsetFilterCache() {
         return indexService.bitsetFilterCache();
     }

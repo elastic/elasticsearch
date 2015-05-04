@@ -24,6 +24,7 @@ import com.google.common.collect.Iterables;
 
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -109,7 +110,7 @@ public class IdsFilterParser implements FilterParser {
             types = parseContext.mapperService().types();
         }
 
-        Filter filter = Queries.wrap(new TermsQuery(UidFieldMapper.NAME, Uid.createTypeUids(types, ids)));
+        Filter filter = new QueryWrapperFilter(new TermsQuery(UidFieldMapper.NAME, Uid.createTypeUids(types, ids)));
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

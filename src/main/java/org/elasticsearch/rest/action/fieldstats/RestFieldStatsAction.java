@@ -57,7 +57,6 @@ public class RestFieldStatsAction extends BaseRestHandler {
         fieldStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, fieldStatsRequest.indicesOptions()));
         fieldStatsRequest.fields(Strings.splitStringByCommaToArray(request.param("fields")));
         fieldStatsRequest.level(request.param("level", FieldStatsRequest.DEFAULT_LEVEL));
-        fieldStatsRequest.listenerThreaded(false);
 
         client.fieldStats(fieldStatsRequest, new RestBuilderListener<FieldStatsResponse>(channel) {
             @Override

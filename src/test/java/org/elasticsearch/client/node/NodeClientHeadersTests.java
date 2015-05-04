@@ -42,18 +42,6 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTests {
 
     private static final ActionFilters EMPTY_FILTERS = new ActionFilters(ImmutableSet.of());
 
-    private ThreadPool threadPool;
-
-    @Before
-    public void init() {
-        threadPool = new ThreadPool("test");
-    }
-
-    @After
-    public void cleanup() throws InterruptedException {
-        terminate(threadPool);
-    }
-
     @Override
     protected Client buildClient(Settings headersSettings, GenericAction[] testedActions) {
         Settings settings = HEADER_SETTINGS;
@@ -61,8 +49,8 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTests {
         Headers headers = new Headers(settings);
         Actions actions = new Actions(settings, threadPool, testedActions);
 
-        NodeClusterAdminClient clusterClient = new NodeClusterAdminClient(threadPool, actions, headers);
-        NodeIndicesAdminClient indicesClient = new NodeIndicesAdminClient(threadPool, actions, headers);
+        NodeClusterAdminClient clusterClient = new NodeClusterAdminClient(settings, threadPool, actions, headers);
+        NodeIndicesAdminClient indicesClient = new NodeIndicesAdminClient(settings, threadPool, actions, headers);
         NodeAdminClient adminClient = new NodeAdminClient(settings, clusterClient, indicesClient);
         return new NodeClient(settings, threadPool, adminClient, actions, headers);
     }

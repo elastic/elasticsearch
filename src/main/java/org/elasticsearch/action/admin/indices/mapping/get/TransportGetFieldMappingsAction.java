@@ -64,8 +64,6 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
             boolean probablySingleFieldRequest = concreteIndices.length == 1 && request.types().length == 1 && request.fields().length == 1;
             for (final String index : concreteIndices) {
                 GetFieldMappingsIndexRequest shardRequest = new GetFieldMappingsIndexRequest(request, index, probablySingleFieldRequest);
-                // no threading needed, all is done on the index replication one
-                shardRequest.listenerThreaded(false);
                 shardAction.execute(shardRequest, new ActionListener<GetFieldMappingsResponse>() {
                     @Override
                     public void onResponse(GetFieldMappingsResponse result) {

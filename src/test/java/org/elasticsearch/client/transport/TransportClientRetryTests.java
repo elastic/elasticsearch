@@ -85,7 +85,7 @@ public class TransportClientRetryTests extends ElasticsearchIntegrationTest {
                 if (randomBoolean()) {
                     clusterState = transportClient.admin().cluster().state(clusterStateRequest).get().getState();
                 } else {
-                    PlainListenableActionFuture<ClusterStateResponse> future = new PlainListenableActionFuture<>(clusterStateRequest.listenerThreaded(), transportClient.threadPool());
+                    PlainListenableActionFuture<ClusterStateResponse> future = new PlainListenableActionFuture<>(transportClient.threadPool());
                     transportClient.admin().cluster().state(clusterStateRequest, future);
                     clusterState = future.get().getState();
                 }

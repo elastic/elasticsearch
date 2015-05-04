@@ -22,19 +22,19 @@ package org.elasticsearch.action.admin.indices.validate.query;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.QueryBuilder;
 
 /**
  *
  */
-public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilder<ValidateQueryRequest, ValidateQueryResponse, ValidateQueryRequestBuilder, IndicesAdminClient> {
+public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilder<ValidateQueryRequest, ValidateQueryResponse, ValidateQueryRequestBuilder> {
 
     private QuerySourceBuilder sourceBuilder;
 
-    public ValidateQueryRequestBuilder(IndicesAdminClient client) {
-        super(client, new ValidateQueryRequest());
+    public ValidateQueryRequestBuilder(ElasticsearchClient client, ValidateQueryAction action) {
+        super(client, action, new ValidateQueryRequest());
     }
 
     /**
@@ -94,12 +94,11 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
     }
 
     @Override
-    protected void doExecute(ActionListener<ValidateQueryResponse> listener) {
+    protected ValidateQueryRequest beforeExecute(ValidateQueryRequest request) {
         if (sourceBuilder != null) {
             request.source(sourceBuilder);
         }
-
-        client.validateQuery(request, listener);
+        return request;
     }
 
     private QuerySourceBuilder sourceBuilder() {

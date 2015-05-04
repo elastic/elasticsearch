@@ -74,7 +74,7 @@ public class MultiTermVectorsTests extends AbstractTermVectorsTests {
     @Test
     public void testMissingIndexThrowsMissingIndex() throws Exception {
         TermVectorsRequestBuilder requestBuilder = client().prepareTermVectors("testX", "typeX", Integer.toString(1));
-        MultiTermVectorsRequestBuilder mtvBuilder = new MultiTermVectorsRequestBuilder(client());
+        MultiTermVectorsRequestBuilder mtvBuilder = client().prepareMultiTermVectors();
         mtvBuilder.add(requestBuilder.request());
         MultiTermVectorsResponse response = mtvBuilder.execute().actionGet();
         assertThat(response.getResponses().length, equalTo(1));

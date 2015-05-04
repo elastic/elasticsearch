@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.action.admin.indices.IndicesAction;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class ValidateQueryAction extends IndicesAction<ValidateQueryRequest, ValidateQueryResponse, ValidateQueryRequestBuilder> {
+public class ValidateQueryAction extends Action<ValidateQueryRequest, ValidateQueryResponse, ValidateQueryRequestBuilder> {
 
     public static final ValidateQueryAction INSTANCE = new ValidateQueryAction();
     public static final String NAME = "indices:admin/validate/query";
@@ -39,7 +39,7 @@ public class ValidateQueryAction extends IndicesAction<ValidateQueryRequest, Val
     }
 
     @Override
-    public ValidateQueryRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new ValidateQueryRequestBuilder(client);
+    public ValidateQueryRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new ValidateQueryRequestBuilder(client, this);
     }
 }

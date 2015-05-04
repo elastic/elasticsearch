@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.explain;
 
-import org.elasticsearch.action.ClientAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Entry point for the explain feature.
  */
-public class ExplainAction extends ClientAction<ExplainRequest, ExplainResponse, ExplainRequestBuilder> {
+public class ExplainAction extends Action<ExplainRequest, ExplainResponse, ExplainRequestBuilder> {
 
     public static final ExplainAction INSTANCE = new ExplainAction();
     public static final String NAME = "indices:data/read/explain";
@@ -35,8 +35,8 @@ public class ExplainAction extends ClientAction<ExplainRequest, ExplainResponse,
     }
 
     @Override
-    public ExplainRequestBuilder newRequestBuilder(Client client) {
-        return new ExplainRequestBuilder(client);
+    public ExplainRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new ExplainRequestBuilder(client, this);
     }
 
     @Override

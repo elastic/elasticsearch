@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.admin.indices.warmer.get;
 
-import org.elasticsearch.action.admin.indices.IndicesAction;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Action for the admin/warmers/get API.
  */
-public class GetWarmersAction extends IndicesAction<GetWarmersRequest, GetWarmersResponse, GetWarmersRequestBuilder> {
+public class GetWarmersAction extends Action<GetWarmersRequest, GetWarmersResponse, GetWarmersRequestBuilder> {
 
     public static final GetWarmersAction INSTANCE = new GetWarmersAction();
     public static final String NAME = "indices:admin/warmers/get";
@@ -35,8 +35,8 @@ public class GetWarmersAction extends IndicesAction<GetWarmersRequest, GetWarmer
     }
 
     @Override
-    public GetWarmersRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new GetWarmersRequestBuilder(client);
+    public GetWarmersRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new GetWarmersRequestBuilder(client, this);
     }
 
     @Override

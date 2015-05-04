@@ -19,9 +19,8 @@
 
 package org.elasticsearch.action.delete;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.VersionType;
 
@@ -30,12 +29,12 @@ import org.elasticsearch.index.VersionType;
  */
 public class DeleteRequestBuilder extends ShardReplicationOperationRequestBuilder<DeleteRequest, DeleteResponse, DeleteRequestBuilder> {
 
-    public DeleteRequestBuilder(Client client) {
-        super(client, new DeleteRequest());
+    public DeleteRequestBuilder(ElasticsearchClient client, DeleteAction action) {
+        super(client, action, new DeleteRequest());
     }
 
-    public DeleteRequestBuilder(Client client, @Nullable String index) {
-        super(client, new DeleteRequest(index));
+    public DeleteRequestBuilder(ElasticsearchClient client, DeleteAction action, @Nullable String index) {
+        super(client, action, new DeleteRequest(index));
     }
 
     /**
@@ -97,10 +96,5 @@ public class DeleteRequestBuilder extends ShardReplicationOperationRequestBuilde
     public DeleteRequestBuilder setVersionType(VersionType versionType) {
         request.versionType(versionType);
         return this;
-    }
-
-    @Override
-    protected void doExecute(ActionListener<DeleteResponse> listener) {
-        client.delete(request, listener);
     }
 }

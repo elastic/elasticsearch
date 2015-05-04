@@ -20,10 +20,9 @@
 package org.elasticsearch.action.count;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -32,12 +31,12 @@ import org.elasticsearch.index.query.QueryBuilder;
 /**
  * A count action request builder.
  */
-public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountRequest, CountResponse, CountRequestBuilder, Client> {
+public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountRequest, CountResponse, CountRequestBuilder> {
 
     private QuerySourceBuilder sourceBuilder;
 
-    public CountRequestBuilder(Client client) {
-        super(client, new CountRequest());
+    public CountRequestBuilder(ElasticsearchClient client, CountAction action) {
+        super(client, action, new CountRequest());
     }
 
     /**
@@ -101,7 +100,7 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
         sourceBuilder().setQuery(queryBinary);
         return this;
     }
-    
+
     /**
      * Constructs a new builder with a raw search query.
      */
@@ -132,12 +131,11 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
     }
 
     @Override
-    protected void doExecute(ActionListener<CountResponse> listener) {
+    protected CountRequest beforeExecute(CountRequest request) {
         if (sourceBuilder != null) {
             request.source(sourceBuilder);
         }
-
-        client.count(request, listener);
+        return request;
     }
 
     private QuerySourceBuilder sourceBuilder() {
@@ -155,7 +153,7 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
         if (request.source() != null) {
             try {
                 return XContentHelper.convertToJson(request.source().toBytesArray(), false, true);
-            } catch(Exception e) {
+            } catch (Exception e) {
                 return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
             }
         }

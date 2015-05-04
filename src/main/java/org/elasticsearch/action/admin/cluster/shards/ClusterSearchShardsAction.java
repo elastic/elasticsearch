@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.cluster.shards;
 
-import org.elasticsearch.action.admin.cluster.ClusterAction;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class ClusterSearchShardsAction extends ClusterAction<ClusterSearchShardsRequest, ClusterSearchShardsResponse, ClusterSearchShardsRequestBuilder> {
+public class ClusterSearchShardsAction extends Action<ClusterSearchShardsRequest, ClusterSearchShardsResponse, ClusterSearchShardsRequestBuilder> {
 
     public static final ClusterSearchShardsAction INSTANCE = new ClusterSearchShardsAction();
     public static final String NAME = "indices:admin/shards/search_shards";
@@ -39,7 +39,7 @@ public class ClusterSearchShardsAction extends ClusterAction<ClusterSearchShards
     }
 
     @Override
-    public ClusterSearchShardsRequestBuilder newRequestBuilder(ClusterAdminClient client) {
-        return new ClusterSearchShardsRequestBuilder(client);
+    public ClusterSearchShardsRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new ClusterSearchShardsRequestBuilder(client, this);
     }
 }

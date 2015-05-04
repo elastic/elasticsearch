@@ -65,7 +65,7 @@ public class TransportClientRetryTests extends ElasticsearchIntegrationTest {
                 .put("config.ignore_system_properties", true)
                 .put("path.home", createTempDir());
 
-        try (TransportClient transportClient = new TransportClient(builder.build())) {
+        try (TransportClient transportClient = TransportClient.builder().settings(builder.build()).build()) {
             transportClient.addTransportAddresses(addresses);
             assertThat(transportClient.connectedNodes().size(), equalTo(internalCluster().size()));
 

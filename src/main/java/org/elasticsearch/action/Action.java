@@ -24,7 +24,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Base action. Supports building the <code>Request</code> through a <code>RequestBuilder</code>.
  */
-public abstract class Action<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>, Client extends ElasticsearchClient>
+public abstract class Action<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>>
         extends GenericAction<Request, Response> {
 
     protected Action(String name) {
@@ -34,5 +34,5 @@ public abstract class Action<Request extends ActionRequest, Response extends Act
     /**
      * Creates a new request builder given the client provided as argument
      */
-    public abstract RequestBuilder newRequestBuilder(Client client);
+    public abstract RequestBuilder newRequestBuilder(ElasticsearchClient client);
 }

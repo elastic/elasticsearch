@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.admin.indices.warmer.put;
 
-import org.elasticsearch.action.admin.indices.IndicesAction;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Action for the admin/warmers/put API.
  */
-public class PutWarmerAction extends IndicesAction<PutWarmerRequest, PutWarmerResponse, PutWarmerRequestBuilder> {
+public class PutWarmerAction extends Action<PutWarmerRequest, PutWarmerResponse, PutWarmerRequestBuilder> {
 
     public static final PutWarmerAction INSTANCE = new PutWarmerAction();
     public static final String NAME = "indices:admin/warmers/put";
@@ -40,7 +40,7 @@ public class PutWarmerAction extends IndicesAction<PutWarmerRequest, PutWarmerRe
     }
 
     @Override
-    public PutWarmerRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new PutWarmerRequestBuilder(client);
+    public PutWarmerRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new PutWarmerRequestBuilder(client, this);
     }
 }

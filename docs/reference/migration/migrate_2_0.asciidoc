@@ -463,3 +463,23 @@ The `index.store.distributor` setting has also been removed.
 
 The parameter `indices.analysis.hunspell.dictionary.location` has been removed,
 and `<path.conf>/hunspell` is always used. 
+
+=== Java API Transport API construction
+
+The `TransportClient` construction code has changed, it now uses the builder
+pattern. Instead of using:
+
+[source,java]
+--------------------------------------------------
+Settings settings = ImmutableSettings.settingsBuilder()
+        .put("cluster.name", "myClusterName").build();
+Client client = new TransportClient(settings);
+
+Use:
+
+[source,java]
+--------------------------------------------------
+Settings settings = ImmutableSettings.settingsBuilder()
+        .put("cluster.name", "myClusterName").build();
+Client client = TransportClient.builder().settings(settings).build();
+--------------------------------------------------

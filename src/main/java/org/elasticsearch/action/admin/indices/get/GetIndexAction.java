@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.get;
 
-import org.elasticsearch.action.admin.indices.IndicesAction;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class GetIndexAction extends IndicesAction<GetIndexRequest, GetIndexResponse, GetIndexRequestBuilder> {
+public class GetIndexAction extends Action<GetIndexRequest, GetIndexResponse, GetIndexRequestBuilder> {
 
     public static final GetIndexAction INSTANCE = new GetIndexAction();
     public static final String NAME = "indices:admin/get";
@@ -34,8 +34,8 @@ public class GetIndexAction extends IndicesAction<GetIndexRequest, GetIndexRespo
     }
 
     @Override
-    public GetIndexRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new GetIndexRequestBuilder(client);
+    public GetIndexRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new GetIndexRequestBuilder(client, this);
     }
 
     @Override

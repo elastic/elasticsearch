@@ -864,7 +864,7 @@ public final class InternalTestCluster extends TestCluster {
                     .put("config.ignore_system_properties", true)
                     .put(settings);
 
-            TransportClient client = new TransportClient(builder.build());
+            TransportClient client = TransportClient.builder().settings(builder.build()).build();
             client.addTransportAddress(addr);
             return client;
         }

@@ -161,7 +161,7 @@ public class BulkProcessorTests extends ElasticsearchIntegrationTest {
         Settings settings = ImmutableSettings.builder()
                 .put("path.home", createTempDir().toString())
                 .build();
-        Client transportClient = new TransportClient(settings);
+        Client transportClient = TransportClient.builder().settings(settings).build();
 
         int bulkActions = randomIntBetween(10, 100);
         int numDocs = randomIntBetween(bulkActions, bulkActions + 100);

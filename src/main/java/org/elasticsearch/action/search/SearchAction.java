@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ClientAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class SearchAction extends ClientAction<SearchRequest, SearchResponse, SearchRequestBuilder> {
+public class SearchAction extends Action<SearchRequest, SearchResponse, SearchRequestBuilder> {
 
     public static final SearchAction INSTANCE = new SearchAction();
     public static final String NAME = "indices:data/read/search";
@@ -39,7 +39,7 @@ public class SearchAction extends ClientAction<SearchRequest, SearchResponse, Se
     }
 
     @Override
-    public SearchRequestBuilder newRequestBuilder(Client client) {
-        return new SearchRequestBuilder(client);
+    public SearchRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new SearchRequestBuilder(client, this);
     }
 }

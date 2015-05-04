@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
-import org.elasticsearch.action.admin.indices.IndicesAction;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class RefreshAction extends IndicesAction<RefreshRequest, RefreshResponse, RefreshRequestBuilder> {
+public class RefreshAction extends Action<RefreshRequest, RefreshResponse, RefreshRequestBuilder> {
 
     public static final RefreshAction INSTANCE = new RefreshAction();
     public static final String NAME = "indices:admin/refresh";
@@ -39,7 +39,7 @@ public class RefreshAction extends IndicesAction<RefreshRequest, RefreshResponse
     }
 
     @Override
-    public RefreshRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new RefreshRequestBuilder(client);
+    public RefreshRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new RefreshRequestBuilder(client, this);
     }
 }

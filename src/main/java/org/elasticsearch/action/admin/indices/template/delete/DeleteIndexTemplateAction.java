@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.template.delete;
 
-import org.elasticsearch.action.admin.indices.IndicesAction;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class DeleteIndexTemplateAction extends IndicesAction<DeleteIndexTemplateRequest, DeleteIndexTemplateResponse, DeleteIndexTemplateRequestBuilder> {
+public class DeleteIndexTemplateAction extends Action<DeleteIndexTemplateRequest, DeleteIndexTemplateResponse, DeleteIndexTemplateRequestBuilder> {
 
     public static final DeleteIndexTemplateAction INSTANCE = new DeleteIndexTemplateAction();
     public static final String NAME = "indices:admin/template/delete";
@@ -39,7 +39,7 @@ public class DeleteIndexTemplateAction extends IndicesAction<DeleteIndexTemplate
     }
 
     @Override
-    public DeleteIndexTemplateRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new DeleteIndexTemplateRequestBuilder(client);
+    public DeleteIndexTemplateRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new DeleteIndexTemplateRequestBuilder(client, this);
     }
 }

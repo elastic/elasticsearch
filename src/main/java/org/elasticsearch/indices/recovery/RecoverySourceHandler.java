@@ -22,6 +22,8 @@ package org.elasticsearch.indices.recovery;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RateLimiter;
@@ -178,7 +180,13 @@ public class RecoverySourceHandler {
         store.incRef();
         try {
             StopWatch stopWatch = new StopWatch().start();
-            final Store.MetadataSnapshot recoverySourceMetadata = store.getMetadata(snapshot);
+            final Store.MetadataSnapshot recoverySourceMetadata;
+            try {
+                recoverySourceMetadata = store.getMetadata(snapshot);
+            } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+                shard.engine().failEngine("recovery", ex);
+                throw ex;
+            }
             for (String name : snapshot.getFiles()) {
                 final StoreFileMetaData md = recoverySourceMetadata.get(name);
                 if (md == null) {

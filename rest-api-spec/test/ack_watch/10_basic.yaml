@@ -9,12 +9,8 @@
         id: "my_watch"
         body:  > 
           {
-            "trigger": {
-              "schedule": {
-                "hourly": {
-                  "minute": [ 0, 5 ]
-                  }
-                }
+            "trigger" : {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
             },
             "input": {
               "simple": {

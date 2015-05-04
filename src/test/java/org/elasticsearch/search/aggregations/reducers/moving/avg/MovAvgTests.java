@@ -34,11 +34,11 @@ import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregat
 import org.elasticsearch.search.aggregations.reducers.BucketHelpers;
 import org.elasticsearch.search.aggregations.reducers.ReducerHelperTests;
 import org.elasticsearch.search.aggregations.reducers.SimpleValue;
-import org.elasticsearch.search.aggregations.reducers.movavg.models.DoubleExpModel;
+import org.elasticsearch.search.aggregations.reducers.movavg.models.HoltLinearModel;
 import org.elasticsearch.search.aggregations.reducers.movavg.models.LinearModel;
 import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModelBuilder;
 import org.elasticsearch.search.aggregations.reducers.movavg.models.SimpleModel;
-import org.elasticsearch.search.aggregations.reducers.movavg.models.SingleExpModel;
+import org.elasticsearch.search.aggregations.reducers.movavg.models.EwmaModel;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -83,7 +83,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
 
 
     enum MovAvgType {
-        SIMPLE ("simple"), LINEAR("linear"), SINGLE("single"), DOUBLE("double");
+        SIMPLE ("simple"), LINEAR("linear"), EWMA("ewma"), HOLT("holt");
 
         private final String name;
 
@@ -198,11 +198,11 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                 case LINEAR:
                     values.add(linear(window));
                     break;
-                case SINGLE:
-                    values.add(singleExp(window));
+                case EWMA:
+                    values.add(ewma(window));
                     break;
-                case DOUBLE:
-                    values.add(doubleExp(window));
+                case HOLT:
+                    values.add(holt(window));
                     break;
             }
 
@@ -245,12 +245,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
     }
 
     /**
-     * Single exponential moving avg
+     * Exponentionally weighted (EWMA, Single exponential) moving avg
      *
      * @param window Window of values to compute movavg for
      * @return
      */
-    private double singleExp(Collection<Double> window) {
+    private double ewma(Collection<Double> window) {
         double avg = 0;
         boolean first = true;
 
@@ -266,11 +266,11 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
     }
 
     /**
-     * Double exponential moving avg
+     * Holt-Linear (Double exponential) moving avg
      * @param window Window of values to compute movavg for
      * @return
      */
-    private double doubleExp(Collection<Double> window) {
+    private double holt(Collection<Double> window) {
         double s = 0;
         double last_s = 0;
 
@@ -410,7 +410,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void singleSingleValuedField() {
+    public void ewmaSingleValuedField() {
 
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("type")
@@ -420,12 +420,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                                 .subAggregation(metric)
                                 .subAggregation(movingAvg("movavg_counts")
                                         .window(windowSize)
-                                        .modelBuilder(new SingleExpModel.SingleExpModelBuilder().alpha(alpha))
+                                        .modelBuilder(new EwmaModel.EWMAModelBuilder().alpha(alpha))
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("_count"))
                                 .subAggregation(movingAvg("movavg_values")
                                         .window(windowSize)
-                                        .modelBuilder(new SingleExpModel.SingleExpModelBuilder().alpha(alpha))
+                                        .modelBuilder(new EwmaModel.EWMAModelBuilder().alpha(alpha))
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("the_metric"))
                 ).execute().actionGet();
@@ -438,8 +438,8 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         List<? extends Bucket> buckets = histo.getBuckets();
         assertThat("Size of buckets array is not correct.", buckets.size(), equalTo(mockHisto.size()));
 
-        List<Double> expectedCounts = testValues.get(MovAvgType.SINGLE.toString() + "_" + MetricTarget.COUNT.toString());
-        List<Double> expectedValues = testValues.get(MovAvgType.SINGLE.toString() + "_" + MetricTarget.VALUE.toString());
+        List<Double> expectedCounts = testValues.get(MovAvgType.EWMA.toString() + "_" + MetricTarget.COUNT.toString());
+        List<Double> expectedValues = testValues.get(MovAvgType.EWMA.toString() + "_" + MetricTarget.VALUE.toString());
 
         Iterator<? extends Histogram.Bucket> actualIter = buckets.iterator();
         Iterator<ReducerHelperTests.MockBucket> expectedBucketIter = mockHisto.iterator();
@@ -462,7 +462,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void doubleSingleValuedField() {
+    public void holtSingleValuedField() {
 
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("type")
@@ -472,12 +472,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                                 .subAggregation(metric)
                                 .subAggregation(movingAvg("movavg_counts")
                                         .window(windowSize)
-                                        .modelBuilder(new DoubleExpModel.DoubleExpModelBuilder().alpha(alpha).beta(beta))
+                                        .modelBuilder(new HoltLinearModel.HoltLinearModelBuilder().alpha(alpha).beta(beta))
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("_count"))
                                 .subAggregation(movingAvg("movavg_values")
                                         .window(windowSize)
-                                        .modelBuilder(new DoubleExpModel.DoubleExpModelBuilder().alpha(alpha).beta(beta))
+                                        .modelBuilder(new HoltLinearModel.HoltLinearModelBuilder().alpha(alpha).beta(beta))
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("the_metric"))
                 ).execute().actionGet();
@@ -490,8 +490,8 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         List<? extends Bucket> buckets = histo.getBuckets();
         assertThat("Size of buckets array is not correct.", buckets.size(), equalTo(mockHisto.size()));
 
-        List<Double> expectedCounts = testValues.get(MovAvgType.DOUBLE.toString() + "_" + MetricTarget.COUNT.toString());
-        List<Double> expectedValues = testValues.get(MovAvgType.DOUBLE.toString() + "_" + MetricTarget.VALUE.toString());
+        List<Double> expectedCounts = testValues.get(MovAvgType.HOLT.toString() + "_" + MetricTarget.COUNT.toString());
+        List<Double> expectedValues = testValues.get(MovAvgType.HOLT.toString() + "_" + MetricTarget.VALUE.toString());
 
         Iterator<? extends Histogram.Bucket> actualIter = buckets.iterator();
         Iterator<ReducerHelperTests.MockBucket> expectedBucketIter = mockHisto.iterator();
@@ -730,7 +730,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         currentValue = current.value();
 
         if (gapPolicy.equals(BucketHelpers.GapPolicy.SKIP)) {
-            // if we are ignoring, movavg could go up (double_exp) or stay the same (simple, linear, single_exp)
+            // if we are ignoring, movavg could go up (holt) or stay the same (simple, linear, ewma)
             assertThat(Double.compare(lastValue, currentValue), lessThanOrEqualTo(0));
         } else if (gapPolicy.equals(BucketHelpers.GapPolicy.INSERT_ZEROS)) {
             // If we insert zeros, this should always increase the moving avg since the last bucket has a real value
@@ -789,7 +789,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         currentValue = current.value();
 
         if (gapPolicy.equals(BucketHelpers.GapPolicy.SKIP)) {
-            // if we are ignoring, movavg could go up (double_exp) or stay the same (simple, linear, single_exp)
+            // if we are ignoring, movavg could go up (holt) or stay the same (simple, linear, ewma)
             assertThat(Double.compare(lastValue, currentValue), lessThanOrEqualTo(0));
         } else if (gapPolicy.equals(BucketHelpers.GapPolicy.INSERT_ZEROS)) {
             // If we insert zeros, this should always increase the moving avg since the last bucket has a real value
@@ -1055,9 +1055,9 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             case 1:
                 return new LinearModel.LinearModelBuilder();
             case 2:
-                return new SingleExpModel.SingleExpModelBuilder().alpha(alpha);
+                return new EwmaModel.EWMAModelBuilder().alpha(alpha);
             case 3:
-                return new DoubleExpModel.DoubleExpModelBuilder().alpha(alpha).beta(beta);
+                return new HoltLinearModel.HoltLinearModelBuilder().alpha(alpha).beta(beta);
             default:
                 return new SimpleModel.SimpleModelBuilder();
         }

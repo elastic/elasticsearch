@@ -33,9 +33,9 @@ import java.util.Map;
 /**
  * Calculate a exponentially weighted moving average
  */
-public class SingleExpModel extends MovAvgModel {
+public class EwmaModel extends MovAvgModel {
 
-    protected static final ParseField NAME_FIELD = new ParseField("single_exp");
+    protected static final ParseField NAME_FIELD = new ParseField("ewma");
 
     /**
      * Controls smoothing of data. Alpha = 1 retains no memory of past values
@@ -44,7 +44,7 @@ public class SingleExpModel extends MovAvgModel {
      */
     private double alpha;
 
-    public SingleExpModel(double alpha) {
+    public EwmaModel(double alpha) {
         this.alpha = alpha;
     }
 
@@ -68,7 +68,7 @@ public class SingleExpModel extends MovAvgModel {
     public static final MovAvgModelStreams.Stream STREAM = new MovAvgModelStreams.Stream() {
         @Override
         public MovAvgModel readResult(StreamInput in) throws IOException {
-            return new SingleExpModel(in.readDouble());
+            return new EwmaModel(in.readDouble());
         }
 
         @Override
@@ -98,11 +98,11 @@ public class SingleExpModel extends MovAvgModel {
                 alpha = 0.5;
             }
 
-            return new SingleExpModel(alpha);
+            return new EwmaModel(alpha);
         }
     }
 
-    public static class SingleExpModelBuilder implements MovAvgModelBuilder {
+    public static class EWMAModelBuilder implements MovAvgModelBuilder {
 
         private double alpha = 0.5;
 
@@ -115,7 +115,7 @@ public class SingleExpModel extends MovAvgModel {
          *
          * @return The builder to continue chaining
          */
-        public SingleExpModelBuilder alpha(double alpha) {
+        public EWMAModelBuilder alpha(double alpha) {
             this.alpha = alpha;
             return this;
         }

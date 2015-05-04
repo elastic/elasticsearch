@@ -21,9 +21,9 @@ A `moving_avg` aggregation looks like this in isolation:
 [source,js]
 --------------------------------------------------
 {
-    "movavg": {
+    "moving_avg": {
         "buckets_path": "the_sum",
-        "model": "double_exp",
+        "model": "holt",
         "window": 5,
         "gap_policy": "insert_zero",
         "settings": {
@@ -153,9 +153,9 @@ although typically less than the `simple` model:
 .Linear moving average with window of size 100
 image::images/reducers_movavg/linear_100window.png[]
 
-==== Single Exponential
+==== EWMA (Exponentially Weighted)
 
-The `single_exp` model is similar to the `linear` model, except older data-points become exponentially less important,
+The `ewma` model (aka "single-exponential") is similar to the `linear` model, except older data-points become exponentially less important,
 rather than linearly less important.  The speed at which the importance decays can be controlled with an `alpha`
 setting.  Small values make the weight decay slowly, which provides greater smoothing and takes into account a larger
 portion of the window.  Larger valuers make the weight decay quickly, which reduces the impact of older values on the
@@ -169,7 +169,7 @@ The default value of `alpha` is `0.5`, and the setting accepts any float from 0-
     "the_movavg":{
         "moving_avg":{
             "buckets_path": "the_sum",
-            "model" : "single_exp",
+            "model" : "ewma",
             "settings" : {
                 "alpha" : 0.5
             }
@@ -187,13 +187,13 @@ image::images/reducers_movavg/single_0.2alpha.png[]
 .Single Exponential moving average with window of size 10, alpha = 0.7
 image::images/reducers_movavg/single_0.7alpha.png[]
 
-==== Double Exponential
+==== Holt-Linear
 
-The `double_exp` model, sometimes called "Holt's Linear Trend" model, incorporates a second exponential term which
+The `holt` model (aka "double exponential") incorporates a second exponential term which
 tracks the data's trend.  Single exponential does not perform well when the data has an underlying linear trend.  The
 double exponential model calculates two values internally: a "level" and a "trend".
 
-The level calculation is similar to `single_exp`, and is an exponentially weighted view of the data.  The difference is
+The level calculation is similar to `ewma`, and is an exponentially weighted view of the data.  The difference is
 that the previously smoothed value is used instead of the raw value, which allows it to stay close to the original series.
 The trend calculation looks at the difference between the current and last value (e.g. the slope, or trend, of the
 smoothed data).  The trend value is also exponentially weighted.
@@ -208,7 +208,7 @@ The default value of `alpha` and `beta` is `0.5`, and the settings accept any fl
     "the_movavg":{
         "moving_avg":{
             "buckets_path": "the_sum",
-            "model" : "double_exp",
+            "model" : "holt",
             "settings" : {
                 "alpha" : 0.5,
                 "beta" : 0.5
@@ -217,7 +217,7 @@ The default value of `alpha` and `beta` is `0.5`, and the settings accept any fl
 }
 --------------------------------------------------
 
-In practice, the `alpha` value behaves very similarly in `double_exp` as `single_exp`: small values produce more smoothing
+In practice, the `alpha` value behaves very similarly in `holt` as `ewma`: small values produce more smoothing
 and more lag, while larger values produce closer tracking and less lag.  The value of `beta` is often difficult
 to see.  Small values emphasize long-term trends (such as a constant linear trend in the whole series), while larger
 values emphasize short-term trends.  This will become more apparently when you are predicting values.
@@ -251,14 +251,14 @@ as your buckets:
 }
 --------------------------------------------------
 
-The `simple`, `linear` and `single_exp` models all produce "flat" predictions: they essentially converge on the mean
+The `simple`, `linear` and `ewma` models all produce "flat" predictions: they essentially converge on the mean
 of the last value in the series, producing a flat:
 
 [[simple_prediction]]
 .Simple moving average with window of size 10, predict = 50
 image::images/reducers_movavg/simple_prediction.png[]
 
-In contrast, the `double_exp` model can extrapolate based on local or global constant trends.  If we set a high `beta`
+In contrast, the `holt` model can extrapolate based on local or global constant trends.  If we set a high `beta`
 value, we can extrapolate based on local constant trends (in this case the predictions head down, because the data at the end
 of the series was heading in a downward direction):
 

@@ -86,7 +86,6 @@ public class Account {
 
         transport.connect(config.smtp.host, config.smtp.port, user, password);
         try {
-
             MimeMessage message = profile.toMimeMessage(email, session);
             String mid = message.getMessageID();
             message.saveChanges();

@@ -42,7 +42,7 @@ public class EmailTest extends ElasticsearchTestCase {
         Email.AddressList bcc = randomFrom(possibleList, null);
         String subject = randomFrom("Random Subject", "", null);
         String textBody = randomFrom("Random Body", "", null);
-        String htmlBody = randomFrom("<hr/>BODY<b/><hr/>", "", null);
+        String htmlBody = randomFrom("<hr /><b>BODY</b><hr />", "", null);
         ImmutableMap<String, Attachment> attachments = null;
         ImmutableMap<String, Inline> inlines = null;
 
@@ -55,7 +55,6 @@ public class EmailTest extends ElasticsearchTestCase {
         parser.nextToken();
 
         Email parsedEmail = Email.parse(parser);
-
 
         assertThat(email.id, equalTo(parsedEmail.id));
         assertThat(email.from, equalTo(parsedEmail.from));

@@ -15,6 +15,7 @@ import org.elasticsearch.watcher.support.Variables;
 import org.elasticsearch.watcher.support.template.TemplateEngine;
 import org.elasticsearch.watcher.watch.Payload;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -33,11 +34,16 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction, EmailAc
     protected EmailAction.Result doExecute(String actionId, WatchExecutionContext ctx, Payload payload) throws Exception {
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
 
-        Email.Builder email = action.getEmail().render(templateEngine, model);
-        email.id(ctx.id().value());
-
+        Map<String, Attachment> attachmentMap = new HashMap<>();
+        Attachment.Bytes attachment = null;
         if (action.getAttachData()) {
-            Attachment.Bytes attachment = new Attachment.XContent.Yaml("data", "data.yml", new Payload.Simple(model));
+            attachment = new Attachment.XContent.Yaml("data", "data.yml", new Payload.Simple(model));
+            attachmentMap.put(attachment.id(), attachment);
+        }
+
+        Email.Builder email = action.getEmail().render(templateEngine, model, attachmentMap);
+        email.id(ctx.id().value());
+        if (attachment != null) {
             email.attach(attachment);
         }
 

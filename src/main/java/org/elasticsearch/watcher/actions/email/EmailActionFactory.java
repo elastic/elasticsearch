@@ -23,12 +23,16 @@ public class EmailActionFactory extends ActionFactory<EmailAction, EmailAction.R
 
     private final EmailService emailService;
     private final TemplateEngine templateEngine;
+    private final boolean sanitizeHtmlBodyOfEmails;
+
+    private static String SANITIZE_HTML_SETTING = "watcher.actions.email.sanitize_html";
 
     @Inject
     public EmailActionFactory(Settings settings, EmailService emailService, TemplateEngine templateEngine) {
         super(Loggers.getLogger(ExecutableEmailAction.class, settings));
         this.emailService = emailService;
         this.templateEngine = templateEngine;
+        sanitizeHtmlBodyOfEmails = settings.getAsBoolean(SANITIZE_HTML_SETTING, true);
     }
 
     @Override
@@ -38,7 +42,7 @@ public class EmailActionFactory extends ActionFactory<EmailAction, EmailAction.R
 
     @Override
     public EmailAction parseAction(String watchId, String actionId, XContentParser parser) throws IOException {
-        return EmailAction.parse(watchId, actionId, parser);
+        return EmailAction.parse(watchId, actionId, parser, sanitizeHtmlBodyOfEmails);
     }
 
     @Override

@@ -72,7 +72,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         Template htmlBody = null;
         if (randomBoolean()) {
             htmlBody = new Template("_html_body");
-            emailBuilder.htmlBody(htmlBody);
+            emailBuilder.htmlBody(htmlBody, true);
         }
         EmailTemplate email = emailBuilder.build();
 

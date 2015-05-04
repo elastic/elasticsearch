@@ -218,6 +218,7 @@ public class Email implements ToXContent {
         private String htmlBody;
         private ImmutableMap.Builder<String, Attachment> attachments = ImmutableMap.builder();
         private ImmutableMap.Builder<String, Inline> inlines = ImmutableMap.builder();
+        private boolean sanitizeHtmlBody = true;
 
         private Builder() {
         }
@@ -236,6 +237,8 @@ public class Email implements ToXContent {
             htmlBody = email.htmlBody;
             attachments.putAll(email.attachments);
             inlines.putAll(email.inlines);
+            //The builder will already have sanitized the html when the email was built originally so don't double sanitize
+            sanitizeHtmlBody = false;
             return this;
         }
 
@@ -330,7 +333,8 @@ public class Email implements ToXContent {
 
         public Email build() {
             assert id != null : "email id should not be null (should be set to the watch id";
-            return new Email(id, from, replyTo, priority, sentDate, to, cc, bcc, subject, textBody, htmlBody, attachments.build(), inlines.build());
+            ImmutableMap<String, Attachment> attachmentsMap = attachments.build();
+            return new Email(id, from, replyTo, priority, sentDate, to, cc, bcc, subject, textBody, htmlBody, attachmentsMap, inlines.build());
         }
 
     }

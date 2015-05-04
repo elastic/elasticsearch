@@ -6,13 +6,9 @@
 package org.elasticsearch.watcher.actions.email.service;
 
 import org.elasticsearch.common.base.Charsets;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.owasp.html.*;
 
-import javax.annotation.Nullable;
-import javax.annotation.ParametersAreNonnullByDefault;
 import javax.mail.Message;
 import javax.mail.MessagingException;
 import javax.mail.Session;
@@ -20,7 +16,6 @@ import javax.mail.internet.MimeBodyPart;
 import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
 import java.io.IOException;
-import java.util.List;
 import java.util.Locale;
 
 /**
@@ -92,8 +87,7 @@ public enum Profile implements ToXContent {
 
             if (email.htmlBody != null) {
                 MimeBodyPart html = new MimeBodyPart();
-                String sanitizedHtml = sanitizeHtml(email.attachments, email.htmlBody);
-                html.setText(sanitizedHtml, Charsets.UTF_8.name(), "html");
+                html.setText(email.htmlBody, Charsets.UTF_8.name(), "html");
                 alternative.addBodyPart(html);
             }
 
@@ -221,56 +215,5 @@ public enum Profile implements ToXContent {
             part.setContent(multipart, contentType);
         }
         return part;
-    }
-
-    static String sanitizeHtml(final ImmutableMap<String, Attachment> attachments, String html){
-        ElementPolicy onlyCIDImgPolicy = new AttachementVerifyElementPolicy(attachments);
-        PolicyFactory policy = Sanitizers.FORMATTING
-                .and(new HtmlPolicyBuilder()
-                        .allowElements("img", "table", "tr", "td", "style", "body", "head")
-                        .allowAttributes("src").onElements("img")
-                        .allowAttributes("class").onElements("style")
-                        .allowUrlProtocols("cid")
-                        .allowCommonInlineFormattingElements()
-                        .allowElements(onlyCIDImgPolicy, "img")
-                        .allowStyling(CssSchema.DEFAULT)
-                        .toFactory())
-                .and(Sanitizers.LINKS)
-                .and(Sanitizers.BLOCKS);
-        return policy.sanitize(html);
-    }
-
-
-
-    private static class AttachementVerifyElementPolicy implements ElementPolicy {
-
-        private final ImmutableMap<String, Attachment> attachments;
-
-        AttachementVerifyElementPolicy(ImmutableMap<String, Attachment> attchments) {
-            this.attachments = attchments;
-        }
-
-        @Nullable
-        @Override
-        public String apply(@ParametersAreNonnullByDefault String elementName, @ParametersAreNonnullByDefault List<String> attrs) {
-            if (attrs.size() == 0) {
-                return elementName;
-            }
-            for (int i = 0; i < attrs.size(); ++i) {
-                if(attrs.get(i).equals("src") && i < attrs.size() - 1) {
-                    String srcValue = attrs.get(i+1);
-                    if (!srcValue.startsWith("cid:")) {
-                        return null; //Disallow anything other than content ids
-                    }
-                    String contentId = srcValue.substring(4);
-                    if (attachments.containsKey(contentId)) {
-                        return elementName;
-                    } else {
-                        return null; //This cid wasn't found
-                    }
-                }
-            }
-            return elementName;
-        }
     }
 }

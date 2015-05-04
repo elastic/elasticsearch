@@ -113,8 +113,8 @@ public class EmailAction implements Action {
         return builder.endObject();
     }
 
-    public static EmailAction parse(String watchId, String actionId, XContentParser parser) throws IOException {
-        EmailTemplate.Parser emailParser = new EmailTemplate.Parser();
+    public static EmailAction parse(String watchId, String actionId, XContentParser parser, boolean sanitizeHtmlBody) throws IOException {
+        EmailTemplate.Parser emailParser = new EmailTemplate.Parser(sanitizeHtmlBody);
         String account = null;
         String user = null;
         Secret password = null;

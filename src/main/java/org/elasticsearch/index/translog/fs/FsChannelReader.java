@@ -45,7 +45,6 @@ public abstract class FsChannelReader implements Closeable, Comparable<FsChannel
         this.id = id;
         this.channelReference = channelReference;
         this.channel = channelReference.channel();
-        assert channelReference.assertAttach(this);
     }
 
     public long translogId() {
@@ -117,7 +116,6 @@ public abstract class FsChannelReader implements Closeable, Comparable<FsChannel
     }
 
     protected void doClose() throws IOException {
-        assert channelReference.assertDetach(this);
         channelReference.decRef();
     }
 

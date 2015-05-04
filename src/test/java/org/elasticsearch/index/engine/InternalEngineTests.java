@@ -179,42 +179,10 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        try {
-            assertTranslogNotLeaking((FsTranslog) engine.translog());
-            assertTranslogNotLeaking((FsTranslog) replicaEngine.translog());
-        } finally {
-            IOUtils.close(
-                    replicaEngine, storeReplica,
-                    engine, store);
-            terminate(threadPool);
-        }
-        assertTranslogFilesClosed();
-    }
-
-    protected void assertTranslogNotLeaking(final FsTranslog translog) throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    assertThat(translog.getUnreferenced(), emptyArray());
-                } catch (IOException e) {
-                    throw new ElasticsearchException("error while checking for unreferenced files in translog", e);
-                }
-            }
-        });
-    }
-
-    protected void assertTranslogFilesClosed() throws Exception {
-        try {
-            assertBusy(new Runnable() {
-                @Override
-                public void run() {
-                    FsTranslog.assertAllClosed();
-                }
-            });
-        } finally {
-            FsTranslog.assertForceCloseAllReferences();
-        }
+        IOUtils.close(
+                replicaEngine, storeReplica,
+                engine, store);
+        terminate(threadPool);
     }
 
 

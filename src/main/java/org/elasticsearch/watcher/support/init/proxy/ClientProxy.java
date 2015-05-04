@@ -9,6 +9,8 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -97,6 +99,11 @@ public class ClientProxy implements InitializingService.Initializable {
 
     public RefreshResponse refresh(RefreshRequest request) {
         return client.admin().indices().refresh(preProcess(request)).actionGet();
+    }
+
+    public PutIndexTemplateResponse putTemplate(PutIndexTemplateRequest request) {
+        preProcess(request);
+        return client.admin().indices().putTemplate(request).actionGet();
     }
 
     <M extends TransportMessage> M preProcess(M message) {

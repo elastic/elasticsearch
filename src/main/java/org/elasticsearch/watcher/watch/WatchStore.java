@@ -76,7 +76,7 @@ public class WatchStore extends AbstractComponent {
             try {
                 int count = loadWatches(watchesIndexMetaData.numberOfShards());
                 logger.debug("loaded [{}] watches from the watches index [{}]", count, INDEX);
-                templateUtils.ensureIndexTemplateIsLoaded(state, INDEX_TEMPLATE);
+                templateUtils.putTemplate(INDEX_TEMPLATE, null);
                 started.set(true);
             } catch (Exception e) {
                 logger.debug("failed to load watches for watch index [{}]", e, INDEX);
@@ -84,7 +84,7 @@ public class WatchStore extends AbstractComponent {
                 throw e;
             }
         } else {
-            templateUtils.ensureIndexTemplateIsLoaded(state, INDEX_TEMPLATE);
+            templateUtils.putTemplate(INDEX_TEMPLATE, null);
             started.set(true);
         }
     }

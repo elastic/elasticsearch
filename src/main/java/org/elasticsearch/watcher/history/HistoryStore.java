@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.history;
 
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -19,26 +20,28 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
+import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.format.DateTimeFormat;
 import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.support.TemplateUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -46,33 +49,93 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  */
-public class HistoryStore extends AbstractComponent {
+public class HistoryStore extends AbstractComponent implements NodeSettingsService.Listener {
 
     public static final String INDEX_PREFIX = ".watch_history-";
     public static final String DOC_TYPE = "watch_record";
     public static final String INDEX_TEMPLATE_NAME = "watch_history";
 
     static final DateTimeFormatter indexTimeFormat = DateTimeFormat.forPattern("YYYY.MM.dd");
+    private static final ImmutableSet<String> forbiddenIndexSettings = ImmutableSet.of("index.mapper.dynamic");
 
     private final ClientProxy client;
     private final TemplateUtils templateUtils;
     private final int scrollSize;
     private final TimeValue scrollTimeout;
     private final WatchRecord.Parser recordParser;
+    private final ThreadPool threadPool;
     private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     private final Lock putUpdateLock = readWriteLock.readLock();
     private final Lock stopLock = readWriteLock.writeLock();
     private final AtomicBoolean started = new AtomicBoolean(false);
 
+    private volatile Settings customIndexSettings = ImmutableSettings.EMPTY;
+
     @Inject
-    public HistoryStore(Settings settings, ClientProxy client, TemplateUtils templateUtils, WatchRecord.Parser recordParser) {
+    public HistoryStore(Settings settings, ClientProxy client, TemplateUtils templateUtils, WatchRecord.Parser recordParser,
+                        NodeSettingsService nodeSettingsService, @ClusterDynamicSettings DynamicSettings dynamicSettings,
+                        ThreadPool threadPool) {
         super(settings);
         this.client = client;
         this.templateUtils = templateUtils;
         this.recordParser = recordParser;
+        this.threadPool = threadPool;
         this.scrollTimeout = componentSettings.getAsTime("scroll.timeout", TimeValue.timeValueSeconds(30));
         this.scrollSize = componentSettings.getAsInt("scroll.size", 100);
+
+        updateHistorySettings(settings, false);
+        nodeSettingsService.addListener(this);
+        dynamicSettings.addDynamicSetting("watcher.history.index.*");
     }
+
+    @Override
+    public void onRefreshSettings(Settings settings) {
+        updateHistorySettings(settings, true);
+    }
+
+    private void updateHistorySettings(Settings settings, boolean updateIndexTemplate) {
+        Settings newSettings = ImmutableSettings.builder()
+                .put(settings.getAsSettings("watcher.history.index"))
+                .build();
+        if (newSettings.names().isEmpty()) {
+            return;
+        }
+
+        boolean changed = false;
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(customIndexSettings);
+
+        for (Map.Entry<String, String> entry : newSettings.getAsMap().entrySet()) {
+            String name = "index." + entry.getKey();
+            if (forbiddenIndexSettings.contains(name)) {
+                logger.warn("overriding the default [{}} setting is forbidden. ignoring...", name);
+                continue;
+            }
+
+            String newValue = entry.getValue();
+            String currentValue = customIndexSettings.get(name);
+            if (!newValue.equals(currentValue)) {
+                changed = true;
+                builder.put(name, newValue);
+                logger.info("changing setting [{}] from [{}] to [{}]", name, currentValue, newValue);
+            }
+        }
+
+        if (changed) {
+            customIndexSettings = builder.build();
+            if (updateIndexTemplate) {
+                // Need to fork to prevent dead lock. (We're on the cluster service update task, but the put index template
+                // needs to update the cluster state too, and because the update takes is a single threaded operation,
+                // we would then be stuck)
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        templateUtils.putTemplate(INDEX_TEMPLATE_NAME, customIndexSettings);
+                    }
+                });
+            }
+        }
+    }
+
 
     public void start() {
         started.set(true);
@@ -243,7 +306,7 @@ public class HistoryStore extends AbstractComponent {
         String[] indices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), INDEX_PREFIX + "*");
         if (indices.length == 0) {
             logger.debug("no .watch_history indices found. skipping loading awaiting watch records");
-            templateUtils.ensureIndexTemplateIsLoaded(state, INDEX_TEMPLATE_NAME);
+            templateUtils.putTemplate(INDEX_TEMPLATE_NAME, customIndexSettings);
             return Collections.emptySet();
         }
         int numPrimaryShards = 0;
@@ -292,7 +355,7 @@ public class HistoryStore extends AbstractComponent {
         } finally {
             client.clearScroll(response.getScrollId());
         }
-        templateUtils.ensureIndexTemplateIsLoaded(state, INDEX_TEMPLATE_NAME);
+        templateUtils.putTemplate(INDEX_TEMPLATE_NAME, customIndexSettings);
         return records;
     }
 

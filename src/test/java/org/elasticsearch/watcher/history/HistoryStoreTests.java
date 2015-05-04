@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.joda.time.DateTime;
@@ -25,11 +26,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.input.none.ExecutableNoneInput;
@@ -48,6 +51,7 @@ import static org.elasticsearch.watcher.test.WatcherMatchers.indexRequest;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.*;
 
 /**
@@ -58,13 +62,19 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
     private ClientProxy clientProxy;
     private TemplateUtils templateUtils;
     private WatchRecord.Parser parser;
+    private NodeSettingsService nodeSettingsService;
+    private DynamicSettings dynamicSettings;
+    private ThreadPool threadPool;
 
     @Before
     public void init() {
         clientProxy = mock(ClientProxy.class);
         templateUtils = mock(TemplateUtils.class);
         parser = mock(WatchRecord.Parser.class);
-        historyStore = new HistoryStore(ImmutableSettings.EMPTY, clientProxy, templateUtils, parser);
+        nodeSettingsService = mock(NodeSettingsService.class);
+        dynamicSettings = mock(DynamicSettings.class);
+        threadPool = mock(ThreadPool.class);
+        historyStore = new HistoryStore(ImmutableSettings.EMPTY, clientProxy, templateUtils, parser, nodeSettingsService, dynamicSettings, threadPool);
         historyStore.start();
     }
 
@@ -160,7 +170,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         Collection<WatchRecord> records = historyStore.loadRecords(cs, WatchRecord.State.AWAITS_EXECUTION);
         assertThat(records, notNullValue());
         assertThat(records, hasSize(0));
-        verify(templateUtils, times(1)).ensureIndexTemplateIsLoaded(cs, "watch_history");
+        verify(templateUtils, times(1)).putTemplate(same("watch_history"), any(Settings.class));
         verifyZeroInteractions(clientProxy);
     }
 
@@ -325,7 +335,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         assertThat(records, IsNull.notNullValue());
         assertThat(records, hasSize(0));
 
-        verify(templateUtils, times(1)).ensureIndexTemplateIsLoaded(cs, "watch_history");
+        verify(templateUtils, times(1)).putTemplate(same("watch_history"), any(Settings.class));
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
     }
 
@@ -383,7 +393,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         assertThat(records, notNullValue());
         assertThat(records, hasSize(0));
 
-        verify(templateUtils, times(1)).ensureIndexTemplateIsLoaded(cs, "watch_history");
+        verify(templateUtils, times(1)).putTemplate(same("watch_history"), any(Settings.class));
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
     }
 

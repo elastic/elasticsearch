@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.concurrent.MoreExecutors;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
@@ -27,20 +26,16 @@ import static org.mockito.Mockito.*;
  */
 public class WatcherLifeCycleServiceTest extends ElasticsearchTestCase {
 
-    private ThreadPool threadPool;
     private WatcherService watcherService;
-    private ClusterService clusterService;
-    private IndicesService indicesService;
     private WatcherLifeCycleService lifeCycleService;
 
     @Before
     public void prepareServices() {
-        threadPool = mock(ThreadPool.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor(anyString())).thenReturn(MoreExecutors.newDirectExecutorService());
         watcherService = mock(WatcherService.class);
-        clusterService = mock(ClusterService.class);
-        indicesService = mock(IndicesService.class);
-        lifeCycleService = new WatcherLifeCycleService(ImmutableSettings.EMPTY, clusterService, indicesService, threadPool, watcherService);
+        ClusterService clusterService = mock(ClusterService.class);
+        lifeCycleService = new WatcherLifeCycleService(ImmutableSettings.EMPTY, clusterService, threadPool, watcherService);
     }
 
     @Test

@@ -68,7 +68,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         watchStore.start(cs);
         assertThat(watchStore.started(), is(true));
         assertThat(watchStore.watches().size(), equalTo(0));
-        verify(templateUtils, times(1)).ensureIndexTemplateIsLoaded(cs, "watches");
+        verify(templateUtils, times(1)).putTemplate("watches", null);
         verifyZeroInteractions(clientProxy);
 
         watchStore.start(cs);
@@ -209,7 +209,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         watchStore.start(cs);
         assertThat(watchStore.started(), is(true));
         assertThat(watchStore.watches().size(), equalTo(0));
-        verify(templateUtils, times(1)).ensureIndexTemplateIsLoaded(cs, "watches");
+        verify(templateUtils, times(1)).putTemplate("watches", null);
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
         verify(clientProxy, times(1)).search(any(SearchRequest.class));
         verify(clientProxy, times(1)).clearScroll(anyString());
@@ -264,7 +264,7 @@ public class WatchStoreTests extends ElasticsearchTestCase {
         watchStore.start(cs);
         assertThat(watchStore.started(), is(true));
         assertThat(watchStore.watches().size(), equalTo(2));
-        verify(templateUtils, times(1)).ensureIndexTemplateIsLoaded(cs, "watches");
+        verify(templateUtils, times(1)).putTemplate("watches", null);
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
         verify(clientProxy, times(1)).search(any(SearchRequest.class));
         verify(clientProxy, times(2)).searchScroll(anyString(), any(TimeValue.class));

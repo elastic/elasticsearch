@@ -66,5 +66,12 @@ public class HtmlSanitizeTests extends ElasticsearchTestCase {
         assertThat(sanitizedHtml, equalTo("This was a dangerous script"));
     }
 
+    @Test
+    public void test_HtmlSanitizer_FullHtmlWithMetaString() {
+        String needsSanitation = "<html><head></head><body><h1>Hello {{ctx.metadata.name}}</h1> meta <a href='https://www.google.com/search?q={{ctx.metadata.name}}'>Testlink</a>meta</body></html>";
+        byte[] bytes = new byte[0];
+        String sanitizedHtml = Profile.sanitizeHtml(ImmutableMap.of("foo", (Attachment) new Attachment.Bytes("foo", bytes, "")), needsSanitation);
+        assertThat(sanitizedHtml, equalTo("<head></head><body><h1>Hello {{ctx.metadata.name}}</h1> meta <a href=\"https://www.google.com/search?q&#61;{{ctx.metadata.name}}\" rel=\"nofollow\">Testlink</a>meta</body>"));
+    }
 
 }

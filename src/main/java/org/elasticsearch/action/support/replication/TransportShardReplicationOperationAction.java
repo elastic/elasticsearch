@@ -552,7 +552,11 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 // shard has not been allocated yet, retry it here
                 if (retryPrimaryException(e)) {
                     logger.trace("had an error while performing operation on primary ({}), scheduling a retry.", e.getMessage());
+                    // We have to close here because when we retry we will increment get a new reference on index shard again and we do not want to
+                    // increment twice.
                     Releasables.close(indexShardReference);
+                    // We have to reset to null here because whe we retry it might be that we never get to the point where we assign a new reference
+                    // (for example, in case the operation was rejected because queue is full). In this case we would release again once one of the finish methods is called.
                     indexShardReference = null;
                     retry(e);
                     return;

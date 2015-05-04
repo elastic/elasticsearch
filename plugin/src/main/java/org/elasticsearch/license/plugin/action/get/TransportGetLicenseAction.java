@@ -26,7 +26,7 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadOperationA
     @Inject
     public TransportGetLicenseAction(Settings settings, TransportService transportService, ClusterService clusterService, LicensesManagerService licensesManagerService,
                                      ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, GetLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, GetLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters, GetLicenseRequest.class);
         this.licensesManagerService = licensesManagerService;
     }
 
@@ -36,18 +36,13 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadOperationA
     }
 
     @Override
-    protected GetLicenseRequest newRequest() {
-        return new GetLicenseRequest();
-    }
-
-    @Override
     protected GetLicenseResponse newResponse() {
         return new GetLicenseResponse();
     }
 
     @Override
     protected ClusterBlockException checkBlock(GetLicenseRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_READ, "");
     }
 
     @Override

@@ -5,24 +5,17 @@
  */
 package org.elasticsearch.license.plugin.action.get;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
 
-public class GetLicenseRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetLicenseRequest, GetLicenseResponse, GetLicenseRequestBuilder, ClusterAdminClient> {
+public class GetLicenseRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetLicenseRequest, GetLicenseResponse, GetLicenseRequestBuilder> {
 
     /**
      * Creates new get licenses request builder
      *
-     * @param clusterAdminClient cluster admin client
+     * @param client elasticsearch client
      */
-    public GetLicenseRequestBuilder(ClusterAdminClient clusterAdminClient) {
-        super(clusterAdminClient, new GetLicenseRequest());
-    }
-
-
-    @Override
-    protected void doExecute(ActionListener<GetLicenseResponse> listener) {
-        client.execute(GetLicenseAction.INSTANCE, request, listener);
+    public GetLicenseRequestBuilder(ElasticsearchClient client, GetLicenseAction action) {
+        super(client, action, new GetLicenseRequest());
     }
 }

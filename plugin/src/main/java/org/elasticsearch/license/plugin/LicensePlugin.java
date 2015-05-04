@@ -37,7 +37,7 @@ public class LicensePlugin extends AbstractPlugin {
     private final boolean isEnabled;
 
     static {
-        MetaData.registerFactory(LicensesMetaData.TYPE, LicensesMetaData.FACTORY);
+        MetaData.registerPrototype(LicensesMetaData.TYPE, LicensesMetaData.PROTO);
     }
 
     @Inject

@@ -37,7 +37,6 @@ import org.elasticsearch.transport.*;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -128,7 +127,8 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         this.transportService = transportService;
         this.lastObservedLicensesState = new AtomicReference<>(null);
         if (DiscoveryNode.masterNode(settings)) {
-            transportService.registerHandler(REGISTER_TRIAL_LICENSE_ACTION_NAME, new RegisterTrialLicenseRequestHandler());
+            transportService.registerRequestHandler(REGISTER_TRIAL_LICENSE_ACTION_NAME, RegisterTrialLicenseRequest.class,
+                    ThreadPool.Names.SAME, new RegisterTrialLicenseRequestHandler());
         }
     }
 
@@ -1087,21 +1087,12 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     /**
      * Request handler for trial license generation to master
      */
-    private class RegisterTrialLicenseRequestHandler extends BaseTransportRequestHandler<RegisterTrialLicenseRequest> {
-        @Override
-        public RegisterTrialLicenseRequest newInstance() {
-            return new RegisterTrialLicenseRequest();
-        }
+    private class RegisterTrialLicenseRequestHandler implements TransportRequestHandler<RegisterTrialLicenseRequest> {
 
         @Override
         public void messageReceived(RegisterTrialLicenseRequest request, TransportChannel channel) throws Exception {
             registerTrialLicense(request);
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 }

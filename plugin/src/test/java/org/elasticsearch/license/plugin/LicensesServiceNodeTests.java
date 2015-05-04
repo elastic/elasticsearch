@@ -10,7 +10,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationConsumerPlugin;
 import org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationPluginService;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
@@ -31,7 +31,7 @@ public class LicensesServiceNodeTests extends AbstractLicensesIntegrationTests {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(EagerLicenseRegistrationConsumerPlugin.NAME + ".trial_license_duration_in_seconds", 60 * 5)
                 .putArray("plugin.types", LicensePlugin.class.getName(), EagerLicenseRegistrationConsumerPlugin.class.getName())
-                .put(InternalNode.HTTP_ENABLED, true)
+                .put(Node.HTTP_ENABLED, true)
                 .build();
     }
 

@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
+import org.elasticsearch.license.plugin.action.put.PutLicenseAction;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
 import org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationPluginService;
@@ -32,6 +33,7 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -45,12 +47,22 @@ public abstract class AbstractLicensesIntegrationTests extends ElasticsearchInte
     private final static org.elasticsearch.common.joda.time.format.DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.printer();
     private final static DateMathParser dateMathParser = new DateMathParser(formatDateTimeFormatter, TimeUnit.MILLISECONDS);
 
-    public static String dateMathString(String time, long now) {
-        return dateTimeFormatter.print(dateMathParser.parse(time, now));
+    public static String dateMathString(String time, final long now) {
+        return dateTimeFormatter.print(dateMathParser.parse(time, new Callable<Long>() {
+            @Override
+            public Long call() throws Exception {
+                return now;
+            }
+        }));
     }
 
-    public static long dateMath(String time, long now) {
-        return dateMathParser.parse(time, now);
+    public static long dateMath(String time, final long now) {
+        return dateMathParser.parse(time, new Callable<Long>() {
+            @Override
+            public Long call() throws Exception {
+                return now;
+            }
+        });
     }
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -92,7 +104,7 @@ public abstract class AbstractLicensesIntegrationTests extends ElasticsearchInte
 
     protected void putLicense(String feature, TimeValue expiryDuration) throws Exception {
         License license1 = generateSignedLicense(feature, expiryDuration);
-        final PutLicenseResponse putLicenseResponse = new PutLicenseRequestBuilder(client().admin().cluster()).setLicense(Lists.newArrayList(license1)).get();
+        final PutLicenseResponse putLicenseResponse = new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE).setLicense(Lists.newArrayList(license1)).get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
     }

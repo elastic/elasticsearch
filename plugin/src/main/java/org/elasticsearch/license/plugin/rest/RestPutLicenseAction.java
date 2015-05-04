@@ -37,7 +37,6 @@ public class RestPutLicenseAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest();
-        putLicenseRequest.listenerThreaded(false);
         putLicenseRequest.licenses(request.content().toUtf8());
         client.admin().cluster().execute(PutLicenseAction.INSTANCE, putLicenseRequest, new LicensesAcknowledgedListener(channel));
     }

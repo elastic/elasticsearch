@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.license.plugin.action.put;
 
-import org.elasticsearch.action.admin.cluster.ClusterAction;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
-public class PutLicenseAction extends ClusterAction<PutLicenseRequest, PutLicenseResponse, PutLicenseRequestBuilder> {
+public class PutLicenseAction extends Action<PutLicenseRequest, PutLicenseResponse, PutLicenseRequestBuilder> {
 
     public static final PutLicenseAction INSTANCE = new PutLicenseAction();
     public static final String NAME = "cluster:admin/plugin/license/put";
@@ -23,7 +23,7 @@ public class PutLicenseAction extends ClusterAction<PutLicenseRequest, PutLicens
     }
 
     @Override
-    public PutLicenseRequestBuilder newRequestBuilder(ClusterAdminClient client) {
-        return new PutLicenseRequestBuilder(client);
+    public PutLicenseRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new PutLicenseRequestBuilder(client, this);
     }
 }

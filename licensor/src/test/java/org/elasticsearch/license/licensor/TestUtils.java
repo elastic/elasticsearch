@@ -19,6 +19,7 @@ import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
@@ -30,6 +31,9 @@ import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertThat;
 
 public class TestUtils {
+
+    public static final String PUBLIC_KEY_RESOURCE = "/public.key";
+    public static final String PRIVATE_KEY_RESOURCE = "/private.key";
 
     private final static FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
     private final static DateMathParser dateMathParser = new DateMathParser(formatDateTimeFormatter, TimeUnit.MILLISECONDS);
@@ -71,12 +75,22 @@ public class TestUtils {
         return builder.string();
     }
 
-    public static String dateMathString(String time, long now) {
-        return dateTimeFormatter.print(dateMathParser.parse(time, now));
+    public static String dateMathString(String time, final long now) {
+        return dateTimeFormatter.print(dateMathParser.parse(time, new Callable<Long>() {
+            @Override
+            public Long call() throws Exception {
+                return now;
+            }
+        }));
     }
 
-    public static long dateMath(String time, long now) {
-        return dateMathParser.parse(time, now);
+    public static long dateMath(String time, final long now) {
+        return dateMathParser.parse(time, new Callable<Long>() {
+            @Override
+            public Long call() throws Exception {
+                return now;
+            }
+        });
     }
 
     public static LicenseSpec generateRandomLicenseSpec() {

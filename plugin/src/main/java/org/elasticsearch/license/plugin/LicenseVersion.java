@@ -25,7 +25,7 @@ public class LicenseVersion implements Serializable {
     public static final int V_1_0_0_ID = /*00*/1000099;
     public static final int V_2_0_0_ID = /*00*/2000099;
     public static final LicenseVersion V_1_0_0 = new LicenseVersion(V_1_0_0_ID, false, License.VERSION_START, Version.V_1_4_0_Beta1);
-    public static final LicenseVersion V_2_0_0 = new LicenseVersion(V_2_0_0_ID, true, License.VERSION_START, Version.V_1_4_0_Beta1);
+    public static final LicenseVersion V_2_0_0 = new LicenseVersion(V_2_0_0_ID, true, License.VERSION_START, Version.V_2_0_0);
 
     public static final LicenseVersion CURRENT = V_2_0_0;
 

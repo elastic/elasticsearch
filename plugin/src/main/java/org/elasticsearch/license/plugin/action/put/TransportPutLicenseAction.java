@@ -29,7 +29,7 @@ public class TransportPutLicenseAction extends TransportMasterNodeOperationActio
     @Inject
     public TransportPutLicenseAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                      LicensesManagerService licensesManagerService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, PutLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, PutLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters, PutLicenseRequest.class);
         this.licensesManagerService = licensesManagerService;
     }
 
@@ -40,18 +40,13 @@ public class TransportPutLicenseAction extends TransportMasterNodeOperationActio
     }
 
     @Override
-    protected PutLicenseRequest newRequest() {
-        return new PutLicenseRequest();
-    }
-
-    @Override
     protected PutLicenseResponse newResponse() {
         return new PutLicenseResponse();
     }
 
     @Override
     protected ClusterBlockException checkBlock(PutLicenseRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, "");
     }
 
     @Override

@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.license.plugin.core;
 
+import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.core.License;
@@ -17,17 +17,18 @@ import org.elasticsearch.license.core.Licenses;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 
 /**
  * Contains metadata about registered licenses
  */
-public class LicensesMetaData implements MetaData.Custom {
+public class LicensesMetaData extends AbstractDiffable<MetaData.Custom> implements MetaData.Custom {
 
     public static final String TYPE = "licenses";
 
-    public static final Factory FACTORY = new Factory();
+    public static final LicensesMetaData PROTO = new LicensesMetaData(Collections.<License>emptyList(), Collections.<License>emptyList());
 
     private final ImmutableList<License> signedLicenses;
 
@@ -68,107 +69,87 @@ public class LicensesMetaData implements MetaData.Custom {
         return signedLicenses.hashCode() + 31 * trialLicenses.hashCode();
     }
 
-    /**
-     * Licenses metadata factory
-     */
-    public static class Factory extends MetaData.Custom.Factory<LicensesMetaData> {
+    @Override
+    public String type() {
+        return TYPE;
+    }
 
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public String type() {
-            return TYPE;
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public LicensesMetaData readFrom(StreamInput in) throws IOException {
-            List<License> signedLicenses = Licenses.readFrom(in);
-            int numTrialLicenses = in.readVInt();
-            List<License> trialLicenses = new ArrayList<>(numTrialLicenses);
-            for (int i = 0; i < numTrialLicenses; i++) {
-                trialLicenses.add(TrialLicenseUtils.fromEncodedTrialLicense(in.readString()));
-            }
-            return new LicensesMetaData(signedLicenses, trialLicenses);
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public void writeTo(LicensesMetaData licensesMetaData, StreamOutput out) throws IOException {
-            Licenses.writeTo(licensesMetaData.signedLicenses, out);
-            out.writeVInt(licensesMetaData.trialLicenses.size());
-            for (License trialLicense : licensesMetaData.trialLicenses) {
-                out.writeString(TrialLicenseUtils.toEncodedTrialLicense(trialLicense));
-            }
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public LicensesMetaData fromXContent(XContentParser parser) throws IOException {
-            List<License> trialLicenses = new ArrayList<>();
-            List<License> signedLicenses = new ArrayList<>();
-            XContentParser.Token token;
-            while (parser.currentToken() != XContentParser.Token.END_OBJECT) {
-                token = parser.nextToken();
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    String fieldName = parser.text();
-                    if (fieldName != null) {
-                        if (fieldName.equals(Fields.TRIAL_LICENSES)) {
-                            if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
-                                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                                    if (parser.currentToken().isValue()) {
-                                        trialLicenses.add(TrialLicenseUtils.fromEncodedTrialLicense(parser.text()));
-                                    }
+    @Override
+    public LicensesMetaData fromXContent(XContentParser parser) throws IOException {
+        List<License> trialLicenses = new ArrayList<>();
+        List<License> signedLicenses = new ArrayList<>();
+        XContentParser.Token token;
+        while (parser.currentToken() != XContentParser.Token.END_OBJECT) {
+            token = parser.nextToken();
+            if (token == XContentParser.Token.FIELD_NAME) {
+                String fieldName = parser.text();
+                if (fieldName != null) {
+                    if (fieldName.equals(Fields.TRIAL_LICENSES)) {
+                        if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
+                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                if (parser.currentToken().isValue()) {
+                                    trialLicenses.add(TrialLicenseUtils.fromEncodedTrialLicense(parser.text()));
                                 }
                             }
                         }
-                        if (fieldName.equals(Fields.SIGNED_LICENCES)) {
-                            if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
-                                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                                    License.Builder builder = License.builder().fromXContent(parser);
-                                    signedLicenses.add(builder.build());
-                                }
+                    }
+                    if (fieldName.equals(Fields.SIGNED_LICENCES)) {
+                        if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
+                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                License.Builder builder = License.builder().fromXContent(parser);
+                                signedLicenses.add(builder.build());
                             }
                         }
                     }
                 }
             }
-            return new LicensesMetaData(signedLicenses, trialLicenses);
         }
+        return new LicensesMetaData(signedLicenses, trialLicenses);
+    }
 
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public void toXContent(LicensesMetaData licensesMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startArray(Fields.TRIAL_LICENSES);
-            for (License trailLicense : licensesMetaData.trialLicenses) {
-                builder.value(TrialLicenseUtils.toEncodedTrialLicense(trailLicense));
-            }
-            builder.endArray();
+    @Override
+    public EnumSet<MetaData.XContentContext> context() {
+        return EnumSet.of(MetaData.XContentContext.GATEWAY);
+    }
 
-            builder.startArray(Fields.SIGNED_LICENCES);
-            for (License license : licensesMetaData.signedLicenses) {
-                license.toXContent(builder, params);
-            }
-            builder.endArray();
+    @Override
+    public void writeTo(StreamOutput streamOutput) throws IOException {
+        Licenses.writeTo(signedLicenses, streamOutput);
+        streamOutput.writeVInt(trialLicenses.size());
+        for (License trialLicense : trialLicenses) {
+            streamOutput.writeString(TrialLicenseUtils.toEncodedTrialLicense(trialLicense));
         }
+    }
 
-        @Override
-        public EnumSet<MetaData.XContentContext> context() {
-            return EnumSet.of(MetaData.XContentContext.GATEWAY);
+    @Override
+    public MetaData.Custom readFrom(StreamInput streamInput) throws IOException {
+        List<License> signedLicenses = Licenses.readFrom(streamInput);
+        int numTrialLicenses = streamInput.readVInt();
+        List<License> trialLicenses = new ArrayList<>(numTrialLicenses);
+        for (int i = 0; i < numTrialLicenses; i++) {
+            trialLicenses.add(TrialLicenseUtils.fromEncodedTrialLicense(streamInput.readString()));
         }
+        return new LicensesMetaData(signedLicenses, trialLicenses);
+    }
 
-        private final static class Fields {
-            private static final String SIGNED_LICENCES = "signed_licenses";
-            private static final String TRIAL_LICENSES = "trial_licenses";
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startArray(Fields.TRIAL_LICENSES);
+        for (License trailLicense : trialLicenses) {
+            builder.value(TrialLicenseUtils.toEncodedTrialLicense(trailLicense));
         }
+        builder.endArray();
+
+        builder.startArray(Fields.SIGNED_LICENCES);
+        for (License license : signedLicenses) {
+            license.toXContent(builder, params);
+        }
+        builder.endArray();
+        return builder;
+    }
+
+    private final static class Fields {
+        private static final String SIGNED_LICENCES = "signed_licenses";
+        private static final String TRIAL_LICENSES = "trial_licenses";
     }
 }

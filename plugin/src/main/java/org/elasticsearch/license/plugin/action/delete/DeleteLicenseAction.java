@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.license.plugin.action.delete;
 
-import org.elasticsearch.action.admin.cluster.ClusterAction;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
-public class DeleteLicenseAction extends ClusterAction<DeleteLicenseRequest, DeleteLicenseResponse, DeleteLicenseRequestBuilder> {
+public class DeleteLicenseAction extends Action<DeleteLicenseRequest, DeleteLicenseResponse, DeleteLicenseRequestBuilder> {
 
     public static final DeleteLicenseAction INSTANCE = new DeleteLicenseAction();
     public static final String NAME = "cluster:admin/plugin/license/delete";
@@ -23,7 +23,7 @@ public class DeleteLicenseAction extends ClusterAction<DeleteLicenseRequest, Del
     }
 
     @Override
-    public DeleteLicenseRequestBuilder newRequestBuilder(ClusterAdminClient client) {
-        return new DeleteLicenseRequestBuilder(client);
+    public DeleteLicenseRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new DeleteLicenseRequestBuilder(client, this);
     }
 }

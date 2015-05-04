@@ -14,4 +14,19 @@
     <properties>
         <license.basedir combine.self="override">${project.parent.basedir}</license.basedir>
     </properties>
+
+    <build>
+    <plugins>
+        <plugin>
+            <groupId>com.carrotsearch.randomizedtesting</groupId>
+            <artifactId>junit4-maven-plugin</artifactId>
+            <executions>
+                <execution>
+                    <id>tests</id>
+                    <phase/>
+                </execution>
+            </executions>
+        </plugin>
+    </plugins>
+    </build>
 </project>

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license.plugin.rest;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -34,10 +33,9 @@ public class RestDeleteLicenseAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final String[] features = Strings.splitStringByCommaToArray(request.param("features"));
         if (features.length == 0) {
-            throw new ElasticsearchIllegalArgumentException("no feature specified for license deletion");
+            throw new IllegalArgumentException("no feature specified for license deletion");
         }
         DeleteLicenseRequest deleteLicenseRequest = new DeleteLicenseRequest(features);
-        deleteLicenseRequest.listenerThreaded(false);
         client.admin().cluster().execute(DeleteLicenseAction.INSTANCE, deleteLicenseRequest, new AcknowledgedRestListener<DeleteLicenseResponse>(channel));
     }
 }

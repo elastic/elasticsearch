@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license.plugin.action.put;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,7 +37,7 @@ public class PutLicenseRequest extends AcknowledgedRequest<PutLicenseRequest> {
         try {
             return licenses(Licenses.fromSource(licenseDefinition));
         } catch (IOException e) {
-            throw new ElasticsearchIllegalArgumentException("failed to parse licenses source", e);
+            throw new IllegalArgumentException("failed to parse licenses source", e);
         }
     }
 

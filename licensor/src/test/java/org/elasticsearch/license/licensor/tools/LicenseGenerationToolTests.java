@@ -12,14 +12,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.core.Licenses;
-import org.elasticsearch.license.licensor.AbstractLicensingTestBase;
 import org.elasticsearch.license.licensor.TestUtils;
-import org.junit.BeforeClass;
-import org.junit.Rule;
+import org.junit.Before;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
-import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,17 +32,17 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 public class LicenseGenerationToolTests extends CliToolTestCase {
 
-    protected static String pubKeyPath = null;
-    protected static String priKeyPath = null;
-
-    @Rule
-    public TemporaryFolder temporaryFolder = new TemporaryFolder();
+    protected String pubKeyPath = null;
+    protected String priKeyPath = null;
+    protected Path homeDir = null;
 
 
-    @BeforeClass
-    public static void setup() throws Exception {
-        pubKeyPath = AbstractLicensingTestBase.getTestPubKeyPath();
-        priKeyPath = AbstractLicensingTestBase.getTestPriKeyPath();
+    @Before
+    public void setup() throws Exception {
+        logger.error("project.basedir [{}]", System.getProperty("project.basedir"));
+        pubKeyPath = getDataPath(TestUtils.PUBLIC_KEY_RESOURCE).toString();
+        priKeyPath = getDataPath(TestUtils.PRIVATE_KEY_RESOURCE).toString();
+        homeDir = createTempDir();
     }
 
     @Test
@@ -54,18 +50,18 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
         TestUtils.LicenseSpec inputLicenseSpec = TestUtils.generateRandomLicenseSpec();
         LicenseGeneratorTool licenseGeneratorTool = new LicenseGeneratorTool();
         Command command = licenseGeneratorTool.parse(LicenseGeneratorTool.NAME,
-                args("--license " + TestUtils.generateLicenseSpecString(Arrays.asList(inputLicenseSpec))
-                        + " --publicKeyPath " + pubKeyPath.concat("invalid")
-                        + " --privateKeyPath " + priKeyPath));
+                new String[] {"--license",  TestUtils.generateLicenseSpecString(Arrays.asList(inputLicenseSpec)),
+                        "--publicKeyPath", pubKeyPath.concat("invalid"),
+                        "--privateKeyPath", priKeyPath });
 
         assertThat(command, instanceOf(Command.Exit.class));
         Command.Exit exitCommand = (Command.Exit) command;
         assertThat(exitCommand.status(), equalTo(ExitStatus.USAGE));
 
         command = licenseGeneratorTool.parse(LicenseGeneratorTool.NAME,
-                args("--license " + TestUtils.generateLicenseSpecString(Arrays.asList(inputLicenseSpec))
-                        + " --privateKeyPath " + priKeyPath.concat("invalid")
-                        + " --publicKeyPath " + pubKeyPath));
+                new String[] {"--license", TestUtils.generateLicenseSpecString(Arrays.asList(inputLicenseSpec)),
+                        "--privateKeyPath", priKeyPath.concat("invalid"),
+                        "--publicKeyPath", pubKeyPath });
 
         assertThat(command, instanceOf(Command.Exit.class));
         exitCommand = (Command.Exit) command;
@@ -76,8 +72,8 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
     public void testParsingMissingLicenseSpec() throws Exception {
         LicenseGeneratorTool licenseGeneratorTool = new LicenseGeneratorTool();
         Command command = licenseGeneratorTool.parse(LicenseGeneratorTool.NAME,
-                args(" --publicKeyPath " + pubKeyPath
-                        + " --privateKeyPath " + priKeyPath));
+                new String[] { "--publicKeyPath", pubKeyPath,
+                        "--privateKeyPath", priKeyPath });
 
         assertThat(command, instanceOf(Command.Exit.class));
         Command.Exit exitCommand = (Command.Exit) command;
@@ -91,9 +87,9 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
         boolean pubKeyMissing = randomBoolean();
         try {
             licenseGeneratorTool.parse(LicenseGeneratorTool.NAME,
-                    args("--license " + TestUtils.generateLicenseSpecString(Arrays.asList(inputLicenseSpec))
-                            + ((!pubKeyMissing) ? " --publicKeyPath " + pubKeyPath : "")
-                            + ((pubKeyMissing) ? " --privateKeyPath " + priKeyPath : "")));
+                    new String[] { "--license", TestUtils.generateLicenseSpecString(Arrays.asList(inputLicenseSpec)),
+                            ((pubKeyMissing) ? "--privateKeyPath" : "--publicKeyPath"),
+                            ((pubKeyMissing) ? priKeyPath : pubKeyPath) });
             fail("missing argument: " + ((pubKeyMissing) ? "publicKeyPath" : "privateKeyPath") + " should throw an exception");
         } catch (MissingOptionException e) {
             assertThat(e.getMessage(), containsString((pubKeyMissing) ? "pub" : "pri"));
@@ -105,9 +101,9 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
         TestUtils.LicenseSpec inputLicenseSpec = TestUtils.generateRandomLicenseSpec();
         LicenseGeneratorTool licenseGeneratorTool = new LicenseGeneratorTool();
         Command command = licenseGeneratorTool.parse(LicenseGeneratorTool.NAME,
-                args("--license " + TestUtils.generateLicenseSpecString(Arrays.asList(inputLicenseSpec))
-                        + " --publicKeyPath " + pubKeyPath
-                        + " --privateKeyPath " + priKeyPath));
+                new String[]{"--license", TestUtils.generateLicenseSpecString(Arrays.asList(inputLicenseSpec)),
+                        "--publicKeyPath", pubKeyPath,
+                        "--privateKeyPath", priKeyPath });
 
         assertThat(command, instanceOf(LicenseGenerator.class));
         LicenseGenerator licenseGenerator = (LicenseGenerator) command;
@@ -122,14 +118,14 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
     @Test
     public void testParsingLicenseFile() throws Exception {
         TestUtils.LicenseSpec inputLicenseSpec = TestUtils.generateRandomLicenseSpec();
-        File tempFile = temporaryFolder.newFile("license_spec.json");
-        Files.write(Paths.get(tempFile.getAbsolutePath()), TestUtils.generateLicenseSpecString(Arrays.asList(inputLicenseSpec)).getBytes(StandardCharsets.UTF_8));
+        Path tempFile = createTempFile();
+        Files.write(tempFile, TestUtils.generateLicenseSpecString(Arrays.asList(inputLicenseSpec)).getBytes(StandardCharsets.UTF_8));
 
         LicenseGeneratorTool licenseGeneratorTool = new LicenseGeneratorTool();
         Command command = licenseGeneratorTool.parse(LicenseGeneratorTool.NAME,
-                args("--licenseFile " + tempFile.getAbsolutePath()
-                        + " --publicKeyPath " + pubKeyPath
-                        + " --privateKeyPath " + priKeyPath));
+                new String[] { "--licenseFile", tempFile.toAbsolutePath().toString(),
+                        "--publicKeyPath", pubKeyPath,
+                        "--privateKeyPath", priKeyPath });
 
         assertThat(command, instanceOf(LicenseGenerator.class));
         LicenseGenerator licenseGenerator = (LicenseGenerator) command;
@@ -151,9 +147,9 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
         }
         LicenseGeneratorTool licenseGeneratorTool = new LicenseGeneratorTool();
         Command command = licenseGeneratorTool.parse(LicenseGeneratorTool.NAME,
-                args("--license " + TestUtils.generateLicenseSpecString(new ArrayList<>(inputLicenseSpecs.values()))
-                        + " --publicKeyPath " + pubKeyPath
-                        + " --privateKeyPath " + priKeyPath));
+                new String[] { "--license", TestUtils.generateLicenseSpecString(new ArrayList<>(inputLicenseSpecs.values())),
+                        "--publicKeyPath", pubKeyPath,
+                        "--privateKeyPath", priKeyPath });
 
         assertThat(command, instanceOf(LicenseGenerator.class));
         LicenseGenerator licenseGenerator = (LicenseGenerator) command;
@@ -191,8 +187,9 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
 
     private String runLicenseGenerationTool(Path pubKeyPath, Path priKeyPath, Set<License> licenseSpecs, ExitStatus expectedExitStatus) throws Exception {
         CaptureOutputTerminal outputTerminal = new CaptureOutputTerminal();
+        Settings settings = ImmutableSettings.builder().put("path.home", homeDir).build();
         LicenseGenerator licenseGenerator = new LicenseGenerator(outputTerminal, pubKeyPath, priKeyPath, licenseSpecs);
-        assertThat(execute(licenseGenerator, ImmutableSettings.EMPTY), equalTo(expectedExitStatus));
+        assertThat(execute(licenseGenerator, settings), equalTo(expectedExitStatus));
         assertThat(outputTerminal.getTerminalOutput().size(), equalTo(1));
         return outputTerminal.getTerminalOutput().get(0);
     }

@@ -29,7 +29,7 @@ public class TransportDeleteLicenseAction extends TransportMasterNodeOperationAc
     @Inject
     public TransportDeleteLicenseAction(Settings settings, TransportService transportService, ClusterService clusterService, LicensesManagerService licensesManagerService,
                                         ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, DeleteLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        super(settings, DeleteLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters, DeleteLicenseRequest.class);
         this.licensesManagerService = licensesManagerService;
     }
 
@@ -39,18 +39,13 @@ public class TransportDeleteLicenseAction extends TransportMasterNodeOperationAc
     }
 
     @Override
-    protected DeleteLicenseRequest newRequest() {
-        return new DeleteLicenseRequest();
-    }
-
-    @Override
     protected DeleteLicenseResponse newResponse() {
         return new DeleteLicenseResponse();
     }
 
     @Override
     protected ClusterBlockException checkBlock(DeleteLicenseRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override

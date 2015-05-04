@@ -8,14 +8,12 @@ package org.elasticsearch.license.core;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
@@ -59,12 +57,22 @@ public class TestUtils {
         assertThat(license1.maxNodes(), equalTo(license2.maxNodes()));
     }
 
-    public static String dateMathString(String time, long now) {
-        return dateTimeFormatter.print(dateMathParser.parse(time, now));
+    public static String dateMathString(String time, final long now) {
+        return dateTimeFormatter.print(dateMathParser.parse(time, new Callable<Long>() {
+            @Override
+            public Long call() throws Exception {
+                return now;
+            }
+        }));
     }
 
-    public static long dateMath(String time, long now) {
-        return dateMathParser.parse(time, now);
+    public static long dateMath(String time, final long now) {
+        return dateMathParser.parse(time, new Callable<Long>() {
+            @Override
+            public Long call() throws Exception {
+                return now;
+            }
+        });
     }
 
     public static LicenseSpec generateRandomLicenseSpec() {

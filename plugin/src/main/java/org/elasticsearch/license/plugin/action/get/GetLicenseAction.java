@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.license.plugin.action.get;
 
-import org.elasticsearch.action.admin.cluster.ClusterAction;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
-public class GetLicenseAction extends ClusterAction<GetLicenseRequest, GetLicenseResponse, GetLicenseRequestBuilder> {
+public class GetLicenseAction extends Action<GetLicenseRequest, GetLicenseResponse, GetLicenseRequestBuilder> {
 
     public static final GetLicenseAction INSTANCE = new GetLicenseAction();
     public static final String NAME = "cluster:admin/plugin/license/get";
@@ -23,7 +23,7 @@ public class GetLicenseAction extends ClusterAction<GetLicenseRequest, GetLicens
     }
 
     @Override
-    public GetLicenseRequestBuilder newRequestBuilder(ClusterAdminClient client) {
-        return new GetLicenseRequestBuilder(client);
+    public GetLicenseRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new GetLicenseRequestBuilder(client, this);
     }
 }

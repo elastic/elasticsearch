@@ -10,8 +10,10 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
+import org.elasticsearch.license.plugin.action.get.GetLicenseAction;
 import org.elasticsearch.license.plugin.action.get.GetLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.get.GetLicenseResponse;
+import org.elasticsearch.license.plugin.action.put.PutLicenseAction;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
 import org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationConsumerPlugin;
@@ -20,7 +22,7 @@ import org.elasticsearch.license.plugin.consumer.LazyLicenseRegistrationConsumer
 import org.elasticsearch.license.plugin.consumer.LazyLicenseRegistrationPluginService;
 import org.elasticsearch.license.plugin.core.LicensesMetaData;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -57,7 +59,7 @@ public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests
                 .put(EagerLicenseRegistrationConsumerPlugin.NAME + ".trial_license_duration_in_seconds", 2)
                 .put(LazyLicenseRegistrationConsumerPlugin.NAME + ".trial_license_duration_in_seconds", 2)
                 .putArray("plugin.types", LicensePlugin.class.getName(), EagerLicenseRegistrationConsumerPlugin.class.getName(), LazyLicenseRegistrationConsumerPlugin.class.getName())
-                .put(InternalNode.HTTP_ENABLED, true);
+                .put(Node.HTTP_ENABLED, true);
     }
 
     @Test
@@ -124,7 +126,7 @@ public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests
         for (String feature : FEATURES) {
              putLicenses.add(generateSignedLicense(feature, TimeValue.timeValueMinutes(1)));
         }
-        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(cluster);
+        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(cluster, PutLicenseAction.INSTANCE);
         putLicenseRequestBuilder.setLicense(putLicenses);
         ensureGreen();
 
@@ -138,7 +140,7 @@ public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests
 
     private void getAndCheckLicense(List<License> licenses) {
         ClusterAdminClient cluster = internalCluster().client().admin().cluster();
-        final GetLicenseResponse response = new GetLicenseRequestBuilder(cluster).get();
+        final GetLicenseResponse response = new GetLicenseRequestBuilder(cluster, GetLicenseAction.INSTANCE).get();
         assertThat(response.licenses().size(), equalTo(licenses.size()));
         TestUtils.isSame(licenses, response.licenses());
 

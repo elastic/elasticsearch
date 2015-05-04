@@ -21,21 +21,21 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
 
     @Test
     public void testGeneratedLicenses() throws Exception {
-        License shieldLicense = generateSignedLicense("shield", TimeValue.timeValueHours(2 * 24));
+        License shieldLicense = generateSignedLicense("shield", TimeValue.timeValueHours(2 * 24), pubKeyPath, priKeyPath);
         assertThat(LicenseVerifier.verifyLicense(shieldLicense), equalTo(true));
     }
 
     @Test
     public void testMultipleFeatureLicenses() throws Exception {
-        License shieldLicense = generateSignedLicense("shield", TimeValue.timeValueHours(2 * 24));
-        License marvelLicense = generateSignedLicense("marvel", TimeValue.timeValueHours(2 * 24));
+        License shieldLicense = generateSignedLicense("shield", TimeValue.timeValueHours(2 * 24), pubKeyPath, priKeyPath);
+        License marvelLicense = generateSignedLicense("marvel", TimeValue.timeValueHours(2 * 24), pubKeyPath, priKeyPath);
 
         assertThat(LicenseVerifier.verifyLicenses(Arrays.asList(shieldLicense, marvelLicense)), equalTo(true));
     }
 
     @Test
     public void testLicenseTampering() throws Exception {
-        License license = generateSignedLicense("shield", TimeValue.timeValueHours(2));
+        License license = generateSignedLicense("shield", TimeValue.timeValueHours(2), pubKeyPath, priKeyPath);
 
         final License tamperedLicense = License.builder()
                 .fromLicenseSpec(license, license.signature())
@@ -54,7 +54,7 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
             licenseSpecs.add(TestUtils.generateRandomLicenseSpec());
         }
 
-        Set<License> generatedLicenses = generateSignedLicenses(licenseSpecs);
+        Set<License> generatedLicenses = generateSignedLicenses(licenseSpecs, pubKeyPath, priKeyPath);
         assertThat(generatedLicenses.size(), equalTo(n));
 
         for (License generatedLicense: generatedLicenses) {

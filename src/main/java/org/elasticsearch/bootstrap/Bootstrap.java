@@ -177,7 +177,9 @@ public class Bootstrap {
 
     private void stop() {
         try {
-            node.close();
+            if (node != null) {
+                node.close();
+            }
         } finally {
             keepAliveLatch.countDown();
         }

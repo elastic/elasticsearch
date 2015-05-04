@@ -59,7 +59,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
                 .put("client.transport.sniff", false)
                 .put("node.name", "transport_client_" + this.getTestName())
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, InternalTransportService.class.getName())
-                .put(HEADER_SETTINGS)
+                .put(headersSettings)
                 .build());
 
         client.addTransportAddress(address);
@@ -75,6 +75,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
                 .put("client.transport.nodes_sampler_interval", "1s")
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, InternalTransportService.class.getName())
                 .put(HEADER_SETTINGS)
+                .put("path.home", createTempDir().toString())
                 .build());
         try {
             client.addTransportAddress(address);

@@ -127,6 +127,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
             ImmutableSettings.Builder sb = ImmutableSettings.builder().put(entry.getValue());
             sb.put("node.name", settings.get("name") + "/" + entry.getKey());
+            sb.put("path.home", settings.get("path.home")); // pass through ES home dir
             sb.put(TRIBE_NAME, entry.getKey());
             sb.put("config.ignore_system_properties", true);
             if (sb.get("http.enabled") == null) {

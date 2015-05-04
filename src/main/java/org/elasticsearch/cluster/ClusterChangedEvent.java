@@ -174,7 +174,7 @@ public class ClusterChangedEvent {
         return nodesRemoved() || nodesAdded();
     }
 
-    public boolean newMaster() {
+    private boolean newMaster() {
         String oldMaster = previousState().getNodes().masterNodeId();
         String newMaster = state().getNodes().masterNodeId();
         if (oldMaster == null && newMaster == null) {

@@ -22,6 +22,8 @@ package org.elasticsearch.common.jna;
 import com.google.common.collect.ImmutableList;
 import com.sun.jna.Native;
 import com.sun.jna.win32.StdCallLibrary;
+
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
@@ -46,13 +48,15 @@ public class Kernel32Library {
     }
 
     private Kernel32Library() {
-        try {
-            Native.register("kernel32");
-            logger.debug("windows/Kernel32 library loaded");
-        } catch (NoClassDefFoundError e) {
-            logger.warn("JNA not found. native methods and handlers will be disabled.");
-        } catch (UnsatisfiedLinkError e) {
-            logger.warn("unable to link Windows/Kernel32 library. native methods and handlers will be disabled.");
+        if (Constants.WINDOWS) {
+            try {
+                Native.register("kernel32");
+                logger.debug("windows/Kernel32 library loaded");
+            } catch (NoClassDefFoundError e) {
+                logger.warn("JNA not found. native methods and handlers will be disabled.");
+            } catch (UnsatisfiedLinkError e) {
+                logger.warn("unable to link Windows/Kernel32 library. native methods and handlers will be disabled.");
+            }
         }
     }
 

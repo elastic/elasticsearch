@@ -144,8 +144,11 @@ public class LuceneTest extends ElasticsearchTestCase {
         }
         Lucene.cleanLuceneIndex(dir);
         if (dir.listAll().length > 0) {
-            assertEquals(dir.listAll().length, 1);
-            assertEquals(dir.listAll()[0], "write.lock");
+            for (String file : dir.listAll()) {
+                if (file.startsWith("extra") == false) {
+                    assertEquals(file, "write.lock");
+                }
+            }
         }
         dir.close();
     }
@@ -200,7 +203,7 @@ public class LuceneTest extends ElasticsearchTestCase {
         assertEquals(s.search(new TermQuery(new Term("id", "4")), 1).totalHits, 0);
 
         for (String file : dir.listAll()) {
-            assertFalse("unexpected file: " + file, file.equals("segments_3") || file.startsWith("_2"));
+            assertFalse("unexpected file: " + file, file.equals("segments_3") || file.startsWith("_2") || file.startsWith("extra"));
         }
         open.close();
         dir.close();

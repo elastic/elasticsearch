@@ -59,6 +59,7 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
             Path configDir = getDataPath("config");
             Settings settings = ImmutableSettings.builder()
                     .put("path.conf", configDir.toAbsolutePath())
+                    .put("path.home", createTempDir().toString())
                     .build();
             LogConfigurator.configure(settings);
 
@@ -87,7 +88,10 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
         Path loggingConf = tmpDir.resolve(loggingConfiguration("json"));
         Files.write(loggingConf, "{\"json\": \"foo\"}".getBytes(StandardCharsets.UTF_8));
         Environment environment = new Environment(
-                ImmutableSettings.builder().put("path.conf", tmpDir.toAbsolutePath()).build());
+                ImmutableSettings.builder()
+                    .put("path.conf", tmpDir.toAbsolutePath())
+                    .put("path.home", createTempDir().toString())
+                    .build());
 
         ImmutableSettings.Builder builder = ImmutableSettings.builder();
         LogConfigurator.resolveConfig(environment, builder);
@@ -102,7 +106,10 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
         Path loggingConf = tmpDir.resolve(loggingConfiguration("properties"));
         Files.write(loggingConf, "key: value".getBytes(StandardCharsets.UTF_8));
         Environment environment = new Environment(
-                ImmutableSettings.builder().put("path.conf", tmpDir.toAbsolutePath()).build());
+                ImmutableSettings.builder()
+                    .put("path.conf", tmpDir.toAbsolutePath())
+                    .put("path.home", createTempDir().toString())
+                    .build());
 
         ImmutableSettings.Builder builder = ImmutableSettings.builder();
         LogConfigurator.resolveConfig(environment, builder);
@@ -119,7 +126,10 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
         Files.write(loggingConf1, "yml: bar".getBytes(StandardCharsets.UTF_8));
         Files.write(loggingConf2, "yaml: bar".getBytes(StandardCharsets.UTF_8));
         Environment environment = new Environment(
-                ImmutableSettings.builder().put("path.conf", tmpDir.toAbsolutePath()).build());
+                ImmutableSettings.builder()
+                    .put("path.conf", tmpDir.toAbsolutePath())
+                    .put("path.home", createTempDir().toString())
+                    .build());
 
         ImmutableSettings.Builder builder = ImmutableSettings.builder();
         LogConfigurator.resolveConfig(environment, builder);
@@ -135,7 +145,10 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
         Path invalidSuffix = tmpDir.resolve(loggingConfiguration(randomFrom(LogConfigurator.ALLOWED_SUFFIXES)) + randomInvalidSuffix());
         Files.write(invalidSuffix, "yml: bar".getBytes(StandardCharsets.UTF_8));
         Environment environment = new Environment(
-                ImmutableSettings.builder().put("path.conf", invalidSuffix.toAbsolutePath()).build());
+                ImmutableSettings.builder()
+                    .put("path.conf", invalidSuffix.toAbsolutePath())
+                    .put("path.home", createTempDir().toString())
+                    .build());
 
         ImmutableSettings.Builder builder = ImmutableSettings.builder();
         LogConfigurator.resolveConfig(environment, builder);

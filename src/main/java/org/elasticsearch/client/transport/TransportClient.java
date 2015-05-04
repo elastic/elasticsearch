@@ -104,14 +104,6 @@ public class TransportClient extends AbstractClient {
     private final InternalTransportClient internalClient;
 
     /**
-     * Constructs a new transport client with settings loaded either from the classpath or the file system (the
-     * <tt>elasticsearch.(yml|json)</tt> files optionally prefixed with <tt>config/</tt>).
-     */
-    public TransportClient() {
-        this(ImmutableSettings.Builder.EMPTY_SETTINGS, true);
-    }
-
-    /**
      * Constructs a new transport client with explicit settings and settings loaded either from the classpath or the file
      * system (the <tt>elasticsearch.(yml|json)</tt> files optionally prefixed with <tt>config/</tt>).
      */

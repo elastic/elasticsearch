@@ -74,7 +74,7 @@ public class HunspellService extends AbstractComponent {
 
     public final static String HUNSPELL_LAZY_LOAD = "indices.analysis.hunspell.dictionary.lazy";
     public final static String HUNSPELL_IGNORE_CASE = "indices.analysis.hunspell.dictionary.ignore_case";
-    public final static String HUNSPELL_LOCATION = "indices.analysis.hunspell.dictionary.location";
+    private final static String OLD_HUNSPELL_LOCATION = "indices.analysis.hunspell.dictionary.location";
     private final LoadingCache<String, Dictionary> dictionaries;
     private final Map<String, Dictionary> knownDictionaries;
 
@@ -116,9 +116,9 @@ public class HunspellService extends AbstractComponent {
     }
 
     private Path resolveHunspellDirectory(Settings settings, Environment env) {
-        String location = settings.get(HUNSPELL_LOCATION, null);
+        String location = settings.get(OLD_HUNSPELL_LOCATION, null);
         if (location != null) {
-            return PathUtils.get(location);
+            throw new IllegalArgumentException("please, put your hunspell dictionaries under config/hunspell !");
         }
         return env.configFile().resolve("hunspell");
     }

@@ -22,6 +22,8 @@ package org.elasticsearch.common.cli;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Ignore;
 
 import java.io.IOException;
@@ -36,6 +38,16 @@ import java.util.Locale;
  */
 @Ignore
 public abstract class CliToolTestCase extends ElasticsearchTestCase {
+
+    @Before
+    public void setPathHome() {
+        System.setProperty("es.default.path.home", createTempDir().toString());
+    }
+
+    @After
+    public void clearPathHome() {
+        System.clearProperty("es.default.path.home");
+    }
 
     protected static String[] args(String command) {
         if (!Strings.hasLength(command)) {

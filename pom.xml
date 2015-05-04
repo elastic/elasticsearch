@@ -161,6 +161,12 @@
             <version>r239</version>
         </dependency>
 
+        <dependency> <!-- required for owasp to work -->
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>r05</version>
+        </dependency>
+
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-core</artifactId>
@@ -312,6 +318,7 @@
                     <artifactSet>
                         <includes>
 			    <include>com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer</include>
+                            <include>com.google.guava:guava</include>
                             <include>javax.mail:mail</include>
                             <include>javax.activation:activation</include>
                         </includes>

@@ -113,10 +113,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         boolean success = true;
         // write the state if this node is a master eligible node or if it is a data node and has shards allocated on it
         if (state.nodes().localNode().masterNode() || state.nodes().localNode().dataNode()) {
-            // check if the global state changed?
-            if (previousMetaData == null || !MetaData.isGlobalStateEquals(previousMetaData, newMetaData)) {
+            if (previousMetaData == null) {
                 try {
-                    metaStateService.writeGlobalState("changed", newMetaData);
                     // we determine if or if not we write meta data on data only nodes by looking at the shard routing
                     // and only write if a shard of this index is allocated on this node
                     // however, closed indices do not appear in the shard routing. if the meta data for a closed index is
@@ -128,11 +126,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                         for (IndexMetaData indexMetaData : newMetaData) {
                             IndexMetaData indexMetaDataOnDisk = null;
                             if (indexMetaData.state().equals(IndexMetaData.State.CLOSE)) {
-                                try {
-                                    indexMetaDataOnDisk = metaStateService.loadIndexState(indexMetaData.index());
-                                } catch (IOException ex) {
-                                    throw new ElasticsearchException("failed to load index state", ex);
-                                }
+                                indexMetaDataOnDisk = metaStateService.loadIndexState(indexMetaData.index());
                             }
                             if (indexMetaDataOnDisk != null) {
                                 previouslyWrittenIndicesBuilder.add(indexMetaDataOnDisk.index());
@@ -140,6 +134,14 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                         }
                         previouslyWrittenIndices = previouslyWrittenIndicesBuilder.addAll(previouslyWrittenIndices).build();
                     }
+                } catch (Throwable e) {
+                    success = false;
+                }
+            }
+            // check if the global state changed?
+            if (previousMetaData == null || !MetaData.isGlobalStateEquals(previousMetaData, newMetaData)) {
+                try {
+                    metaStateService.writeGlobalState("changed", newMetaData);
                 } catch (Throwable e) {
                     success = false;
                 }

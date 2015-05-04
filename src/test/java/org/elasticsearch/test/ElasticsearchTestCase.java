@@ -30,7 +30,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
 import com.google.common.base.Predicate;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -125,19 +124,6 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
 
     /** called after a test is finished, but only if succesfull */
     protected void afterIfSuccessful() throws Exception {
-    }
-
-    // TODO: Parent/child and other things does not work with the query cache
-    // We must disable query cache for both suite and test to override lucene, but LTC resets it after the suite
-
-    @BeforeClass
-    public static void disableQueryCacheSuite() {
-        IndexSearcher.setDefaultQueryCache(null);
-    }
-
-    @Before
-    public final void disableQueryCache() {
-        IndexSearcher.setDefaultQueryCache(null);
     }
 
     // setup mock filesystems for this test run. we change PathUtils

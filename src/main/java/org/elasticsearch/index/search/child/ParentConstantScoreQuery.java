@@ -34,6 +34,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.LongBitSet;
+import org.elasticsearch.common.lucene.IndexCacheableQuery;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
@@ -47,48 +48,34 @@ import java.util.Set;
 /**
  * A query that only return child documents that are linked to the parent documents that matched with the inner query.
  */
-public class ParentConstantScoreQuery extends Query {
+public class ParentConstantScoreQuery extends IndexCacheableQuery {
 
     private final ParentChildIndexFieldData parentChildIndexFieldData;
-    private Query originalParentQuery;
+    private Query parentQuery;
     private final String parentType;
     private final Filter childrenFilter;
 
-    private Query rewrittenParentQuery;
-    private IndexReader rewriteIndexReader;
-
     public ParentConstantScoreQuery(ParentChildIndexFieldData parentChildIndexFieldData, Query parentQuery, String parentType, Filter childrenFilter) {
         this.parentChildIndexFieldData = parentChildIndexFieldData;
-        this.originalParentQuery = parentQuery;
+        this.parentQuery = parentQuery;
         this.parentType = parentType;
         this.childrenFilter = childrenFilter;
     }
 
     @Override
-    // See TopChildrenQuery#rewrite
     public Query rewrite(IndexReader reader) throws IOException {
-        if (rewrittenParentQuery == null) {
-            rewrittenParentQuery = originalParentQuery.rewrite(reader);
-            rewriteIndexReader = reader;
+        Query parentRewritten = parentQuery.rewrite(reader);
+        if (parentRewritten != parentQuery) {
+            Query rewritten = new ParentConstantScoreQuery(parentChildIndexFieldData, parentRewritten, parentType, childrenFilter);
+            rewritten.setBoost(getBoost());
+            return rewritten;
         }
-        return this;
+        return super.rewrite(reader);
     }
 
     @Override
-    public Query clone() {
-        ParentConstantScoreQuery q = (ParentConstantScoreQuery) super.clone();
-        q.originalParentQuery = originalParentQuery.clone();
-        if (q.rewrittenParentQuery != null) {
-            q.rewrittenParentQuery = rewrittenParentQuery.clone();
-        }
-        return q;
-    }
-
-    @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+    public Weight doCreateWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
         IndexParentChildFieldData globalIfd = parentChildIndexFieldData.loadGlobal(searcher.getIndexReader());
-        assert rewrittenParentQuery != null;
-        assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
 
         final long maxOrd;
         List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
@@ -104,10 +91,10 @@ public class ParentConstantScoreQuery extends Query {
             return new BooleanQuery().createWeight(searcher, needsScores);
         }
 
-        final Query parentQuery = rewrittenParentQuery;
         ParentOrdsCollector collector = new ParentOrdsCollector(globalIfd, maxOrd, parentType);
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
         indexSearcher.setSimilarity(searcher.getSimilarity());
+        indexSearcher.setQueryCache(null);
         indexSearcher.search(parentQuery, collector);
 
         if (collector.parentCount() == 0) {
@@ -119,9 +106,9 @@ public class ParentConstantScoreQuery extends Query {
 
     @Override
     public int hashCode() {
-        int result = originalParentQuery.hashCode();
+        int result = super.hashCode();
+        result = 31 * result + parentQuery.hashCode();
         result = 31 * result + parentType.hashCode();
-        result = 31 * result + Float.floatToIntBits(getBoost());
         return result;
     }
 
@@ -130,18 +117,15 @@ public class ParentConstantScoreQuery extends Query {
         if (this == obj) {
             return true;
         }
-        if (obj == null || obj.getClass() != this.getClass()) {
+        if (super.equals(obj) == false) {
             return false;
         }
 
         ParentConstantScoreQuery that = (ParentConstantScoreQuery) obj;
-        if (!originalParentQuery.equals(that.originalParentQuery)) {
+        if (!parentQuery.equals(that.parentQuery)) {
             return false;
         }
         if (!parentType.equals(that.parentType)) {
-            return false;
-        }
-        if (this.getBoost() != that.getBoost()) {
             return false;
         }
         return true;
@@ -149,7 +133,7 @@ public class ParentConstantScoreQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "parent_filter[" + parentType + "](" + originalParentQuery + ')';
+        return "parent_filter[" + parentType + "](" + parentQuery + ')';
     }
 
     private final class ChildrenWeight extends Weight {

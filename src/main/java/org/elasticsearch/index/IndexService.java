@@ -22,6 +22,7 @@ package org.elasticsearch.index;
 import com.google.common.base.Function;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
+
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -146,7 +147,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         this.indicesLifecycle = (InternalIndicesLifecycle) injector.getInstance(IndicesLifecycle.class);
 
         // inject workarounds for cyclic dep
-        indexCache.filter().setIndexService(this);
         indexFieldData.setIndexService(this);
         bitSetFilterCache.setIndexService(this);
         this.nodeEnv = nodeEnv;

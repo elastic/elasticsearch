@@ -30,6 +30,7 @@ import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
@@ -216,8 +217,8 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
 
         MultiValueMode sortMode = MultiValueMode.SUM;
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, false));
-        Filter parentFilter = Queries.wrap(new TermQuery(new Term("__type", "parent")));
-        Filter childFilter = Queries.wrap(Queries.not(parentFilter));
+        Filter parentFilter = new QueryWrapperFilter(new TermQuery(new Term("__type", "parent")));
+        Filter childFilter = new QueryWrapperFilter(Queries.not(parentFilter));
         XFieldComparatorSource nestedComparatorSource = createFieldComparator("field2", sortMode, null, createNested(parentFilter, childFilter));
         ToParentBlockJoinQuery query = new ToParentBlockJoinQuery(new FilteredQuery(new MatchAllDocsQuery(), childFilter), new BitDocIdSetCachingWrapperFilter(parentFilter), ScoreMode.None);
 
@@ -251,7 +252,7 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
         assertThat(topDocs.scoreDocs[4].doc, equalTo(3));
         assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).intValue(), equalTo(9));
 
-        childFilter = Queries.wrap(new TermQuery(new Term("filter_1", "T")));
+        childFilter = new QueryWrapperFilter(new TermQuery(new Term("filter_1", "T")));
         nestedComparatorSource = createFieldComparator("field2", sortMode, null, createNested(parentFilter, childFilter));
         query = new ToParentBlockJoinQuery(
                 new FilteredQuery(new MatchAllDocsQuery(), childFilter),
@@ -328,7 +329,7 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
 
     protected void assertAvgScoreMode(Filter parentFilter, IndexSearcher searcher) throws IOException {
         MultiValueMode sortMode = MultiValueMode.AVG;
-        Filter childFilter = Queries.wrap(Queries.not(parentFilter));
+        Filter childFilter = new QueryWrapperFilter(Queries.not(parentFilter));
         XFieldComparatorSource nestedComparatorSource = createFieldComparator("field2", sortMode, -127, createNested(parentFilter, childFilter));
         Query query = new ToParentBlockJoinQuery(new FilteredQuery(new MatchAllDocsQuery(), childFilter), new BitDocIdSetCachingWrapperFilter(parentFilter), ScoreMode.None);
         Sort sort = new Sort(new SortField("field2", nestedComparatorSource));

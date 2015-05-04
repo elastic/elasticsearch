@@ -808,10 +808,10 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         ensureGreen();
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
         refresh();
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(termsFilter("field1", "value1").cacheKey("test1"))).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(termsFilter("field1", "value1"))).get();
         assertHitCount(searchResponse, 1l);
 
-        searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(termsFilter("field1", "value1").cacheKey("test1"))).get();
+        searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(termsFilter("field1", "value1"))).get();
         assertHitCount(searchResponse, 1l);
 
         searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(termsFilter("field1", "value1"))).get();

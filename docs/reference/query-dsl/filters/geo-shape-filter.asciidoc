@@ -110,12 +110,3 @@ shape:
 }
 --------------------------------------------------
 
-[float]
-==== Caching
-
-The result of the Filter is not cached by default. Setting `_cache` to
-`true` will mean the results of the Filter will be cached. Since shapes
-can contain 10s-100s of coordinates and any one differing means a new
-shape, it may make sense to only using caching when you are sure that
-the shapes will remain reasonably static.
-

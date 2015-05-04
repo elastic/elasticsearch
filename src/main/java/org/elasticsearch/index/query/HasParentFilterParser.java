@@ -20,13 +20,13 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 import org.elasticsearch.index.query.support.XContentStructure;
-import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.search.internal.SubSearchContext;
 
 import java.io.IOException;
@@ -69,6 +69,8 @@ public class HasParentFilterParser implements FilterParser {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // Usually, the query would be parsed here, but the child
                 // type may not have been extracted yet, so use the
@@ -90,10 +92,6 @@ public class HasParentFilterParser implements FilterParser {
                     parentType = parser.text();
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
-                } else if ("_cache".equals(currentFieldName)) {
-                    // noop to be backwards compatible
-                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    // noop to be backwards compatible
                 } else {
                     throw new QueryParsingException(parseContext, "[has_parent] filter does not support [" + currentFieldName + "]");
                 }
@@ -122,9 +120,9 @@ public class HasParentFilterParser implements FilterParser {
             return null;
         }
         if (filterName != null) {
-            parseContext.addNamedFilter(filterName, new CustomQueryWrappingFilter(parentQuery));
+            parseContext.addNamedFilter(filterName, new QueryWrapperFilter(parentQuery));
         }
-        return new CustomQueryWrappingFilter(parentQuery);
+        return new QueryWrapperFilter(parentQuery);
     }
 
 }

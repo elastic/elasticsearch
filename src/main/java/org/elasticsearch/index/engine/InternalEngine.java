@@ -1006,7 +1006,7 @@ public class InternalEngine extends Engine {
                     try {
                         assert isMergedSegment(reader);
                         if (warmer != null) {
-                            final Engine.Searcher searcher = new Searcher("warmer", new IndexSearcher(reader));
+                            final Engine.Searcher searcher = new Searcher("warmer", searcherFactory.newSearcher(reader, null));
                             final IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, searcher);
                             warmer.warmNewReaders(context);
                         }
@@ -1039,8 +1039,7 @@ public class InternalEngine extends Engine {
 
         @Override
         public IndexSearcher newSearcher(IndexReader reader, IndexReader previousReader) throws IOException {
-            IndexSearcher searcher = new IndexSearcher(reader);
-            searcher.setSimilarity(engineConfig.getSimilarity());
+            IndexSearcher searcher = super.newSearcher(reader, previousReader);
             if (warmer != null) {
                 // we need to pass a custom searcher that does not release anything on Engine.Search Release,
                 // we will release explicitly
@@ -1072,7 +1071,8 @@ public class InternalEngine extends Engine {
                             }
                             if (!readers.isEmpty()) {
                                 // we don't want to close the inner readers, just increase ref on them
-                                newSearcher = new IndexSearcher(new MultiReader(readers.toArray(new IndexReader[readers.size()]), false));
+                                IndexReader newReader = new MultiReader(readers.toArray(new IndexReader[readers.size()]), false);
+                                newSearcher = super.newSearcher(newReader, null);
                                 closeNewSearcher = true;
                             }
                         }

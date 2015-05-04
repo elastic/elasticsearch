@@ -20,6 +20,8 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
 
@@ -27,7 +29,7 @@ import org.elasticsearch.gateway.GatewayAllocator;
  */
 public class ShardsAllocatorModule extends AbstractModule {
 
-    public static final String EVEN_SHARD_COUNT_ALLOCATOR_KEY = "even_shard";
+    private static final String EVEN_SHARD_COUNT_ALLOCATOR_KEY = "even_shard";
 
     public static final String BALANCED_ALLOCATOR_KEY = "balanced"; // default
 
@@ -37,12 +39,10 @@ public class ShardsAllocatorModule extends AbstractModule {
 
     private Class<? extends ShardsAllocator> shardsAllocator;
 
-
     public ShardsAllocatorModule(Settings settings) {
         this.settings = settings;
         shardsAllocator = loadShardsAllocator(settings);
     }
-
 
     @Override
     protected void configure() {
@@ -56,10 +56,13 @@ public class ShardsAllocatorModule extends AbstractModule {
     private Class<? extends ShardsAllocator> loadShardsAllocator(Settings settings) {
         final Class<? extends ShardsAllocator> shardsAllocator;
         final String type = settings.get(TYPE_KEY, BALANCED_ALLOCATOR_KEY);
+
         if (BALANCED_ALLOCATOR_KEY.equals(type)) {
             shardsAllocator = BalancedShardsAllocator.class;
         } else if (EVEN_SHARD_COUNT_ALLOCATOR_KEY.equals(type)) {
-            shardsAllocator = EvenShardsCountAllocator.class;
+            final ESLogger logger = Loggers.getLogger(getClass(), settings);
+            logger.warn("{} allocator has been removed in 2.0 using {} instead", EVEN_SHARD_COUNT_ALLOCATOR_KEY, BALANCED_ALLOCATOR_KEY);
+            shardsAllocator = BalancedShardsAllocator.class;
         } else {
             shardsAllocator = settings.getAsClass(TYPE_KEY, BalancedShardsAllocator.class,
                     "org.elasticsearch.cluster.routing.allocation.allocator.", "Allocator");

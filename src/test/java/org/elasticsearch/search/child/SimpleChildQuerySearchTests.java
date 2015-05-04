@@ -38,7 +38,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.cache.filter.FilterCacheModule.FilterCacheSettings;
-import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
+import org.elasticsearch.index.cache.filter.index.IndexFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.mapper.MergeMappingException;
@@ -73,9 +73,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
-import static org.elasticsearch.common.settings.ImmutableSettings.builder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.boolFilter;
@@ -106,7 +104,14 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  *
@@ -118,7 +123,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 // aggressive filter caching so that we can assert on the filter cache size
-                .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, WeightedFilterCache.class)
+                .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, IndexFilterCache.class)
                 .put(FilterCacheSettings.FILTER_CACHE_EVERYTHING, true)
                 .build();
     }
@@ -418,15 +423,15 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         for (int i = 1; i <= 10; i++) {
             logger.info("Round {}", i);
             SearchResponse searchResponse = client().prepareSearch("test")
-                    .setQuery(constantScoreQuery(queryFilter(topChildrenQuery("child", matchAllQuery())).cache(true))).execute()
+                    .setQuery(constantScoreQuery(queryFilter(topChildrenQuery("child", matchAllQuery())))).execute()
                     .actionGet();
             assertNoFailures(searchResponse);
             searchResponse = client().prepareSearch("test")
-                    .setQuery(constantScoreQuery(queryFilter(hasChildQuery("child", matchAllQuery()).scoreType("max")).cache(true)))
+                    .setQuery(constantScoreQuery(queryFilter(hasChildQuery("child", matchAllQuery()).scoreType("max"))))
                     .get();
             assertNoFailures(searchResponse);
             searchResponse = client().prepareSearch("test")
-                    .setQuery(constantScoreQuery(queryFilter(hasParentQuery("parent", matchAllQuery()).scoreType("score")).cache(true)))
+                    .setQuery(constantScoreQuery(queryFilter(hasParentQuery("parent", matchAllQuery()).scoreType("score"))))
                     .get();
             assertNoFailures(searchResponse);
         }
@@ -843,7 +848,8 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreType("max"))
                 .get();
         assertThat(explainResponse.isExists(), equalTo(true));
-        assertThat(explainResponse.getExplanation().toString(), equalTo("1.0 = sum of:\n  1.0 = not implemented yet...\n  0.0 = match on required clause, product of:\n    0.0 = # clause\n    0.0 = Match on id 0\n"));
+        // TODO: improve test once explanations are actually implemented
+        assertThat(explainResponse.getExplanation().toString(), startsWith("1.0 ="));
     }
 
     List<IndexRequestBuilder> createDocBuilders() {
@@ -1083,41 +1089,6 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch("test")
                 .setQuery(filteredQuery(matchAllQuery(), queryFilter(boolQuery().must(hasParentQuery("parent", matchQuery("p_field", 1)))))).get();
         assertSearchHit(searchResponse, 1, hasId("2"));
-    }
-
-    @Test
-    public void testHasChildAndHasParentWrappedInAQueryFilterShouldNeverGetCached() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings(ImmutableSettings.builder().put("index.cache.filter.type", "weighted"))
-                .addMapping("parent")
-                .addMapping("child", "_parent", "type=parent"));
-        ensureGreen();
-
-        client().prepareIndex("test", "parent", "1").setSource("p_field", 1).get();
-        client().prepareIndex("test", "child", "2").setParent("1").setSource("c_field", 1).get();
-        refresh();
-
-        for (int i = 0; i < 10; i++) {
-            SearchResponse searchResponse = client().prepareSearch("test")
-                    .setExplain(true)
-                    .setQuery(constantScoreQuery(boolFilter()
-                                    .must(queryFilter(hasChildQuery("child", matchQuery("c_field", 1))))
-                                    .cache(true)
-                    )).get();
-            assertSearchHit(searchResponse, 1, hasId("1"));
-            // Can't start with ConstantScore(cache(BooleanFilter(
-            assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), startsWith("ConstantScore(CustomQueryWrappingFilter("));
-
-            searchResponse = client().prepareSearch("test")
-                    .setExplain(true)
-                    .setQuery(constantScoreQuery(boolFilter()
-                                    .must(queryFilter(boolQuery().must(matchAllQuery()).must(hasChildQuery("child", matchQuery("c_field", 1)))))
-                                    .cache(true)
-                    )).get();
-            assertSearchHit(searchResponse, 1, hasId("1"));
-            // Can't start with ConstantScore(cache(BooleanFilter(
-            assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), startsWith("ConstantScore(CustomQueryWrappingFilter("));
-        }
     }
 
     @Test
@@ -1797,8 +1768,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
             SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(filteredQuery(matchAllQuery(), boolFilter()
                             .must(FilterBuilders.hasChildFilter("child", matchQuery("c_field", "red")))
-                            .must(matchAllFilter())
-                            .cache(true)))
+                            .must(matchAllFilter())))
                     .get();
             assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         }
@@ -1810,8 +1780,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(filteredQuery(matchAllQuery(), boolFilter()
                         .must(FilterBuilders.hasChildFilter("child", matchQuery("c_field", "red")))
-                        .must(matchAllFilter())
-                        .cache(true)))
+                        .must(matchAllFilter())))
                 .get();
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
@@ -1860,103 +1829,6 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
             } while (scrollResponse.getHits().getHits().length > 0);
             assertThat(scannedDocs, equalTo(10));
         }
-    }
-
-    @Test
-    public void testValidateThatHasChildAndHasParentFilterAreNeverCached() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings(builder().put(indexSettings())
-                        //we need 0 replicas here to make sure we always hit the very same shards
-                        .put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("child", "_parent", "type=parent"));
-        ensureGreen();
-
-        client().prepareIndex("test", "parent", "1").setSource("field", "value")
-                .get();
-        client().prepareIndex("test", "child", "1").setParent("1").setSource("field", "value")
-                .setRefresh(true)
-                .get();
-
-        SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(hasChildQuery("child", matchAllQuery()))
-                .get();
-        assertHitCount(searchResponse, 1l);
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(hasParentQuery("parent", matchAllQuery()))
-                .get();
-        assertHitCount(searchResponse, 1l);
-
-        // Internally the has_child and has_parent use filter for the type field, which end up in the filter cache,
-        // so by first checking how much they take by executing has_child and has_parent *query* we can set a base line
-        // for the filter cache size in this test.
-        IndicesStatsResponse statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
-        long initialCacheSize = statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes();
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.hasChildFilter("child", matchAllQuery()).cache(true)))
-                .get();
-        assertHitCount(searchResponse, 1l);
-
-        statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
-        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), equalTo(initialCacheSize));
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.hasParentFilter("parent", matchAllQuery()).cache(true)))
-                .get();
-        assertHitCount(searchResponse, 1l);
-
-        // filter cache should not contain any thing, b/c has_child and has_parent can't be cached.
-        statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
-        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), equalTo(initialCacheSize));
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.filteredQuery(
-                        matchAllQuery(),
-                        FilterBuilders.boolFilter().cache(true)
-                                .must(FilterBuilders.matchAllFilter())
-                                .must(FilterBuilders.hasChildFilter("child", matchAllQuery()).cache(true))
-                ))
-                .get();
-        assertHitCount(searchResponse, 1l);
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.filteredQuery(
-                        matchAllQuery(),
-                        FilterBuilders.boolFilter().cache(true)
-                                .must(FilterBuilders.matchAllFilter())
-                                .must(FilterBuilders.hasParentFilter("parent", matchAllQuery()).cache(true))
-                ))
-                .get();
-        assertHitCount(searchResponse, 1l);
-
-        // filter cache should not contain any thing, b/c has_child and has_parent can't be cached.
-        statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
-        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), equalTo(initialCacheSize));
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.filteredQuery(
-                        matchAllQuery(),
-                        FilterBuilders.boolFilter().cache(true)
-                                .must(FilterBuilders.termFilter("field", "value").cache(true))
-                                .must(FilterBuilders.hasChildFilter("child", matchAllQuery()).cache(true))
-                ))
-                .get();
-        assertHitCount(searchResponse, 1l);
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.filteredQuery(
-                        matchAllQuery(),
-                        FilterBuilders.boolFilter().cache(true)
-                                .must(FilterBuilders.termFilter("field", "value").cache(true))
-                                .must(FilterBuilders.hasParentFilter("parent", matchAllQuery()).cache(true))
-                ))
-                .get();
-        assertHitCount(searchResponse, 1l);
-
-        // filter cache should not contain any thing, b/c has_child and has_parent can't be cached.
-        statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
-        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(initialCacheSize));
     }
 
     // https://github.com/elasticsearch/elasticsearch/issues/5783

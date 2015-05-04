@@ -64,6 +64,6 @@ public class NestedParser implements Aggregator.Parser {
                     parser.getTokenLocation());
         }
 
-        return new NestedAggregator.Factory(aggregationName, path, context.queryParserService().autoFilterCachePolicy());
+        return new NestedAggregator.Factory(aggregationName, path);
     }
 }

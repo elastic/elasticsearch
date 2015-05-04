@@ -234,7 +234,7 @@ QueryBuilder qb = matchAllQuery();
 
 
 [[mlt]]
-=== More Like This (Field) Query (mlt and mlt_field)
+=== More Like This Query (mlt)
 
 See:
  * {ref}/query-dsl-mlt-query.html[More Like This Query]

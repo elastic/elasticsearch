@@ -28,6 +28,7 @@ import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -275,7 +276,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         }
         BytesRef bValue = BytesRefs.toBytesRef(value);
         if (Uid.hasDelimiter(bValue)) {
-            return Queries.wrap(new TermQuery(new Term(names.indexName(), bValue)));
+            return new QueryWrapperFilter(new TermQuery(new Term(names.indexName(), bValue)));
         }
 
         List<String> types = new ArrayList<>(context.mapperService().types().size());
@@ -288,14 +289,14 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         if (types.isEmpty()) {
             return Queries.newMatchNoDocsFilter();
         } else if (types.size() == 1) {
-            return Queries.wrap(new TermQuery(new Term(names.indexName(), Uid.createUidAsBytes(types.get(0), bValue))));
+            return new QueryWrapperFilter(new TermQuery(new Term(names.indexName(), Uid.createUidAsBytes(types.get(0), bValue))));
         } else {
             // we use all non child types, cause we don't know if its exact or not...
             List<BytesRef> typesValues = new ArrayList<>(types.size());
             for (String type : context.mapperService().types()) {
                 typesValues.add(Uid.createUidAsBytes(type, bValue));
             }
-            return Queries.wrap(new TermsQuery(names.indexName(), typesValues));
+            return new QueryWrapperFilter(new TermsQuery(names.indexName(), typesValues));
         }
     }
 
@@ -328,7 +329,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
                 }
             }
         }
-        return Queries.wrap(new TermsQuery(names.indexName(), bValues));
+        return new QueryWrapperFilter(new TermsQuery(names.indexName(), bValues));
     }
 
     /**

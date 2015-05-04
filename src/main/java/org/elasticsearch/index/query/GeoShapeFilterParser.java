@@ -24,15 +24,13 @@ import com.spatial4j.core.shape.Shape;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
-import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -85,8 +83,6 @@ public class GeoShapeFilterParser implements FilterParser {
         ShapeRelation shapeRelation = ShapeRelation.INTERSECTS;
         String strategyName = null;
         ShapeBuilder shape = null;
-        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
-        HashedBytesRef cacheKey = null;
         String filterName = null;
 
         String id = null;
@@ -100,6 +96,8 @@ public class GeoShapeFilterParser implements FilterParser {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 fieldName = currentFieldName;
 
@@ -147,10 +145,6 @@ public class GeoShapeFilterParser implements FilterParser {
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
-                } else if ("_cache".equals(currentFieldName)) {
-                    cache = parseContext.parseFilterCachePolicy();
-                } else if ("_cache_key".equals(currentFieldName)) {
-                    cacheKey = new HashedBytesRef(parser.text());
                 } else {
                     throw new QueryParsingException(parseContext, "[geo_shape] filter does not support [" + currentFieldName + "]");
                 }
@@ -189,13 +183,9 @@ public class GeoShapeFilterParser implements FilterParser {
             Filter intersects = strategy.makeFilter(GeoShapeQueryParser.getArgs(shape, ShapeRelation.INTERSECTS));
             bool.add(exists, BooleanClause.Occur.MUST);
             bool.add(intersects, BooleanClause.Occur.MUST_NOT);
-            filter = Queries.wrap(bool);
+            filter = new QueryWrapperFilter(bool);
         } else {
             filter = strategy.makeFilter(GeoShapeQueryParser.getArgs(shape, shapeRelation));
-        }
-
-        if (cache != null) {
-            filter = parseContext.cacheFilter(filter, cacheKey, cache);
         }
 
         if (filterName != null) {

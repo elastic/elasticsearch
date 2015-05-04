@@ -22,10 +22,10 @@ package org.elasticsearch.index.aliases;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -109,7 +109,7 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
                     return null;
                 }
             }
-            return Queries.wrap(combined);
+            return new QueryWrapperFilter(combined);
         }
     }
 

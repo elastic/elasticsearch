@@ -23,9 +23,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryCachingPolicy;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -55,8 +53,6 @@ public class FilteredQueryParser implements QueryParser {
         Filter filter = null;
         boolean filterFound = false;
         float boost = 1.0f;
-        QueryCachingPolicy cache = parseContext.autoFilterCachePolicy();
-        HashedBytesRef cacheKey = null;
         String queryName = null;
 
         String currentFieldName = null;
@@ -66,6 +62,8 @@ public class FilteredQueryParser implements QueryParser {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
                     query = parseContext.parseInnerQuery();
@@ -99,10 +97,6 @@ public class FilteredQueryParser implements QueryParser {
                     queryName = parser.text();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if ("_cache".equals(currentFieldName)) {
-                    cache = parseContext.parseFilterCachePolicy();
-                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new HashedBytesRef(parser.text());
                 } else {
                     throw new QueryParsingException(parseContext, "[filtered] query does not support [" + currentFieldName + "]");
                 }
@@ -127,11 +121,6 @@ public class FilteredQueryParser implements QueryParser {
         if (Queries.isConstantMatchAllQuery(filter)) {
             // this is an instance of match all filter, just execute the query
             return query;
-        }
-
-        // cache if required
-        if (cache != null) {
-            filter = parseContext.cacheFilter(filter, cacheKey, cache);
         }
 
         // if its a match_all query, use constant_score

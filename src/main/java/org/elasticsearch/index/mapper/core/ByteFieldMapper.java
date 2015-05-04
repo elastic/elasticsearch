@@ -27,6 +27,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
@@ -34,7 +35,6 @@ import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -212,7 +212,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
             @Nullable QueryParseContext context) {
-        return Queries.wrap(NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
+        return new QueryWrapperFilter(NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseValueAsInt(lowerTerm),
                 upperTerm == null ? null : parseValueAsInt(upperTerm),
                 includeLower, includeUpper));
@@ -231,7 +231,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
         if (nullValue == null) {
             return null;
         }
-        return Queries.wrap(NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
+        return new QueryWrapperFilter(NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 nullValue.intValue(),
                 nullValue.intValue(),
                 true, true));

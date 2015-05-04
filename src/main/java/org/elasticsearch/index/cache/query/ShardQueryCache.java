@@ -21,14 +21,10 @@ package org.elasticsearch.index.cache.query;
 
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
-import org.apache.lucene.search.DocIdSet;
-import org.elasticsearch.common.bytes.BytesReference;
+
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.filter.FilterCacheStats;
-import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;

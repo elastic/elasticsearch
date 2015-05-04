@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.index.CompositeReader;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.MinimalMap;
@@ -40,13 +40,10 @@ public class LeafIndexLookup extends MinimalMap<String, IndexField> {
 
     // The parent reader from which we can get proper field and term
     // statistics
-    private final CompositeReader parentReader;
+    private final IndexReader parentReader;
 
     // we need this later to get the field and term statistics of the shard
     private final IndexSearcher indexSearcher;
-
-    // we need this later to get the term statistics of the shard
-    private final IndexReaderContext indexReaderContext;
 
     // current docId
     private int docId = -1;
@@ -90,15 +87,9 @@ public class LeafIndexLookup extends MinimalMap<String, IndexField> {
 
     public LeafIndexLookup(LeafReaderContext ctx) {
         reader = ctx.reader();
-        if (ctx.parent != null) {
-            parentReader = ctx.parent.reader();
-            indexSearcher = new IndexSearcher(parentReader);
-            indexReaderContext = ctx.parent;
-        } else {
-            parentReader = null;
-            indexSearcher = null;
-            indexReaderContext = null;
-        }
+        parentReader = ReaderUtil.getTopLevelContext(ctx).reader();
+        indexSearcher = new IndexSearcher(parentReader);
+        indexSearcher.setQueryCache(null);
     }
 
     public void setDocument(int docId) {
@@ -175,13 +166,10 @@ public class LeafIndexLookup extends MinimalMap<String, IndexField> {
     }
 
     public IndexSearcher getIndexSearcher() {
-        if (indexSearcher == null) {
-            return new IndexSearcher(reader);
-        }
         return indexSearcher;
     }
 
     public IndexReaderContext getReaderContext() {
-        return indexReaderContext;
+        return getParentReader().getContext();
     }
 }

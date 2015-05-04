@@ -21,10 +21,10 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
@@ -68,10 +68,10 @@ public class TypeFilterParser implements FilterParser {
         //LUCENE 4 UPGRADE document mapper should use bytesref as well? 
         DocumentMapper documentMapper = parseContext.mapperService().documentMapper(type.utf8ToString());
         if (documentMapper == null) {
-            filter = Queries.wrap(new TermQuery(new Term(TypeFieldMapper.NAME, type)));
+            filter = new QueryWrapperFilter(new TermQuery(new Term(TypeFieldMapper.NAME, type)));
         } else {
             filter = documentMapper.typeFilter();
         }
-        return parseContext.cacheFilter(filter, null, parseContext.autoFilterCachePolicy());
+        return filter;
     }
 }

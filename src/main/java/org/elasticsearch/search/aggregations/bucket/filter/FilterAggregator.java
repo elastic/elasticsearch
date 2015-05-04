@@ -20,6 +20,8 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -42,24 +44,23 @@ import java.util.Map;
  */
 public class FilterAggregator extends SingleBucketAggregator {
 
-    private final Filter filter;
+    private final Weight filter;
 
     public FilterAggregator(String name,
-                            org.apache.lucene.search.Filter filter,
+                            Query filter,
                             AggregatorFactories factories,
                             AggregationContext aggregationContext,
                             Aggregator parent, List<Reducer> reducers,
                             Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, reducers, metaData);
-        this.filter = filter;
+        this.filter = aggregationContext.searchContext().searcher().createNormalizedWeight(filter, false);
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
-        // TODO: use the iterator if the filter does not support random access
         // no need to provide deleted docs to the filter
-        final Bits bits = DocIdSets.asSequentialAccessBits(ctx.reader().maxDoc(), filter.getDocIdSet(ctx, null));
+        final Bits bits = DocIdSets.asSequentialAccessBits(ctx.reader().maxDoc(), filter.scorer(ctx, null));
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long bucket) throws IOException {

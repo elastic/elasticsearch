@@ -20,7 +20,6 @@
 package org.elasticsearch.index.percolator;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -28,7 +27,6 @@ import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -93,7 +91,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
     private CloseableThreadLocal<QueryParseContext> cache = new CloseableThreadLocal<QueryParseContext>() {
         @Override
         protected QueryParseContext initialValue() {
-            return new QueryParseContext(shardId.index(), queryParserService, true);
+            return new QueryParseContext(shardId.index(), queryParserService);
         }
     };
 
@@ -280,13 +278,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
             shard.refresh("percolator_load_queries");
             // Maybe add a mode load? This isn't really a write. We need write b/c state=post_recovery
             try (Engine.Searcher searcher = shard.acquireSearcher("percolator_load_queries", true)) {
-                Query query = new ConstantScoreQuery(
-                        indexCache.filter().cache(
-                                Queries.wrap(new TermQuery(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME))),
-                                null,
-                                queryParserService.autoFilterCachePolicy()
-                        )
-                );
+                Query query = new TermQuery(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME));
                 QueriesLoaderCollector queryCollector = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger, mapperService, indexFieldDataService);
                 searcher.searcher().search(query, queryCollector);
                 Map<BytesRef, Query> queries = queryCollector.queries();

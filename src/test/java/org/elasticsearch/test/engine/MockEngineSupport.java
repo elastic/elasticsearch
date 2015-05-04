@@ -24,6 +24,8 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.QueryCache;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
@@ -56,6 +58,8 @@ public final class MockEngineSupport {
     private final AtomicBoolean closing = new AtomicBoolean(false);
     private final ESLogger logger = Loggers.getLogger(Engine.class);
     private final ShardId shardId;
+    private final QueryCache filterCache;
+    private final QueryCachingPolicy filterCachingPolicy;
     private final SearcherCloseable searcherCloseable;
     private final MockContext mockContext;
 
@@ -78,13 +82,15 @@ public final class MockEngineSupport {
     public MockEngineSupport(EngineConfig config) {
         Settings indexSettings = config.getIndexSettings();
         shardId = config.getShardId();
+        filterCache = config.getFilterCache();
+        filterCachingPolicy = config.getFilterCachingPolicy();
         final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.SETTING_INDEX_SEED, 0l);
         Random random = new Random(seed);
         final double ratio = indexSettings.getAsDouble(WRAP_READER_RATIO, 0.0d); // DISABLED by default - AssertingDR is crazy slow
         Class<? extends AssertingDirectoryReader> wrapper = indexSettings.getAsClass(READER_WRAPPER_TYPE, AssertingDirectoryReader.class);
         boolean wrapReader = random.nextDouble() < ratio;
         if (logger.isTraceEnabled()) {
-            logger.trace("Using [{}] for shard [{}] seed: [{}] wrapReader: [{}]", this.getClass().getName(), config.getShardId(), seed, wrapReader);
+            logger.trace("Using [{}] for shard [{}] seed: [{}] wrapReader: [{}]", this.getClass().getName(), shardId, seed, wrapReader);
         }
         mockContext = new MockContext(random, wrapReader, wrapper, indexSettings);
         this.searcherCloseable = new SearcherCloseable();
@@ -123,6 +129,8 @@ public final class MockEngineSupport {
         // this executes basic query checks and asserts that weights are normalized only once etc.
         final AssertingIndexSearcher assertingIndexSearcher = new AssertingIndexSearcher(mockContext.random, wrappedReader);
         assertingIndexSearcher.setSimilarity(searcher.getSimilarity());
+        assertingIndexSearcher.setQueryCache(filterCache);
+        assertingIndexSearcher.setQueryCachingPolicy(filterCachingPolicy);
         return assertingIndexSearcher;
     }
 

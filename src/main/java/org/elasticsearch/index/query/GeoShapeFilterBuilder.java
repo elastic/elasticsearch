@@ -37,9 +37,6 @@ public class GeoShapeFilterBuilder extends BaseFilterBuilder {
 
     private SpatialStrategy strategy = null;
 
-    private Boolean cache;
-    private String cacheKey;
-
     private String filterName;
 
     private final String indexedShapeId;
@@ -91,28 +88,6 @@ public class GeoShapeFilterBuilder extends BaseFilterBuilder {
         this.indexedShapeId = indexedShapeId;
         this.relation = relation;
         this.indexedShapeType = indexedShapeType;
-    }
-
-    /**
-     * Sets whether the filter will be cached.
-     *
-     * @param cache Whether filter will be cached
-     * @return this
-     */
-    public GeoShapeFilterBuilder cache(boolean cache) {
-        this.cache = cache;
-        return this;
-    }
-
-    /**
-     * Sets the key used for the filter if it is cached
-     *
-     * @param cacheKey Key for the Filter if cached
-     * @return this
-     */
-    public GeoShapeFilterBuilder cacheKey(String cacheKey) {
-        this.cacheKey = cacheKey;
-        return this;
     }
 
     /**
@@ -204,12 +179,6 @@ public class GeoShapeFilterBuilder extends BaseFilterBuilder {
 
         if (name != null) {
             builder.field("_name", filterName);
-        }
-        if (cache != null) {
-            builder.field("_cache", cache);
-        }
-        if (cacheKey != null) {
-            builder.field("_cache_key", cacheKey);
         }
 
         builder.endObject();

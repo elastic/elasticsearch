@@ -145,6 +145,8 @@ public class InternalEngine extends Engine {
                 if (skipInitialTranslogRecovery) {
                     // make sure we point at the latest translog from now on..
                     commitIndexWriter(writer, translog.currentId());
+                    translog.markCommitted(translog.currentId());
+
                 } else {
                     recoverFromTranslog(engineConfig, committedTranslogId);
                 }
